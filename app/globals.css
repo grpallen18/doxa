@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Core layout colors (inspired by Figma export) */
+  --background: #e4e1dd;
+  --surface: #e9e6e2;
+  --surface-soft: #ede9e4;
+  --surface-section: #ddd9d3;
+
+  /* Text colors */
+  --foreground: #1a1712;
+  --muted: #4a4539;
+  --muted-soft: #6a6053;
+
+  /* Accent system */
+  --accent-gold: #c9a55d;
+  --accent-gold-soft: rgba(201, 165, 93, 0.22);
+  --accent-cyan: #7eb8b3;
+
+  /* Borders & shadows */
+  --border-subtle: #d4d1cd;
+  --shadow-panel-soft: 8px 8px 24px rgba(0, 0, 0, 0.06),
+    -8px -8px 24px rgba(255, 255, 255, 0.8);
+  --shadow-panel-hover: 6px 6px 20px rgba(0, 0, 0, 0.08),
+    -6px -6px 20px rgba(255, 255, 255, 0.9);
+  --shadow-button-primary: 4px 4px 12px rgba(0, 0, 0, 0.1),
+    -2px -2px 8px rgba(255, 255, 255, 0.5);
+  --shadow-button-secondary: 4px 4px 12px rgba(0, 0, 0, 0.08),
+    -2px -2px 8px rgba(255, 255, 255, 0.7);
+  --shadow-inset-strong: inset 4px 4px 10px rgba(0, 0, 0, 0.08),
+    inset -4px -4px 10px rgba(255, 255, 255, 0.6);
+  --shadow-inset-soft: inset 3px 3px 8px rgba(0, 0, 0, 0.08),
+    inset -3px -3px 8px rgba(255, 255, 255, 0.6);
+
+  /* Radii */
+  --radius-lg: 20px;
+  --radius-md: 16px;
+  --radius-pill: 999px;
+
+  /* Graph visualization (node map) */
+  --graph-node-stable: #c9a55d;
+  --graph-node-under-review: #7eb8b3;
+  --graph-node-draft: #6a6053;
+  --graph-node-default: #4a4539;
+  --graph-link: rgba(74, 69, 57, 0.25);
+}
+
+body {
+  color: var(--foreground);
+  background: radial-gradient(circle at top left, #f0ece7 0, #e4e1dd 40%, #d6d1cb 100%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  .panel-bevel {
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-panel-soft);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    padding: 1.75rem;
+  }
+
+  .panel-bevel-soft {
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-panel-soft);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+  }
+
+  .panel-bevel-interactive {
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease,
+      background-color 150ms ease;
+  }
+
+  .panel-bevel-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      -12px -12px 32px rgba(255, 255, 255, 0.95),
+      16px 16px 38px var(--shadow-soft-darker);
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center text-sm font-medium;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.5rem;
+    color: var(--foreground);
+    background-color: var(--accent-gold);
+    box-shadow: var(--shadow-button-primary);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    transition:
+      transform 120ms ease,
+      box-shadow 120ms ease,
+      filter 120ms ease;
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.02);
+    transform: translateY(-1px);
+    box-shadow:
+      -4px -4px 12px rgba(255, 255, 255, 0.95),
+      0 14px 26px rgba(75, 54, 20, 0.4);
+  }
+
+  .btn-primary:active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center text-sm font-medium;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.5rem;
+    color: var(--foreground);
+    background-color: var(--surface);
+    box-shadow: var(--shadow-button-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    transition:
+      transform 120ms ease,
+      box-shadow 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .btn-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      -4px -4px 12px rgba(255, 255, 255, 0.95),
+      8px 8px 18px rgba(22, 19, 15, 0.2);
+  }
+
+  .btn-secondary:active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.12),
+      0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  .indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 20%, #fff7e0 0, var(--accent-gold) 55%, #8b6a30 100%);
+    box-shadow:
+      0 0 0 3px var(--accent-gold-soft),
+      0 0 8px rgba(209, 167, 90, 0.7);
+  }
+
+  .knob {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 20%, #ffffff 0, #f3ece3 40%, #d7cec2 100%);
+    box-shadow:
+      -3px -3px 6px rgba(255, 255, 255, 0.95),
+      4px 4px 10px rgba(22, 19, 15, 0.25);
+    position: relative;
+  }
+
+  .knob::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 2px;
+    height: 8px;
+    border-radius: 999px;
+    background: #8b7b63;
+    transform: translateX(-50%);
+  }
+
+  .slider-rail {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(to right, #ded6c9, #f7f0e6);
+    box-shadow:
+      inset 0 1px 2px rgba(255, 255, 255, 0.9),
+      inset 0 -1px 2px rgba(163, 149, 130, 0.4);
+  }
+
+  .slider-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 30% 20%, #ffffff 0, #f3ece3 45%, #cfc3b3 100%);
+    box-shadow:
+      -2px -2px 4px rgba(255, 255, 255, 0.9),
+      3px 3px 6px rgba(22, 19, 15, 0.25);
+  }
+}
