@@ -57,33 +57,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* How it works */}
-        <section id="how-it-works" aria-labelledby="how-heading" className="space-y-6">
-          <h2 id="how-heading" className="text-xl font-semibold tracking-tight sm:text-2xl">
-            How it works
-          </h2>
-          <div className="grid gap-6 md:grid-cols-3">
-            <Panel variant="base" className="panel-bevel-interactive flex flex-col gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">1. Search or browse</p>
-              <p className="text-sm text-foreground">
-                Find a story or topic you want to understand. Use the search bar or explore the topic map.
-              </p>
-            </Panel>
-            <Panel variant="base" className="panel-bevel-interactive flex flex-col gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">2. See how it&apos;s framed</p>
-              <p className="text-sm text-foreground">
-                Get a clear view of the facts, how different perspectives frame them, and where they agree or disagree.
-              </p>
-            </Panel>
-            <Panel variant="base" className="panel-bevel-interactive flex flex-col gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">3. Contribute</p>
-              <p className="text-sm text-foreground">
-                Sign up (free) to explore, participate in polls, and provide feedback that improves the model.
-              </p>
-            </Panel>
-          </div>
-        </section>
-
         {/* CTA band */}
         <Panel
           as="section"
@@ -112,10 +85,10 @@ export default function Home() {
         >
           <div className="flex flex-wrap items-center gap-4">
             <span>© {new Date().getFullYear()} Doxa.</span>
-            <Link href="#about" className="hover:text-foreground">
+            <Link href="/about" className="hover:text-foreground">
               About
             </Link>
-            <Link href="#how-it-works" className="hover:text-foreground">
+            <Link href="/about#how-heading" className="hover:text-foreground">
               How it works
             </Link>
             <a href="/graph" className="hover:text-foreground">

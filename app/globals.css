@@ -5,26 +5,26 @@
 :root {
   /* Core layout colors (inspired by Figma export) */
   --background: #e4e1dd;
-  --surface: #e9e6e2;
-  --surface-soft: #ede9e4;
+  --surface: rgba(233, 230, 226, 1);
+  --surface-soft: #50c0a04d;
   --surface-section: #ddd9d3;
 
   /* Text colors */
-  --foreground: #1a1712;
+  --foreground: rgba(26, 23, 18, 1);
   --muted: #4a4539;
   --muted-soft: #6a6053;
 
-  /* Accent system */
-  --accent-gold: #c9a55d;
-  --accent-gold-soft: rgba(201, 165, 93, 0.22);
-  --accent-cyan: #7eb8b3;
+  /* Accent system (primary = main CTAs/signals; secondary = secondary states) */
+  --accent-primary: #7ec0ad;
+  --accent-primary-soft: rgba(93, 201, 174, 0.22);
+  --accent-secondary: #b88a7e;
 
   /* Borders & shadows */
   --border-subtle: #d4d1cd;
-  --shadow-panel-soft: 8px 8px 24px rgba(0, 0, 0, 0.06),
-    -8px -8px 24px rgba(255, 255, 255, 0.8);
-  --shadow-panel-hover: 6px 6px 20px rgba(0, 0, 0, 0.08),
-    -6px -6px 20px rgba(255, 255, 255, 0.9);
+  --shadow-panel-soft: 1em 1em 1em rgba(0, 0, 0, 0.06),
+    -0.75em -0.75em 1em rgba(255, 255, 255, 0.9);
+  --shadow-panel-hover: 1em 1em 1em rgba(0, 0, 0, 0.06),
+    -0.75em -0.75em 1em rgba(255, 255, 255, 0.9);
   --shadow-button-primary: 4px 4px 12px rgba(0, 0, 0, 0.1),
     -2px -2px 8px rgba(255, 255, 255, 0.5);
   --shadow-button-secondary: 4px 4px 12px rgba(0, 0, 0, 0.08),
@@ -35,7 +35,7 @@
     inset -3px -3px 8px rgba(255, 255, 255, 0.6);
 
   /* Radii */
-  --radius-lg: 20px;
+  --radius-lg: 0.75em;
   --radius-md: 16px;
   --radius-pill: 999px;
 
@@ -65,29 +65,30 @@ body {
     border-radius: var(--radius-lg);
     background: var(--surface);
     box-shadow: var(--shadow-panel-soft);
-    border: 1px solid rgba(255, 255, 255, 0.8);
+    border: 1.5px solid var(--surface);
     padding: 1.75rem;
+    transition: ease 0.2s;
   }
 
   .panel-bevel-soft {
     border-radius: var(--radius-lg);
     background: var(--surface);
     box-shadow: var(--shadow-panel-soft);
-    border: 1px solid rgba(255, 255, 255, 0.7);
+    border: 1.5px solid var(--surface);
+    transition: ease 0.2s;
   }
 
   .panel-bevel-interactive {
-    transition:
-      transform 150ms ease,
-      box-shadow 150ms ease,
-      background-color 150ms ease;
+    transition: ease 0.2s;
   }
 
   .panel-bevel-interactive:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      -12px -12px 32px rgba(255, 255, 255, 0.95),
-      16px 16px 38px var(--shadow-soft-darker);
+    background-color: var(--surface-soft);
+  }
+
+  .panel-bevel-interactive:active {
+    box-shadow: var(--shadow-inset-strong);
+    transform: translateY(1px);
   }
 
   .btn-primary {
@@ -95,8 +96,12 @@ body {
     border-radius: var(--radius-md);
     padding: 0.75rem 1.5rem;
     color: var(--foreground);
-    background-color: var(--accent-gold);
-    box-shadow: var(--shadow-button-primary);
+    background-color: var(--accent-primary);
+    filter: brightness(1.02);
+    transform: translateY(-1px);
+    box-shadow:
+      -4px -4px 12px rgba(255, 255, 255, 0.95),
+      0 14px 26px rgba(75, 54, 20, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.5);
     transition:
       transform 120ms ease,
@@ -125,7 +130,7 @@ body {
     padding: 0.75rem 1.5rem;
     color: var(--foreground);
     background-color: var(--surface);
-    box-shadow: var(--shadow-button-secondary);
+    box-shadow: var(--shadow-panel-soft);
     border: 1px solid rgba(255, 255, 255, 0.7);
     transition:
       transform 120ms ease,
@@ -145,6 +150,20 @@ body {
     box-shadow:
       inset 0 2px 4px rgba(0, 0, 0, 0.12),
       0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Search bar input: surface background, foreground text */
+  .search-input {
+    color: rgba(26, 23, 18, 1);
+    background-color: rgba(233, 230, 226, 1);
+  }
+
+  /* Hide native search clear (custom Lucide clear used for cross-browser accent color) */
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 0;
+    width: 0;
   }
 
   .indicator-dot {

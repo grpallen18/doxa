@@ -6,7 +6,7 @@ type InstrumentModuleProps = {
 
 export function InstrumentModule({ title, value = '60%', indicator }: InstrumentModuleProps) {
   return (
-    <div className="rounded-[16px] bg-surface p-5 shadow-panel-soft">
+    <div className="rounded-bevel bg-surface p-5 shadow-panel-soft">
       <div className="mb-4 flex items-center justify-between">
         <span className="text-sm font-medium uppercase tracking-[0.12em] text-muted">
           {title}
@@ -20,7 +20,7 @@ export function InstrumentModule({ title, value = '60%', indicator }: Instrument
         </div>
         <div className="flex-1 rounded-full bg-background shadow-inset-soft">
           <div
-            className="h-2 rounded-full bg-accent-cyan"
+            className="h-2 rounded-full bg-accent-secondary"
             style={{ width: value }}
           />
         </div>

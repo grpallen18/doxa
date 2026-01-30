@@ -91,7 +91,7 @@ export default function GraphVisualization() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <Panel variant="soft" className="flex flex-col items-center gap-4 p-8">
           <div
-            className="h-12 w-12 animate-spin rounded-full border-2 border-muted border-t-accent-gold"
+            className="h-12 w-12 animate-spin rounded-full border-2 border-muted border-t-accent-primary"
             aria-hidden
           />
           <p className="text-sm text-muted">Loading graph…</p>

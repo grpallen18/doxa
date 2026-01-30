@@ -65,7 +65,7 @@ export default function PerspectiveSection({
 
   return (
     <>
-      <div className="panel-bevel-soft space-y-4 rounded-[16px] p-5">
+      <div className="panel-bevel-soft space-y-4 p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold tracking-tight">{perspective.name}</h3>

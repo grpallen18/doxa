@@ -14,8 +14,8 @@ const config: Config = {
         muted: 'var(--muted)',
         'muted-soft': 'var(--muted-soft)',
         accent: {
-          gold: 'var(--accent-gold)',
-          cyan: 'var(--accent-cyan)',
+          primary: 'var(--accent-primary)',
+          secondary: 'var(--accent-secondary)',
         },
       },
       borderRadius: {

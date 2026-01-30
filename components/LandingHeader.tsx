@@ -16,26 +16,19 @@ export function LandingHeader() {
         className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
       >
         <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-90">
-            <div className="flex h-9 w-9 items-center justify-center rounded-[20px] bg-surface-soft text-xs font-semibold tracking-[0.2em] text-muted shadow-panel-soft">
-              DX
-            </div>
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted">
-                Doxa
-              </p>
-              <p className="text-[11px] text-muted-soft">
-                Political signal instrument
-              </p>
-            </div>
+          <Link href="/" className="text-sm font-semibold uppercase tracking-[0.18em] text-muted transition-colors hover:text-accent-primary">
+            DOXA
           </Link>
 
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-6 text-sm text-muted md:flex">
-              <Link href="/profile" className="transition-colors hover:text-foreground">
+              <Link href="/profile" className="transition-colors hover:text-accent-primary">
                 Account
               </Link>
-              <a href="#" className="transition-colors hover:text-foreground">
+              <Link href="/about" className="transition-colors hover:text-accent-primary">
+                About
+              </Link>
+              <a href="#" className="transition-colors hover:text-accent-primary">
                 Log out
               </a>
             </div>
@@ -62,10 +55,13 @@ export function LandingHeader() {
 
         {open && (
           <div className="flex flex-col gap-3 border-t border-subtle pt-3 text-sm text-muted md:hidden">
-            <Link href="/profile" className="hover:text-foreground">
+            <Link href="/profile" className="hover:text-accent-primary">
               Account
             </Link>
-            <a href="#" className="hover:text-foreground">
+            <Link href="/about" className="hover:text-accent-primary">
+              About
+            </Link>
+            <a href="#" className="hover:text-accent-primary">
               Log out
             </a>
           </div>

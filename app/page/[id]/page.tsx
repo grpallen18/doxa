@@ -281,7 +281,7 @@ export default async function TopicPage({ params }: { params: { id: string } }) 
                   <Link
                     key={rel.id}
                     href={`/page/${relatedNode.id}`}
-                    className="panel-bevel-soft block rounded-[16px] p-4 text-sm transition hover:shadow-panel-hover"
+                    className="panel-bevel-soft block rounded-bevel p-4 text-sm transition"
                   >
                     <div className="mb-1 text-xs uppercase tracking-[0.18em] text-muted">
                       {rel.relationship_type.replace('_', ' ')}

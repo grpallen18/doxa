@@ -101,7 +101,7 @@ The site uses a **neumorphic, instrument-panel** look: warm light gray surfaces,
 - **Background:** Warm off-white / light gray (`--background`, `--surface` in `app/globals.css`). No pure white.
 - **Panels & cards:** Same base as background but 2–4% lighter; use the shared `Panel` component and token-driven shadows (`--shadow-panel-soft`, `--shadow-panel-hover`). Consistent radius (e.g. `--radius-lg`).
 - **Shadows:** Soft, low contrast; light from top-left. No harsh drop shadows. Use CSS variables in `globals.css`, not inline `box-shadow`.
-- **Color:** Mostly monochrome. **Muted gold** (`--accent-gold`) for primary CTAs and signal indicators; **muted cyan** (`--accent-cyan`) for secondary states. Text: `--foreground`, `--muted`, `--muted-soft`.
+- **Color:** Mostly monochrome. **Primary accent** (`--accent-primary`) for primary CTAs and signal indicators; **secondary accent** (`--accent-secondary`) for secondary states. Text: `--foreground`, `--muted`, `--muted-soft`.
 - **Typography:** Modern sans (system UI / Inter-style), plenty of whitespace, clear hierarchy. No decorative fonts.
 - **Components:** Use `Panel`, `Button`, and (where relevant) `InstrumentModule` from `components/`. Prefer design tokens and Tailwind theme keys from `tailwind.config.ts`; avoid inline hex colors or shadow strings.
 - **Spacing:** Align to an 8pt grid (e.g. 8, 12, 16, 24, 32) for padding, gaps, and margins.

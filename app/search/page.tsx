@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { Panel } from '@/components/Panel'
-import { Button } from '@/components/Button'
 import { LandingHeader } from '@/components/LandingHeader'
 
 const PLACEHOLDER_RESULTS = [
@@ -23,27 +22,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
         <LandingHeader />
-
-        <section aria-label="Search" className="w-full">
-          <form action="/search" method="get" className="w-full">
-            <label htmlFor="search-input" className="sr-only">
-              Search for a headline or topic to research
-            </label>
-            <div className="flex w-full flex-col gap-3 sm:flex-row">
-              <input
-                id="search-input"
-                type="search"
-                name="q"
-                defaultValue={query}
-                placeholder="Search for a headline or topic to research"
-                className="min-h-[48px] flex-1 rounded-bevel border border-subtle bg-surface px-4 py-3 text-base text-foreground shadow-inset-soft placeholder:text-muted-soft outline-none transition-shadow focus:shadow-inset-strong"
-              />
-              <Button type="submit" variant="primary" className="min-h-[48px] shrink-0 px-6">
-                Search
-              </Button>
-            </div>
-          </form>
-        </section>
 
         <section aria-labelledby="results-heading" className="space-y-4">
           <h2 id="results-heading" className="text-lg font-semibold tracking-tight text-foreground">
