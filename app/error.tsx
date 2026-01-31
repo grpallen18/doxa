@@ -38,7 +38,7 @@ export default function Error({
           </Button>
           <a
             href="/"
-            className="btn-secondary inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
+            className="btn-primary inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
           >
             Go home
           </a>

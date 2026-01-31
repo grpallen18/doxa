@@ -9,7 +9,7 @@ export default function AboutPage() {
         <LandingHeader />
 
         <section aria-labelledby="about-heading" className="space-y-8">
-          <Panel variant="soft" className="w-full space-y-6 border-l-4 border-l-accent-primary pl-5 pr-5 py-5 md:pl-6 md:pr-6 md:py-6">
+          <Panel variant="soft" interactive={false} className="w-full space-y-6 border-l-4 border-l-accent-primary pl-5 pr-5 py-5 md:pl-6 md:pr-6 md:py-6">
             <div className="space-y-1">
               <p id="about-heading" className="text-base font-bold uppercase tracking-[0.12em] text-muted">
                 DOXA
@@ -42,19 +42,19 @@ export default function AboutPage() {
               How it works
             </h2>
             <div className="grid gap-6 md:grid-cols-3">
-              <Panel variant="base" className="panel-bevel-interactive flex flex-col gap-3">
+              <Panel variant="base" className="flex flex-col gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">1. Search or browse</p>
                 <p className="text-sm text-muted">
                   Find a story or topic you want to understand. Use the search bar or explore the topic map.
                 </p>
               </Panel>
-              <Panel variant="base" className="panel-bevel-interactive flex flex-col gap-3">
+              <Panel variant="base" className="flex flex-col gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">2. See how it&apos;s framed</p>
                 <p className="text-sm text-muted">
                   Get a clear view of the facts, how different perspectives frame them, and where they agree or disagree.
                 </p>
               </Panel>
-              <Panel variant="base" className="panel-bevel-interactive flex flex-col gap-3">
+              <Panel variant="base" className="flex flex-col gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">3. Contribute</p>
                 <p className="text-sm text-muted">
                   Sign up (free) to explore, participate in polls, and provide feedback that improves the model.

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { Node } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
+  const supabase = await createClient()
   try {
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status')

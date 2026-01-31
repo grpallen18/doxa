@@ -110,7 +110,16 @@ Tokens and component classes live in `app/globals.css` and `tailwind.config.ts`.
 
 ## Navigation & Key Pages
 
-- **Home (`/`):** Search-first landing page with a big search bar, a weekly poll (placeholder), a \"Trending stories\" panel of topic nodes, a simple \"How it works\" section, and a CTA band inviting users to create a free profile (no paid features).
+The site is **gated**: unauthenticated users are redirected to `/login`. Authenticated users (cached session) go straight to the requested page.
+
+- **Login (`/login`):** Landing page for unauthenticated users. Supabase UI Library–style sign-in form (email + password) and “Login with GitHub” (OAuth). Links to sign-up and forgot-password. On success, redirects to home or the `redirect` query param.
+- **Sign up (`/auth/sign-up`):** Create an account with email and password. After sign-up, users receive a confirmation email; they confirm via `/auth/confirm` (token link).
+- **Forgot password (`/auth/forgot-password`):** Request a password-reset email. Reset link goes to `/auth/confirm` (recovery type), then user sets a new password at `/auth/update-password`.
+- **Auth callback (`/auth/callback`):** Handles OAuth and magic-link callbacks (code exchange). Redirects to `/` or the `redirect` query param.
+- **Auth confirm (`/auth/confirm`):** Handles email confirmation and password-reset links (token_hash + type). Redirects to `/` or the `next` query param.
+- **Auth error (`/auth/error`):** Displays auth errors (e.g. invalid token, OAuth failure).
+- **Home (`/`):** Search-first landing page with a big search bar, a weekly poll (placeholder), a \"Trending stories\" panel of topic nodes, and a CTA band. Footer links to About and Topics. Only reachable when signed in.
+- **About (`/about`):** Mission summary, DOXA definition and Plato quote, body copy on how Doxa surfaces and clarifies viewpoints, and the \"How it works\" three-step section (search/browse, see framing, contribute). Linked from the header nav and footer.
 - **Search (`/search`):** Placeholder search results page that echoes the query and shows static example topics; a real search backend is not yet implemented.
 - **Profile (`/profile`):** Account & ideology stub page showing read-only, placeholder factor ratings and an overall ideology label; the real ideology engine is not yet implemented.
 - **Node map (graph) (`/graph`):** From the main page, click **Topics** in the top navigation bar to open the interactive knowledge graph. The node map shows political topics as nodes; click a node to open its topic page at `/page/[id]`.
@@ -131,27 +140,37 @@ npm install
 
 3. **Set up environment variables:**
    - Create `.env.local` file in the root directory
-   - Add your Supabase credentials:
+   - Add your Supabase credentials (auth uses these for session cookies):
    ```
-   NEXT_PUBLIC_SUPABASE_URL=https://gjxihyaovyfwajjyoyoz.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_PeUkfHqn8NNHbfiCQmRC3Q_dv8AUr5S
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
    ```
+   - You can use `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` instead of `NEXT_PUBLIC_SUPABASE_ANON_KEY` if your project provides it.
    - Add OpenAI API key (optional, for content generation):
    ```
    OPENAI_API_KEY=your_key_here
    ```
 
-4. **Run the development server:**
+4. **Configure Supabase Dashboard (Auth):**
+   - **URL Configuration:** In [Auth → URL Configuration](https://supabase.com/dashboard/project/_/auth/url-configuration), set **Site URL** (e.g. `http://localhost:3000` for dev, `https://yourdomain.com` for production) and add **Redirect URLs**:  
+     `http://localhost:3000/auth/callback`, `http://localhost:3000/auth/confirm`, `http://localhost:3000/auth/forgot-password` (and production equivalents).
+   - **Auth providers:** Enable **Email** (for sign-up/sign-in). For “Login with GitHub,” enable **GitHub** under [Auth → Providers](https://supabase.com/dashboard/project/_/auth/providers) and add your GitHub OAuth app credentials.
+   - **Email templates:** In [Auth → Email Templates](https://supabase.com/dashboard/project/_/auth/templates), ensure **Confirm signup** and **Reset password** links point to your app:  
+     - Sign-up: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo }}`  
+     - Recovery: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next={{ .RedirectTo }}`
+
+5. **Run the development server:**
 ```bash
 npm run dev
 ```
 
-5. **Open [http://localhost:3000](http://localhost:3000) in your browser.**
+6. **Open [http://localhost:3000](http://localhost:3000) in your browser.** You will be redirected to `/login` until you sign in or sign up.
 
 ## Project Structure
 
 ```
 doxa/
+├── middleware.ts               # Session refresh + redirect unauthenticated to /login
 ├── app/                        # Next.js App Router
 │   ├── api/                   # API routes
 │   │   ├── graph/             # Graph data (nodes + relationships)
@@ -162,6 +181,17 @@ doxa/
 │   ├── globals.css            # Design tokens and neumorphic component classes
 │   ├── layout.tsx             # Root layout
 │   ├── page.tsx               # Home (search-first landing)
+│   ├── login/                 # Auth landing (sign-in + OAuth)
+│   ├── auth/
+│   │   ├── callback/          # OAuth / magic-link code exchange
+│   │   ├── confirm/           # Email confirmation & password-reset (token_hash)
+│   │   ├── oauth/             # Optional server-side OAuth start
+│   │   ├── sign-up/           # Sign-up page
+│   │   ├── forgot-password/   # Forgot-password page
+│   │   ├── update-password/   # Set new password after reset
+│   │   ├── error/             # Auth error page
+│   │   └── sign-up-success/   # Post-sign-up success message
+│   ├── about/                 # About page (mission, DOXA definition, How it works)
 │   ├── search/                # Search results (placeholder)
 │   ├── profile/               # Profile & ideology stub
 │   ├── page/[id]/             # Topic detail pages
@@ -174,6 +204,7 @@ doxa/
 │   ├── Button.tsx             # Primary/secondary button (design system)
 │   ├── InstrumentModule.tsx   # Instrument-style metric module
 │   ├── LandingHeader.tsx      # Shared nav (home + graph pages)
+│   ├── auth/                  # Auth forms (login, sign-up, forgot-password, etc.)
 │   ├── graph/                 # Graph visualization components
 │   └── node/                  # Node detail UI (perspectives, validation)
 ├── lib/                       # Utilities and helpers
@@ -211,7 +242,7 @@ The **Doxa Topic Lifecycle** described above is the canonical product vision. Th
 
 The following are out of scope for the current phase and should be tackled later. Document here so they are not forgotten.
 
-- **Auth and access:** Sign-up and log-in are required to access the site; the site is completely free (no paid features for now). Build **nice sign-in and sign-up pages** when implementing auth—on-brand, clear UX. Gate the site behind login once auth exists.
+- **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to `/login`. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages are wrapped with the Doxa Panel/layout for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
 - **Poll backend:** Real poll questions and answers in the database; persistence and participation (e.g. sign-in to participate).
 - **Trending data:** Real data sources for "Trending" stories (e.g. traffic, multi-outlet coverage); for now use static/curated lists.
 - **Search API:** Wire the search bar to a backend that searches nodes by query (e.g. by headline/topic).

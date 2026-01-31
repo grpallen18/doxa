@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { LandingHeader } from '@/components/LandingHeader'
 import { InstrumentModule } from '@/components/InstrumentModule'
+import { ProfileSettingsCard } from '@/components/auth/profile-settings-card'
 
 const IDEOLOGY_FACTORS = [
   { id: 'economic', label: 'Economic', value: '42%' },
@@ -23,17 +24,7 @@ export default function ProfilePage() {
             Profile &amp; account
           </h1>
 
-          <Panel variant="soft" className="space-y-4 p-5">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Account settings
-            </h2>
-            <p className="text-sm text-muted">
-              Placeholder. Full authentication and account management are not yet implemented.
-            </p>
-            <p className="text-xs text-muted-soft">
-              Email, password, and preferences will live here once auth is in scope.
-            </p>
-          </Panel>
+          <ProfileSettingsCard />
 
           <div className="space-y-4">
             <div>

@@ -1,25 +1,28 @@
 import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/Button'
+import { AnimatedPanelLink } from '@/components/AnimatedPanelLink'
 import { LandingHeader } from '@/components/LandingHeader'
+import { HomeFadeWrapper } from '@/components/HomeFadeWrapper'
 
 const TRENDING_STORIES = [
-  { title: 'Are undocumented immigrants eligible for welfare programs?', href: '/page/10000000-0000-0000-0000-000000000001' },
-  { title: 'What does CBP mean by an "encounter"?', href: '/page/10000000-0000-0000-0000-000000000002' },
-  { title: 'What happened during the Minneapolis ICE protest?', href: '/page/10000000-0000-0000-0000-000000000003' },
-  { title: 'How does the U.S. asylum process work?', href: '/page/10000000-0000-0000-0000-000000000004' },
-  { title: 'What is the difference between a refugee and an asylee?', href: '/page/10000000-0000-0000-0000-000000000005' },
+  { title: 'Minneapolis ICE protests', href: '/page/10000000-0000-0000-0000-000000000001' },
+  { title: 'Election integrity and voting laws', href: '/page/10000000-0000-0000-0000-000000000002' },
+  { title: 'Redistricting and gerrymandering', href: '/page/10000000-0000-0000-0000-000000000003' },
+  { title: 'Tariff policy', href: '/page/10000000-0000-0000-0000-000000000004' },
+  { title: 'Twitter Files', href: '/page/10000000-0000-0000-0000-000000000005' },
 ]
 
 export default function Home() {
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
+    <HomeFadeWrapper>
+      <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
         <LandingHeader />
 
         {/* Two-grid: Live poll (left) + Trending (right) */}
         <section aria-labelledby="discovery-heading" className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-          <Panel variant="soft" className="flex flex-col gap-4 p-5">
+          <Panel variant="soft" interactive={false} className="flex flex-col gap-4 p-5">
             <h2 id="discovery-heading" className="text-lg font-semibold tracking-tight text-foreground">
               This week&apos;s question
             </h2>
@@ -35,7 +38,7 @@ export default function Home() {
                 </label>
               ))}
             </fieldset>
-            <Button href="#signup" variant="secondary" className="mt-2 w-full">
+            <Button href="/login" variant="primary" className="mt-2 w-full">
               Sign in to participate
             </Button>
           </Panel>
@@ -47,36 +50,13 @@ export default function Home() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {TRENDING_STORIES.map((story) => (
-                <Link key={story.href} href={story.href}>
-                  <Panel variant="soft" className="panel-bevel-interactive h-full p-4">
-                    <p className="text-sm font-medium text-foreground">{story.title}</p>
-                  </Panel>
-                </Link>
+                <AnimatedPanelLink key={story.href} href={story.href} className="h-full p-4">
+                  <p className="text-sm font-medium text-foreground">{story.title}</p>
+                </AnimatedPanelLink>
               ))}
             </div>
           </div>
         </section>
-
-        {/* CTA band */}
-        <Panel
-          as="section"
-          id="signup"
-          aria-labelledby="cta-heading"
-          variant="base"
-          className="panel-bevel-interactive space-y-6"
-        >
-          <div className="space-y-2">
-            <h2 id="cta-heading" className="text-xl font-semibold tracking-tight sm:text-2xl">
-              Create a free profile to get started
-            </h2>
-            <p className="text-sm text-muted">
-              Sign-up is required to access the site. It&apos;s completely free—no paid features for now.
-            </p>
-          </div>
-          <Button href="#signup" variant="primary">
-            Sign up
-          </Button>
-        </Panel>
 
         {/* Footer */}
         <footer
@@ -109,5 +89,6 @@ export default function Home() {
         </footer>
       </div>
     </main>
+    </HomeFadeWrapper>
   )
 }

@@ -4,9 +4,10 @@ import { LandingHeader } from '@/components/LandingHeader'
 import { Panel } from '@/components/Panel'
 import PerspectiveSection from '@/components/node/PerspectiveSection'
 import { NodeWithDetails } from '@/lib/types'
-import { supabase } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 
 async function getNode(id: string): Promise<NodeWithDetails | null> {
+  const supabase = await createClient()
   try {
     const { data: node, error: nodeError } = await supabase
       .from('nodes')

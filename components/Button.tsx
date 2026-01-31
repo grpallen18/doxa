@@ -1,9 +1,13 @@
+'use client'
+
 import Link from 'next/link'
+import { useRef, useCallback, useEffect } from 'react'
 import type {
   ReactNode,
   ButtonHTMLAttributes,
   AnchorHTMLAttributes,
 } from 'react'
+import { INTERACTIVE_ANIMATION_MS } from '@/lib/constants'
 
 type ButtonVariant = 'primary' | 'secondary'
 type ButtonSize = 'md' | 'lg'
@@ -48,6 +52,35 @@ export function Button(props: ButtonProps) {
     ...rest
   } = props as ButtonProps
 
+  const activeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const userOnMouseDown = (rest as any).onMouseDown
+
+  useEffect(
+    () => () => {
+      if (activeTimeoutRef.current) {
+        clearTimeout(activeTimeoutRef.current)
+      }
+    },
+    []
+  )
+
+  const handlePrimaryMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement | HTMLAnchorElement>) => {
+      const el = e.currentTarget
+      if (activeTimeoutRef.current) {
+        clearTimeout(activeTimeoutRef.current)
+        activeTimeoutRef.current = null
+      }
+      el.classList.add('btn-primary-active')
+      activeTimeoutRef.current = setTimeout(() => {
+        el.classList.remove('btn-primary-active')
+        activeTimeoutRef.current = null
+      }, INTERACTIVE_ANIMATION_MS)
+      userOnMouseDown?.(e)
+    },
+    [userOnMouseDown]
+  )
+
   const classes = [
     variantClassNames[variant],
     sizeClassNames[size],
@@ -57,16 +90,26 @@ export function Button(props: ButtonProps) {
     .filter(Boolean)
     .join(' ')
 
+  const primaryHandlers =
+    variant === 'primary'
+      ? { onMouseDown: handlePrimaryMouseDown }
+      : {}
+
   if ('href' in props && props.href) {
     return (
-      <Link href={props.href} className={classes} {...(rest as any)}>
+      <Link
+        href={props.href}
+        className={classes}
+        {...(rest as any)}
+        {...primaryHandlers}
+      >
         {children}
       </Link>
     )
   }
 
   return (
-    <button className={classes} {...(rest as any)}>
+    <button className={classes} {...(rest as any)} {...primaryHandlers}>
       {children}
     </button>
   )

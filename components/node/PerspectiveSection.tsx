@@ -115,7 +115,7 @@ export default function PerspectiveSection({
           )}
 
           {emphasis && (
-            <div className="rounded-[12px] bg-surface-soft p-3 text-xs text-muted">
+            <div className="rounded-[12px] bg-[var(--muted)] p-3 text-xs text-[var(--surface)]">
               <h4 className="mb-1 font-semibold">Emphasis</h4>
               <p>{emphasis}</p>
             </div>

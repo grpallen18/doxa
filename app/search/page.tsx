@@ -33,7 +33,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <div className="grid gap-4 sm:grid-cols-2">
             {PLACEHOLDER_RESULTS.map((item) => (
               <Link key={item.id} href={`/page/${item.id}`}>
-                <Panel variant="soft" className="panel-bevel-interactive h-full p-4">
+                <Panel variant="soft" className="h-full p-4">
                   <p className="text-sm font-medium text-foreground">{item.title}</p>
                 </Panel>
               </Link>

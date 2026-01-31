@@ -120,7 +120,7 @@ export default function GraphVisualization() {
           <p className="text-sm text-muted">No nodes found in the graph.</p>
           <a
             href="/"
-            className="btn-secondary inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
+            className="btn-primary inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
           >
             ← Home
           </a>
@@ -148,7 +148,7 @@ export default function GraphVisualization() {
         <div className="flex flex-wrap items-center justify-between gap-2 md:flex-col md:items-stretch">
           <a
             href="/"
-            className="btn-secondary w-fit md:w-full inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
+            className="btn-primary w-fit md:w-full inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
           >
             ← Home
           </a>

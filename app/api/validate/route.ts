@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient()
   try {
     const body = await request.json()
     const { node_id, perspective_id, is_represented, feedback } = body
@@ -15,21 +15,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the auth token from the request
-    const authHeader = request.headers.get('authorization')
-    let userId: string | null = null
-
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '')
-      // Verify token and get user
-      const supabaseClient = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-      
-      const { data: { user } } = await supabaseClient.auth.getUser(token)
-      userId = user?.id || null
-    }
+    const { data: { user } } = await supabase.auth.getUser()
+    const userId = user?.id ?? null
 
     // Get node version
     const { data: node, error: nodeError } = await supabase

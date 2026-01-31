@@ -16,7 +16,7 @@ export default function TopicNotFound() {
           <Button href="/graph" variant="primary">
             Back to topics map
           </Button>
-          <Button href="/" variant="secondary">
+          <Button href="/" variant="primary">
             Go home
           </Button>
         </div>

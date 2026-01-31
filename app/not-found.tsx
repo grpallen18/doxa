@@ -16,7 +16,7 @@ export default function NotFound() {
           <Button href="/" variant="primary">
             Go home
           </Button>
-          <Button href="/graph" variant="secondary">
+          <Button href="/graph" variant="primary">
             Node map
           </Button>
         </div>
