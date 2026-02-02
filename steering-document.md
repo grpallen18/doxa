@@ -28,9 +28,9 @@ using real people’s feedback to make them reliable again.
 Trust is procedural, not institutional.
 
 ========================================
-CORE UNIT: DOXA NODE
+CORE UNIT: DOXA TOPIC
 ========================================
-A Doxa node answers ONE narrowly scoped political question.
+A Doxa topic answers ONE narrowly scoped political question.
 
 Examples:
 - “Are undocumented immigrants eligible for welfare programs?”
@@ -41,7 +41,7 @@ NOT:
 - “Immigration”
 - “The border crisis”
 
-Each node must be:
+Each topic must be:
 - Narrow
 - Concrete
 - Reusable
@@ -66,18 +66,18 @@ Examples of potential perspectives:
 - Populist
 - etc.
 
-Perspectives are:
+Viewpoints are:
 - Derived from user behavior + surveys
 - Dynamic and revisable
 - Topic-specific (a user may align differently per issue)
 
 ========================================
-DOXA NODE STRUCTURE (FLEXIBLE, BUT STRICT)
+DOXA TOPIC STRUCTURE (FLEXIBLE, BUT STRICT)
 ========================================
-Every Doxa node contains:
+Every Doxa topic contains:
 
 1. Question (clear, neutral, narrow)
-2. Perspective Sections (N perspectives)
+2. Viewpoint Sections (N viewpoints)
    For EACH perspective:
    - Core claim
    - Key arguments

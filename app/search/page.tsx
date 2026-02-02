@@ -1,5 +1,5 @@
-import Link from 'next/link'
 import { Panel } from '@/components/Panel'
+import { PageLink } from '@/components/PageLink'
 import { LandingHeader } from '@/components/LandingHeader'
 
 const PLACEHOLDER_RESULTS = [
@@ -32,11 +32,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             {PLACEHOLDER_RESULTS.map((item) => (
-              <Link key={item.id} href={`/page/${item.id}`}>
+              <PageLink key={item.id} href={`/page/${item.id}`}>
                 <Panel variant="soft" className="h-full p-4">
                   <p className="text-sm font-medium text-foreground">{item.title}</p>
                 </Panel>
-              </Link>
+              </PageLink>
             ))}
           </div>
         </section>

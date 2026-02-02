@@ -18,8 +18,8 @@ if (!SUPABASE_SERVICE_KEY) {
 async function runSeed() {
   console.log('🌱 Seeding database...\n');
 
-  // Read the seed SQL file
-  const seedPath = path.join(__dirname, 'seed.sql');
+  // Read the seed SQL file (target schema: after migrations 010 and 011)
+  const seedPath = path.join(__dirname, 'seed_new_schema.sql');
   const seedSQL = fs.readFileSync(seedPath, 'utf8');
 
   // Create Supabase client with service role key (bypasses RLS)
@@ -40,12 +40,13 @@ async function runSeed() {
     });
 
     if (!response.ok) {
-      // If RPC doesn't exist, we'll need to use psql or the dashboard
+      // If RPC doesn't exist, run the seed in the SQL Editor
       console.log('⚠️  Direct SQL execution not available via API');
       console.log('📋 Please run the seed SQL manually:');
-      console.log('   1. Go to Supabase Dashboard > SQL Editor');
-      console.log('   2. Copy contents of supabase/seed.sql');
-      console.log('   3. Paste and run');
+      console.log('   1. Open Supabase Dashboard → SQL Editor');
+      console.log('   2. Paste the contents of supabase/seed_new_schema.sql');
+      console.log('   3. Run the script');
+      console.log('   Or, if using Supabase CLI with a linked project: supabase db execute -f supabase/seed_new_schema.sql');
       return;
     }
 
@@ -55,9 +56,10 @@ async function runSeed() {
   } catch (error) {
     console.error('❌ Error seeding database:', error.message);
     console.log('\n📋 Alternative: Run seed SQL manually');
-    console.log('   1. Go to Supabase Dashboard > SQL Editor');
-    console.log('   2. Copy contents of supabase/seed.sql');
-    console.log('   3. Paste and run');
+    console.log('   1. Open Supabase Dashboard → SQL Editor');
+    console.log('   2. Paste the contents of supabase/seed_new_schema.sql');
+    console.log('   3. Run the script');
+    console.log('   Or, if using Supabase CLI with a linked project: supabase db execute -f supabase/seed_new_schema.sql');
   }
 }
 

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useRef, useCallback, useEffect, type ReactNode } from 'react'
+import { useNavigationOverlay } from '@/components/NavigationOverlayContext'
 import { Panel } from '@/components/Panel'
 import { INTERACTIVE_ANIMATION_MS } from '@/lib/constants'
 
@@ -15,6 +16,7 @@ type AnimatedPanelLinkProps = {
 /** Link that wraps a soft interactive Panel and enforces minimum active time before navigation (same logic as primary Button). */
 export function AnimatedPanelLink({ href, className, children }: AnimatedPanelLinkProps) {
   const router = useRouter()
+  const overlay = useNavigationOverlay()
   const panelRef = useRef<HTMLDivElement>(null)
   const mouseDownAt = useRef(0)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -51,10 +53,11 @@ export function AnimatedPanelLink({ href, className, children }: AnimatedPanelLi
       timeoutRef.current = setTimeout(() => {
         panelRef.current?.classList.remove('panel-active')
         timeoutRef.current = null
+        if (href.startsWith('/page/')) overlay?.showOverlayFor(href)
         router.push(href)
       }, remaining)
     },
-    [href, router]
+    [href, router, overlay]
   )
 
   return (

@@ -40,7 +40,7 @@ After creating/editing `.env.local`:
 
 3. **Test an endpoint**:
    ```
-   http://localhost:3000/api/perspectives
+   http://localhost:3000/api/viewpoints
    ```
 
 ## Troubleshooting
@@ -54,6 +54,10 @@ After creating/editing `.env.local`:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 5. **No BOM/encoding issues**: Save as UTF-8 without BOM
+
+### Edge Functions (Supabase secrets)
+
+The **ingest-newsapi** Edge Function needs `NEWSAPI_API_KEY`, which is set in **Supabase** (not in `.env.local`): Dashboard → Edge Functions → Secrets, or `supabase secrets set NEWSAPI_API_KEY=your_key`. See [supabase/README.md](supabase/README.md) for deploy and cron.
 
 ### Check if variables are loaded:
 

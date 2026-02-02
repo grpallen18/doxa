@@ -1,16 +1,16 @@
-// Quick API test script
+// Quick API test script (target schema: topics by topic_id, viewpoints topic-scoped)
 const BASE_URL = 'http://localhost:3000'
 
 async function testEndpoint(name, url, options = {}) {
   try {
     console.log(`\n🧪 Testing: ${name}`)
     console.log(`   URL: ${url}`)
-    
+
     const response = await fetch(url, options)
     const data = await response.json()
-    
+
     console.log(`   Status: ${response.status}`)
-    
+
     if (response.ok) {
       console.log(`   ✅ Success`)
       if (data.data) {
@@ -26,7 +26,7 @@ async function testEndpoint(name, url, options = {}) {
     } else {
       console.log(`   ❌ Error:`, data.error?.message || 'Unknown error')
     }
-    
+
     return { success: response.ok, data }
   } catch (error) {
     console.log(`   ❌ Connection error:`, error.message)
@@ -37,38 +37,31 @@ async function testEndpoint(name, url, options = {}) {
 async function runTests() {
   console.log('🚀 Starting Doxa API Endpoint Tests...\n')
   console.log('Waiting for server to be ready...')
-  
-  // Wait a bit for server to start
+
   await new Promise(resolve => setTimeout(resolve, 3000))
-  
-  // Test 1: List nodes
-  const nodesResult = await testEndpoint('List Nodes', `${BASE_URL}/api/nodes`)
-  const firstNodeId = nodesResult.data?.data?.[0]?.id
-  
-  // Test 2: Get perspectives
-  await testEndpoint('Get Perspectives', `${BASE_URL}/api/perspectives`)
-  
-  // Test 3: Get graph
-  await testEndpoint('Get Graph', `${BASE_URL}/api/graph`)
-  
-  if (firstNodeId) {
-    // Test 4: Get node details
-    await testEndpoint('Get Node Details', `${BASE_URL}/api/nodes/${firstNodeId}`)
-    
-    // Test 5: Get neighbors
-    await testEndpoint('Get Neighbors', `${BASE_URL}/api/graph/${firstNodeId}/neighbors`)
-    
-    // Test 6: Get validation stats
-    await testEndpoint('Get Validation Stats', `${BASE_URL}/api/validate/${firstNodeId}/stats`)
+
+  // Test 1: List topics
+  const topicsResult = await testEndpoint('List Topics', `${BASE_URL}/api/topics`)
+  const firstTopicId = topicsResult.data?.data?.[0]?.topic_id
+
+  // Test 2: Get viewpoints (all)
+  await testEndpoint('Get Viewpoints', `${BASE_URL}/api/viewpoints`)
+
+  if (firstTopicId) {
+    // Test 3: Get topic details by topic_id
+    await testEndpoint('Get Topic Details', `${BASE_URL}/api/topics/${firstTopicId}`)
+
+    // Test 4: Get viewpoints for this topic
+    await testEndpoint('Get Viewpoints by topic_id', `${BASE_URL}/api/viewpoints?topic_id=${firstTopicId}`)
   } else {
-    console.log('\n⚠️  No nodes found - make sure seed data was loaded in Supabase')
+    console.log('\n⚠️  No topics found - run migrations 010, 011 and seed_new_schema.sql')
   }
-  
+
   console.log('\n✨ Tests complete!')
   console.log('\nIf you see errors, check:')
   console.log('  1. Dev server is running (npm run dev)')
   console.log('  2. .env.local has correct Supabase credentials')
-  console.log('  3. Database has been seeded (run supabase/seed.sql)')
+  console.log('  3. Migrations 010 and 011 applied, then supabase/seed_new_schema.sql')
 }
 
 runTests().catch(console.error)

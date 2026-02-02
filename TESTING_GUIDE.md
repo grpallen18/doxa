@@ -5,58 +5,44 @@
 1. **Environment Variables**: Make sure `.env.local` exists with:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://gjxihyaovyfwajjyoyoz.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_PeUkfHqn8NNHbfiCQmRC3Q_dv8AUr5S
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
    ```
 
-2. **Database Seeded**: Run `supabase/seed.sql` in Supabase SQL Editor
+2. **Database**: Run migrations 010 and 011, then `supabase/seed_new_schema.sql` (see supabase/README.md).
 
 3. **Dev Server Running**: `npm run dev`
 
 ## Manual Testing
 
-### 1. Test Perspectives Endpoint
-Open in browser or use curl:
+### 1. Test Topics Endpoint
 ```
-http://localhost:3000/api/perspectives
-```
-
-**Expected**: JSON with 3 perspectives (Conservative, Progressive, Libertarian)
-
-### 2. Test Nodes Endpoint
-```
-http://localhost:3000/api/nodes
+http://localhost:3000/api/topics
 ```
 
-**Expected**: JSON array with 5 nodes
+**Expected**: JSON array of topics (`topic_id`, `slug`, `title`, `summary`, `status`).
 
-### 3. Test Graph Endpoint
+### 2. Test Viewpoints Endpoint
 ```
-http://localhost:3000/api/graph
-```
-
-**Expected**: JSON with `nodes` and `links` arrays
-
-### 4. Test Node Details
-Get a node ID from step 2, then:
-```
-http://localhost:3000/api/nodes/[node-id]
+http://localhost:3000/api/viewpoints
 ```
 
-**Expected**: Full node details with perspectives, sources, relationships
+**Expected**: JSON array of viewpoints (topic-scoped: `viewpoint_id`, `topic_id`, `title`, `summary`).
 
-### 5. Test Neighbors
+### 3. Test Viewpoints by Topic
+Get a `topic_id` from step 1, then:
 ```
-http://localhost:3000/api/graph/[node-id]/neighbors
-```
-
-**Expected**: Array of connected nodes
-
-### 6. Test Validation Stats
-```
-http://localhost:3000/api/validate/[node-id]/stats
+http://localhost:3000/api/viewpoints?topic_id=[topic-id]
 ```
 
-**Expected**: Array of validation statistics per perspective
+**Expected**: Viewpoints for that topic only.
+
+### 4. Test Topic Details
+Get a topic ID from step 1, then:
+```
+http://localhost:3000/api/topics/[topic-id]
+```
+
+**Expected**: Full topic object plus `viewpoints` array.
 
 ## Troubleshooting
 
@@ -66,8 +52,8 @@ http://localhost:3000/api/validate/[node-id]/stats
 - Check browser console or terminal for detailed error messages
 
 ### Empty Results
-- Verify database was seeded (check Supabase Table Editor)
-- Check RLS policies allow public read access
+- Run migrations 010 and 011, then `supabase/seed_new_schema.sql`
+- Check RLS policies allow public read on `topics` and `viewpoints`
 
 ### Connection Errors
 - Make sure `npm run dev` is running

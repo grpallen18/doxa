@@ -14,7 +14,7 @@ export default function TopicNotFound() {
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Button href="/graph" variant="primary">
-            Back to topics map
+            Browse topics
           </Button>
           <Button href="/" variant="primary">
             Go home

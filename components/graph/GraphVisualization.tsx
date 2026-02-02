@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
+import { useNavigationOverlay } from '@/components/NavigationOverlayContext'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/Button'
 
@@ -63,6 +64,7 @@ export default function GraphVisualization() {
   const [error, setError] = useState<string | null>(null)
   const [graphColors, setGraphColors] = useState<GraphColors>(defaultGraphColors)
   const router = useRouter()
+  const overlay = useNavigationOverlay()
   const graphRef = useRef<any>()
 
   useEffect(() => {
@@ -117,7 +119,7 @@ export default function GraphVisualization() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <Panel variant="soft" className="flex flex-col items-center gap-4 p-8 text-center">
-          <p className="text-sm text-muted">No nodes found in the graph.</p>
+          <p className="text-sm text-muted">No topics found in the graph.</p>
           <a
             href="/"
             className="btn-primary inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
@@ -152,10 +154,10 @@ export default function GraphVisualization() {
           >
             ← Home
           </a>
-          <h2 className="text-xl font-semibold tracking-tight text-foreground">Node Map</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">Topic Map</h2>
         </div>
         <p className="text-sm text-muted">
-          {graphData.nodes.length} nodes, {graphData.links.length} relationships
+          {graphData.nodes.length} topics, {graphData.links.length} relationships
         </p>
         <div className="flex flex-wrap gap-4 text-xs text-muted md:flex-col">
           <div className="flex items-center gap-2">
@@ -187,7 +189,9 @@ export default function GraphVisualization() {
           linkColor={() => graphColors.link}
           linkWidth={2}
           onNodeClick={(node: any) => {
-            router.push(`/page/${node.id}`)
+            const path = `/page/${node.id}`
+            overlay?.showOverlayFor(path)
+            router.push(path)
           }}
           onNodeHover={(node: any) => {
             document.body.style.cursor = node ? 'pointer' : 'default'

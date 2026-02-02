@@ -17,7 +17,7 @@ export default function NotFound() {
             Go home
           </Button>
           <Button href="/graph" variant="primary">
-            Node map
+            Topic map
           </Button>
         </div>
       </Panel>

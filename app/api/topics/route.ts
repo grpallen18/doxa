@@ -4,10 +4,22 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   try {
-    const { data: perspectives, error } = await supabase
-      .from('perspectives')
+    const searchParams = request.nextUrl.searchParams
+    const status = searchParams.get('status')
+    const limit = parseInt(searchParams.get('limit') || '100')
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    let query = supabase
+      .from('topics')
       .select('*')
-      .order('name', { ascending: true })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (status) {
+      query = query.eq('status', status)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       return NextResponse.json(
@@ -16,7 +28,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ data: perspectives, error: null })
+    return NextResponse.json({ data, error: null })
   } catch (error: any) {
     return NextResponse.json(
       { data: null, error: { message: error.message || 'Internal server error' } },

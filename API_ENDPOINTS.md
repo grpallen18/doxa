@@ -2,107 +2,55 @@
 
 ## Core Endpoints
 
-### Nodes
+### Topics
 
-**GET `/api/nodes`**
-- List all nodes (with optional filters)
-- Query params: `?status=draft|under_review|stable`, `?limit=10`, `?offset=0`
-- Returns: Array of nodes with basic info
+**GET `/api/topics`**
+- List all topics (with optional filters)
+- Query params: `?status=draft|published|archived`, `?limit=100`, `?offset=0`
+- Returns: Array of topics (`topic_id`, `slug`, `title`, `summary`, `status`, `metadata`, `created_at`, `updated_at`)
 
-**GET `/api/nodes/[id]`**
-- Get a single node with full details
-- Includes: perspectives, sources, relationships, validation stats
-- Returns: `NodeWithDetails` object
+**GET `/api/topics/[id]`**
+- Get a single topic by `topic_id` with viewpoints
+- Returns: `TopicWithDetails` (topic + `viewpoints[]`)
 
-**POST `/api/nodes`** (Admin/Manual)
-- Create a new node
-- Body: `{ question, status, shared_facts, perspectives: [...] }`
-- Returns: Created node
+**POST `/api/topics`** (Admin/Manual)
+- Create a new topic (optional for v1)
+- Body: `{ slug, title, summary, status, metadata }`
+- Returns: Created topic
 
-### Graph
+### Viewpoints
 
-**GET `/api/graph`**
-- Get the full graph structure
-- Returns: `{ nodes: [...], links: [...] }` format for visualization
-- Includes all nodes and relationships
+**GET `/api/viewpoints`**
+- List viewpoints, optionally filtered by topic
+- Query params: `?topic_id=[uuid]` (optional)
+- Returns: Array of viewpoint objects (`viewpoint_id`, `topic_id`, `archetype_id`, `title`, `summary`, `metadata`, …)
 
-**GET `/api/graph/[id]/neighbors`**
-- Get neighboring nodes for a specific node
-- Query params: `?depth=1` (default), `?relationship_type=...`
-- Returns: Array of connected nodes with relationship info
+### Sources (optional for v1)
 
-**GET `/api/graph/[id]/path?to=[targetId]`**
-- Find path between two nodes (optional, for future)
-- Returns: Array of nodes forming the path
-
-### Validation
-
-**POST `/api/validate`**
-- Submit a validation
-- Body: `{ node_id, perspective_id, is_represented: boolean, feedback?: string }`
-- Requires: Authenticated user (via Supabase Auth)
-- Returns: Created validation
-
-**GET `/api/validate/[nodeId]/stats`**
-- Get validation statistics for a node
-- Returns: `{ perspective_id, total_validations, positive_validations, validation_rate }[]`
-- Aggregated per perspective
-
-**GET `/api/validate/[nodeId]`**
-- Get all validations for a node (for admin/debugging)
-- Returns: Array of validation objects
-
-### Perspectives
-
-**GET `/api/perspectives`**
-- List all perspectives
-- Returns: Array of perspective objects
-
-**GET `/api/perspectives/[id]`**
-- Get a single perspective with details
-- Returns: Perspective object
-
-### Sources
-
-**GET `/api/sources?node_id=[id]`**
-- Get sources for a node
-- Query params: `?perspective_id=[id]` (optional filter)
+**GET `/api/sources`**
+- List publisher sources (new schema: name, domain, bias_tags)
 - Returns: Array of source objects
 
-### AI Content Generation (Optional for Prototype)
+### Topic graph (removed)
 
-**POST `/api/generate`**
-- Generate node content using AI
-- Body: `{ question, sources: [...], perspectives: [...] }`
-- Returns: Generated node structure (draft)
-- Requires: OpenAI API key
+The previous graph API (`/api/graph`, `/api/graph/[id]/neighbors`) and `topic_relationships` table have been removed. The `/graph` page now shows a topic list; related-topics can be re-added later via a `topic_links` table if needed.
 
 ## Response Format
 
-All endpoints return JSON with consistent structure:
+All endpoints return JSON:
 
 ```typescript
 // Success
-{
-  data: T,
-  error: null
-}
+{ data: T, error: null }
 
 // Error
-{
-  data: null,
-  error: {
-    message: string,
-    code?: string
-  }
-}
+{ data: null, error: { message: string, code?: string } }
 ```
 
 ## Authentication
 
-- Public endpoints: Nodes (read), Graph, Perspectives, Sources
-- Protected endpoints: Validation (POST), Node creation (POST)
-- Uses Supabase Auth for protected routes
+- Public read: Topics, Viewpoints
+- Protected writes: Use service role or authenticated pipeline for creating topics/viewpoints
 
 ## Status Codes
 

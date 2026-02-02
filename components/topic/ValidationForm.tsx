@@ -1,16 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Perspective } from '@/lib/types'
+import { Viewpoint } from '@/lib/types'
 
 interface ValidationFormProps {
-  nodeId: string
-  perspectives: Perspective[]
+  topicId: string
+  viewpoints: Viewpoint[]
   onSuccess?: () => void
 }
 
-export default function ValidationForm({ nodeId, perspectives, onSuccess }: ValidationFormProps) {
-  const [selectedPerspective, setSelectedPerspective] = useState<string>('')
+export default function ValidationForm({ topicId, viewpoints, onSuccess }: ValidationFormProps) {
+  const [selectedViewpoint, setSelectedViewpoint] = useState<string>('')
   const [isRepresented, setIsRepresented] = useState<boolean | null>(null)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -18,9 +18,9 @@ export default function ValidationForm({ nodeId, perspectives, onSuccess }: Vali
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!selectedPerspective || isRepresented === null) {
-      alert('Please select a perspective and indicate if it is represented')
+
+    if (!selectedViewpoint || isRepresented === null) {
+      alert('Please select a viewpoint and indicate if it is represented')
       return
     }
 
@@ -33,8 +33,8 @@ export default function ValidationForm({ nodeId, perspectives, onSuccess }: Vali
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          node_id: nodeId,
-          perspective_id: selectedPerspective,
+          topic_id: topicId,
+          viewpoint_id: selectedViewpoint,
           is_represented: isRepresented,
           feedback: feedback || null,
         }),
@@ -76,18 +76,18 @@ export default function ValidationForm({ nodeId, perspectives, onSuccess }: Vali
 
       <div className="mb-4">
         <label className="block text-sm font-medium mb-2">
-          Select your perspective:
+          Select your viewpoint:
         </label>
         <select
-          value={selectedPerspective}
-          onChange={(e) => setSelectedPerspective(e.target.value)}
+          value={selectedViewpoint}
+          onChange={(e) => setSelectedViewpoint(e.target.value)}
           className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
           required
         >
-          <option value="">Choose a perspective...</option>
-          {perspectives.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
+          <option value="">Choose a viewpoint...</option>
+          {viewpoints.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
             </option>
           ))}
         </select>

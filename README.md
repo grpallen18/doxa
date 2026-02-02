@@ -4,7 +4,7 @@ A community-calibrated political knowledge graph that helps people understand di
 
 ## Overview
 
-Doxa is a **meta-analysis layer over the news**, not a news publisher. It aggregates coverage of a given story across publishers and produces a structured, neutral synthesis: verifiable facts separated from interpretation, major ideological or narrative clusters mapped, and clear statements of where viewpoints agree, diverge, or misrepresent one another. Each story is a navigable **node** that links to primary sources, highlights gaps or under-coverage, flags common framing or straw-man arguments, and surfaces strong arguments on each side. User feedback is central—readers flag omissions, mischaracterizations, or weak framing; that feedback is clustered and fed into revisions so the model improves over time. Discovery is Wikipedia-like (deep links between related topics); personalization happens in the background via reading behavior and structured feedback, not upfront ideological labels.
+Doxa is a **meta-analysis layer over the news**, not a news publisher. It aggregates coverage of a given story across publishers and produces a structured, neutral synthesis: verifiable facts separated from interpretation, major ideological or narrative clusters mapped, and clear statements of where viewpoints agree, diverge, or misrepresent one another. Each story is a navigable **topic** that links to primary sources, highlights gaps or under-coverage, flags common framing or straw-man arguments, and surfaces strong arguments on each side. User feedback is central—readers flag omissions, mischaracterizations, or weak framing; that feedback is clustered and fed into revisions so the model improves over time. Discovery is Wikipedia-like (deep links between related topics); personalization happens in the background via reading behavior and structured feedback, not upfront ideological labels.
 
 ## What Doxa Is For (and Not For)
 
@@ -12,7 +12,7 @@ Doxa is a **meta-analysis layer over the news**, not a news publisher. It aggreg
 
 **Don't:** Compete on breaking news, speed, or original reporting. Don't host full articles or shallow headline summaries. Don't present a single "correct" narrative or editorialize under the guise of neutrality. Don't allow raw, unstructured comments to dominate (no Reddit-style chaos). Don't ask users to self-identify ideologically upfront—clustering should emerge from behavior and responses. Avoid full articles for now to protect focus and legitimacy; leave the door open once the analytical spine is proven.
 
-**Principle:** Doxa is a place to **navigate** controversy, not to consume opinions. Each node is a living model: facts at the core, perspectives around it, confidence attached, revision by reasoned dissent. Over time, users learn where they stand, how others genuinely think, and where common ground actually exists.
+**Principle:** Doxa is a place to **navigate** controversy, not to consume opinions. Each topic is a living model: facts at the core, viewpoints around it, confidence attached, revision by reasoned dissent. Over time, users learn where they stand, how others genuinely think, and where common ground actually exists.
 
 ## Strategy: Wikipedia surface, pluralist governance
 
@@ -122,7 +122,7 @@ The site is **gated**: unauthenticated users are redirected to `/login`. Authent
 - **About (`/about`):** Mission summary, DOXA definition and Plato quote, body copy on how Doxa surfaces and clarifies viewpoints, and the \"How it works\" three-step section (search/browse, see framing, contribute). Linked from the header nav and footer.
 - **Search (`/search`):** Placeholder search results page that echoes the query and shows static example topics; a real search backend is not yet implemented.
 - **Profile (`/profile`):** Account & ideology stub page showing read-only, placeholder factor ratings and an overall ideology label; the real ideology engine is not yet implemented.
-- **Node map (graph) (`/graph`):** From the main page, click **Topics** in the top navigation bar to open the interactive knowledge graph. The node map shows political topics as nodes; click a node to open its topic page at `/page/[id]`.
+- **Topic map (graph) (`/graph`):** From the main page, click **Topics** in the top navigation bar to open the interactive knowledge graph. The topic map shows political topics; click a topic to open its page at `/page/[id]`.
 
 ## Getting Started
 
@@ -132,11 +132,7 @@ npm install
 ```
 
 2. **Set up Supabase database:**
-   - Go to your Supabase project dashboard
-   - Navigate to SQL Editor
-   - Run `supabase/migrations/001_initial_schema.sql` to create tables
-   - Run `supabase/seed.sql` to populate with sample data
-   - See `supabase/README.md` for detailed instructions
+   - See `supabase/README.md` for schema overview and `supabase/SETUP_INSTRUCTIONS.md` for step-by-step setup (run migrations and seed in order).
 
 3. **Set up environment variables:**
    - Create `.env.local` file in the root directory
@@ -173,11 +169,8 @@ doxa/
 ├── middleware.ts               # Session refresh + redirect unauthenticated to /login
 ├── app/                        # Next.js App Router
 │   ├── api/                   # API routes
-│   │   ├── graph/             # Graph data (nodes + relationships)
-│   │   ├── nodes/             # Node details API
-│   │   ├── perspectives/      # Perspective-related APIs
-│   │   │   └── vote/          # Viewpoint upvote/downvote endpoint
-│   │   └── validate/          # Representation validation endpoint
+│   │   ├── topics/            # Topic list and detail API (topic_id, slug, title, summary)
+│   │   └── viewpoints/        # Viewpoint list (optional ?topic_id filter)
 │   ├── globals.css            # Design tokens and neumorphic component classes
 │   ├── layout.tsx             # Root layout
 │   ├── page.tsx               # Home (search-first landing)
@@ -195,7 +188,7 @@ doxa/
 │   ├── search/                # Search results (placeholder)
 │   ├── profile/               # Profile & ideology stub
 │   ├── page/[id]/             # Topic detail pages
-│   ├── graph/                 # Node map (graph visualization)
+│   ├── graph/                 # Topics list (graph visualization removed)
 │   ├── error.tsx              # Route-level error boundary
 │   ├── global-error.tsx       # Global error boundary
 │   └── not-found.tsx          # 404 page
@@ -206,37 +199,18 @@ doxa/
 │   ├── LandingHeader.tsx      # Shared nav (home + graph pages)
 │   ├── auth/                  # Auth forms (login, sign-up, forgot-password, etc.)
 │   ├── graph/                 # Graph visualization components
-│   └── node/                  # Node detail UI (perspectives, validation)
+│   └── topic/                 # Topic detail UI (viewpoints)
 ├── lib/                       # Utilities and helpers
 │   ├── supabase/              # Supabase client helpers
 │   └── types/                 # Shared TypeScript types
 └── steering-document.md       # Project philosophy and design
 ```
 
-## Database Schema
-
-See the Supabase migrations for the complete schema. Key tables:
-- `nodes` - Core Doxa nodes (political questions and their versioned snapshots, including `core_facts`, `coverage_summary`, `missing_perspectives`)
-- `perspectives` - Perspective definitions
-- `node_perspectives` - Many-to-many relationship between nodes and perspectives, including each perspective's `core_claim` and key arguments
-- `node_relationships` - Graph edges between nodes
-- `sources` - Source citations for nodes and perspectives
-- `claims` / `claim_sources` - Minimal claim-level scaffolding to eventually link atomic claims to sources (not yet surfaced in the UI)
-- `validations` - User validation feedback about whether a perspective is fairly represented for a given node/version
-- `perspective_votes` - Viewpoint upvote/downvote records with free-text reasoning for each node/version/perspective
-
 ## Development
 
 See `steering-document.md` for the complete project philosophy and design principles. Product and UX decisions should align with the \"What Doxa Is For (and Not For)\" section above so the site stays focused on epistemic clarity and depolarization, not on becoming a news destination or opinion platform.
 
-### Topic Lifecycle: Implementation Status
-
-The **Doxa Topic Lifecycle** described above is the canonical product vision. The current implementation reflects it **partially**:
-
-- **Claims & topic versions:** The database has a `claims` table and versioned `nodes` rows (via `version` and `parent_version_id`), but claims are not yet exposed in the UI, and only one version per demo topic exists today.
-- **Core Facts:** Each node has a `core_facts` field that holds a fact-first narrative; this is rendered on topic pages alongside structured `shared_facts`.
-- **Coverage & framing:** `coverage_summary` (\"How It Was Covered\") and `missing_perspectives` (\"What’s Missing\") are optional text fields on nodes and are rendered when present.
-- **Feedback & scoring:** `validations` capture whether a perspective is fairly represented; `perspective_votes` capture upvote/downvote assessments plus free-text reasoning for each viewpoint.
+For database schema, data dictionary, and implementation status of the topic lifecycle (claims, versions, feedback), see **supabase/README.md**.
 
 ## Planned / not yet implemented
 
@@ -245,7 +219,8 @@ The following are out of scope for the current phase and should be tackled later
 - **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to `/login`. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages are wrapped with the Doxa Panel/layout for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
 - **Poll backend:** Real poll questions and answers in the database; persistence and participation (e.g. sign-in to participate).
 - **Trending data:** Real data sources for "Trending" stories (e.g. traffic, multi-outlet coverage); for now use static/curated lists.
-- **Search API:** Wire the search bar to a backend that searches nodes by query (e.g. by headline/topic).
+- **Search API:** Wire the search bar to a backend that searches topics by query (e.g. by headline/topic).
 - **Ideology engine:** Doxa's proprietary system that computes a user's **factor ratings** (e.g. fiscal, social, foreign policy) from behavior—not user-controlled; displayed as read-only on the profile. Plus an **overall ideology** assignment. When implementing, consider existing **political science grading systems** (e.g. for categorizing people into named ideologies).
-- **Vote feedback modal:** The **Confirm** button in the perspective vote modal (shown when a user clicks Upvote or Downvote on a topic page) should send the user's free-text feedback to the DB to store the critique (e.g. via `perspective_votes.reason` and the existing `/api/perspectives/vote` endpoint). For now, both Cancel and Confirm only close the modal.
+- **Viewpoint votes and validations:** Removed for now; can be re-added later with new schema.
+- **NewsAPI idempotency:** Check that the NewsAPI edge function (ingest-newsapi) is idempotent—i.e. repeated runs with the same data do not create duplicate sources or stories and behave predictably (e.g. upsert by URL, source name).
 - **Paid features:** None for now. If paid tiers are introduced later (e.g. poll participation, features that influence the feedback loop), document the model in this README.

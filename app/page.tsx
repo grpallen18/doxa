@@ -1,19 +1,31 @@
 import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/Button'
-import { AnimatedPanelLink } from '@/components/AnimatedPanelLink'
 import { LandingHeader } from '@/components/LandingHeader'
 import { HomeFadeWrapper } from '@/components/HomeFadeWrapper'
+import { createClient } from '@/lib/supabase/server'
 
-const TRENDING_STORIES = [
-  { title: 'Minneapolis ICE protests', href: '/page/10000000-0000-0000-0000-000000000001' },
-  { title: 'Election integrity and voting laws', href: '/page/10000000-0000-0000-0000-000000000002' },
-  { title: 'Redistricting and gerrymandering', href: '/page/10000000-0000-0000-0000-000000000003' },
-  { title: 'Tariff policy', href: '/page/10000000-0000-0000-0000-000000000004' },
-  { title: 'Twitter Files', href: '/page/10000000-0000-0000-0000-000000000005' },
-]
+type RecentStory = { story_id: string; title: string; url: string; created_at: string; source_name: string | null }
 
-export default function Home() {
+async function getRecentStories(limit: number): Promise<RecentStory[]> {
+  const supabase = await createClient()
+  const { data: rows, error } = await supabase
+    .from('stories')
+    .select('story_id, title, url, created_at, sources(name)')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) return []
+  return (rows ?? []).map((row: { story_id: string; title: string; url: string; created_at: string; sources: { name: string } | null }) => ({
+    story_id: row.story_id,
+    title: row.title,
+    url: row.url,
+    created_at: row.created_at,
+    source_name: row.sources?.name ?? null,
+  }))
+}
+
+export default async function Home() {
+  const recentStories = await getRecentStories(6)
   return (
     <HomeFadeWrapper>
       <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
@@ -46,14 +58,27 @@ export default function Home() {
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Trending stories</h2>
-              <p className="text-xs text-muted">Topics with high traffic or covered by multiple outlets</p>
+              <p className="text-xs text-muted">6 most recently added stories</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              {TRENDING_STORIES.map((story) => (
-                <AnimatedPanelLink key={story.href} href={story.href} className="h-full p-4">
-                  <p className="text-sm font-medium text-foreground">{story.title}</p>
-                </AnimatedPanelLink>
-              ))}
+              {recentStories.length > 0 ? (
+                recentStories.map((story) => (
+                  <a
+                    key={story.story_id}
+                    href={story.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="panel-bevel-soft block h-full rounded-bevel p-4 transition hover:shadow-panel-hover"
+                  >
+                    <p className="text-sm font-medium text-foreground">{story.title}</p>
+                    {story.source_name && (
+                      <p className="mt-1 text-xs text-muted">{story.source_name}</p>
+                    )}
+                  </a>
+                ))
+              ) : (
+                <p className="col-span-2 text-sm text-muted">No stories yet.</p>
+              )}
             </div>
           </div>
         </section>

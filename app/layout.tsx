@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { LogoutTransitionWrapper } from '@/components/LogoutTransitionWrapper'
+import { NavigationOverlayProvider, PageNavigationOverlay } from '@/components/NavigationOverlayContext'
 import { ThemeProvider } from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
@@ -39,7 +40,10 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          <LogoutTransitionWrapper>{children}</LogoutTransitionWrapper>
+          <NavigationOverlayProvider>
+            <LogoutTransitionWrapper>{children}</LogoutTransitionWrapper>
+            <PageNavigationOverlay />
+          </NavigationOverlayProvider>
         </ThemeProvider>
       </body>
     </html>
