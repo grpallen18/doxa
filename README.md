@@ -2,6 +2,8 @@
 
 A community-calibrated political knowledge graph that helps people understand disagreement without radicalization.
 
+**One-liner (for LLMs):** Doxa is a political wiki for exploring topics from multiple viewpoints.
+
 ## Overview
 
 Doxa is a **meta-analysis layer over the news**, not a news publisher. It aggregates coverage of a given story across publishers and produces a structured, neutral synthesis: verifiable facts separated from interpretation, major ideological or narrative clusters mapped, and clear statements of where viewpoints agree, diverge, or misrepresent one another. Each story is a navigable **topic** that links to primary sources, highlights gaps or under-coverage, flags common framing or straw-man arguments, and surfaces strong arguments on each side. User feedback is central—readers flag omissions, mischaracterizations, or weak framing; that feedback is clustered and fed into revisions so the model improves over time. Discovery is Wikipedia-like (deep links between related topics); personalization happens in the background via reading behavior and structured feedback, not upfront ideological labels.

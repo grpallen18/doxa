@@ -4,7 +4,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ## Quick setup
 
-1. Run migrations in order (SQL Editor): `001_initial_schema.sql` through `011_new_schema_pgvector.sql`.
+1. Run migrations in order (SQL Editor): `001_initial_schema.sql` through `012_stories_relevance_fields.sql`.
 2. Seed the database: run [seed_new_schema.sql](seed_new_schema.sql) in the Supabase SQL Editor (paste the file contents and run). See **Seeding** below for details.
 3. See [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md) for detailed instructions and verification (if that file exists).
 
@@ -31,7 +31,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### stories
 
-**Purpose:** One row per ingested article/story. Rolls up to sources.
+**Purpose:** One row per ingested article/story. Rolls up to sources. Relevance fields are filled by cron #2 (classify ingested stories into KEEP/DROP).
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -47,6 +47,13 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `language` | text (nullable) | Language. |
 | `metadata` | jsonb | NewsAPI payload, tags, etc. |
 | `created_at` | timestamptz | When the row was created. |
+| `relevance_status` | text (nullable) | KEEP \| DROP \| PENDING (from cron #2). |
+| `relevance_score` | int (nullable) | 0–100; NULL when PENDING. |
+| `relevance_confidence` | int (nullable) | 0–100. |
+| `relevance_reason` | text (nullable) | Free-text reason for classification. |
+| `relevance_tags` | text[] (nullable) | Tags for relevance/filtering. |
+| `relevance_model` | text (nullable) | Model used for classification. |
+| `relevance_ran_at` | timestamptz (nullable) | When relevance was last evaluated. |
 
 ---
 
@@ -395,8 +402,9 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `001_initial_schema.sql` … `009_rename_...sql` | Legacy schema (topics as “nodes”, viewpoints as “perspectives”, topic_viewpoints, etc.). |
 | `010_drop_dependents_and_refactor_topics.sql` | Drops old dependents; refactors topics to topic_id, slug, title, summary, status (text), metadata. |
 | `011_new_schema_pgvector.sql` | Enables pgvector; creates pipeline_runs, sources, stories, topic_stories, claims, story_claims, story_evidence, links, archetypes, theses, viewpoints, viewpoint_theses, narratives, narrative_viewpoint_links; RLS. |
+| `012_stories_relevance_fields.sql` | Adds relevance columns to stories (relevance_status, relevance_score, relevance_confidence, relevance_reason, relevance_tags, relevance_model, relevance_ran_at); index for cron #2. |
 
-After running 010 and 011, seed the database with **seed_new_schema.sql** (see **Seeding** below).
+After running 010, 011, and 012, seed the database with **seed_new_schema.sql** (see **Seeding** below).
 
 ---
 
@@ -412,11 +420,41 @@ After running 010 and 011, seed the database with **seed_new_schema.sql** (see *
 
 ## Edge Functions
 
-- **ingest-newsapi:** Fetches NewsAPI `/top-headlines` (sources whitelist, language=en, pageSize=20, page=1), upserts new sources by name, and upserts stories by URL so the same story is never added twice. Creates a `pipeline_runs` row for audit.
-- **Secrets:** Set `NEWSAPI_API_KEY` in Supabase (Dashboard → Edge Functions → Secrets, or `supabase secrets set NEWSAPI_API_KEY=your_key`). Get a key at [newsapi.org](https://newsapi.org).
-- **Deploy:** `supabase functions deploy ingest-newsapi --project-ref gjxihyaovyfwajjyoyoz`
-- **Invoke (test):** `curl -L -X POST 'https://gjxihyaovyfwajjyoyoz.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY'`
-- **Cron:** Configure a daily trigger in Supabase (e.g. Dashboard cron or pg_cron) to POST to the function URL with `Authorization: Bearer YOUR_SERVICE_ROLE_KEY`.
+### ingest-newsapi (cron #1)
+
+Fetches NewsAPI `/top-headlines` (country=us, category=politics, language=en, pageSize=100), upserts new sources by name, and upserts stories by URL so the same story is never added twice. Creates a `pipeline_runs` row for audit.
+
+- **Cron (pg_cron):** Schedule with [cron_ingest_newsapi.sql](cron_ingest_newsapi.sql). The default example runs at 7:08/7:10/7:12 PM CST (01:08/01:10/01:12 UTC) and pulls the project URL and service role key from Vault. Adjust the cron expression if you need a different cadence.
+
+### relevance_gate (cron #2)
+
+Classifies ingested stories into `KEEP`, `DROP`, or `PENDING` using OpenAI. Each run fetches up to `max_stories` unclassified stories (where `relevance_status` is null) from the last N days, sends them to the LLM in a single request, and updates `stories` with `relevance_score`, `relevance_confidence`, `relevance_reason`, `relevance_tags`, `relevance_model`, and `relevance_ran_at`. The function does not write `relevance_status`; it is a **generated column** on `stories` computed from `relevance_ran_at`, `relevance_score`, and `relevance_confidence`: null when not yet run; `PENDING` when no score or confidence &lt; 60; `KEEP` when score ≥ 60; else `DROP`. When there are no unclassified stories, the function returns immediately with no work (graceful no-op).
+
+**Request body (optional):** `lookback_days` (1–14, default 7), `max_stories` (1–2000, default 10), `content_max_chars` (0–6000, default 2500), `dry_run` (boolean).
+
+**Cron (pg_cron):** Schedule at 11:05 AM UTC, then every 2 minutes until 11:30 AM UTC. Store your project URL and service role key in [Supabase Vault](https://supabase.com/docs/guides/database/vault), then run [supabase/cron_relevance_gate.sql](cron_relevance_gate.sql) once (see comments in that file for Vault setup steps).
+
+### scrape_story_content (cron #3 – before extraction)
+
+Scrapes full body text from story URLs for **KEEP** stories and writes to `stories.scraped_content` only; `content_full` comes from NewsAPI and is never overwritten. No LLM. Considers all KEEP stories (including those with no URL); sets `scrape_skipped` when URL is null or scrape fails so every story is assessed once and unscrapable ones are not retried. Run before `extract_story_claims_evidence`. Optional body: `max_stories` (default 5), `content_min_length`, `dry_run`.
+
+**Cron (pg_cron):** [cron_scrape_story_content.sql](cron_scrape_story_content.sql) – uses same Vault secrets; schedule to run before extract (e.g. 11:05 UTC).
+
+### extract_story_claims_evidence (cron #4)
+
+Extracts claims, evidence, and links from KEEP stories using the LLM. Uses **final_content** = longest of `content_full`, `scraped_content`, and `content_snippet` (no URL scraping; run `scrape_story_content` first). One story per run. Optional body: `dry_run`.
+
+**Cron (pg_cron):** [cron_extract_story_claims_evidence.sql](cron_extract_story_claims_evidence.sql).
+
+### Deploy and secrets
+
+- **Secrets (set in Supabase Dashboard → Edge Functions → Secrets, or `supabase secrets set`):**
+  - `NEWSAPI_API_KEY` — for ingest-newsapi; get at [newsapi.org](https://newsapi.org)
+  - `OPENAI_API_KEY` — for relevance_gate; get at [platform.openai.com](https://platform.openai.com)
+  - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
+- **Deploy:** `supabase functions deploy ingest-newsapi --project-ref gjxihyaovyfwajjyoyoz` and `supabase functions deploy relevance_gate --project-ref gjxihyaovyfwajjyoyoz`
+- **Invoke (test):** `curl -L -X POST 'https://gjxihyaovyfwajjyoyoz.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY'` (or `/relevance_gate` for cron #2)
+- **Cron:** Run relevance_gate at 11:05 AM UTC, then every 2 minutes until 11:30 AM UTC (cron `5,7,9,11,13,15,17,19,21,23,25,27,29 11 * * *`). Each run processes up to max_stories (default 10); when there are none, the run is a quick no-op. Keep ingest-newsapi on its current schedule and run relevance_gate after it as needed.
 
 ---
 

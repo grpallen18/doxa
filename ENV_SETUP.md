@@ -57,7 +57,12 @@ After creating/editing `.env.local`:
 
 ### Edge Functions (Supabase secrets)
 
-The **ingest-newsapi** Edge Function needs `NEWSAPI_API_KEY`, which is set in **Supabase** (not in `.env.local`): Dashboard → Edge Functions → Secrets, or `supabase secrets set NEWSAPI_API_KEY=your_key`. See [supabase/README.md](supabase/README.md) for deploy and cron.
+Edge Functions use secrets set in **Supabase** (not in `.env.local`): Dashboard → Edge Functions → Secrets, or `supabase secrets set KEY=value`.
+
+- **ingest-newsapi:** `NEWSAPI_API_KEY`
+- **relevance_gate:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (default `gpt-4o-mini`)
+
+See [supabase/README.md](supabase/README.md) for deploy and cron.
 
 ### Check if variables are loaded:
 
