@@ -62,11 +62,20 @@ All JSON responses use `Content-Type: application/json`. Success responses are `
 - **200** — `{ "title": string, "content": string }`. `content` is always Readability `textContent` (normalized format).
 - **400** — Bad request (e.g. missing/invalid URL, URL not allowed). Body: `{ "error", "story_id"? }`.
 - **405** — Method not POST.
+- **401** — Missing or invalid **Authorization: Bearer SCRAPE_SECRET**.
 - **502** — Scrape failed (fetch failed, body too large, Readability failed, Browser Rendering not configured or failed). Body: `{ "error", "story_id"? }`.
 
-**Environment / secrets**
+**Auth (scrape workflow)**
 
-- **Required for fallback only:** `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` (set as Worker secrets in the Cloudflare dashboard). Token must have “Browser Rendering - Edit” permission. If these are not set, the fallback path returns a clear error instead of calling the API.
+- **POST /scrape** (and /extract) require **Authorization: Bearer SCRAPE_SECRET** (same value as Supabase). If missing or wrong, the Worker returns 401.
+- When `story_id` is present in the body, the Worker calls the Supabase Edge Function **receive_scraped_content** with the result (success or failure) so the DB is updated. The Worker never needs a Supabase service-role key.
+
+**Environment / secrets (Cloudflare dashboard: Workers and Pages → your worker → Settings → Variables and Secrets)**
+
+- **SCRAPE_SECRET** — Must match Supabase; protects /scrape and authenticates callbacks to receive_scraped_content.
+- **SUPABASE_RECEIVE_URL** — Full URL of receive_scraped_content (e.g. `https://<project_ref>.supabase.co/functions/v1/receive_scraped_content`).
+- **CLOUDFLARE_ACCOUNT_ID** — For Browser Rendering fallback (optional but recommended). Get it from the Cloudflare dashboard (Workers or Overview page; URL or right-hand sidebar).
+- **CLOUDFLARE_API_TOKEN** — For Browser Rendering fallback; token must have "Browser Rendering - Edit" permission. Create under My Profile → API Tokens.
 
 **Constants (in code)**
 

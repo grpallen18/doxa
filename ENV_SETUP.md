@@ -61,8 +61,21 @@ Edge Functions use secrets set in **Supabase** (not in `.env.local`): Dashboard 
 
 - **ingest-newsapi:** `NEWSAPI_API_KEY`
 - **relevance_gate:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (default `gpt-4o-mini`)
+- **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET` (same value as Worker)
+- **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker; validates Authorization: Bearer)
 
 See [supabase/README.md](supabase/README.md) for deploy and cron.
+
+### Scrape workflow (Cloudflare Worker secrets)
+
+The Worker used for article scraping expects these **secrets** in the Cloudflare dashboard (Workers & Pages → your worker → Settings → Variables and Secrets):
+
+- **`SCRAPE_SECRET`** — Same value as Supabase; protects `/scrape` and authenticates callbacks to receive_scraped_content.
+- **`SUPABASE_RECEIVE_URL`** — Full URL of the receive_scraped_content Edge Function (e.g. `https://<project_ref>.supabase.co/functions/v1/receive_scraped_content`).
+- **`CLOUDFLARE_ACCOUNT_ID`** — For Browser Rendering fallback (optional).
+- **`CLOUDFLARE_API_TOKEN`** — For Browser Rendering fallback; token must have "Browser Rendering - Edit" permission.
+
+See [workers/README.md](workers/README.md) for details.
 
 ### Check if variables are loaded:
 
