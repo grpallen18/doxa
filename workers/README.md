@@ -11,7 +11,7 @@ This folder is a **single Cloudflare Worker** for the Doxa project. It is deploy
 
 | Path | Purpose |
 |------|--------|
-| `wrangler.toml` | Worker config: name (`doxa-worker`), main script (`src/index.ts`), compatibility date. Comment documents required secrets for the scrape fallback. |
+| `wrangler.toml` | Worker config: name (`doxa`), main script (`src/index.ts`), compatibility date. Comment documents required secrets for the scrape fallback. |
 | `package.json` | Scripts: `npm run deploy` (wrangler deploy), `npm run dev` (wrangler dev). Dependencies: `@mozilla/readability`, `linkedom`. Dev: `wrangler`. |
 | `src/index.ts` | Entry point. Exports a `fetch(request, env)` handler; routes by `request.url` path and method, returns JSON or plain text. |
 | `src/scrape.ts` | Article scrape handler: URL → fetch HTML or use Browser Rendering fallback → always return Readability `textContent`. Used by the `/scrape` and `/extract` routes. |

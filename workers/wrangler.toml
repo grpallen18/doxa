@@ -1,4 +1,4 @@
 # For /scrape fallback (Browser Rendering): set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as worker secrets in the dashboard.
-name = "doxa-worker"
+name = "doxa"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"

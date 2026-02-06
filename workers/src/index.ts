@@ -34,7 +34,7 @@ async function notifyReceiveScrapedContent(
     })
     const resBody = await res.text()
     if (!res.ok) {
-      console.error("[doxa-worker] receive_scraped_content failed", {
+      console.error("[doxa] receive_scraped_content failed", {
         story_id: storyId,
         status: res.status,
         body: resBody.slice(0, 500),
@@ -44,7 +44,7 @@ async function notifyReceiveScrapedContent(
     return { ok: true }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    console.error("[doxa-worker] receive_scraped_content request error", { story_id: storyId, error: msg })
+    console.error("[doxa] receive_scraped_content request error", { story_id: storyId, error: msg })
     return { ok: false, status: 0, body: msg }
   }
 }
@@ -86,14 +86,14 @@ export default {
         }
       )
       if (result.ok) {
-        console.log("[doxa-worker] scrape ok", { story_id: storyId, url: targetUrl, contentLength: result.content.length })
+        console.log("[doxa] scrape ok", { story_id: storyId, url: targetUrl, contentLength: result.content.length })
       } else {
-        console.log("[doxa-worker] scrape failed", { story_id: storyId, url: targetUrl, error: result.error })
+        console.log("[doxa] scrape failed", { story_id: storyId, url: targetUrl, error: result.error })
       }
 
       const receiveUrl = env.SUPABASE_RECEIVE_URL?.trim()
       if (storyId && receiveUrl) {
-        console.log("[doxa-worker] calling receive_scraped_content", { story_id: storyId })
+        console.log("[doxa] calling receive_scraped_content", { story_id: storyId })
         const callbackResult = await notifyReceiveScrapedContent(receiveUrl, secret.trim(), storyId, result)
         if (!callbackResult.ok) {
           const errBody = callbackResult.body.slice(0, 300)
@@ -107,9 +107,9 @@ export default {
             502
           )
         }
-        console.log("[doxa-worker] receive_scraped_content ok", { story_id: storyId })
+        console.log("[doxa] receive_scraped_content ok", { story_id: storyId })
       } else if (storyId) {
-        console.log("[doxa-worker] skip callback: no SUPABASE_RECEIVE_URL", { story_id: storyId })
+        console.log("[doxa] skip callback: no SUPABASE_RECEIVE_URL", { story_id: storyId })
       }
 
       if (result.ok) {
