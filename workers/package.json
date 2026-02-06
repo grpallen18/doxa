@@ -1,0 +1,16 @@
+{
+  "name": "doxa-workers",
+  "private": true,
+  "scripts": {
+    "build": "echo No build step",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "linkedom": "^0.18.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

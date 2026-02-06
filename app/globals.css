@@ -595,5 +595,8 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    transition:
+      color var(--interactive-duration) ease,
+      background-color var(--interactive-duration) ease;
   }
 }

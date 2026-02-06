@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const { data: rows, error } = await supabase
       .from('stories')
       .select('story_id, title, url, created_at, sources(name)')
+      .eq('relevance_status', 'KEEP')
       .order('created_at', { ascending: false })
       .limit(limit)
 

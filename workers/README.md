@@ -1,0 +1,96 @@
+# Doxa Cloudflare Workers
+
+This folder is a **single Cloudflare Worker** for the Doxa project. It is deployed as one unit; behavior is split into **handlers** selected by the request path. Each path (e.g. `/scrape`) is a “handler”: a piece of logic you invoke by sending an HTTP request to that path.
+
+- **Repo role:** Cloudflare can connect to the repo and deploy from this folder (set **Root directory** to `workers` in the dashboard).
+- **Stack:** Wrangler, TypeScript. Entry point is `src/index.ts`; it routes by URL path and calls into modules under `src/`.
+
+---
+
+## Layout
+
+| Path | Purpose |
+|------|--------|
+| `wrangler.toml` | Worker config: name (`doxa-worker`), main script (`src/index.ts`), compatibility date. Comment documents required secrets for the scrape fallback. |
+| `package.json` | Scripts: `npm run deploy` (wrangler deploy), `npm run dev` (wrangler dev). Dependencies: `@mozilla/readability`, `linkedom`. Dev: `wrangler`. |
+| `src/index.ts` | Entry point. Exports a `fetch(request, env)` handler; routes by `request.url` path and method, returns JSON or plain text. |
+| `src/scrape.ts` | Article scrape handler: URL → fetch HTML or use Browser Rendering fallback → always return Readability `textContent`. Used by the `/scrape` and `/extract` routes. |
+
+---
+
+## Routes (handlers)
+
+- **`POST /scrape`** and **`POST /extract`** — same behavior: article text extraction (see below).
+- Any other path/method — returns plain text: `Hello from doxa worker`.
+
+All JSON responses use `Content-Type: application/json`. Success responses are `{ "title", "content" }`; error responses are `{ "error", "story_id"? }` with an appropriate status code.
+
+---
+
+## Scrape handler (POST /scrape and POST /extract)
+
+**Purpose:** Given a URL, return the main article text (and title) in a single, consistent format: **Readability `textContent`** only. Used so downstream chunking, embeddings, and claim extraction see one style of output.
+
+**Request**
+
+- **Method:** POST only (405 for GET etc.).
+- **Body:** JSON.
+  - `url` (string, required) — the page to scrape.
+  - `story_id` (string, optional) — idempotency/logging; echoed in error responses so callers can map failures to a story deterministically.
+
+**Flow**
+
+1. **Validate URL** — Allowlist/denylist before any fetch:
+   - Allowed: `http:` and `https:` only.
+   - Rejected: localhost, loopback, private IPs (e.g. 127.x, 10.x, 172.16–31.x, 192.168.x, ::1, fe80:).
+   - Invalid or disallowed URL → 400 and `{ "error", "story_id"? }`.
+
+2. **Primary path**
+   - Fetch the URL (timeout 15s, User-Agent `DoxaBot/1.0 (content extraction)`).
+   - **Max HTML size:** 5 MB. If `Content-Length` or streamed body exceeds that, the handler returns a deterministic error (no partial body).
+   - Parse HTML with **linkedom** (Worker-safe DOM from `linkedom/worker`), run **Mozilla Readability** on the document.
+   - If Readability returns an article with at least 500 characters of `textContent`, return 200 and `{ "title", "content" }` (content is that textContent).
+
+3. **Fallback (when primary yields little or nothing)**
+   - **Render-cap check:** If `CLOUDFLARE_ACCOUNT_ID` or `CLOUDFLARE_API_TOKEN` is missing, do **not** call Browser Rendering; return an error (e.g. "Browser Rendering not configured") and optional `story_id`.
+   - If both are set: call **Cloudflare Browser Rendering** REST API **`/content`** with the same URL to get fully rendered HTML.
+   - Run **Readability again** on that HTML in the worker (linkedom + Readability).
+   - If that yields enough textContent, return 200 and `{ "title", "content" }`. Otherwise return an error and optional `story_id`.
+
+**Response**
+
+- **200** — `{ "title": string, "content": string }`. `content` is always Readability `textContent` (normalized format).
+- **400** — Bad request (e.g. missing/invalid URL, URL not allowed). Body: `{ "error", "story_id"? }`.
+- **405** — Method not POST.
+- **502** — Scrape failed (fetch failed, body too large, Readability failed, Browser Rendering not configured or failed). Body: `{ "error", "story_id"? }`.
+
+**Environment / secrets**
+
+- **Required for fallback only:** `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` (set as Worker secrets in the Cloudflare dashboard). Token must have “Browser Rendering - Edit” permission. If these are not set, the fallback path returns a clear error instead of calling the API.
+
+**Constants (in code)**
+
+- Fetch timeout: 15s. Browser Rendering timeout: 30s. Max HTML size: 5 MB. Minimum content length to accept from Readability: 500 characters.
+
+---
+
+## Dependencies
+
+- **`@mozilla/readability`** — Extracts main article content from a DOM document (Reader View style). Needs a DOM; we use linkedom because it runs in Workers.
+- **`linkedom`** — Lightweight DOM implementation. Use **`linkedom/worker`** in this project so it works in the Cloudflare Workers runtime (jsdom is Node-oriented and not used here).
+
+---
+
+## Local dev and deploy
+
+- **Install:** `npm install` (from the `workers` directory).
+- **Local dev:** `npm run dev` (Wrangler dev server).
+- **Deploy:** `npm run deploy` (or `npx wrangler deploy`). Set Worker secrets in the dashboard for the scrape fallback.
+
+---
+
+## Adding a new handler
+
+1. Implement the logic in a new module under `src/` (e.g. `src/otherHandler.ts`).
+2. In `src/index.ts`, read `new URL(request.url).pathname` (and method if needed). For the path you want (e.g. `POST /other`), parse the body, call your module, and return a `Response` (e.g. `jsonResponse(...)`).
+3. No new `wrangler.toml` or separate worker is required; one worker, multiple paths.

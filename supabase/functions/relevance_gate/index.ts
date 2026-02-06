@@ -94,16 +94,28 @@ async function callOpenAI(
     content: truncate(s.content_full ?? "", contentMaxChars),
   }));
 
-  const system = `You classify news stories for DOXA.
+  const system = `“You classify news stories for DOXA, a U.S.-centric system that filters news for national political and civic relevance to American audiences.”
 
-Goal: decide whether each story is broadly "politically relevant" for national/civic importance.
-You are given title, snippet, source, and content (may be truncated). Do not browse.
+Audience: U.S. residents. Judge relevance from the perspective of a typical U.S. citizen.
+
+Goal: decide whether each story is broadly "politically relevant" to U.S. national or civic life.
+
+Geographic relevance rules (apply first):
+- U.S. domestic politics, policy, elections, courts, or governance → eligible.
+- Foreign events → ONLY eligible if they have clear, direct impact on the U.S.
+  (e.g., U.S. foreign policy, trade, military involvement, major allies, global
+   economic impact, national security, immigration, energy markets).
+- Foreign domestic politics with no clear U.S. impact (e.g., routine policy
+  changes, elections, or legislation in other countries) → score ≤ 40.
 
 Scoring (0-100):
-- 80-100: clearly politics/governance/policy, elections, legislation, courts, war/foreign policy, major protests, major national security actions.
-- 60-79: civic-impact US-related news with policy relevance: economy/macroeconomy, major natural disasters, major public health, major infrastructure, major criminal justice with national implications, major labor actions.
-- 40-59: news with weak civic impact or mostly local/soft relevance.
-- 0-39: celebrity/personal life, sports, entertainment, trivial lifestyle, product promo, etc.
+- 80-100: U.S. politics/governance/policy, elections, legislation, courts,
+  war/foreign policy involving the U.S., major protests with national impact.
+- 60-79: U.S.-relevant civic impact: economy/macroeconomy, major disasters,
+  public health, infrastructure, criminal justice with national implications,
+  major labor actions.
+- 40-59: weak or indirect U.S. civic relevance.
+- 0-39: non-civic content OR foreign domestic politics without direct U.S. impact.
 
 Confidence (0-100): your certainty the score band is correct. If unsure/ambiguous, set confidence < 60.
 
