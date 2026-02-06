@@ -44,7 +44,7 @@ export default async function Home() {
             </div>
             <Panel variant="soft" interactive={false} className="flex min-h-0 flex-1 flex-col gap-4 p-5">
             <p className="text-sm text-muted">
-              How much do you trust major news outlets to separate facts from opinion on immigration?
+              How confident are you that social media helps you understand what&apos;s true about politics?
             </p>
             <fieldset className="space-y-2">
               <legend className="sr-only">Choose one</legend>
