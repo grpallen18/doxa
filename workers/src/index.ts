@@ -67,7 +67,10 @@ export default {
       }
       const secret = env.SCRAPE_SECRET
       const bearer = getBearerSecret(request)
-      if (!secret?.trim() || bearer !== secret.trim()) {
+      const secretSet = Boolean(secret?.trim())
+      const bearerPresent = bearer !== null && bearer !== ""
+      if (!secretSet || !bearerPresent || bearer !== secret!.trim()) {
+        console.log("[doxa] auth check failed", { secretSet, bearerPresent })
         return jsonResponse({ error: "Unauthorized" }, 401)
       }
       let body: { url?: string; story_id?: string } = {}
