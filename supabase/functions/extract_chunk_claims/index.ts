@@ -81,7 +81,7 @@ Return JSON only in the required schema. If there are no claims or no evidence i
                     span_start: { type: ["integer", "null"] },
                     span_end: { type: ["integer", "null"] },
                   },
-                  required: ["raw_text", "polarity", "extraction_confidence"],
+                  required: ["raw_text", "polarity", "extraction_confidence", "span_start", "span_end"],
                   additionalProperties: false,
                 },
               },
@@ -96,7 +96,7 @@ Return JSON only in the required schema. If there are no claims or no evidence i
                     attribution: { type: ["string", "null"] },
                     source_ref: { type: ["string", "null"] },
                   },
-                  required: ["evidence_type", "excerpt", "extraction_confidence"],
+                  required: ["evidence_type", "excerpt", "extraction_confidence", "attribution", "source_ref"],
                   additionalProperties: false,
                 },
               },
@@ -111,7 +111,7 @@ Return JSON only in the required schema. If there are no claims or no evidence i
                     confidence: { type: "number", minimum: 0, maximum: 1 },
                     rationale: { type: ["string", "null"] },
                   },
-                  required: ["claim_index", "evidence_index", "relation_type", "confidence"],
+                  required: ["claim_index", "evidence_index", "relation_type", "confidence", "rationale"],
                   additionalProperties: false,
                 },
               },
@@ -166,6 +166,7 @@ Deno.serve(async (req: Request) => {
     // use defaults
   }
   const maxChunks = clampInt(body.max_chunks, 1, 20, DEFAULT_MAX_CHUNKS);
+  const dryRun = Boolean(body.dry_run ?? false);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
@@ -192,21 +193,23 @@ Deno.serve(async (req: Request) => {
   }
 
   let runId: string | null = null;
-  try {
-    const { data: runData } = await supabase
-      .from("pipeline_runs")
-      .insert({
-        pipeline_name: "chunk_extraction",
-        status: "running",
-        started_at: new Date().toISOString(),
-        model_provider: "openai",
-        model_name: MODEL,
-      })
-      .select("run_id")
-      .single();
-    if (runData?.run_id) runId = runData.run_id;
-  } catch (_) {
-    // continue without run_id
+  if (!dryRun) {
+    try {
+      const { data: runData } = await supabase
+        .from("pipeline_runs")
+        .insert({
+          pipeline_name: "chunk_extraction",
+          status: "running",
+          started_at: new Date().toISOString(),
+          model_provider: "openai",
+          model_name: MODEL,
+        })
+        .select("run_id")
+        .single();
+      if (runData?.run_id) runId = runData.run_id;
+    } catch (_) {
+      // continue without run_id
+    }
   }
 
   const requestId = `extract-chunk-${Date.now()}`;
@@ -223,28 +226,30 @@ Deno.serve(async (req: Request) => {
         `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
       );
 
-      const extractionJson = {
-        claims: result.claims,
-        evidence: result.evidence,
-        links: result.links,
-      };
+      if (!dryRun) {
+        const extractionJson = {
+          claims: result.claims,
+          evidence: result.evidence,
+          links: result.links,
+        };
 
-      const { error: updateErr } = await supabase
-        .from("story_chunks")
-        .update({ extraction_json: extractionJson })
-        .eq("story_id", chunk.story_id)
-        .eq("chunk_index", chunk.chunk_index);
+        const { error: updateErr } = await supabase
+          .from("story_chunks")
+          .update({ extraction_json: extractionJson })
+          .eq("story_id", chunk.story_id)
+          .eq("chunk_index", chunk.chunk_index);
 
-      if (updateErr) {
-        console.error("[extract_chunk_claims] Update error:", updateErr.message);
-        return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+        if (updateErr) {
+          console.error("[extract_chunk_claims] Update error:", updateErr.message);
+          return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+        }
       }
 
       processed += 1;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[extract_chunk_claims] Error for chunk:", chunk.story_id, chunk.chunk_index, msg);
-      if (runId) {
+      if (!dryRun && runId) {
         await supabase
           .from("pipeline_runs")
           .update({ status: "failed", ended_at: new Date().toISOString(), error: msg })
@@ -254,7 +259,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  if (runId) {
+  if (!dryRun && runId) {
     await supabase
       .from("pipeline_runs")
       .update({
@@ -270,5 +275,6 @@ Deno.serve(async (req: Request) => {
     processed,
     model: MODEL,
     run_id: runId,
+    dry_run: dryRun,
   });
 });

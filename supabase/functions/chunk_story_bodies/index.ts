@@ -62,6 +62,7 @@ Deno.serve(async (req: Request) => {
     // use defaults
   }
   const maxStories = clampInt(body.max_stories, 1, 50, DEFAULT_MAX_STORIES);
+  const dryRun = Boolean(body.dry_run ?? false);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
@@ -122,11 +123,13 @@ Deno.serve(async (req: Request) => {
 
     if (rows.length === 0) continue;
 
-    const { error: insertErr } = await supabase.from("story_chunks").insert(rows);
+    if (!dryRun) {
+      const { error: insertErr } = await supabase.from("story_chunks").insert(rows);
 
-    if (insertErr) {
-      console.error("[chunk_story_bodies] Insert error for story", row.story_id, insertErr.message);
-      return json({ error: insertErr.message, story_id: row.story_id }, 500);
+      if (insertErr) {
+        console.error("[chunk_story_bodies] Insert error for story", row.story_id, insertErr.message);
+        return json({ error: insertErr.message, story_id: row.story_id }, 500);
+      }
     }
 
     totalChunks += rows.length;
@@ -136,5 +139,6 @@ Deno.serve(async (req: Request) => {
     ok: true,
     processed: unchunked.length,
     chunks_created: totalChunks,
+    dry_run: dryRun,
   });
 });

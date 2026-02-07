@@ -44,6 +44,17 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Missing WORKER_SCRAPE_URL or SCRAPE_SECRET" }, 500);
   }
 
+  let body: Record<string, unknown> = {};
+  try {
+    const rawBody = await req.json().catch(() => ({}));
+    if (rawBody !== null && typeof rawBody === "object" && !Array.isArray(rawBody)) {
+      body = rawBody as Record<string, unknown>;
+    }
+  } catch {
+    // use defaults
+  }
+  const dryRun = Boolean(body.dry_run ?? false);
+
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
   const { data: storiesRaw, error: storiesErr } = await supabase
@@ -113,20 +124,22 @@ Deno.serve(async (req: Request) => {
       if (now.getTime() - last < cooldownMs) continue;
     }
 
-    const { error: lockErr } = await supabase
-      .from("stories")
-      .update({ being_processed: true })
-      .eq("story_id", story.story_id);
+    if (!dryRun) {
+      const { error: lockErr } = await supabase
+        .from("stories")
+        .update({ being_processed: true })
+        .eq("story_id", story.story_id);
 
-    if (lockErr) {
-      console.error("[scrape_story_content] Lock error:", lockErr.message);
-      continue;
+      if (lockErr) {
+        console.error("[scrape_story_content] Lock error:", lockErr.message);
+        continue;
+      }
+
+      await supabase.from("domain_throttle").upsert(
+        { domain, last_dispatched_at: now.toISOString() },
+        { onConflict: "domain" }
+      );
     }
-
-    await supabase.from("domain_throttle").upsert(
-      { domain, last_dispatched_at: now.toISOString() },
-      { onConflict: "domain" }
-    );
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS);
@@ -138,29 +151,33 @@ Deno.serve(async (req: Request) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${SCRAPE_SECRET}`,
         },
-        body: JSON.stringify({ url, story_id: story.story_id }),
+        body: JSON.stringify({ url, story_id: story.story_id, dry_run: dryRun }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
       if (!res.ok) {
         console.error("[scrape_story_content] Worker response:", res.status);
+        if (!dryRun) {
+          const { error: unlockErr } = await supabase
+            .from("stories")
+            .update({ being_processed: false })
+            .eq("story_id", story.story_id);
+          if (unlockErr) console.error("[scrape_story_content] Unlock error:", unlockErr.message);
+        }
+        return json({ error: `Worker returned ${res.status}`, story_id: story.story_id }, 502);
+      }
+      return json({ ok: true, dispatched: 1, story_id: story.story_id, dry_run: dryRun });
+    } catch (e) {
+      clearTimeout(timeoutId);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[scrape_story_content] Worker request error:", msg);
+      if (!dryRun) {
         const { error: unlockErr } = await supabase
           .from("stories")
           .update({ being_processed: false })
           .eq("story_id", story.story_id);
         if (unlockErr) console.error("[scrape_story_content] Unlock error:", unlockErr.message);
-        return json({ error: `Worker returned ${res.status}`, story_id: story.story_id }, 502);
       }
-      return json({ ok: true, dispatched: 1, story_id: story.story_id });
-    } catch (e) {
-      clearTimeout(timeoutId);
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[scrape_story_content] Worker request error:", msg);
-      const { error: unlockErr } = await supabase
-        .from("stories")
-        .update({ being_processed: false })
-        .eq("story_id", story.story_id);
-      if (unlockErr) console.error("[scrape_story_content] Unlock error:", unlockErr.message);
       return json({ error: msg, story_id: story.story_id }, 502);
     }
   }

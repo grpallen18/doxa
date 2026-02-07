@@ -45,16 +45,17 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }, 500);
   }
 
-  let body: { story_id?: string; title?: string; content?: string; error?: string } = {};
+  let body: { story_id?: string; title?: string; content?: string; error?: string; dry_run?: boolean } = {};
   try {
     const raw = await req.json().catch(() => ({}));
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-      body = raw as { story_id?: string; title?: string; content?: string; error?: string };
+      body = raw as { story_id?: string; title?: string; content?: string; error?: string; dry_run?: boolean };
     }
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
 
+  const dryRun = Boolean(body.dry_run ?? false);
   const storyId = typeof body.story_id === "string" ? body.story_id.trim() : "";
   if (!storyId) return json({ error: "story_id is required" }, 400);
 
@@ -64,37 +65,41 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
   if (hasContent) {
-    const { error: upsertErr } = await supabase.from("story_bodies").upsert(
-      {
-        story_id: storyId,
-        content,
-        extracted_at: new Date().toISOString(),
-        extractor_version: "worker-readability",
-      },
-      { onConflict: "story_id" }
-    );
-    if (upsertErr) {
-      console.error("[receive_scraped_content] story_bodies upsert error:", upsertErr.message);
-      return json({ error: upsertErr.message }, 500);
+    if (!dryRun) {
+      const { error: upsertErr } = await supabase.from("story_bodies").upsert(
+        {
+          story_id: storyId,
+          content,
+          extracted_at: new Date().toISOString(),
+          extractor_version: "worker-readability",
+        },
+        { onConflict: "story_id" }
+      );
+      if (upsertErr) {
+        console.error("[receive_scraped_content] story_bodies upsert error:", upsertErr.message);
+        return json({ error: upsertErr.message }, 500);
+      }
+      const { error: updateErr } = await supabase
+        .from("stories")
+        .update({ being_processed: false, scrape_skipped: false })
+        .eq("story_id", storyId);
+      if (updateErr) {
+        console.error("[receive_scraped_content] stories update error:", updateErr.message);
+        return json({ error: updateErr.message }, 500);
+      }
     }
-    const { error: updateErr } = await supabase
-      .from("stories")
-      .update({ being_processed: false, scrape_skipped: false })
-      .eq("story_id", storyId);
-    if (updateErr) {
-      console.error("[receive_scraped_content] stories update error:", updateErr.message);
-      return json({ error: updateErr.message }, 500);
-    }
-    return json({ ok: true, story_id: storyId });
+    return json({ ok: true, story_id: storyId, dry_run: dryRun });
   }
 
-  const { error: updateErr } = await supabase
-    .from("stories")
-    .update({ being_processed: false, scrape_skipped: true })
-    .eq("story_id", storyId);
-  if (updateErr) {
-    console.error("[receive_scraped_content] stories update (skip) error:", updateErr.message);
-    return json({ error: updateErr.message }, 500);
+  if (!dryRun) {
+    const { error: updateErr } = await supabase
+      .from("stories")
+      .update({ being_processed: false, scrape_skipped: true })
+      .eq("story_id", storyId);
+    if (updateErr) {
+      console.error("[receive_scraped_content] stories update (skip) error:", updateErr.message);
+      return json({ error: updateErr.message }, 500);
+    }
   }
-  return json({ ok: true, story_id: storyId, skipped: true });
+  return json({ ok: true, story_id: storyId, skipped: true, dry_run: dryRun });
 });

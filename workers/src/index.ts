@@ -18,11 +18,12 @@ async function notifyReceiveScrapedContent(
   receiveUrl: string,
   secret: string,
   storyId: string,
-  result: { ok: true; title: string; content: string } | { ok: false; error: string }
+  result: { ok: true; title: string; content: string } | { ok: false; error: string },
+  dryRun: boolean
 ): Promise<{ ok: true } | { ok: false; status: number; body: string }> {
   const body = result.ok
-    ? { story_id: storyId, title: result.title, content: result.content }
-    : { story_id: storyId, error: result.error }
+    ? { story_id: storyId, title: result.title, content: result.content, dry_run: dryRun }
+    : { story_id: storyId, error: result.error, dry_run: dryRun }
   try {
     const res = await fetch(receiveUrl, {
       method: "POST",
@@ -73,14 +74,15 @@ export default {
         console.log("[doxa] auth check failed", { secretSet, bearerPresent })
         return jsonResponse({ error: "Unauthorized" }, 401)
       }
-      let body: { url?: string; story_id?: string } = {}
+      let body: { url?: string; story_id?: string; dry_run?: boolean } = {}
       try {
-        body = (await request.json()) as { url?: string; story_id?: string }
+        body = (await request.json()) as { url?: string; story_id?: string; dry_run?: boolean }
       } catch {
         return jsonResponse({ error: "Invalid JSON" }, 400)
       }
       const targetUrl = typeof body.url === "string" ? body.url : ""
       const storyId = typeof body.story_id === "string" ? body.story_id : undefined
+      const dryRun = Boolean(body.dry_run ?? false)
       const result = await extractArticleText(
         { url: targetUrl, story_id: storyId },
         {
@@ -97,7 +99,7 @@ export default {
       const receiveUrl = env.SUPABASE_RECEIVE_URL?.trim()
       if (storyId && receiveUrl) {
         console.log("[doxa] calling receive_scraped_content", { story_id: storyId })
-        const callbackResult = await notifyReceiveScrapedContent(receiveUrl, secret.trim(), storyId, result)
+        const callbackResult = await notifyReceiveScrapedContent(receiveUrl, secret.trim(), storyId, result, dryRun)
         if (!callbackResult.ok) {
           const errBody = callbackResult.body.slice(0, 300)
           return jsonResponse(

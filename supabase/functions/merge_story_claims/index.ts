@@ -1,7 +1,7 @@
 // Supabase Edge Function: merge chunk extraction_json into story_claims, story_evidence, story_claim_evidence_links.
 // Runs after all chunks for a story have extraction_json. Deduplicates, normalizes, consolidates. No orphan evidence.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_stories?: number }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_stories?: number, dry_run?: boolean }.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -109,7 +109,7 @@ If the merged result has no claims, return empty arrays.`;
                     span_start: { type: ["integer", "null"] },
                     span_end: { type: ["integer", "null"] },
                   },
-                  required: ["raw_text", "polarity", "extraction_confidence"],
+                  required: ["raw_text", "polarity", "extraction_confidence", "span_start", "span_end"],
                   additionalProperties: false,
                 },
               },
@@ -124,7 +124,7 @@ If the merged result has no claims, return empty arrays.`;
                     attribution: { type: ["string", "null"] },
                     source_ref: { type: ["string", "null"] },
                   },
-                  required: ["evidence_type", "excerpt", "extraction_confidence"],
+                  required: ["evidence_type", "excerpt", "extraction_confidence", "attribution", "source_ref"],
                   additionalProperties: false,
                 },
               },
@@ -139,7 +139,7 @@ If the merged result has no claims, return empty arrays.`;
                     confidence: { type: "number", minimum: 0, maximum: 1 },
                     rationale: { type: ["string", "null"] },
                   },
-                  required: ["claim_index", "evidence_index", "relation_type", "confidence"],
+                  required: ["claim_index", "evidence_index", "relation_type", "confidence", "rationale"],
                   additionalProperties: false,
                 },
               },
@@ -199,6 +199,7 @@ Deno.serve(async (req: Request) => {
     // use defaults
   }
   const maxStories = clampInt(body.max_stories, 1, 5, DEFAULT_MAX_STORIES);
+  const dryRun = Boolean(body.dry_run ?? false);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
@@ -219,31 +220,44 @@ Deno.serve(async (req: Request) => {
   );
 
   if (readyStoryIds.length === 0) {
-    return json({ ok: true, processed: 0, message: "No stories ready to merge" });
+    return json({
+      ok: true,
+      processed: 0,
+      story_claims: 0,
+      story_evidence: 0,
+      story_claim_evidence_links: 0,
+      message: "No stories ready to merge",
+      dry_run: dryRun,
+    });
   }
 
   const toProcess = readyStoryIds.slice(0, maxStories);
   const requestId = `merge-${Date.now()}`;
   let runId: string | null = null;
 
-  try {
-    const { data: runData } = await supabase
-      .from("pipeline_runs")
-      .insert({
-        pipeline_name: "story_merge",
-        status: "running",
-        started_at: new Date().toISOString(),
-        model_provider: "openai",
-        model_name: MODEL,
-      })
-      .select("run_id")
-      .single();
-    if (runData?.run_id) runId = runData.run_id;
-  } catch (_) {
-    // continue
+  if (!dryRun) {
+    try {
+      const { data: runData } = await supabase
+        .from("pipeline_runs")
+        .insert({
+          pipeline_name: "story_merge",
+          status: "running",
+          started_at: new Date().toISOString(),
+          model_provider: "openai",
+          model_name: MODEL,
+        })
+        .select("run_id")
+        .single();
+      if (runData?.run_id) runId = runData.run_id;
+    } catch (_) {
+      // continue
+    }
   }
 
   let processed = 0;
+  let totalClaims = 0;
+  let totalEvidence = 0;
+  let totalLinks = 0;
 
   for (const storyId of toProcess) {
     const { data: chunks } = await supabase
@@ -264,7 +278,7 @@ Deno.serve(async (req: Request) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[merge_story_claims] LLM error:", msg);
-      if (runId) {
+      if (!dryRun && runId) {
         await supabase
           .from("pipeline_runs")
           .update({ status: "failed", ended_at: new Date().toISOString(), error: msg })
@@ -284,6 +298,14 @@ Deno.serve(async (req: Request) => {
         l.evidence_index < mergeEvidence.length &&
         evidenceWithLinks.has(l.evidence_index)
     );
+
+    if (dryRun) {
+      totalClaims += mergeClaims.length;
+      totalEvidence += evidenceToKeep.length;
+      totalLinks += validLinks.length;
+      processed += 1;
+      continue;
+    }
 
     const evidenceIndexMap = new Map<number, number>();
     mergeEvidence.forEach((_, oldIdx) => {
@@ -330,6 +352,7 @@ Deno.serve(async (req: Request) => {
       if (ins?.evidence_id) evidenceIds.push(ins.evidence_id);
     }
 
+    let linksInserted = 0;
     for (const link of validLinks) {
       const newClaimIdx = link.claim_index;
       const newEvidenceIdx = evidenceIndexMap.get(link.evidence_index);
@@ -346,7 +369,12 @@ Deno.serve(async (req: Request) => {
         rationale: link.rationale ?? null,
         run_id: runId,
       });
+      linksInserted += 1;
     }
+
+    totalClaims += claimIds.length;
+    totalEvidence += evidenceIds.length;
+    totalLinks += linksInserted;
 
     const isEmpty = claimIds.length === 0 && evidenceIds.length === 0;
     await supabase
@@ -360,7 +388,7 @@ Deno.serve(async (req: Request) => {
     processed += 1;
   }
 
-  if (runId) {
+  if (!dryRun && runId) {
     await supabase
       .from("pipeline_runs")
       .update({
@@ -374,7 +402,11 @@ Deno.serve(async (req: Request) => {
   return json({
     ok: true,
     processed,
+    story_claims: totalClaims,
+    story_evidence: totalEvidence,
+    story_claim_evidence_links: totalLinks,
     model: MODEL,
     run_id: runId,
+    dry_run: dryRun,
   });
 });

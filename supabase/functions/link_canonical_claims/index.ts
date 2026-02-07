@@ -1,7 +1,7 @@
 // Supabase Edge Function: link story_claims to canonical claims via embedding similarity.
 // Creates new claims when no match above threshold. Required for every new story_claim.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL, SIMILARITY_THRESHOLD.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_claims?: number }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_claims?: number, dry_run?: boolean }.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -92,6 +92,7 @@ Deno.serve(async (req: Request) => {
     // use defaults
   }
   const maxClaims = clampInt(body.max_claims, 1, 50, DEFAULT_MAX_CLAIMS);
+  const dryRun = Boolean(body.dry_run ?? false);
 
   const maxDistance = 1 - similarityThreshold;
 
@@ -115,7 +116,7 @@ Deno.serve(async (req: Request) => {
   );
 
   if (storyClaims.length === 0) {
-    return json({ ok: true, processed: 0, linked: 0, created: 0, message: "No story_claims to link" });
+    return json({ ok: true, processed: 0, linked: 0, created: 0, message: "No story_claims to link", dry_run: dryRun });
   }
 
   let linked = 0;
@@ -151,54 +152,60 @@ Deno.serve(async (req: Request) => {
     const distance = typeof best?.distance === "number" ? best.distance : 1;
 
     if (distance <= maxDistance && best?.claim_id) {
-      const { error: upErr } = await supabase
-        .from("story_claims")
-        .update({ claim_id: best.claim_id })
-        .eq("story_claim_id", sc.story_claim_id);
+      if (!dryRun) {
+        const { error: upErr } = await supabase
+          .from("story_claims")
+          .update({ claim_id: best.claim_id, embedding: embeddingStr })
+          .eq("story_claim_id", sc.story_claim_id);
 
-      if (upErr) {
-        console.error("[link_canonical_claims] Update link error:", upErr.message);
-        return json({ error: upErr.message }, 500);
+        if (upErr) {
+          console.error("[link_canonical_claims] Update link error:", upErr.message);
+          return json({ error: upErr.message }, 500);
+        }
       }
       linked += 1;
     } else {
       const normalized = rawText.toLowerCase().trim().replace(/\s+/g, " ");
       let canonicalHash = await sha256Hex(normalized);
-      let attempts = 0;
-      while (attempts < 5) {
-        const { data: ins, error: insErr } = await supabase
-          .from("claims")
-          .insert({
-            canonical_text: rawText,
-            canonical_hash: canonicalHash,
-            embedding: embeddingStr,
-            metadata: {},
-          })
-          .select("claim_id")
-          .single();
+      if (dryRun) {
+        created += 1;
+      } else {
+        let attempts = 0;
+        while (attempts < 5) {
+          const { data: ins, error: insErr } = await supabase
+            .from("claims")
+            .insert({
+              canonical_text: rawText,
+              canonical_hash: canonicalHash,
+              embedding: embeddingStr,
+              metadata: {},
+            })
+            .select("claim_id")
+            .single();
 
-        if (!insErr) {
-          const { error: upErr } = await supabase
-            .from("story_claims")
-            .update({ claim_id: ins?.claim_id })
-            .eq("story_claim_id", sc.story_claim_id);
+          if (!insErr) {
+            const { error: upErr } = await supabase
+              .from("story_claims")
+              .update({ claim_id: ins?.claim_id, embedding: embeddingStr })
+              .eq("story_claim_id", sc.story_claim_id);
 
-          if (upErr) {
-            console.error("[link_canonical_claims] Update new claim error:", upErr.message);
-            return json({ error: upErr.message }, 500);
+            if (upErr) {
+              console.error("[link_canonical_claims] Update new claim error:", upErr.message);
+              return json({ error: upErr.message }, 500);
+            }
+            created += 1;
+            break;
           }
-          created += 1;
-          break;
-        }
 
-        if (insErr.code === "23505") {
-          canonicalHash = `${canonicalHash}_${crypto.randomUUID().slice(0, 8)}`;
-          attempts += 1;
-          continue;
-        }
+          if (insErr.code === "23505") {
+            canonicalHash = `${canonicalHash}_${crypto.randomUUID().slice(0, 8)}`;
+            attempts += 1;
+            continue;
+          }
 
-        console.error("[link_canonical_claims] Insert claim error:", insErr.message);
-        return json({ error: insErr.message }, 500);
+          console.error("[link_canonical_claims] Insert claim error:", insErr.message);
+          return json({ error: insErr.message }, 500);
+        }
       }
     }
   }
@@ -209,5 +216,6 @@ Deno.serve(async (req: Request) => {
     linked,
     created,
     similarity_threshold: similarityThreshold,
+    dry_run: dryRun,
   });
 });

@@ -48,6 +48,14 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  let dryRun = false;
+  try {
+    const body = (await req.json().catch(() => ({}))) as { dry_run?: boolean };
+    dryRun = Boolean(body?.dry_run ?? false);
+  } catch {
+    // use default
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -57,19 +65,20 @@ Deno.serve(async (req: Request) => {
   let storiesInserted = 0;
 
   try {
-    // Optional: create pipeline_run for audit
-    const { data: runData, error: runInsertError } = await supabase
-      .from("pipeline_runs")
-      .insert({
-        pipeline_name: "ingest_newsapi",
-        status: "running",
-        started_at: new Date().toISOString(),
-      })
-      .select("run_id")
-      .single();
+    if (!dryRun) {
+      const { data: runData, error: runInsertError } = await supabase
+        .from("pipeline_runs")
+        .insert({
+          pipeline_name: "ingest_newsapi",
+          status: "running",
+          started_at: new Date().toISOString(),
+        })
+        .select("run_id")
+        .single();
 
-    if (!runInsertError && runData?.run_id) {
-      runId = runData.run_id;
+      if (!runInsertError && runData?.run_id) {
+        runId = runData.run_id;
+      }
     }
 
     const url = `https://newsapi.org/v2/top-headlines?country=us&category=politics&language=en&pageSize=100&page=1&apiKey=${apiKey}`;
@@ -78,7 +87,7 @@ Deno.serve(async (req: Request) => {
 
     if (data.status !== "ok") {
       const message = data.message ?? "NewsAPI request failed";
-      if (runId) {
+      if (!dryRun && runId) {
         await supabase
           .from("pipeline_runs")
           .update({ status: "failed", ended_at: new Date().toISOString(), error: message })
@@ -107,14 +116,21 @@ Deno.serve(async (req: Request) => {
         if (row?.name && row?.source_id) sourceNameToId.set(row.name, row.source_id);
       }
       const toInsert = namesList.filter((n) => !sourceNameToId.has(n));
-      for (const name of toInsert) {
-        const { data: inserted, error: insertErr } = await supabase
-          .from("sources")
-          .insert({ name, domain: null, bias_tags: [], metadata: {} })
-          .select("source_id")
-          .single();
-        if (!insertErr && inserted?.source_id) {
-          sourceNameToId.set(name, inserted.source_id);
+      if (!dryRun) {
+        for (const name of toInsert) {
+          const { data: inserted, error: insertErr } = await supabase
+            .from("sources")
+            .insert({ name, domain: null, bias_tags: [], metadata: {} })
+            .select("source_id")
+            .single();
+          if (!insertErr && inserted?.source_id) {
+            sourceNameToId.set(name, inserted.source_id);
+            sourcesInserted++;
+          }
+        }
+      } else {
+        for (const name of toInsert) {
+          sourceNameToId.set(name, "00000000-0000-0000-0000-000000000000");
           sourcesInserted++;
         }
       }
@@ -178,16 +194,18 @@ Deno.serve(async (req: Request) => {
       existingUrls.add(url);
     }
 
-    if (storiesPayload.length > 0) {
+    if (storiesPayload.length > 0 && !dryRun) {
       const { error: storiesErr } = await supabase
         .from("stories")
         .upsert(storiesPayload, { onConflict: "url", ignoreDuplicates: true });
       if (!storiesErr) {
         storiesInserted = storiesPayload.length;
       }
+    } else if (dryRun && storiesPayload.length > 0) {
+      storiesInserted = storiesPayload.length;
     }
 
-    if (runId) {
+    if (!dryRun && runId) {
       await supabase
         .from("pipeline_runs")
         .update({
@@ -202,10 +220,11 @@ Deno.serve(async (req: Request) => {
       inserted_sources: sourcesInserted,
       inserted_stories: storiesInserted,
       pipeline_run_id: runId ?? undefined,
+      dry_run: dryRun,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (runId) {
+    if (!dryRun && runId) {
       await supabase
         .from("pipeline_runs")
         .update({ status: "failed", ended_at: new Date().toISOString(), error: message })
