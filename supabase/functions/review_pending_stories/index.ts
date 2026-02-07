@@ -213,21 +213,21 @@ Deno.serve(async (req: Request) => {
 
   const { data: bodiesRows } = await supabase
     .from("story_bodies")
-    .select("story_id, content")
-    .not("content", "is", null);
+    .select("story_id, content_clean")
+    .not("content_clean", "is", null);
 
   const storyIdsWithBody = (Array.isArray(bodiesRows) ? bodiesRows : []).map(
     (r: { story_id: string }) => r.story_id
   );
   const bodyContentMap = new Map<string, string>(
-    (Array.isArray(bodiesRows) ? bodiesRows : []).map((r: { story_id: string; content: string | null }) => [
+    (Array.isArray(bodiesRows) ? bodiesRows : []).map((r: { story_id: string; content_clean: string | null }) => [
       r.story_id,
-      (r.content ?? "").trim(),
+      (r.content_clean ?? "").trim(),
     ])
   );
 
   if (storyIdsWithBody.length === 0) {
-    return json({ ok: true, processed: 0, message: "No story_bodies with content" });
+    return json({ ok: true, processed: 0, message: "No story_bodies with content_clean" });
   }
 
   const uniqueIds = [...new Set(storyIdsWithBody)];
@@ -256,7 +256,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (stories.length === 0) {
-    return json({ ok: true, processed: 0, message: "No PENDING stories with body content to review" });
+    return json({ ok: true, processed: 0, message: "No PENDING stories with content_clean to review" });
   }
 
   const storyIds = stories.map((s) => s.story_id);

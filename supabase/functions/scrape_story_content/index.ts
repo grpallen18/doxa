@@ -83,14 +83,15 @@ Deno.serve(async (req: Request) => {
   const storyIds = stories.map((s) => s.story_id);
   const { data: bodiesRaw } = await supabase
     .from("story_bodies")
-    .select("story_id, content")
+    .select("story_id, content_raw, content_length_raw")
     .in("story_id", storyIds);
 
   const bodiesMap = new Map<string, number>(
-    (Array.isArray(bodiesRaw) ? bodiesRaw : []).map((b) => [
-      (b as { story_id: string; content: string | null }).story_id,
-      ((b as { content: string | null }).content ?? "").length,
-    ])
+    (Array.isArray(bodiesRaw) ? bodiesRaw : []).map((b) => {
+      const row = b as { story_id: string; content_raw?: string | null; content_length_raw?: number | null };
+      const len = row.content_length_raw ?? (row.content_raw ?? "").length;
+      return [row.story_id, len] as const;
+    })
   );
 
   const candidates = stories.filter((s) => {

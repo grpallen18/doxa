@@ -63,14 +63,19 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### story_bodies
 
-**Purpose:** Full article text scraped from story URLs. One row per story. Written by **receive_scraped_content** (called by the Cloudflare Worker after scraping).
+**Purpose:** Full article text scraped from story URLs. One row per story. Written by **receive_scraped_content** (called by the Cloudflare Worker after scraping). **clean_scraped_content** cleans `content_raw` with an LLM and writes `content_clean`. Chunking and re-review use `content_clean`.
 
 | Column | Type | Purpose |
 |--------|------|---------|
 | `story_id` | uuid (PK, FK → stories.story_id) | Which story. |
-| `content` | text | Readability textContent from Worker. |
-| `extracted_at` | timestamptz | When the body was scraped. |
-| `extractor_version` | text (nullable) | Optional scraper version. |
+| `content_raw` | text | Raw Readability textContent from Worker. |
+| `content_length_raw` | int (generated) | Character length of content_raw. |
+| `content_clean` | text (nullable) | LLM-cleaned article text; null until clean_scraped_content runs. |
+| `content_length_clean` | int (generated, nullable) | Character length of content_clean. |
+| `cleaned_at` | timestamptz (nullable) | When content was cleaned. |
+| `cleaner_model` | text (nullable) | AI model used to clean content. |
+| `scraped_at` | timestamptz | When the body was scraped. |
+| `scrape_method` | text (nullable) | fetch_readability or browser_render. |
 
 ---
 
@@ -458,6 +463,12 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `019_story_chunks.sql` | Creates story_chunks table; RLS. |
 | `020_chunk_extraction_and_claims_index.sql` | extraction_json on story_chunks; HNSW index on claims.embedding; story_claims.embedding. |
 | `021_claims_nearest_claim_rpc.sql` | RPC match_claims_nearest for pgvector cosine search. |
+| `022_relevance_status_threshold_75.sql` | relevance_status threshold 75. |
+| `023_stories_scraped_at.sql` | scraped_at on stories. |
+| `024_story_bodies_scrape_method.sql` | scrape_method on story_bodies. |
+| `025_story_bodies_content_length.sql` | content_length on story_bodies (superseded by 026). |
+| `026_story_bodies_content_raw_clean.sql` | content → content_raw; content_clean, content_length_raw/clean, cleaned_at, cleaner_model. |
+| `027_story_bodies_drop_extractor_rename_scraped.sql` | Drop extractor_version; rename extracted_at to scraped_at. |
 
 After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims.
 
@@ -497,11 +508,19 @@ Dispatches **one KEEP or PENDING story per run** to the Cloudflare Worker for sc
 
 ### receive_scraped_content
 
-Edge Function called by the Cloudflare Worker after scraping. Validates **Authorization: Bearer SCRAPE_SECRET**; writes to **story_bodies** and updates `stories` flags. Deploy with `--no-verify-jwt` so it accepts the shared secret instead of a Supabase JWT. Requires `verify_jwt = false` in config or `supabase/config.toml`.
+Edge Function called by the Cloudflare Worker after scraping. Validates **Authorization: Bearer SCRAPE_SECRET**; writes `content_raw` to **story_bodies** and updates `stories` flags. Deploy with `--no-verify-jwt` so it accepts the shared secret instead of a Supabase JWT. Requires `verify_jwt = false` in config or `supabase/config.toml`.
+
+### clean_scraped_content
+
+Cleans raw article text with an LLM: removes site chrome (nav, footer, ads, related links, etc.), writes `content_clean` to story_bodies. Selects one uncleaned story per run; uses OPENAI_MODEL by default, OPENAI_MODEL_LARGE when content_length_raw > 12000. For very long articles (>30k chars), cleans only first 5k + last 5k; middle stays untouched. Run after receive_scraped_content, before chunk_story_bodies.
+
+**Request body (optional):** `max_stories` (1, default 1), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`, `OPENAI_MODEL`; optional `OPENAI_MODEL_LARGE`.
+
+**Cron (pg_cron):** [cron_clean_scraped_content.sql](cron_clean_scraped_content.sql) — every 5 minutes.
 
 ### chunk_story_bodies
 
-Chunks unchunked story_bodies into story_chunks (3500 chars per chunk, 500 overlap). Run after receive_scraped_content populates story_bodies. No external APIs.
+Chunks unchunked story_bodies into story_chunks (3500 chars per chunk, 500 overlap). Selects only rows with `content_clean` (already cleaned). Chunks from `content_clean`. Run after clean_scraped_content. No external APIs.
 
 **Request body (optional):** `max_stories` (1–50, default 10).
 
@@ -533,7 +552,7 @@ Links story_claims to canonical claims via embedding similarity. Creates new cla
 
 ### review_pending_stories
 
-Re-reviews stories with **relevance_status = PENDING** that have full content in **story_bodies**. Sends the first 3000 characters of body content to the LLM (same classification prompt as relevance_gate). If confidence >= 60, writes the LLM result (relevance_score, etc.); if confidence < 60, writes a template DROP (score=0, confidence=100, reason="Relevance unclear after thorough review, choosing to drop."). Run after scrape_story_content so PENDING stories have bodies.
+Re-reviews stories with **relevance_status = PENDING** that have `content_clean` in **story_bodies** (skips stories not yet cleaned). Sends the first 3000 characters of content_clean to the LLM (same classification prompt as relevance_gate). If confidence >= 60, writes the LLM result (relevance_score, etc.); if confidence < 60, writes a template DROP (score=0, confidence=100, reason="Relevance unclear after thorough review, choosing to drop."). Run after clean_scraped_content so PENDING stories have cleaned bodies.
 
 **Request body (optional):** `lookback_days` (1–14, default 7), `max_stories` (1–50, default 10), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
@@ -546,6 +565,7 @@ Re-reviews stories with **relevance_status = PENDING** that have full content in
 | ingest-newsapi-6am-6pm-cst | ingest-newsapi | 6 AM, 6 PM daily | [cron_ingest_newsapi.sql](cron_ingest_newsapi.sql) |
 | relevance-gate-every-2min | relevance_gate | Every 2 min | [cron_relevance_gate.sql](cron_relevance_gate.sql) |
 | scrape-story-content-every-2min | scrape_story_content | Every 2 min | [cron_scrape_story_content.sql](cron_scrape_story_content.sql) |
+| clean-scraped-content-every-5min | clean_scraped_content | Every 5 min | [cron_clean_scraped_content.sql](cron_clean_scraped_content.sql) |
 | chunk-story-bodies-every-2min | chunk_story_bodies | Every 2 min | [cron_chunk_story_bodies.sql](cron_chunk_story_bodies.sql) |
 | extract-chunk-claims-every-2min | extract_chunk_claims | Every 2 min | [cron_extract_chunk_claims.sql](cron_extract_chunk_claims.sql) |
 | merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
@@ -562,7 +582,7 @@ receive_scraped_content has no cron; it is invoked by the Cloudflare Worker afte
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`). For receive_scraped_content, use `--no-verify-jwt`.
 - **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 

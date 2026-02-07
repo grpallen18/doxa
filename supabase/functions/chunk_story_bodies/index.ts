@@ -68,8 +68,9 @@ Deno.serve(async (req: Request) => {
 
   const { data: bodiesRaw, error: bodiesErr } = await supabase
     .from("story_bodies")
-    .select("story_id, content")
-    .order("extracted_at", { ascending: true })
+    .select("story_id, content_clean")
+    .not("content_clean", "is", null)
+    .order("scraped_at", { ascending: true })
     .limit(FETCH_LIMIT);
 
   if (bodiesErr) {
@@ -78,7 +79,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const bodies = (Array.isArray(bodiesRaw) ? bodiesRaw : []).filter(
-    (b): b is { story_id: string; content: string } =>
+    (b): b is { story_id: string; content_clean: string } =>
       typeof b === "object" && b !== null && typeof (b as { story_id: unknown }).story_id === "string"
   );
 
@@ -112,7 +113,7 @@ Deno.serve(async (req: Request) => {
   let totalChunks = 0;
 
   for (const row of unchunked) {
-    const content = (row.content ?? "").trim();
+    const content = (row.content_clean ?? "").trim();
     const chunks = chunkText(content, CHUNK_SIZE, CHUNK_OVERLAP);
 
     const rows = chunks.map((c, i) => ({

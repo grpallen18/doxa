@@ -18,11 +18,11 @@ async function notifyReceiveScrapedContent(
   receiveUrl: string,
   secret: string,
   storyId: string,
-  result: { ok: true; title: string; content: string } | { ok: false; error: string },
+  result: { ok: true; title: string; content: string; scrape_method?: string } | { ok: false; error: string },
   dryRun: boolean
 ): Promise<{ ok: true } | { ok: false; status: number; body: string }> {
   const body = result.ok
-    ? { story_id: storyId, title: result.title, content: result.content, dry_run: dryRun }
+    ? { story_id: storyId, title: result.title, content: result.content, scrape_method: result.scrape_method ?? null, dry_run: dryRun }
     : { story_id: storyId, error: result.error, dry_run: dryRun }
   try {
     const res = await fetch(receiveUrl, {

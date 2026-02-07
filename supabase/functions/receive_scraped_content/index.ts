@@ -45,11 +45,11 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }, 500);
   }
 
-  let body: { story_id?: string; title?: string; content?: string; error?: string; dry_run?: boolean } = {};
+  let body: { story_id?: string; title?: string; content?: string; scrape_method?: string | null; error?: string; dry_run?: boolean } = {};
   try {
     const raw = await req.json().catch(() => ({}));
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-      body = raw as { story_id?: string; title?: string; content?: string; error?: string; dry_run?: boolean };
+      body = raw as { story_id?: string; title?: string; content?: string; scrape_method?: string | null; error?: string; dry_run?: boolean };
     }
   } catch {
     return json({ error: "Invalid JSON" }, 400);
@@ -66,12 +66,16 @@ Deno.serve(async (req: Request) => {
 
   if (hasContent) {
     if (!dryRun) {
+      const scrapeMethod =
+        typeof body.scrape_method === "string" && ["fetch_readability", "browser_render"].includes(body.scrape_method)
+          ? body.scrape_method
+          : null;
       const { error: upsertErr } = await supabase.from("story_bodies").upsert(
         {
           story_id: storyId,
-          content,
-          extracted_at: new Date().toISOString(),
-          extractor_version: "worker-readability",
+          content_raw: content,
+          scraped_at: new Date().toISOString(),
+          scrape_method: scrapeMethod,
         },
         { onConflict: "story_id" }
       );

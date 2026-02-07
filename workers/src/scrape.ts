@@ -14,7 +14,7 @@ const CONTENT_MIN_LENGTH = 500
 const USER_AGENT = "DoxaBot/1.0 (content extraction)"
 
 export type ScrapeResult =
-  | { ok: true; title: string; content: string }
+  | { ok: true; title: string; content: string; scrape_method: "fetch_readability" | "browser_render" }
   | { ok: false; error: string; story_id?: string }
 
 export type ScrapeInput = { url: string; story_id?: string }
@@ -169,7 +169,7 @@ export async function extractArticleText(
   if (html) {
     const primary = extractWithReadability(html)
     if (primary) {
-      return { ok: true, title: primary.title, content: primary.content }
+      return { ok: true, title: primary.title, content: primary.content, scrape_method: "fetch_readability" }
     }
   }
 
@@ -190,7 +190,7 @@ export async function extractArticleText(
 
   const fallback = extractWithReadability(renderedHtml)
   if (fallback) {
-    return { ok: true, title: fallback.title, content: fallback.content }
+    return { ok: true, title: fallback.title, content: fallback.content, scrape_method: "browser_render" }
   }
 
   return {
