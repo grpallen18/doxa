@@ -117,7 +117,7 @@ Scoring (0-100):
 - 40-59: weak or indirect U.S. civic relevance.
 - 0-39: non-civic content OR foreign domestic politics without direct U.S. impact.
 
-Confidence (0-100): your certainty the score band is correct. If unsure/ambiguous, set confidence < 60.
+Confidence (0-100): your certainty the score band is correct. Confidence scores < 60 are considered ambiguous and will trigger more detailed reviews.
 
 Return JSON only in the required schema.
 Tags: 1-5 short snake_case tags (e.g., election, congress, supreme_court, economy, disaster, foreign_policy, national_security, protest, regulation).
@@ -373,22 +373,14 @@ Deno.serve(async (req: Request) => {
         }
 
         const confidence = clampInt(r.confidence, 0, 100, 0);
-        if (confidence < 60) {
-          counts.PENDING += 1;
-          return {
-            story_id: s.story_id,
-            relevance_score: null,
-            relevance_confidence: confidence,
-            relevance_reason: r.reason,
-            relevance_tags: r.tags,
-            relevance_model: MODEL,
-            relevance_ran_at: now,
-          };
-        }
-
         const score = clampInt(r.score, 0, 100, 0);
-        const status = score >= 60 ? "KEEP" : "DROP";
-        counts[status] += 1;
+        if (confidence >= 60) {
+          const status = score >= 75 ? "KEEP" : "DROP";
+          counts[status] += 1;
+        } else {
+          if (score >= 75) counts.PENDING += 1;
+          else counts.DROP += 1;
+        }
 
         return {
           story_id: s.story_id,

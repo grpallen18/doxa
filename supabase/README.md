@@ -479,21 +479,21 @@ After running 010–011, seed the database with **seed_new_schema.sql** (see **S
 
 Fetches NewsAPI `/top-headlines` (country=us, category=politics, language=en, pageSize=100), upserts new sources by name, and upserts stories by URL so the same story is never added twice. Creates a `pipeline_runs` row for audit.
 
-- **Cron (pg_cron):** Schedule with [cron_ingest_newsapi.sql](cron_ingest_newsapi.sql). The default example runs at 7:08/7:10/7:12 PM CST (01:08/01:10/01:12 UTC) and pulls the project URL and service role key from Vault. Adjust the cron expression if you need a different cadence.
+- **Cron (pg_cron):** [cron_ingest_newsapi.sql](cron_ingest_newsapi.sql) — runs at 6 AM and 6 PM CST (00:00 and 12:00 UTC). Vault: project_url, service_role_key.
 
 ### relevance_gate (cron #2)
 
-Classifies ingested stories into `KEEP`, `DROP`, or `PENDING` using OpenAI. Each run fetches up to `max_stories` unclassified stories (where `relevance_status` is null) from the last N days, sends them to the LLM in a single request, and updates `stories` with `relevance_score`, `relevance_confidence`, `relevance_reason`, `relevance_tags`, `relevance_model`, and `relevance_ran_at`. The function does not write `relevance_status`; it is a **generated column** on `stories` computed from `relevance_ran_at`, `relevance_score`, and `relevance_confidence`: null when not yet run; `PENDING` when no score or confidence &lt; 60; `KEEP` when score ≥ 60; else `DROP`. When there are no unclassified stories, the function returns immediately with no work (graceful no-op).
+Classifies ingested stories into `KEEP`, `DROP`, or `PENDING` using OpenAI. Each run fetches up to `max_stories` unclassified stories (where `relevance_status` is null) from the last N days, sends them to the LLM in a single request, and updates `stories` with `relevance_score`, `relevance_confidence`, `relevance_reason`, `relevance_tags`, `relevance_model`, and `relevance_ran_at`. The function does not write `relevance_status`; it is a **generated column** (migration 022): null when not yet run; **KEEP** when confidence ≥ 60 and score ≥ 75; **DROP** when confidence ≥ 60 and score &lt; 75, or when confidence &lt; 60 and score &lt; 75; **PENDING** when confidence &lt; 60 and score ≥ 75 (or no score). PENDING stories are scraped and then re-reviewed by **review_pending_stories** with full body content. When there are no unclassified stories, the function returns immediately with no work (graceful no-op).
 
 **Request body (optional):** `lookback_days` (1–14, default 7), `max_stories` (1–2000, default 10), `content_max_chars` (0–6000, default 2500), `dry_run` (boolean).
 
-**Cron (pg_cron):** Schedule at 11:05 AM UTC, then every 2 minutes until 11:30 AM UTC. Store your project URL and service role key in [Supabase Vault](https://supabase.com/docs/guides/database/vault), then run [supabase/cron_relevance_gate.sql](cron_relevance_gate.sql) once (see comments in that file for Vault setup steps).
+**Cron (pg_cron):** [cron_relevance_gate.sql](cron_relevance_gate.sql) — every 2 minutes. Vault: project_url, service_role_key.
 
 ### scrape_story_content (cron #3 – before extraction)
 
-Dispatches **one KEEP story per run** to the Cloudflare Worker for scraping. Does not scrape itself: it selects the next eligible story (respecting per-domain throttle), locks it, POSTs to the Worker with `url` and `story_id`, and awaits the response. The Worker scrapes, then calls **receive_scraped_content**, which writes full text to **story_bodies** and updates `stories` (being_processed, scrape_skipped). No LLM.
+Dispatches **one KEEP or PENDING story per run** to the Cloudflare Worker for scraping. Does not scrape itself: it selects the next eligible story (respecting per-domain throttle), locks it, POSTs to the Worker with `url` and `story_id`, and awaits the response. The Worker scrapes, then calls **receive_scraped_content**, which writes full text to **story_bodies** and updates `stories` (being_processed, scrape_skipped). No LLM.
 
-**Cron (pg_cron):** [cron_scrape_story_content.sql](cron_scrape_story_content.sql) – uses same Vault secrets (e.g. schedule at 11:05 UTC).
+**Cron (pg_cron):** [cron_scrape_story_content.sql](cron_scrape_story_content.sql) — every 2 minutes. Vault: project_url, service_role_key.
 
 ### receive_scraped_content
 
@@ -501,11 +501,11 @@ Edge Function called by the Cloudflare Worker after scraping. Validates **Author
 
 ### chunk_story_bodies
 
-Chunks unchunked story_bodies into story_chunks (3500 chars per chunk, 500 overlap). Run after receive_scraped_content populates story_bodies. No external APIs; invoke manually with service role key.
+Chunks unchunked story_bodies into story_chunks (3500 chars per chunk, 500 overlap). Run after receive_scraped_content populates story_bodies. No external APIs.
 
 **Request body (optional):** `max_stories` (1–50, default 10).
 
-**Invoke (manual):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/chunk_story_bodies' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'`
+**Cron (pg_cron):** [cron_chunk_story_bodies.sql](cron_chunk_story_bodies.sql) — every 2 minutes.
 
 ### extract_chunk_claims
 
@@ -513,17 +513,46 @@ Extracts claims, evidence, and links from story chunks via LLM. Writes `extracti
 
 **Request body (optional):** `max_chunks` (1–20, default 5). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
+**Cron (pg_cron):** [cron_extract_chunk_claims.sql](cron_extract_chunk_claims.sql) — every 2 minutes.
+
 ### merge_story_claims
 
 Merges all chunk `extraction_json` for a story into story_claims, story_evidence, story_claim_evidence_links. Deduplicates, normalizes; no orphan evidence. Run after all chunks for a story have extraction_json.
 
 **Request body (optional):** `max_stories` (1–5, default 1). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
+**Cron (pg_cron):** [cron_merge_story_claims.sql](cron_merge_story_claims.sql) — every 2 minutes.
+
 ### link_canonical_claims
 
 Links story_claims to canonical claims via embedding similarity. Creates new claims when no match above threshold. Required for every new story_claim.
 
 **Request body (optional):** `max_claims` (1–50, default 10). **Secrets:** `OPENAI_API_KEY`; optional `SIMILARITY_THRESHOLD` (0–1, default 0.9).
+
+**Cron (pg_cron):** [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) — every 2 minutes.
+
+### review_pending_stories
+
+Re-reviews stories with **relevance_status = PENDING** that have full content in **story_bodies**. Sends the first 3000 characters of body content to the LLM (same classification prompt as relevance_gate). If confidence >= 60, writes the LLM result (relevance_score, etc.); if confidence < 60, writes a template DROP (score=0, confidence=100, reason="Relevance unclear after thorough review, choosing to drop."). Run after scrape_story_content so PENDING stories have bodies.
+
+**Request body (optional):** `lookback_days` (1–14, default 7), `max_stories` (1–50, default 10), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+
+**Cron (pg_cron):** [cron_review_pending_stories.sql](cron_review_pending_stories.sql) — every 2 minutes.
+
+### Cron jobs (pg_cron, all times CST)
+
+| Job | Function | Schedule (CST) | SQL file |
+|-----|----------|----------------|----------|
+| ingest-newsapi-6am-6pm-cst | ingest-newsapi | 6 AM, 6 PM daily | [cron_ingest_newsapi.sql](cron_ingest_newsapi.sql) |
+| relevance-gate-every-2min | relevance_gate | Every 2 min | [cron_relevance_gate.sql](cron_relevance_gate.sql) |
+| scrape-story-content-every-2min | scrape_story_content | Every 2 min | [cron_scrape_story_content.sql](cron_scrape_story_content.sql) |
+| chunk-story-bodies-every-2min | chunk_story_bodies | Every 2 min | [cron_chunk_story_bodies.sql](cron_chunk_story_bodies.sql) |
+| extract-chunk-claims-every-2min | extract_chunk_claims | Every 2 min | [cron_extract_chunk_claims.sql](cron_extract_chunk_claims.sql) |
+| merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
+| link-canonical-claims-every-2min | link_canonical_claims | Every 2 min | [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) |
+| review-pending-stories-every-2min | review_pending_stories | Every 2 min | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
+
+receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
 
 ### Deploy and secrets
 
@@ -533,9 +562,9 @@ Links story_claims to canonical claims via embedding similarity. Creates new cla
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`). For receive_scraped_content, use `--no-verify-jwt`.
 - **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`)
-- **Cron:** Run relevance_gate at 11:05 AM UTC, then every 2 minutes until 11:30 AM UTC (cron `5,7,9,11,13,15,17,19,21,23,25,27,29 11 * * *`). Each run processes up to max_stories (default 10); when there are none, the run is a quick no-op. Keep ingest-newsapi on its current schedule and run relevance_gate after it as needed.
+- **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 
 ---
 

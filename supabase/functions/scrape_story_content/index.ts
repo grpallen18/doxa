@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
   const { data: storiesRaw, error: storiesErr } = await supabase
     .from("stories")
     .select("story_id, url")
-    .eq("relevance_status", "KEEP")
+    .in("relevance_status", ["KEEP", "PENDING"])
     .eq("being_processed", false)
     .eq("scrape_skipped", false)
     .order("created_at", { ascending: true })
@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
   );
 
   if (stories.length === 0) {
-    return json({ ok: true, dispatched: 0, message: "No KEEP stories to scrape" });
+    return json({ ok: true, dispatched: 0, message: "No KEEP or PENDING stories to scrape" });
   }
 
   const storyIds = stories.map((s) => s.story_id);

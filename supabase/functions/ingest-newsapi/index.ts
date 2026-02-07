@@ -81,22 +81,35 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const url = `https://newsapi.org/v2/top-headlines?country=us&category=politics&language=en&pageSize=100&page=1&apiKey=${apiKey}`;
-    const res = await fetch(url);
-    const data: NewsAPIResponse = await res.json();
+    const pageSize = 100;
+    const maxPages = 3;
+    const allArticles: NewsAPIArticle[] = [];
+    let totalResults: number | undefined;
 
-    if (data.status !== "ok") {
-      const message = data.message ?? "NewsAPI request failed";
-      if (!dryRun && runId) {
-        await supabase
-          .from("pipeline_runs")
-          .update({ status: "failed", ended_at: new Date().toISOString(), error: message })
-          .eq("run_id", runId);
+    for (let page = 1; page <= maxPages; page++) {
+      const url = `https://newsapi.org/v2/top-headlines?country=us&category=politics&language=en&pageSize=${pageSize}&page=${page}&apiKey=${apiKey}`;
+      const res = await fetch(url);
+      const data: NewsAPIResponse = await res.json();
+
+      if (data.status !== "ok") {
+        const message = data.message ?? "NewsAPI request failed";
+        if (!dryRun && runId) {
+          await supabase
+            .from("pipeline_runs")
+            .update({ status: "failed", ended_at: new Date().toISOString(), error: message })
+            .eq("run_id", runId);
+        }
+        return jsonResponse({ error: message, code: data.code }, 502);
       }
-      return jsonResponse({ error: message, code: data.code }, 502);
+
+      if (page === 1 && data.totalResults != null) totalResults = data.totalResults;
+      const pageArticles = data.articles ?? [];
+      allArticles.push(...pageArticles);
+      if (pageArticles.length < pageSize) break;
     }
 
-    const articles = data.articles ?? [];
+    const articles = allArticles;
+    const storiesFromApi = articles.length;
     const seenSourceNames = new Set<string>();
     const sourceNameToId = new Map<string, string>();
 
@@ -217,6 +230,8 @@ Deno.serve(async (req: Request) => {
     }
 
     return jsonResponse({
+      stories_from_api: storiesFromApi,
+      ...(totalResults != null && { total_results: totalResults }),
       inserted_sources: sourcesInserted,
       inserted_stories: storiesInserted,
       pipeline_run_id: runId ?? undefined,
