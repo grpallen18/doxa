@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
       }
       const { error: updateErr } = await supabase
         .from("stories")
-        .update({ being_processed: false, scrape_skipped: false })
+        .update({ being_processed: false, scrape_skipped: false, scraped_at: new Date().toISOString() })
         .eq("story_id", storyId);
       if (updateErr) {
         console.error("[receive_scraped_content] stories update error:", updateErr.message);

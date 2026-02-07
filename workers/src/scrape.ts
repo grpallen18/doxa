@@ -146,6 +146,7 @@ export async function extractArticleText(
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   let html: string | null = null
+  let fetchError: string | null = null
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT },
@@ -153,33 +154,38 @@ export async function extractArticleText(
     })
     clearTimeout(timeoutId)
     if (!res.ok) {
-      return { ok: false, error: `Fetch failed: ${res.status}`, story_id }
-    }
-    html = await readBodyWithCap(res, MAX_HTML_BYTES)
-    if (html === null) {
-      return { ok: false, error: "Response body exceeds max size (5 MB)", story_id }
+      fetchError = `Fetch failed: ${res.status}`
+    } else {
+      html = await readBodyWithCap(res, MAX_HTML_BYTES)
+      if (html === null) {
+        fetchError = "Response body exceeds max size (5 MB)"
+      }
     }
   } catch (e) {
     clearTimeout(timeoutId)
-    const msg = e instanceof Error ? e.message : "Fetch failed"
-    return { ok: false, error: msg, story_id }
+    fetchError = e instanceof Error ? e.message : "Fetch failed"
   }
 
-  const primary = extractWithReadability(html)
-  if (primary) {
-    return { ok: true, title: primary.title, content: primary.content }
+  if (html) {
+    const primary = extractWithReadability(html)
+    if (primary) {
+      return { ok: true, title: primary.title, content: primary.content }
+    }
   }
 
-  // Fallback: render-cap check then Browser Rendering /content, then Readability again
+  // Fallback: Browser Rendering when fetch failed or Readability couldn't extract
   const accountId = env.CLOUDFLARE_ACCOUNT_ID
   const token = env.CLOUDFLARE_API_TOKEN
   if (!accountId?.trim() || !token?.trim()) {
-    return { ok: false, error: "Browser Rendering not configured", story_id }
+    return { ok: false, error: fetchError ?? "Browser Rendering not configured", story_id }
   }
 
   const renderedHtml = await fetchRenderedContent(url, accountId.trim(), token.trim())
   if (!renderedHtml) {
-    return { ok: false, error: "Browser Rendering failed or returned no content", story_id }
+    const err = fetchError
+      ? `${fetchError}; Browser Rendering also failed`
+      : "Browser Rendering failed or returned no content"
+    return { ok: false, error: err, story_id }
   }
 
   const fallback = extractWithReadability(renderedHtml)
@@ -187,5 +193,9 @@ export async function extractArticleText(
     return { ok: true, title: fallback.title, content: fallback.content }
   }
 
-  return { ok: false, error: "Could not extract article content", story_id }
+  return {
+    ok: false,
+    error: fetchError ? `${fetchError}; could not extract content after Browser Rendering` : "Could not extract article content",
+    story_id,
+  }
 }
