@@ -4,6 +4,13 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// This function is called only by our Cloudflare Worker using a shared secret.
+// Disable Supabase's built-in JWT check and do our own SCRAPE_SECRET check instead.
+export const config = {
+  runtime: "edge",
+  verifyJwt: false,
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
