@@ -4,7 +4,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ## Quick setup
 
-1. Run migrations in order (SQL Editor): `001_initial_schema.sql` through `012_stories_relevance_fields.sql`.
+1. Run migrations in order (SQL Editor): `001_initial_schema.sql` through `021_claims_nearest_claim_rpc.sql`.
 2. Seed the database: run [seed_new_schema.sql](seed_new_schema.sql) in the Supabase SQL Editor (paste the file contents and run). See **Seeding** below for details.
 3. See [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md) for detailed instructions and verification (if that file exists).
 
@@ -31,7 +31,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### stories
 
-**Purpose:** One row per ingested article/story. Rolls up to sources. Relevance fields are filled by cron #2 (classify ingested stories into KEEP/DROP).
+**Purpose:** One row per ingested article/story. Rolls up to sources. Relevance fields are filled by cron #2 (classify ingested stories into KEEP/DROP). Full article text is stored in **story_bodies**; stories holds only scrape status flags (`being_processed`, `scrape_skipped`).
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -43,7 +43,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `published_at` | timestamptz (nullable) | Publication time. |
 | `fetched_at` | timestamptz | When the story was fetched. |
 | `content_snippet` | text (nullable) | Short snippet. |
-| `content_full` | text (nullable) | Optional if you store full text. |
+| `content_full` | text (nullable) | Full text from NewsAPI (optional). |
 | `language` | text (nullable) | Language. |
 | `metadata` | jsonb | NewsAPI payload, tags, etc. |
 | `created_at` | timestamptz | When the row was created. |
@@ -54,6 +54,50 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `relevance_tags` | text[] (nullable) | Tags for relevance/filtering. |
 | `relevance_model` | text (nullable) | Model used for classification. |
 | `relevance_ran_at` | timestamptz (nullable) | When relevance was last evaluated. |
+| `being_processed` | boolean | Lock while scrape or extraction runs. |
+| `scrape_skipped` | boolean | True when scrape failed or no URL. |
+| `extraction_completed_at` | timestamptz (nullable) | When extraction wrote at least one claim/evidence. |
+| `extraction_skipped_empty` | boolean | True when extraction ran but found nothing. |
+
+---
+
+### story_bodies
+
+**Purpose:** Full article text scraped from story URLs. One row per story. Written by **receive_scraped_content** (called by the Cloudflare Worker after scraping).
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `story_id` | uuid (PK, FK → stories.story_id) | Which story. |
+| `content` | text | Readability textContent from Worker. |
+| `extracted_at` | timestamptz | When the body was scraped. |
+| `extractor_version` | text (nullable) | Optional scraper version. |
+
+---
+
+### story_chunks
+
+**Purpose:** Text chunks from story_bodies for downstream processing (e.g. extraction, embeddings). 3500 chars per chunk, 500 overlap. Written by **chunk_story_bodies**. **extract_chunk_claims** fills `extraction_json` with chunk-level claims/evidence/links.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `story_id` | uuid (FK → stories.story_id) | Which story. |
+| `chunk_index` | smallint | 0-based order of chunk within the story. |
+| `content` | text | Chunk text. |
+| `extraction_json` | jsonb (nullable) | `{ claims, evidence, links }` from chunk extraction. |
+| `created_at` | timestamptz | When the chunk was created. |
+
+**Keys:** PK `(story_id, chunk_index)`.
+
+---
+
+### domain_throttle
+
+**Purpose:** Per-domain cooldown for scrape dispatching. Prevents hammering the same outlet.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `domain` | text (PK) | Hostname (e.g. nytimes.com). |
+| `last_dispatched_at` | timestamptz | Last time a scrape was dispatched for this domain. |
 
 ---
 
@@ -370,6 +414,8 @@ The **target** Doxa backend is built around:
 ```
 sources ─── source_id ──┬── stories (story_id)
                         │       │
+                        │       ├── story_bodies (full scraped text)
+                        │       ├── story_chunks (chunked text)
                         │       ├── story_claims ── claim_id (nullable) ──► claims
                         │       ├── story_evidence
                         │       └── story_claim_evidence_links (story-local)
@@ -402,9 +448,18 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `001_initial_schema.sql` … `009_rename_...sql` | Legacy schema (topics as “nodes”, viewpoints as “perspectives”, topic_viewpoints, etc.). |
 | `010_drop_dependents_and_refactor_topics.sql` | Drops old dependents; refactors topics to topic_id, slug, title, summary, status (text), metadata. |
 | `011_new_schema_pgvector.sql` | Enables pgvector; creates pipeline_runs, sources, stories, topic_stories, claims, story_claims, story_evidence, links, archetypes, theses, viewpoints, viewpoint_theses, narratives, narrative_viewpoint_links; RLS. |
-| `012_stories_relevance_fields.sql` | Adds relevance columns to stories (relevance_status, relevance_score, relevance_confidence, relevance_reason, relevance_tags, relevance_model, relevance_ran_at); index for cron #2. |
+| `012_stories_relevance_fields.sql` | Adds relevance columns to stories; index for cron #2. |
+| `013_stories_relevance_status_generated.sql` | relevance_status as generated column. |
+| `014_stories_being_processed.sql` | Lock column for cron overlap prevention. |
+| `015_stories_extraction_status_fields.sql` | extraction_completed_at, extraction_skipped_empty. |
+| `016_stories_scraped_content.sql` | scraped_content (superseded by 017). |
+| `017_story_bodies_and_domain_throttle.sql` | story_bodies, domain_throttle; drops scraped_content. |
+| `018_story_bodies_domain_throttle_rls.sql` | Enables RLS on story_bodies and domain_throttle. |
+| `019_story_chunks.sql` | Creates story_chunks table; RLS. |
+| `020_chunk_extraction_and_claims_index.sql` | extraction_json on story_chunks; HNSW index on claims.embedding; story_claims.embedding. |
+| `021_claims_nearest_claim_rpc.sql` | RPC match_claims_nearest for pgvector cosine search. |
 
-After running 010, 011, and 012, seed the database with **seed_new_schema.sql** (see **Seeding** below).
+After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims.
 
 ---
 
@@ -436,15 +491,39 @@ Classifies ingested stories into `KEEP`, `DROP`, or `PENDING` using OpenAI. Each
 
 ### scrape_story_content (cron #3 – before extraction)
 
-Scrapes full body text from story URLs for **KEEP** stories and writes to `stories.scraped_content` only; `content_full` comes from NewsAPI and is never overwritten. No LLM. Considers all KEEP stories (including those with no URL); sets `scrape_skipped` when URL is null or scrape fails so every story is assessed once and unscrapable ones are not retried. Run before `extract_story_claims_evidence`. Optional body: `max_stories` (default 5), `content_min_length`, `dry_run`.
+Dispatches **one KEEP story per run** to the Cloudflare Worker for scraping. Does not scrape itself: it selects the next eligible story (respecting per-domain throttle), locks it, POSTs to the Worker with `url` and `story_id`, and awaits the response. The Worker scrapes, then calls **receive_scraped_content**, which writes full text to **story_bodies** and updates `stories` (being_processed, scrape_skipped). No LLM.
 
-**Cron (pg_cron):** [cron_scrape_story_content.sql](cron_scrape_story_content.sql) – uses same Vault secrets; schedule to run before extract (e.g. 11:05 UTC).
+**Cron (pg_cron):** [cron_scrape_story_content.sql](cron_scrape_story_content.sql) – uses same Vault secrets (e.g. schedule at 11:05 UTC).
 
-### extract_story_claims_evidence (cron #4)
+### receive_scraped_content
 
-Extracts claims, evidence, and links from KEEP stories using the LLM. Uses **final_content** = longest of `content_full`, `scraped_content`, and `content_snippet` (no URL scraping; run `scrape_story_content` first). One story per run. Optional body: `dry_run`.
+Edge Function called by the Cloudflare Worker after scraping. Validates **Authorization: Bearer SCRAPE_SECRET**; writes to **story_bodies** and updates `stories` flags. Deploy with `--no-verify-jwt` so it accepts the shared secret instead of a Supabase JWT. Requires `verify_jwt = false` in config or `supabase/config.toml`.
 
-**Cron (pg_cron):** [cron_extract_story_claims_evidence.sql](cron_extract_story_claims_evidence.sql).
+### chunk_story_bodies
+
+Chunks unchunked story_bodies into story_chunks (3500 chars per chunk, 500 overlap). Run after receive_scraped_content populates story_bodies. No external APIs; invoke manually with service role key.
+
+**Request body (optional):** `max_stories` (1–50, default 10).
+
+**Invoke (manual):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/chunk_story_bodies' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'`
+
+### extract_chunk_claims
+
+Extracts claims, evidence, and links from story chunks via LLM. Writes `extraction_json` to story_chunks. Run after chunk_story_bodies.
+
+**Request body (optional):** `max_chunks` (1–20, default 5). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+
+### merge_story_claims
+
+Merges all chunk `extraction_json` for a story into story_claims, story_evidence, story_claim_evidence_links. Deduplicates, normalizes; no orphan evidence. Run after all chunks for a story have extraction_json.
+
+**Request body (optional):** `max_stories` (1–5, default 1). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+
+### link_canonical_claims
+
+Links story_claims to canonical claims via embedding similarity. Creates new claims when no match above threshold. Required for every new story_claim.
+
+**Request body (optional):** `max_claims` (1–50, default 10). **Secrets:** `OPENAI_API_KEY`; optional `SIMILARITY_THRESHOLD` (0–1, default 0.9).
 
 ### Deploy and secrets
 
@@ -452,8 +531,10 @@ Extracts claims, evidence, and links from KEEP stories using the LLM. Uses **fin
   - `NEWSAPI_API_KEY` — for ingest-newsapi; get at [newsapi.org](https://newsapi.org)
   - `OPENAI_API_KEY` — for relevance_gate; get at [platform.openai.com](https://platform.openai.com)
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
-- **Deploy:** `supabase functions deploy ingest-newsapi --project-ref gjxihyaovyfwajjyoyoz` and `supabase functions deploy relevance_gate --project-ref gjxihyaovyfwajjyoyoz`
-- **Invoke (test):** `curl -L -X POST 'https://gjxihyaovyfwajjyoyoz.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY'` (or `/relevance_gate` for cron #2)
+  - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
+  - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`)
 - **Cron:** Run relevance_gate at 11:05 AM UTC, then every 2 minutes until 11:30 AM UTC (cron `5,7,9,11,13,15,17,19,21,23,25,27,29 11 * * *`). Each run processes up to max_stories (default 10); when there are none, the run is a quick no-op. Keep ingest-newsapi on its current schedule and run relevance_gate after it as needed.
 
 ---
@@ -461,7 +542,7 @@ Extracts claims, evidence, and links from KEEP stories using the LLM. Uses **fin
 ## Row Level Security (RLS)
 
 - **Current schema (001–009):** RLS is defined in the migration files (topics, viewpoints, topic_viewpoints, topic_relationships, sources, validations, viewpoint_votes, users, avatars).
-- **Target schema:** RLS policies for the new tables (sources, stories, topics, topic_stories, story_claims, claims, story_evidence, pipeline_runs, archetypes, theses, viewpoints, global_viewpoints, and bridge tables) will be added in future migrations. Plan for: public read where appropriate (e.g. published topics, global_viewpoints); restrict write to service role or authenticated pipeline/backend.
+- **Target schema (011+):** RLS enabled on pipeline_runs, sources, stories, topic_stories, claims, story_claims, story_evidence, and bridge tables; public read policies where appropriate. **story_bodies**, **story_chunks**, and **domain_throttle** have RLS (migrations 018–019) with public read. Edge Functions use service_role and bypass RLS.
 
 ---
 

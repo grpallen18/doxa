@@ -199,12 +199,14 @@ doxa/
 │   ├── Button.tsx             # Primary/secondary button (design system)
 │   ├── InstrumentModule.tsx   # Instrument-style metric module
 │   ├── LandingHeader.tsx      # Shared nav (home + graph pages)
+│   ├── TrendingStoriesList.tsx # Auto-scrolling trending stories panel
 │   ├── auth/                  # Auth forms (login, sign-up, forgot-password, etc.)
 │   ├── graph/                 # Graph visualization components
 │   └── topic/                 # Topic detail UI (viewpoints)
 ├── lib/                       # Utilities and helpers
 │   ├── supabase/              # Supabase client helpers
 │   └── types/                 # Shared TypeScript types
+├── workers/                   # Cloudflare Worker (article scraping)
 └── steering-document.md       # Project philosophy and design
 ```
 
@@ -220,7 +222,7 @@ The following are out of scope for the current phase and should be tackled later
 
 - **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to `/login`. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages are wrapped with the Doxa Panel/layout for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
 - **Poll backend:** Real poll questions and answers in the database; persistence and participation (e.g. sign-in to participate).
-- **Trending data:** Real data sources for "Trending" stories (e.g. traffic, multi-outlet coverage); for now use static/curated lists.
+- **Trending data:** The home page shows KEEP stories from the pipeline (ingest → relevance_gate). Future: traffic, multi-outlet coverage, or curated lists.
 - **Search API:** Wire the search bar to a backend that searches topics by query (e.g. by headline/topic).
 - **Ideology engine:** Doxa's proprietary system that computes a user's **factor ratings** (e.g. fiscal, social, foreign policy) from behavior—not user-controlled; displayed as read-only on the profile. Plus an **overall ideology** assignment. When implementing, consider existing **political science grading systems** (e.g. for categorizing people into named ideologies).
 - **Viewpoint votes and validations:** Removed for now; can be re-added later with new schema.

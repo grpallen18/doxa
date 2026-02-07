@@ -11,8 +11,9 @@ This folder is a **single Cloudflare Worker** for the Doxa project. It is deploy
 
 | Path | Purpose |
 |------|--------|
-| `wrangler.toml` | Worker config: name (`doxa`), main script (`src/index.ts`), compatibility date. Comment documents required secrets for the scrape fallback. |
-| `package.json` | Scripts: `npm run deploy` (wrangler deploy), `npm run dev` (wrangler dev). Dependencies: `@mozilla/readability`, `linkedom`. Dev: `wrangler`. |
+| `wrangler.toml` | Worker config: name (`doxa`), main script (`src/index.ts`), compatibility date, observability (logs). Comment documents required secrets. |
+| `deploy-with-secrets.sh` | For Git-connected deploys: pushes Build secrets to Worker, then runs `wrangler deploy`. Use as the Cloudflare Build deploy command. |
+| `package.json` | Scripts: `npm run deploy` (wrangler deploy), `npm run dev` (wrangler dev). Dependencies: `@mozilla/readability`, `linkedom`. Dev: `wrangler` (v4). |
 | `src/index.ts` | Entry point. Exports a `fetch(request, env)` handler; routes by `request.url` path and method, returns JSON or plain text. |
 | `src/scrape.ts` | Article scrape handler: URL → fetch HTML or use Browser Rendering fallback → always return Readability `textContent`. Used by the `/scrape` and `/extract` routes. |
 
@@ -70,12 +71,19 @@ All JSON responses use `Content-Type: application/json`. Success responses are `
 - **POST /scrape** (and /extract) require **Authorization: Bearer SCRAPE_SECRET** (same value as Supabase). If missing or wrong, the Worker returns 401.
 - When `story_id` is present in the body, the Worker calls the Supabase Edge Function **receive_scraped_content** with the result (success or failure) so the DB is updated. The Worker never needs a Supabase service-role key.
 
-**Environment / secrets (Cloudflare dashboard: Workers and Pages → your worker → Settings → Variables and Secrets)**
+**Environment / secrets**
 
+For **Git-connected deploys** (Cloudflare Build): add secrets in **Build → Variables and secrets**. Use `bash deploy-with-secrets.sh` as the deploy command so the script pushes those secrets to the Worker before each deploy.
+
+For **manual deploys** (`npm run deploy`): add secrets in **Workers and Pages → doxa → Settings → Variables and Secrets**.
+
+Required:
 - **SCRAPE_SECRET** — Must match Supabase; protects /scrape and authenticates callbacks to receive_scraped_content.
 - **SUPABASE_RECEIVE_URL** — Full URL of receive_scraped_content (e.g. `https://<project_ref>.supabase.co/functions/v1/receive_scraped_content`).
-- **CLOUDFLARE_ACCOUNT_ID** — For Browser Rendering fallback (optional but recommended). Get it from the Cloudflare dashboard (Workers or Overview page; URL or right-hand sidebar).
-- **CLOUDFLARE_API_TOKEN** — For Browser Rendering fallback; token must have "Browser Rendering - Edit" permission. Create under My Profile → API Tokens.
+
+Optional (Browser Rendering fallback):
+- **CLOUDFLARE_ACCOUNT_ID** — Get from Cloudflare dashboard (Workers or Overview page; URL or right-hand sidebar).
+- **CLOUDFLARE_API_TOKEN** — Token with "Browser Rendering - Edit" permission. Create under My Profile → API Tokens. For Git deploy, use a token that also has "Edit Cloudflare Workers" so the build can deploy.
 
 **Constants (in code)**
 
@@ -94,7 +102,8 @@ All JSON responses use `Content-Type: application/json`. Success responses are `
 
 - **Install:** `npm install` (from the `workers` directory).
 - **Local dev:** `npm run dev` (Wrangler dev server).
-- **Deploy:** `npm run deploy` (or `npx wrangler deploy`). Set Worker secrets in the dashboard for the scrape fallback.
+- **Deploy (manual):** `npm run deploy` (or `npx wrangler deploy`). Set Worker secrets in Settings → Variables and Secrets.
+- **Deploy (Git):** In Cloudflare Build, set deploy command to `bash deploy-with-secrets.sh` and add all secrets in Build → Variables and secrets.
 
 ---
 

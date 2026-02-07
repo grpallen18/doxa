@@ -1,4 +1,4 @@
--- Extraction status for stories (used by extract_story_claims_evidence).
+-- Extraction status for stories (for future claim-extraction step).
 -- Run after 014_stories_being_processed.sql.
 
 alter table public.stories

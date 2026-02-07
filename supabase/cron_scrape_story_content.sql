@@ -1,5 +1,5 @@
--- One-time setup: schedule scrape_story_content to run before extract_story_claims_evidence.
--- Populates scraped_content for KEEP stories; sets scrape_skipped when a story cannot be scraped (no URL or scrape failed). No LLM.
+-- One-time setup: schedule scrape_story_content to populate story_bodies for KEEP stories.
+-- Sets scrape_skipped when a story cannot be scraped (no URL or scrape failed). No LLM.
 --
 -- Prerequisites:
 -- 1. Enable pg_cron and pg_net (Dashboard → Database → Extensions).

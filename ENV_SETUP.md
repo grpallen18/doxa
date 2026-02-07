@@ -62,13 +62,17 @@ Edge Functions use secrets set in **Supabase** (not in `.env.local`): Dashboard 
 - **ingest-newsapi:** `NEWSAPI_API_KEY`
 - **relevance_gate:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (default `gpt-4o-mini`)
 - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET` (same value as Worker)
-- **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker; validates Authorization: Bearer)
+- **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker; validates Authorization: Bearer). Deploy with `--no-verify-jwt` so it accepts the shared secret instead of a Supabase JWT.
+- **chunk_story_bodies:** No extra secrets; uses default Supabase env only.
+- **extract_chunk_claims:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+- **merge_story_claims:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+- **link_canonical_claims:** `OPENAI_API_KEY`; optional `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`); optional `SIMILARITY_THRESHOLD` (0–1, default 0.9).
 
 See [supabase/README.md](supabase/README.md) for deploy and cron.
 
 ### Scrape workflow (Cloudflare Worker secrets)
 
-The Worker used for article scraping expects these **secrets** in the Cloudflare dashboard (Workers & Pages → your worker → Settings → Variables and Secrets):
+The Worker used for article scraping expects these **secrets**. For Git-connected deploys, add them in **Build → Variables and secrets** and use `bash deploy-with-secrets.sh` as the deploy command. For manual deploys, use **Workers & Pages → your worker → Settings → Variables and Secrets**:
 
 - **`SCRAPE_SECRET`** — Same value as Supabase; protects `/scrape` and authenticates callbacks to receive_scraped_content.
 - **`SUPABASE_RECEIVE_URL`** — Full URL of the receive_scraped_content Edge Function (e.g. `https://<project_ref>.supabase.co/functions/v1/receive_scraped_content`).
