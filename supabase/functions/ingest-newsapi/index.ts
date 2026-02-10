@@ -53,6 +53,19 @@ const NEWSAPI_SOURCES_WHITELIST = [
 
 const SOURCES_BATCH_SIZE = 4;
 const PAGE_SIZE = 100;
+const EXISTING_URLS_CHUNK_SIZE = 100;
+
+function normalizeStoryUrl(url: string): string {
+  let u = url.trim();
+  if (!u) return u;
+  u = u.replace(/\/+$/, "");
+  try {
+    u = encodeURI(decodeURI(u));
+  } catch {
+    // leave as-is if decode/encode fails
+  }
+  return u;
+}
 
 function jsonResponse(body: object, status: number, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -199,15 +212,18 @@ Deno.serve(async (req: Request) => {
 
     const existingUrls = new Set<string>();
     const articleUrls = articles
-      .map((a) => (a.url ?? "").trim())
+      .map((a) => normalizeStoryUrl((a.url ?? "").trim()))
       .filter((u) => u && u.startsWith("http"));
     if (articleUrls.length > 0) {
-      const { data: existing } = await supabase
-        .from("stories")
-        .select("url")
-        .in("url", articleUrls);
-      for (const row of existing ?? []) {
-        if (row?.url) existingUrls.add(row.url);
+      for (let i = 0; i < articleUrls.length; i += EXISTING_URLS_CHUNK_SIZE) {
+        const chunk = articleUrls.slice(i, i + EXISTING_URLS_CHUNK_SIZE);
+        const { data: existing } = await supabase
+          .from("stories")
+          .select("url")
+          .in("url", chunk);
+        for (const row of existing ?? []) {
+          if (row?.url) existingUrls.add(normalizeStoryUrl(row.url));
+        }
       }
     }
 
@@ -225,7 +241,7 @@ Deno.serve(async (req: Request) => {
     }> = [];
 
     for (const a of articles) {
-      const url = (a.url ?? "").trim();
+      const url = normalizeStoryUrl((a.url ?? "").trim());
       const title = (a.title ?? "").trim();
       if (!url || !title || !url.startsWith("http")) continue;
       if (existingUrls.has(url)) continue;
