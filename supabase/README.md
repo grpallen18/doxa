@@ -469,6 +469,7 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `025_story_bodies_content_length.sql` | content_length on story_bodies (superseded by 026). |
 | `026_story_bodies_content_raw_clean.sql` | content → content_raw; content_clean, content_length_raw/clean, cleaned_at, cleaner_model. |
 | `027_story_bodies_drop_extractor_rename_scraped.sql` | Drop extractor_version; rename extracted_at to scraped_at. |
+| `028_relevance_status_threshold_50.sql` | Lower relevance_status KEEP threshold from 75 to 50. |
 
 After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims.
 
@@ -494,7 +495,7 @@ Fetches NewsAPI `/top-headlines` (country=us, category=politics, language=en, pa
 
 ### relevance_gate (cron #2)
 
-Classifies ingested stories into `KEEP`, `DROP`, or `PENDING` using OpenAI. Each run fetches up to `max_stories` unclassified stories (where `relevance_status` is null) from the last N days, sends them to the LLM in a single request, and updates `stories` with `relevance_score`, `relevance_confidence`, `relevance_reason`, `relevance_tags`, `relevance_model`, and `relevance_ran_at`. The function does not write `relevance_status`; it is a **generated column** (migration 022): null when not yet run; **KEEP** when confidence ≥ 60 and score ≥ 75; **DROP** when confidence ≥ 60 and score &lt; 75, or when confidence &lt; 60 and score &lt; 75; **PENDING** when confidence &lt; 60 and score ≥ 75 (or no score). PENDING stories are scraped and then re-reviewed by **review_pending_stories** with full body content. When there are no unclassified stories, the function returns immediately with no work (graceful no-op).
+Classifies ingested stories into `KEEP`, `DROP`, or `PENDING` using OpenAI. Each run fetches up to `max_stories` unclassified stories (where `relevance_status` is null) from the last N days, sends them to the LLM in a single request, and updates `stories` with `relevance_score`, `relevance_confidence`, `relevance_reason`, `relevance_tags`, `relevance_model`, and `relevance_ran_at`. The function does not write `relevance_status`; it is a **generated column** (migration 028): null when not yet run; **KEEP** when confidence ≥ 60 and score ≥ 50; **DROP** when confidence ≥ 60 and score &lt; 50, or when confidence &lt; 60 and score &lt; 50; **PENDING** when confidence &lt; 60 and score ≥ 50 (or no score). PENDING stories are scraped and then re-reviewed by **review_pending_stories** with full body content. When there are no unclassified stories, the function returns immediately with no work (graceful no-op).
 
 **Request body (optional):** `lookback_days` (1–14, default 7), `max_stories` (1–2000, default 10), `content_max_chars` (0–6000, default 2500), `dry_run` (boolean).
 
@@ -556,7 +557,7 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 
 **Request body (optional):** `lookback_days` (1–14, default 7), `max_stories` (1–50, default 10), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
-**Cron (pg_cron):** [cron_review_pending_stories.sql](cron_review_pending_stories.sql) — every 2 minutes.
+**Cron (pg_cron):** [cron_review_pending_stories.sql](cron_review_pending_stories.sql) — every hour.
 
 ### Cron jobs (pg_cron, all times CST)
 
@@ -570,7 +571,7 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | extract-chunk-claims-every-2min | extract_chunk_claims | Every 2 min | [cron_extract_chunk_claims.sql](cron_extract_chunk_claims.sql) |
 | merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
 | link-canonical-claims-every-2min | link_canonical_claims | Every 2 min | [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) |
-| review-pending-stories-every-2min | review_pending_stories | Every 2 min | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
+| review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 
 receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
 

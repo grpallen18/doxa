@@ -1,4 +1,4 @@
-// Supabase Edge Function: fetch NewsAPI top-headlines, upsert sources and stories (by URL).
+// Supabase Edge Function: fetch NewsAPI everything (last 48h, en), upsert sources and stories (by URL).
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Cron runs daily.
 // Secrets: NEWSAPI_API_KEY (set in Dashboard or supabase secrets set).
 
@@ -27,6 +27,32 @@ interface NewsAPIResponse {
   message?: string;
   articles?: NewsAPIArticle[];
 }
+
+const NEWSAPI_SOURCES_WHITELIST = [
+  "reuters",
+  "associated-press",
+  "the-wall-street-journal",
+  "the-washington-post",
+  "politico",
+  "fox-news",
+  "cnn",
+  "msnbc",
+  "national-review",
+  "the-huffington-post",
+  "breitbart-news",
+  "the-hill",
+  "the-washington-times",
+  "vice-news",
+  "bloomberg",
+  "axios",
+  "time",
+  "newsweek",
+  "usa-today",
+  "cbs-news",
+];
+
+const SOURCES_BATCH_SIZE = 4;
+const PAGE_SIZE = 100;
 
 function jsonResponse(body: object, status: number, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -81,13 +107,31 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const pageSize = 100;
-    const maxPages = 3;
-    const allArticles: NewsAPIArticle[] = [];
-    let totalResults: number | undefined;
+    const now = new Date();
+    const fromDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    const toIso = now.toISOString();
+    const fromIso = fromDate.toISOString();
 
-    for (let page = 1; page <= maxPages; page++) {
-      const url = `https://newsapi.org/v2/top-headlines?country=us&category=politics&language=en&pageSize=${pageSize}&page=${page}&apiKey=${apiKey}`;
+    const batches: string[][] = [];
+    for (let i = 0; i < NEWSAPI_SOURCES_WHITELIST.length; i += SOURCES_BATCH_SIZE) {
+      batches.push(NEWSAPI_SOURCES_WHITELIST.slice(i, i + SOURCES_BATCH_SIZE));
+    }
+
+    const allArticles: NewsAPIArticle[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const batch of batches) {
+      const sourcesParam = batch.join(",");
+      const params = new URLSearchParams({
+        sources: sourcesParam,
+        language: "en",
+        pageSize: String(PAGE_SIZE),
+        page: "1",
+        from: fromIso,
+        to: toIso,
+        apiKey: apiKey,
+      });
+      const url = `https://newsapi.org/v2/everything?${params.toString()}`;
       const res = await fetch(url);
       const data: NewsAPIResponse = await res.json();
 
@@ -102,10 +146,14 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: message, code: data.code }, 502);
       }
 
-      if (page === 1 && data.totalResults != null) totalResults = data.totalResults;
       const pageArticles = data.articles ?? [];
-      allArticles.push(...pageArticles);
-      if (pageArticles.length < pageSize) break;
+      for (const a of pageArticles) {
+        const u = (a.url ?? "").trim();
+        if (u && u.startsWith("http") && !seenUrls.has(u)) {
+          seenUrls.add(u);
+          allArticles.push(a);
+        }
+      }
     }
 
     const articles = allArticles;
@@ -231,7 +279,6 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse({
       stories_from_api: storiesFromApi,
-      ...(totalResults != null && { total_results: totalResults }),
       inserted_sources: sourcesInserted,
       inserted_stories: storiesInserted,
       pipeline_run_id: runId ?? undefined,

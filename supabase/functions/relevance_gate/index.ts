@@ -375,10 +375,10 @@ Deno.serve(async (req: Request) => {
         const confidence = clampInt(r.confidence, 0, 100, 0);
         const score = clampInt(r.score, 0, 100, 0);
         if (confidence >= 60) {
-          const status = score >= 75 ? "KEEP" : "DROP";
+          const status = score >= 50 ? "KEEP" : "DROP";
           counts[status] += 1;
         } else {
-          if (score >= 75) counts.PENDING += 1;
+          if (score >= 50) counts.PENDING += 1;
           else counts.DROP += 1;
         }
 

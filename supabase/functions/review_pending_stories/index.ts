@@ -282,7 +282,7 @@ Deno.serve(async (req: Request) => {
       const score = r ? clampInt(r.score, 0, 100, 0) : 0;
 
       if (confidence >= 60) {
-        if (score >= 75) counts.KEEP += 1;
+        if (score >= 50) counts.KEEP += 1;
         else counts.DROP += 1;
         if (!dryRun && r) {
           await supabase
