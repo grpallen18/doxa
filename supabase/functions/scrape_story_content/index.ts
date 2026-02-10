@@ -63,6 +63,7 @@ Deno.serve(async (req: Request) => {
     .in("relevance_status", ["KEEP", "PENDING"])
     .eq("being_processed", false)
     .eq("scrape_skipped", false)
+    .is("scraped_at", null)
     .order("created_at", { ascending: true })
     .limit(10);
 
