@@ -212,11 +212,17 @@ Deno.serve(async (req: Request) => {
     .is("extraction_json", null);
   const hasNullChunks = new Set((nullChunkRows ?? []).map((r: { story_id: string }) => r.story_id));
 
+  const { data: mergedNullRows } = await supabase
+    .from("stories")
+    .select("story_id")
+    .is("merged_at", null);
+  const mergedAtNull = new Set((mergedNullRows ?? []).map((r: { story_id: string }) => r.story_id));
+
   const { data: claimRows } = await supabase.from("story_claims").select("story_id");
   const hasClaims = new Set((claimRows ?? []).map((r: { story_id: string }) => r.story_id));
 
   const readyStoryIds = chunkStoryIds.filter(
-    (id) => !hasNullChunks.has(id) && !hasClaims.has(id)
+    (id) => !hasNullChunks.has(id) && mergedAtNull.has(id) && !hasClaims.has(id)
   );
 
   if (readyStoryIds.length === 0) {
@@ -377,11 +383,13 @@ Deno.serve(async (req: Request) => {
     totalLinks += linksInserted;
 
     const isEmpty = claimIds.length === 0 && evidenceIds.length === 0;
+    const now = new Date().toISOString();
     await supabase
       .from("stories")
       .update({
-        extraction_completed_at: isEmpty ? null : new Date().toISOString(),
+        extraction_completed_at: isEmpty ? null : now,
         extraction_skipped_empty: isEmpty,
+        merged_at: now,
       })
       .eq("story_id", storyId);
 
