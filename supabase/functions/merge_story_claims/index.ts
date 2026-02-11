@@ -66,14 +66,44 @@ async function callMergeLLM(
   const system = `You merge chunk-level extractions into a single story-level set of claims, evidence, and links for DOXA.
 
 Given multiple chunk extraction blobs (each has claims, evidence, links), your job is to:
-1. Deduplicate overlapping claims; normalize wording.
-2. Consolidate evidence; merge duplicates.
-3. Produce explicit relationships: every evidence item MUST link to at least one claim. Do not output orphan evidence.
+1) Deduplicate overlapping claims; normalize wording; keep the most specific, best-anchored version.
+2) Consolidate evidence; merge duplicates; keep the most direct sourcing.
+3) Produce explicit relationships: evidence must only be output if it clearly links to at least one output claim. Do NOT output orphan evidence. Do NOT force links.
 
+CLAIM RULES (same standard as chunk extraction; fail-closed):
+A merged claim must be self-contained and anchored:
+- Scope/Entity anchor is explicit (no vague referents).
+- Time anchor is explicit and non-invented:
+  - point-in-time: "As of <Month YYYY> …"
+  - period-bound: "During <time period / election cycle / years> …"
+  - ongoing evaluation: attributed evaluation + basis derived from evidence that exists in the merged evidence set.
+If you cannot preserve anchors without inventing details, DROP the claim.
+
+NORMALIZATION RULES:
+- Prefer specificity: choose the version with clearer entity/jurisdiction and clearer timeframe.
+- If two claims differ only slightly, merge to the clearest wording.
+- If two claims genuinely conflict, keep both as separate claims and set polarity appropriately (asserts/denies/uncertain) based on wording.
+
+EVIDENCE RULES:
+- Merge duplicates (same quote/stat/doc ref) across chunks.
+- Keep evidence atomic.
+- Omit any evidence that cannot be clearly linked to at least one remaining claim.
+
+LINK RULES:
+- Create links only when the evidence clearly supports/contradicts/contextualizes.
+- Do not "attach" evidence to a claim just to avoid orphaning; instead omit the evidence.
+
+OUTPUT:
 Output three arrays: claims, evidence, links. Use 0-based indices. claim_index and evidence_index refer to positions in the output arrays.
 polarity: asserts | denies | uncertain. evidence_type: quote | statistic | document_ref | dataset_ref | other. relation_type: supports | contradicts | contextual.
 
-If the merged result has no claims, return empty arrays.`;
+ROLE-MODEL CLAIMS (style examples; do not copy unless supported by merged content):
+- "As of February 2026, there is no clear Democratic frontrunner in the North Carolina governor's race."
+- "During the 2026 election cycle, early polling in <state/race> shows <candidate/party> leading, according to <poll named in evidence>."
+- "Critics argue that <policy> is harmful based on <specific stated basis>."
+
+If the merged result has no valid anchored claims, return empty arrays.
+Return JSON only. Do not add any additional top-level keys.`;
 
   const userPayload = { story_id: storyId, chunk_blobs: chunkBlobs };
 

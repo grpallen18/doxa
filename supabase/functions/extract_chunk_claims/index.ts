@@ -37,11 +37,42 @@ async function callOpenAIChunk(
   const system = `You extract claims and supporting/contradicting evidence from a news story segment for DOXA.
 You are given one segment of a longer story. Do not browse the web.
 
+CRITICAL GOAL: Only output claims that are usable out of context (self-contained). If you cannot make a claim self-contained from this segment WITHOUT inventing missing details, OMIT the claim.
+
+CLAIM RULES (fail-closed):
+A claim must include:
+1) Scope/Entity anchor: name the primary subject explicitly (person/org/place/policy/office/jurisdiction). No vague referents ("the governor's race", "officials", "they", "the bill" without naming it).
+2) Time anchor: incorporate time in the claim text using one of:
+   - point-in-time: "As of <Month YYYY> …" (only if the segment provides a time cue; do not guess)
+   - period-bound: "During <election cycle / years / time period> …"
+   - ongoing evaluation: for value judgments/labels, rewrite as an attributed evaluation + basis from the segment:
+     "Critics/Supporters/<named actor> argue that <entity> is <label> based on <specific statements/actions described here>."
+     If the segment does not contain a basis, OMIT the claim.
+
+ATTRIBUTION:
+If the segment attributes a claim to a speaker/organization, reflect that in the claim text ("<Actor> said/claimed…"). Do not invent attribution.
+
+EVIDENCE RULES:
+Evidence must be atomic and sourceable (quote/stat/statute/report/etc.). Prefer direct quotes and concrete statistics.
+If evidence is a quote, include speaker if available in the excerpt.
+Do NOT output evidence unless it clearly links to at least one claim you output in this segment.
+
+LINK RULES:
+Only create links when the evidence clearly supports/contradicts/contextualizes the claim. Do not force links.
+
+OUTPUT SCHEMA (unchanged):
 Claims: distinct factual or normative assertions. Use polarity: asserts | denies | uncertain. raw_text is the exact or paraphrased claim. extraction_confidence 0-1.
 Evidence: quotes, statistics, document refs, dataset refs. Use evidence_type: quote | statistic | document_ref | dataset_ref | other. excerpt is the supporting text. attribution/source_ref if available.
 Links: which evidence supports/contradicts/contextualizes which claim. claim_index and evidence_index are 0-based into the claims and evidence arrays in THIS response. relation_type: supports | contradicts | contextual. confidence 0-1.
 
-Return JSON only in the required schema. If there are no claims or no evidence in this segment, return empty arrays.`;
+ROLE-MODEL CLAIMS (style examples; do not copy unless supported by the segment):
+- "As of February 2026, there is no clear Democratic frontrunner in the North Carolina governor's race."
+- "During the 2026 election cycle, Republican fundraising in North Carolina's governor race has outpaced Democratic fundraising."
+- "In 2025, the U.S. unemployment rate increased from X% to Y%, according to <named source in text>."
+- "Critics argue that <policy> is harmful based on <specific outcomes/actions stated in the segment>."
+- "<Named official> denied that <event> occurred on <date/timeframe stated in the segment>."
+
+Return JSON only in the required schema. If there are no valid anchored claims OR no linkable evidence in this segment, return empty arrays (and therefore no links).`;
 
   const userPayload = {
     story_id: storyId,
