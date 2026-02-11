@@ -551,6 +551,20 @@ Links story_claims to canonical claims via embedding similarity. Creates new cla
 
 **Cron (pg_cron):** [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) — every 2 minutes.
 
+### claim_to_thesis (Postgres function)
+
+Clusters canonical claims into theses by embedding similarity. Processes up to 5 claims per run (FOR UPDATE SKIP LOCKED). Links each claim to matching theses (cosine similarity >= 0.70, cap 3) or creates a new thesis bucket; updates thesis centroid embeddings. No Edge Function; runs inside the DB.
+
+**Cron (pg_cron):** [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) — every 2 minutes. Runs `SELECT claim_to_thesis_run(5);` (no HTTP, no Vault).
+
+### thesis_drift_relabel
+
+Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims (up to 30: mix of most central and most recent), calls the LLM to produce one thesis sentence, embeds it, and updates thesis_text / thesis_text_embedding / thesis_text_ok / last_text_ok_claim_count. One LLM call per thesis per run. Eligible when: no text yet and claim_count >= 5; or thesis_text_ok = false; or text has drifted (similarity < 0.70) and at least 5 new claims since last OK.
+
+**Request body (optional):** `dry_run` (boolean), `batch_theses` (1–20, default 10). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (chat + embedding).
+
+**Cron (pg_cron):** [cron_thesis_drift_relabel.sql](cron_thesis_drift_relabel.sql) — every 10 minutes (optional).
+
 ### review_pending_stories
 
 Re-reviews stories with **relevance_status = PENDING** that have `content_clean` in **story_bodies** (skips stories not yet cleaned). Sends the first 3000 characters of content_clean to the LLM (same classification prompt as relevance_gate). If confidence >= 60, writes the LLM result (relevance_score, etc.); if confidence < 60, writes a template DROP (score=0, confidence=100, reason="Relevance unclear after thorough review, choosing to drop."). Run after clean_scraped_content so PENDING stories have cleaned bodies.
@@ -571,6 +585,8 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | extract-chunk-claims-every-2min | extract_chunk_claims | Every 2 min | [cron_extract_chunk_claims.sql](cron_extract_chunk_claims.sql) |
 | merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
 | link-canonical-claims-every-2min | link_canonical_claims | Every 2 min | [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) |
+| claim-to-thesis-every-2min | claim_to_thesis_run (SQL) | Every 2 min | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
+| thesis-drift-relabel-every-10min | thesis_drift_relabel | Every 10 min | [cron_thesis_drift_relabel.sql](cron_thesis_drift_relabel.sql) |
 | review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 
 receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
