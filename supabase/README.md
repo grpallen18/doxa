@@ -559,7 +559,7 @@ Clusters canonical claims into theses by embedding similarity. Processes up to 5
 
 ### thesis_drift_relabel
 
-Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims (up to 30: mix of most central and most recent), calls the LLM to produce one thesis sentence, embeds it, and updates thesis_text / thesis_text_embedding / thesis_text_ok / last_text_ok_claim_count. One LLM call per thesis per run. Eligible when: no text yet and claim_count >= 5; or thesis_text_ok = false; or text has drifted (similarity < 0.70) and at least 5 new claims since last OK.
+Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims (up to 30: mix of most central and most recent), calls the LLM to produce one thesis sentence, embeds it, and updates thesis_text / thesis_text_embedding / thesis_text_ok / last_text_ok_claim_count. One LLM call per thesis per run. Eligible when: no text yet and claim_count >= 5; or thesis_text_ok = false; or text has drifted (similarity < 0.70) and at least 5 new claims since last OK. Story-diversity guardrail: only theses with >= 2 distinct story_ids (via thesis_claims → story_claims) get thesis text, to avoid single-source framing.
 
 **Request body (optional):** `dry_run` (boolean), `batch_theses` (1–20, default 10). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (chat + embedding).
 

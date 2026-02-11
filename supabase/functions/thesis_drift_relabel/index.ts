@@ -15,6 +15,7 @@ const DEFAULT_CHAT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_DIMS = 1536;
 const MIN_CLAIMS_FOR_TEXT = 5;
 const MIN_NEW_CLAIMS_SINCE_OK = 5;
+const MIN_DISTINCT_STORIES = 2;
 const DRIFT_THRESHOLD = 0.7;
 const BATCH_THESES = 10;
 const MAX_CLAIMS_FOR_SUMMARY = 30;
@@ -205,6 +206,48 @@ Deno.serve(async (req: Request) => {
     }
 
     if (isEligible) eligible.push({ thesis: t, discrepancy, newClaimsSinceOk });
+  }
+
+  if (eligible.length > 0) {
+    const thesisIds = eligible.map((e) => e.thesis.thesis_id);
+    const { data: tcRows } = await supabase
+      .from("thesis_claims")
+      .select("thesis_id, claim_id")
+      .in("thesis_id", thesisIds);
+    const claimIdsFromTc = [...new Set((tcRows ?? []).map((r: { claim_id: string }) => r.claim_id))];
+    const thesisToClaimIds = new Map<string, Set<string>>();
+    for (const r of tcRows ?? []) {
+      const row = r as { thesis_id: string; claim_id: string };
+      if (!thesisToClaimIds.has(row.thesis_id)) thesisToClaimIds.set(row.thesis_id, new Set());
+      thesisToClaimIds.get(row.thesis_id)!.add(row.claim_id);
+    }
+    const { data: scRows } = await supabase
+      .from("story_claims")
+      .select("claim_id, story_id")
+      .in("claim_id", claimIdsFromTc);
+    const claimToStoryIds = new Map<string, Set<string>>();
+    for (const r of scRows ?? []) {
+      const row = r as { claim_id: string; story_id: string };
+      if (!claimToStoryIds.has(row.claim_id)) claimToStoryIds.set(row.claim_id, new Set());
+      claimToStoryIds.get(row.claim_id)!.add(row.story_id);
+    }
+    const thesisDistinctStories = new Map<string, number>();
+    for (const [tid, cids] of thesisToClaimIds) {
+      const stories = new Set<string>();
+      for (const cid of cids) {
+        for (const sid of claimToStoryIds.get(cid) ?? []) stories.add(sid);
+      }
+      thesisDistinctStories.set(tid, stories.size);
+    }
+    const before = eligible.length;
+    eligible.splice(
+      0,
+      eligible.length,
+      ...eligible.filter((e) => (thesisDistinctStories.get(e.thesis.thesis_id) ?? 0) >= MIN_DISTINCT_STORIES)
+    );
+    if (eligible.length < before && before > 0) {
+      console.log(`[thesis_drift_relabel] Excluded ${before - eligible.length} theses (fewer than ${MIN_DISTINCT_STORIES} distinct stories)`);
+    }
   }
 
   eligible.sort((a, b) => {
