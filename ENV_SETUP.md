@@ -67,6 +67,7 @@ Edge Functions use secrets set in **Supabase** (not in `.env.local`): Dashboard 
 - **extract_chunk_claims:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 - **merge_story_claims:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 - **link_canonical_claims:** `OPENAI_API_KEY`; optional `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`); optional `SIMILARITY_THRESHOLD` (0–1, default 0.9).
+- **update_stances:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (default `gpt-4o-mini`). Backfills stance on story_claims with null stance.
 
 See [supabase/README.md](supabase/README.md) for deploy and cron.
 

@@ -553,6 +553,12 @@ Links story_claims to canonical claims via embedding similarity. Creates new cla
 
 **Cron (pg_cron):** [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) — every 2 minutes.
 
+### update_stances
+
+Backfills `stance` on story_claims that have null stance. For each claim, sends raw_text + article content (from story_bodies.content_clean, truncated to 6000 chars) to the LLM; LLM returns support/oppose/neutral. Processes one claim at a time by default. No cron; invoke manually or via one-off script to backfill existing rows.
+
+**Request body (optional):** `max_claims` (1–10, default 1), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+
 ### claim_to_thesis (Postgres function)
 
 Clusters canonical claims into theses by embedding similarity. Processes up to 5 claims per run (FOR UPDATE SKIP LOCKED). Links each claim to matching theses (cosine similarity >= 0.70, cap 3) or creates a new thesis bucket; updates thesis centroid embeddings. No Edge Function; runs inside the DB.
@@ -601,8 +607,8 @@ receive_scraped_content has no cron; it is invoked by the Cloudflare Worker afte
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`). For receive_scraped_content, use `--no-verify-jwt`.
-- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`)
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 
 ---
