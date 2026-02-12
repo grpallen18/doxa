@@ -13,7 +13,6 @@ const corsHeaders = {
 const CHUNK_SIZE = 3500;
 const CHUNK_OVERLAP = 500;
 const DEFAULT_MAX_STORIES = 10;
-const FETCH_LIMIT = 100;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -66,45 +65,19 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: bodiesRaw, error: bodiesErr } = await supabase
-    .from("story_bodies")
-    .select("story_id, content_clean")
-    .not("content_clean", "is", null)
-    .order("scraped_at", { ascending: true })
-    .limit(FETCH_LIMIT);
+  const { data: unchunkedRaw, error: rpcErr } = await supabase.rpc("get_unchunked_story_bodies", {
+    p_limit: maxStories,
+  });
 
-  if (bodiesErr) {
-    console.error("[chunk_story_bodies] story_bodies fetch error:", bodiesErr.message);
-    return json({ error: bodiesErr.message }, 500);
+  if (rpcErr) {
+    console.error("[chunk_story_bodies] get_unchunked_story_bodies error:", rpcErr.message);
+    return json({ error: rpcErr.message }, 500);
   }
 
-  const bodies = (Array.isArray(bodiesRaw) ? bodiesRaw : []).filter(
+  const unchunked = (Array.isArray(unchunkedRaw) ? unchunkedRaw : []).filter(
     (b): b is { story_id: string; content_clean: string } =>
       typeof b === "object" && b !== null && typeof (b as { story_id: unknown }).story_id === "string"
   );
-
-  if (bodies.length === 0) {
-    return json({ ok: true, processed: 0, chunks_created: 0, message: "No stories to chunk" });
-  }
-
-  const storyIds = bodies.map((b) => b.story_id);
-  const { data: chunkedRaw, error: chunkedErr } = await supabase
-    .from("story_chunks")
-    .select("story_id")
-    .in("story_id", storyIds);
-
-  if (chunkedErr) {
-    console.error("[chunk_story_bodies] story_chunks fetch error:", chunkedErr.message);
-    return json({ error: chunkedErr.message }, 500);
-  }
-
-  const chunkedSet = new Set(
-    (Array.isArray(chunkedRaw) ? chunkedRaw : [])
-      .map((r) => (r as { story_id: string }).story_id)
-      .filter(Boolean)
-  );
-
-  const unchunked = bodies.filter((b) => !chunkedSet.has(b.story_id)).slice(0, maxStories);
 
   if (unchunked.length === 0) {
     return json({ ok: true, processed: 0, chunks_created: 0, message: "No unchunked stories" });

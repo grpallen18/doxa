@@ -211,49 +211,39 @@ Deno.serve(async (req: Request) => {
   const sinceIso = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: bodiesRows } = await supabase
-    .from("story_bodies")
-    .select("story_id, content_clean")
-    .not("content_clean", "is", null);
+  const { data: rowsRaw, error: rpcErr } = await supabase.rpc("get_pending_stories_with_body", {
+    p_since: sinceIso,
+    p_limit: maxStories,
+  });
 
-  const storyIdsWithBody = (Array.isArray(bodiesRows) ? bodiesRows : []).map(
-    (r: { story_id: string }) => r.story_id
-  );
-  const bodyContentMap = new Map<string, string>(
-    (Array.isArray(bodiesRows) ? bodiesRows : []).map((r: { story_id: string; content_clean: string | null }) => [
-      r.story_id,
-      (r.content_clean ?? "").trim(),
-    ])
-  );
-
-  if (storyIdsWithBody.length === 0) {
-    return json({ ok: true, processed: 0, message: "No story_bodies with content_clean" });
+  if (rpcErr) {
+    console.error("[review_pending_stories] get_pending_stories_with_body error:", rpcErr.message);
+    return json({ error: rpcErr.message }, 500);
   }
 
-  const uniqueIds = [...new Set(storyIdsWithBody)];
+  const rows = (Array.isArray(rowsRaw) ? rowsRaw : []) as Array<{
+    story_id: string;
+    title: string | null;
+    content_snippet: string | null;
+    content_full: string | null;
+    url: string | null;
+    created_at: string | null;
+    source_name: string | null;
+    body_content: string | null;
+  }>;
 
-  const { data: storiesRaw, error } = await supabase
-    .from("stories")
-    .select("story_id, title, content_snippet, content_full, url, created_at, sources(name)")
-    .eq("relevance_status", "PENDING")
-    .eq("being_processed", false)
-    .gte("created_at", sinceIso)
-    .in("story_id", uniqueIds)
-    .order("created_at", { ascending: true })
-    .limit(maxStories);
-
-  if (error) {
-    console.error("[review_pending_stories] Stories query error:", error.message);
-    return json({ error: error.message }, 500);
-  }
-
-  const stories = (Array.isArray(storiesRaw) ? storiesRaw : []).filter(
-    (s): s is StoryRow => typeof s === "object" && s !== null && typeof (s as StoryRow).story_id === "string"
-  );
-
-  for (const s of stories) {
-    (s as StoryRow).body_content = bodyContentMap.get(s.story_id) ?? null;
-  }
+  const stories: StoryRow[] = rows
+    .filter((r) => typeof r.story_id === "string")
+    .map((r) => ({
+      story_id: r.story_id,
+      title: r.title,
+      content_snippet: r.content_snippet,
+      content_full: r.content_full,
+      url: r.url,
+      created_at: r.created_at,
+      sources: r.source_name ? { name: r.source_name } : null,
+      body_content: (r.body_content ?? "").trim() || null,
+    }));
 
   if (stories.length === 0) {
     return json({ ok: true, processed: 0, message: "No PENDING stories with content_clean to review" });

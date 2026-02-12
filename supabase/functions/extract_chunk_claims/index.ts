@@ -60,8 +60,12 @@ Do NOT output evidence unless it clearly links to at least one claim you output 
 LINK RULES:
 Only create links when the evidence clearly supports/contradicts/contextualizes the claim. Do not force links.
 
-OUTPUT SCHEMA (unchanged):
-Claims: distinct factual or normative assertions. Use polarity: asserts | denies | uncertain. raw_text is the exact or paraphrased claim. extraction_confidence 0-1.
+STANCE (for each claim):
+polarity (asserts/denies/uncertain) = linguistic form of the claim.
+stance (support/oppose/neutral) = how the article frames the proposition. support = article argues the claim is true/valid; oppose = article argues against or undermines it; neutral = unclear, mixed, or just reporting without taking a position. Stance is about the article's position on the claim as a proposition, not the linguistic form.
+
+OUTPUT SCHEMA:
+Claims: distinct factual or normative assertions. Use polarity: asserts | denies | uncertain. Use stance: support | oppose | neutral. raw_text is the exact or paraphrased claim. extraction_confidence 0-1.
 Evidence: quotes, statistics, document refs, dataset refs. Use evidence_type: quote | statistic | document_ref | dataset_ref | other. excerpt is the supporting text. attribution/source_ref if available.
 Links: which evidence supports/contradicts/contextualizes which claim. claim_index and evidence_index are 0-based into the claims and evidence arrays in THIS response. relation_type: supports | contradicts | contextual. confidence 0-1.
 
@@ -108,11 +112,12 @@ Return JSON only in the required schema. If there are no valid anchored claims O
                   properties: {
                     raw_text: { type: "string" },
                     polarity: { type: "string", enum: ["asserts", "denies", "uncertain"] },
+                    stance: { type: "string", enum: ["support", "oppose", "neutral"] },
                     extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
                     span_start: { type: ["integer", "null"] },
                     span_end: { type: ["integer", "null"] },
                   },
-                  required: ["raw_text", "polarity", "extraction_confidence", "span_start", "span_end"],
+                  required: ["raw_text", "polarity", "stance", "extraction_confidence", "span_start", "span_end"],
                   additionalProperties: false,
                 },
               },

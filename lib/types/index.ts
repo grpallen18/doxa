@@ -76,6 +76,7 @@ export interface StoryClaim {
   story_id: string
   raw_text: string
   polarity: string
+  stance: string | null
   extraction_confidence: number
   span_start: number | null
   span_end: number | null

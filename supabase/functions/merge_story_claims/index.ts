@@ -35,6 +35,7 @@ function clampNum(n: unknown, min: number, max: number, fallback: number) {
 type MergeClaim = {
   raw_text: string;
   polarity: string;
+  stance?: string;
   extraction_confidence: number;
   span_start?: number | null;
   span_end?: number | null;
@@ -93,9 +94,16 @@ LINK RULES:
 - Create links only when the evidence clearly supports/contradicts/contextualizes.
 - Do not "attach" evidence to a claim just to avoid orphaning; instead omit the evidence.
 
+STANCE MERGE RULES (when merging claims across chunks):
+- If any chunk has stance=oppose with extraction_confidence >= 0.7, output oppose (do not average it away).
+- If any chunk has stance=support with extraction_confidence >= 0.7 and no oppose signal, output support.
+- If chunks conflict (e.g. support vs oppose), or if no clear signal, output neutral.
+- Treat missing stance in chunk blobs as neutral when merging.
+- Otherwise, use the dominant stance weighted by extraction_confidence.
+
 OUTPUT:
 Output three arrays: claims, evidence, links. Use 0-based indices. claim_index and evidence_index refer to positions in the output arrays.
-polarity: asserts | denies | uncertain. evidence_type: quote | statistic | document_ref | dataset_ref | other. relation_type: supports | contradicts | contextual.
+polarity: asserts | denies | uncertain. stance: support | oppose | neutral. evidence_type: quote | statistic | document_ref | dataset_ref | other. relation_type: supports | contradicts | contextual.
 
 ROLE-MODEL CLAIMS (style examples; do not copy unless supported by merged content):
 - "As of February 2026, there is no clear Democratic frontrunner in the North Carolina governor's race."
@@ -135,11 +143,12 @@ Return JSON only. Do not add any additional top-level keys.`;
                   properties: {
                     raw_text: { type: "string" },
                     polarity: { type: "string", enum: ["asserts", "denies", "uncertain"] },
+                    stance: { type: "string", enum: ["support", "oppose", "neutral"] },
                     extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
                     span_start: { type: ["integer", "null"] },
                     span_end: { type: ["integer", "null"] },
                   },
-                  required: ["raw_text", "polarity", "extraction_confidence", "span_start", "span_end"],
+                  required: ["raw_text", "polarity", "stance", "extraction_confidence", "span_start", "span_end"],
                   additionalProperties: false,
                 },
               },
@@ -233,29 +242,20 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: allChunkRows } = await supabase.from("story_chunks").select("story_id");
-  const chunkStoryIds = [...new Set((allChunkRows ?? []).map((r: { story_id: string }) => r.story_id))];
+  const { data: readyRaw, error: rpcErr } = await supabase.rpc("get_stories_ready_to_merge", {
+    p_limit: maxStories,
+  });
 
-  const { data: nullChunkRows } = await supabase
-    .from("story_chunks")
-    .select("story_id")
-    .is("extraction_json", null);
-  const hasNullChunks = new Set((nullChunkRows ?? []).map((r: { story_id: string }) => r.story_id));
+  if (rpcErr) {
+    console.error("[merge_story_claims] get_stories_ready_to_merge error:", rpcErr.message);
+    return json({ error: rpcErr.message }, 500);
+  }
 
-  const { data: mergedNullRows } = await supabase
-    .from("stories")
-    .select("story_id")
-    .is("merged_at", null);
-  const mergedAtNull = new Set((mergedNullRows ?? []).map((r: { story_id: string }) => r.story_id));
+  const toProcess = (Array.isArray(readyRaw) ? readyRaw : [])
+    .map((r: { story_id?: string }) => r?.story_id)
+    .filter((id): id is string => typeof id === "string");
 
-  const { data: claimRows } = await supabase.from("story_claims").select("story_id");
-  const hasClaims = new Set((claimRows ?? []).map((r: { story_id: string }) => r.story_id));
-
-  const readyStoryIds = chunkStoryIds.filter(
-    (id) => !hasNullChunks.has(id) && mergedAtNull.has(id) && !hasClaims.has(id)
-  );
-
-  if (readyStoryIds.length === 0) {
+  if (toProcess.length === 0) {
     return json({
       ok: true,
       processed: 0,
@@ -266,8 +266,6 @@ Deno.serve(async (req: Request) => {
       dry_run: dryRun,
     });
   }
-
-  const toProcess = readyStoryIds.slice(0, maxStories);
   const requestId = `merge-${Date.now()}`;
   let runId: string | null = null;
 
@@ -353,12 +351,15 @@ Deno.serve(async (req: Request) => {
     const claimIds: string[] = [];
     for (const c of mergeClaims) {
       const conf = clampNum(c.extraction_confidence, 0, 1, 0.5);
+      const stanceVal =
+        c.stance && ["support", "oppose", "neutral"].includes(c.stance) ? c.stance : null;
       const { data: ins } = await supabase
         .from("story_claims")
         .insert({
           story_id: storyId,
           raw_text: (c.raw_text ?? "").trim() || "Unspecified",
           polarity: c.polarity ?? "uncertain",
+          stance: stanceVal,
           extraction_confidence: conf,
           span_start: c.span_start ?? null,
           span_end: c.span_end ?? null,

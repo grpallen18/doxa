@@ -151,6 +151,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `story_id` | uuid (FK → stories.story_id) | Which story. |
 | `raw_text` | text | As extracted. |
 | `polarity` | text | asserts \| denies \| uncertain. |
+| `stance` | text (nullable) | support \| oppose \| neutral. How the article frames the proposition. Null until explicitly set at extraction; existing rows stay null until backfilled by separate edge function. |
 | `extraction_confidence` | numeric | Confidence of extraction. |
 | `span_start` | int (nullable) | Optional offsets. |
 | `span_end` | int (nullable) | Optional offsets. |
