@@ -31,7 +31,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### stories
 
-**Purpose:** One row per ingested article/story. Rolls up to sources. Relevance fields are filled by cron #2 (classify ingested stories into KEEP/DROP). Full article text is stored in **story_bodies**; stories holds only scrape status flags (`being_processed`, `scrape_skipped`).
+**Purpose:** One row per ingested article/story. Rolls up to sources. Relevance fields are filled by cron #2 (classify ingested stories into KEEP/DROP). Full article text is stored in **story_bodies**; stories holds only scrape status flags (`being_processed`, `scrape_skipped`, `scrape_fail_count`).
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -56,6 +56,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `relevance_ran_at` | timestamptz (nullable) | When relevance was last evaluated. |
 | `being_processed` | boolean | Lock while scrape or extraction runs. |
 | `scrape_skipped` | boolean | True when scrape failed or no URL. |
+| `scrape_fail_count` | int | Consecutive scrape failures (Worker 5xx, timeout, CPU exceeded). After 3, scrape_skipped is set and retries stop. Reset to 0 on success. |
 | `extraction_completed_at` | timestamptz (nullable) | When extraction wrote at least one claim/evidence. |
 | `extraction_skipped_empty` | boolean | True when extraction ran but found nothing. |
 

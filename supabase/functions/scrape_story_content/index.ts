@@ -160,11 +160,10 @@ Deno.serve(async (req: Request) => {
       if (!res.ok) {
         console.error("[scrape_story_content] Worker response:", res.status);
         if (!dryRun) {
-          const { error: unlockErr } = await supabase
-            .from("stories")
-            .update({ being_processed: false })
-            .eq("story_id", story.story_id);
-          if (unlockErr) console.error("[scrape_story_content] Unlock error:", unlockErr.message);
+          const { error: rpcErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
+            p_story_id: story.story_id,
+          });
+          if (rpcErr) console.error("[scrape_story_content] RPC error:", rpcErr.message);
         }
         return json({ error: `Worker returned ${res.status}`, story_id: story.story_id }, 502);
       }
@@ -174,11 +173,10 @@ Deno.serve(async (req: Request) => {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[scrape_story_content] Worker request error:", msg);
       if (!dryRun) {
-        const { error: unlockErr } = await supabase
-          .from("stories")
-          .update({ being_processed: false })
-          .eq("story_id", story.story_id);
-        if (unlockErr) console.error("[scrape_story_content] Unlock error:", unlockErr.message);
+        const { error: rpcErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
+          p_story_id: story.story_id,
+        });
+        if (rpcErr) console.error("[scrape_story_content] RPC error:", rpcErr.message);
       }
       return json({ error: msg, story_id: story.story_id }, 502);
     }
