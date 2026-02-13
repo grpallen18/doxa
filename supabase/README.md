@@ -555,9 +555,11 @@ Links story_claims to canonical claims via embedding similarity. Creates new cla
 
 ### update_stances
 
-Backfills `stance` on story_claims that have null stance. For each claim, sends raw_text + article content (from story_bodies.content_clean, truncated to 6000 chars) to the LLM; LLM returns support/oppose/neutral. Processes one claim at a time by default. No cron; invoke manually or via one-off script to backfill existing rows.
+Backfills `stance` on story_claims that have null stance. For each claim, sends raw_text + article content (from story_bodies.content_clean, truncated to 6000 chars) to the LLM; LLM returns support/oppose/neutral. Processes one claim at a time by default.
 
 **Request body (optional):** `max_claims` (1–10, default 1), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+
+**Cron (pg_cron):** [cron_update_stance.sql](cron_update_stance.sql) — every 20 minutes.
 
 ### claim_to_thesis (Postgres function)
 
@@ -565,13 +567,13 @@ Clusters canonical claims into theses by embedding similarity. Processes up to 5
 
 **Cron (pg_cron):** [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) — every 2 minutes. Runs `SELECT claim_to_thesis_run(5);` (no HTTP, no Vault).
 
-### thesis_drift_relabel
+### label_thesis
 
-Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims (up to 30: mix of most central and most recent), calls the LLM to produce one thesis sentence, embeds it, and updates thesis_text / thesis_text_embedding / thesis_text_ok / last_text_ok_claim_count. One LLM call per thesis per run. Eligible when: no text yet and claim_count >= 5; or thesis_text_ok = false; or text has drifted (similarity < 0.70) and at least 5 new claims since last OK. Story-diversity guardrail: only theses with >= 2 distinct story_ids (via thesis_claims → story_claims) get thesis text, to avoid single-source framing.
+Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims (up to 30: mix of most central and most recent), calls the LLM to produce one thesis sentence, embeds it, and updates thesis_text / thesis_text_embedding / thesis_text_ok / last_text_ok_claim_count. Covers both new labels and relabels. One LLM call per thesis per run. Eligible when: no text yet and claim_count >= 5; or thesis_text_ok = false; or text has drifted (similarity < 0.70) and at least 5 new claims since last OK. Diversity guardrail: only theses with >= 3 distinct story_ids and >= 3 distinct sources (via thesis_claims → story_claims → stories → source_id) get thesis text, to avoid single-source framing.
 
 **Request body (optional):** `dry_run` (boolean), `batch_theses` (1–20, default 10). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (chat + embedding).
 
-**Cron (pg_cron):** [cron_thesis_drift_relabel.sql](cron_thesis_drift_relabel.sql) — every 10 minutes (optional).
+**Cron (pg_cron):** [cron_label_thesis.sql](cron_label_thesis.sql) — every 10 minutes (optional).
 
 ### review_pending_stories
 
@@ -593,8 +595,9 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | extract-chunk-claims-every-2min | extract_chunk_claims | Every 2 min | [cron_extract_chunk_claims.sql](cron_extract_chunk_claims.sql) |
 | merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
 | link-canonical-claims-every-2min | link_canonical_claims | Every 2 min | [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) |
+| update-stance-every-20min | update_stances | Every 20 min | [cron_update_stance.sql](cron_update_stance.sql) |
 | claim-to-thesis-every-2min | claim_to_thesis_run (SQL) | Every 2 min | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
-| thesis-drift-relabel-every-10min | thesis_drift_relabel | Every 10 min | [cron_thesis_drift_relabel.sql](cron_thesis_drift_relabel.sql) |
+| label-thesis-every-10min | label_thesis | Every 10 min | [cron_label_thesis.sql](cron_label_thesis.sql) |
 | review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 
 receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
@@ -607,8 +610,8 @@ receive_scraped_content has no cron; it is invoked by the Cloudflare Worker afte
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`). For receive_scraped_content, use `--no-verify-jwt`.
-- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`)
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `label_thesis`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/label_thesis`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 
 ---

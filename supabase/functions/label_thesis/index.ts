@@ -1,5 +1,6 @@
-// Supabase Edge Function: thesis_drift_relabel.
+// Supabase Edge Function: label_thesis.
 // Finds theses with biggest centroid-vs-text discrepancy, writes/rewrites thesis_text via LLM, updates drift flags.
+// Covers both new labels and relabels.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL, OPENAI_EMBEDDING_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { dry_run?: boolean, batch_theses?: number }.
 
@@ -15,7 +16,8 @@ const DEFAULT_CHAT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_DIMS = 1536;
 const MIN_CLAIMS_FOR_TEXT = 5;
 const MIN_NEW_CLAIMS_SINCE_OK = 5;
-const MIN_DISTINCT_STORIES = 2;
+const MIN_DISTINCT_STORIES = 3;
+const MIN_DISTINCT_SOURCES = 3;
 const DRIFT_THRESHOLD = 0.7;
 const BATCH_THESES = 10;
 const MAX_CLAIMS_FOR_SUMMARY = 30;
@@ -98,12 +100,13 @@ type ClaimRow = {
 };
 
 async function callThesisLLM(apiKey: string, model: string, claimTexts: string[]): Promise<string> {
-  const system = `You write a single thesis sentence that describes the shared pattern across the given claims.
+  const system = `You write a single thesis sentence that captures the shared semantic pattern across the given claims.
+The claims are ordered by centrality: the top claims are most representative of the core theme; the bottom claims are more peripheral. Prioritize the top claims when forming your sentence, but still try to capture the overall pattern across the full list.
 Be descriptive, not causal or moralizing. Use timeframe only if it naturally emerges from the claims; do not invent dates.
 Avoid over-specificity unless consistent across the claims.
 Output exactly one sentence. No preamble. Do not browse the web.`;
 
-  const userContent = `Claims:\n${claimTexts.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
+  const userContent = `Claims (ordered by centrality, most representative first):\n${claimTexts.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -167,7 +170,7 @@ Deno.serve(async (req: Request) => {
     .not("centroid_embedding", "is", null);
 
   if (fetchErr) {
-    console.error("[thesis_drift_relabel] Fetch theses error:", fetchErr.message);
+    console.error("[label_thesis] Fetch theses error:", fetchErr.message);
     return json({ error: fetchErr.message }, 500);
   }
 
@@ -210,43 +213,45 @@ Deno.serve(async (req: Request) => {
 
   if (eligible.length > 0) {
     const thesisIds = eligible.map((e) => e.thesis.thesis_id);
-    const { data: tcRows } = await supabase
-      .from("thesis_claims")
-      .select("thesis_id, claim_id")
-      .in("thesis_id", thesisIds);
-    const claimIdsFromTc = [...new Set((tcRows ?? []).map((r: { claim_id: string }) => r.claim_id))];
-    const thesisToClaimIds = new Map<string, Set<string>>();
-    for (const r of tcRows ?? []) {
-      const row = r as { thesis_id: string; claim_id: string };
-      if (!thesisToClaimIds.has(row.thesis_id)) thesisToClaimIds.set(row.thesis_id, new Set());
-      thesisToClaimIds.get(row.thesis_id)!.add(row.claim_id);
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc("get_thesis_claim_story_sources", {
+      p_thesis_ids: thesisIds,
+    });
+    if (rpcErr) {
+      console.error("[label_thesis] RPC get_thesis_claim_story_sources error:", rpcErr.message);
+      return json({ error: rpcErr.message }, 500);
     }
-    const { data: scRows } = await supabase
-      .from("story_claims")
-      .select("claim_id, story_id")
-      .in("claim_id", claimIdsFromTc);
-    const claimToStoryIds = new Map<string, Set<string>>();
-    for (const r of scRows ?? []) {
-      const row = r as { claim_id: string; story_id: string };
-      if (!claimToStoryIds.has(row.claim_id)) claimToStoryIds.set(row.claim_id, new Set());
-      claimToStoryIds.get(row.claim_id)!.add(row.story_id);
-    }
-    const thesisDistinctStories = new Map<string, number>();
-    for (const [tid, cids] of thesisToClaimIds) {
-      const stories = new Set<string>();
-      for (const cid of cids) {
-        for (const sid of claimToStoryIds.get(cid) ?? []) stories.add(sid);
+    const rows = (Array.isArray(rpcRows) ? rpcRows : []) as Array<{
+      thesis_id: string;
+      claim_id: string;
+      story_id: string;
+      source_id: string;
+    }>;
+    const thesisStories = new Map<string, Set<string>>();
+    const thesisSources = new Map<string, Set<string>>();
+    for (const r of rows) {
+      if (!thesisStories.has(r.thesis_id)) {
+        thesisStories.set(r.thesis_id, new Set());
+        thesisSources.set(r.thesis_id, new Set());
       }
-      thesisDistinctStories.set(tid, stories.size);
+      thesisStories.get(r.thesis_id)!.add(r.story_id);
+      thesisSources.get(r.thesis_id)!.add(r.source_id);
     }
+    const thesisDistinctStories = new Map<string, number>([...thesisStories].map(([tid, s]) => [tid, s.size]));
+    const thesisDistinctSources = new Map<string, number>([...thesisSources].map(([tid, s]) => [tid, s.size]));
     const before = eligible.length;
     eligible.splice(
       0,
       eligible.length,
-      ...eligible.filter((e) => (thesisDistinctStories.get(e.thesis.thesis_id) ?? 0) >= MIN_DISTINCT_STORIES)
+      ...eligible.filter(
+        (e) =>
+          (thesisDistinctStories.get(e.thesis.thesis_id) ?? 0) >= MIN_DISTINCT_STORIES &&
+          (thesisDistinctSources.get(e.thesis.thesis_id) ?? 0) >= MIN_DISTINCT_SOURCES
+      )
     );
     if (eligible.length < before && before > 0) {
-      console.log(`[thesis_drift_relabel] Excluded ${before - eligible.length} theses (fewer than ${MIN_DISTINCT_STORIES} distinct stories)`);
+      console.log(
+        `[label_thesis] Excluded ${before - eligible.length} theses (fewer than ${MIN_DISTINCT_STORIES} distinct stories or fewer than ${MIN_DISTINCT_SOURCES} distinct sources)`
+      );
     }
   }
 
@@ -263,7 +268,7 @@ Deno.serve(async (req: Request) => {
     return json({
       ok: true,
       processed: 0,
-      message: "No theses eligible for relabel",
+      message: "No theses eligible for label",
       dry_run: dryRun,
     });
   }
@@ -304,22 +309,18 @@ Deno.serve(async (req: Request) => {
     if (claimsWithMeta.length <= MAX_CLAIMS_FOR_SUMMARY) {
       selected = claimsWithMeta;
     } else {
-      const byCentrality = [...claimsWithMeta]
+      selected = [...claimsWithMeta]
         .filter((c) => c.embedding != null)
         .sort((a, b) => cosineSimilarity(b.embedding!, centroid) - cosineSimilarity(a.embedding!, centroid))
-        .slice(0, 15);
-      const byRecent = [...claimsWithMeta].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ).slice(0, 15);
-      const seen = new Set<string>();
-      selected = [];
-      for (const c of [...byCentrality, ...byRecent]) {
-        if (seen.has(c.claim_id)) continue;
-        seen.add(c.claim_id);
-        selected.push(c);
-        if (selected.length >= MAX_CLAIMS_FOR_SUMMARY) break;
-      }
+        .slice(0, MAX_CLAIMS_FOR_SUMMARY);
     }
+
+    // Order by centrality (most central first) so the LLM prioritizes the core theme.
+    selected = [...selected].sort((a, b) => {
+      const aSim = a.embedding != null ? cosineSimilarity(a.embedding, centroid) : -1;
+      const bSim = b.embedding != null ? cosineSimilarity(b.embedding, centroid) : -1;
+      return bSim - aSim;
+    });
 
     const claimTexts = selected.map((c) => (c.canonical_text || "").trim()).filter(Boolean);
     if (claimTexts.length === 0) continue;
@@ -329,13 +330,8 @@ Deno.serve(async (req: Request) => {
       thesisSentence = await callThesisLLM(OPENAI_API_KEY, CHAT_MODEL, claimTexts);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error("[thesis_drift_relabel] LLM error:", msg);
+      console.error("[label_thesis] LLM error:", msg);
       return json({ error: msg, thesis_id: thesisId }, 500);
-    }
-
-    if (dryRun) {
-      processed += 1;
-      continue;
     }
 
     let textEmbedding: number[];
@@ -343,14 +339,19 @@ Deno.serve(async (req: Request) => {
       textEmbedding = await getEmbedding(OPENAI_API_KEY, thesisSentence, EMBEDDING_MODEL);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error("[thesis_drift_relabel] Embedding error:", msg);
+      console.error("[label_thesis] Embedding error:", msg);
       return json({ error: msg, thesis_id: thesisId }, 500);
     }
 
     const similarityNew = cosineSimilarity(textEmbedding, centroid);
     const thesisTextOk = similarityNew >= DRIFT_THRESHOLD;
-    const now = new Date().toISOString();
 
+    processed += 1;
+    if (thesisTextOk) okCount += 1;
+
+    if (dryRun) continue;
+
+    const now = new Date().toISOString();
     const update: Record<string, unknown> = {
       thesis_text: thesisSentence,
       thesis_text_embedding: `[${textEmbedding.join(",")}]`,
@@ -368,12 +369,9 @@ Deno.serve(async (req: Request) => {
       .eq("thesis_id", thesisId);
 
     if (upErr) {
-      console.error("[thesis_drift_relabel] Update error:", upErr.message);
+      console.error("[label_thesis] Update error:", upErr.message);
       return json({ error: upErr.message, thesis_id: thesisId }, 500);
     }
-
-    processed += 1;
-    if (thesisTextOk) okCount += 1;
   }
 
   return json({
