@@ -23,13 +23,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const data = (rows ?? []).map((row: { story_id: string; title: string; url: string; created_at: string; sources: { name: string } | null }) => ({
-      story_id: row.story_id,
-      title: row.title,
-      url: row.url,
-      created_at: row.created_at,
-      source_name: row.sources?.name ?? null,
-    }))
+    const data = (rows ?? []).map((row: { story_id: string; title: string; url: string; created_at: string; sources: { name: string } | { name: string }[] | null }) => {
+      const src = row.sources
+      const name = Array.isArray(src) ? src[0]?.name : src?.name
+      return {
+        story_id: row.story_id,
+        title: row.title,
+        url: row.url,
+        created_at: row.created_at,
+        source_name: name ?? null,
+      }
+    })
 
     return NextResponse.json({ data, error: null })
   } catch (err) {

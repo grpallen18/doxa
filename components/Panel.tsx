@@ -8,7 +8,7 @@ type PanelProps<TAs extends ElementType = 'div'> = {
   /** When true (default), soft panels get hover styling (surface-soft). Set false for static soft panels. */
   interactive?: boolean
   className?: string
-  children: ReactNode
+  children?: ReactNode
 } & Omit<ComponentPropsWithoutRef<TAs>, 'as' | 'children'>
 
 const variantClassNames: Record<PanelVariant, string> = {

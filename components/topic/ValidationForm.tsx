@@ -86,8 +86,8 @@ export default function ValidationForm({ topicId, viewpoints, onSuccess }: Valid
         >
           <option value="">Choose a viewpoint...</option>
           {viewpoints.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
+            <option key={v.viewpoint_id} value={v.viewpoint_id}>
+              {v.title}
             </option>
           ))}
         </select>

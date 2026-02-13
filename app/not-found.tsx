@@ -16,8 +16,8 @@ export default function NotFound() {
           <Button href="/" variant="primary">
             Go home
           </Button>
-          <Button href="/graph" variant="primary">
-            Topic map
+          <Button href="/atlas" variant="primary">
+            Atlas
           </Button>
         </div>
       </Panel>

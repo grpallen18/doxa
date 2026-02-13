@@ -69,7 +69,7 @@ export default function AboutPage() {
             <Link href="/" className="hover:opacity-80">
               Home
             </Link>
-            <a href="/graph" className="hover:opacity-80">
+            <a href="/atlas" className="hover:opacity-80">
               Topics
             </a>
           </div>

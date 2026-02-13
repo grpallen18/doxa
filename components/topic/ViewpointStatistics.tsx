@@ -91,11 +91,11 @@ function weightedPct(agreement: AgreementByParty, level: keyof PartyAgreement): 
 
 /** One panel showing agreement-by-party stats for a single viewpoint. */
 export function ViewpointStatisticsCard({
-  topicViewpoint,
+  viewpoint,
   showHeading = false,
   embedInPanel = false,
 }: ViewpointStatisticsCardProps) {
-  const agreement = getFabricatedAgreement(topicViewpoint.viewpoint.name)
+  const agreement = getFabricatedAgreement(viewpoint.title)
   const content = (
     <div className="space-y-2">
         <div className="overflow-x-auto">

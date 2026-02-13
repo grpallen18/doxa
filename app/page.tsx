@@ -17,13 +17,17 @@ async function getRecentStories(limit: number): Promise<RecentStory[]> {
     .order('created_at', { ascending: false })
     .limit(limit)
   if (error) return []
-  return (rows ?? []).map((row: { story_id: string; title: string; url: string; created_at: string; sources: { name: string } | null }) => ({
-    story_id: row.story_id,
-    title: row.title,
-    url: row.url,
-    created_at: row.created_at,
-    source_name: row.sources?.name ?? null,
-  }))
+  return (rows ?? []).map((row: { story_id: string; title: string; url: string; created_at: string; sources: { name: string } | { name: string }[] | null }) => {
+    const src = row.sources
+    const name = Array.isArray(src) ? src[0]?.name : src?.name
+    return {
+      story_id: row.story_id,
+      title: row.title,
+      url: row.url,
+      created_at: row.created_at,
+      source_name: name ?? null,
+    }
+  })
 }
 
 export default async function Home() {
@@ -84,8 +88,8 @@ export default async function Home() {
             <Link href="/about#how-heading" className="hover:text-foreground">
               How it works
             </Link>
-            <a href="/graph" className="hover:text-foreground">
-              Topics
+            <a href="/atlas" className="hover:text-foreground">
+              Atlas
             </a>
             <Link href="#signin" className="hover:text-foreground">
               Log in

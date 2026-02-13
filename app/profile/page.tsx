@@ -68,7 +68,7 @@ export default function ProfilePage() {
             <a href="/" className="hover:text-foreground">
               ← Home
             </a>
-            <Link href="/graph" className="hover:text-foreground">
+            <Link href="/atlas" className="hover:text-foreground">
               Topics
             </Link>
           </div>
