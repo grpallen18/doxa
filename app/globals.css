@@ -51,6 +51,22 @@
   --graph-node-default: #4a4539;
   --graph-link: rgba(74, 69, 57, 0.25);
 
+  /* Atlas bubbles (Living Atlas page) */
+  --atlas-bg: #e8e5e1;
+  /* Thesis: richer, more prominent */
+  --atlas-thesis-positive: #0d9488;
+  --atlas-thesis-negative: #dc2626;
+  --atlas-thesis-neutral: #0f766e;
+  /* Claim: softer, more muted */
+  --atlas-claim-positive: #4ade80;
+  --atlas-claim-negative: #f87171;
+  --atlas-claim-neutral: #94a3b8;
+  --atlas-bubble-border: rgba(0, 0, 0, 0.2);
+  --atlas-bubble-shadow: rgba(0, 0, 0, 0.25);
+  --atlas-bubble-selected-stroke: #475569;
+  --atlas-bubble-glow: rgba(13, 148, 136, 0.4);
+  --atlas-edge: rgba(74, 69, 57, 0.35);
+
   /* Body background (theme-aware) */
   --body-bg: radial-gradient(circle at top left, #f0ece7 0, #e4e1dd 40%, #d6d1cb 100%);
 }
@@ -95,6 +111,22 @@
   --graph-node-draft: #888888;
   --graph-node-default: #b0b0b0;
   --graph-link: rgba(176, 176, 176, 0.2);
+
+  /* Atlas bubbles (Living Atlas page) */
+  --atlas-bg: #1a1a1a;
+  /* Thesis: brighter accent */
+  --atlas-thesis-positive: #2dd4bf;
+  --atlas-thesis-negative: #f87171;
+  --atlas-thesis-neutral: #22d3ee;
+  /* Claim: softer, muted */
+  --atlas-claim-positive: #22c55e;
+  --atlas-claim-negative: #fb7185;
+  --atlas-claim-neutral: #64748b;
+  --atlas-bubble-border: rgba(255, 255, 255, 0.15);
+  --atlas-bubble-shadow: rgba(0, 0, 0, 0.5);
+  --atlas-bubble-selected-stroke: #cbd5e1;
+  --atlas-bubble-glow: rgba(45, 212, 191, 0.5);
+  --atlas-edge: rgba(176, 176, 176, 0.35);
 }
 
 body {

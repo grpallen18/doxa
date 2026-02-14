@@ -1,10 +1,10 @@
 // Supabase Edge Function: generate_atlas_map.
-// Thesis-centric map generation: UMAP on claim embeddings, deterministic layout.
+// Thesis-centric map generation: builds graph (viz_maps, viz_nodes, viz_edges) from theses + thesis_claims + claims.
+// Layout is computed client-side via force-directed simulation.
 // Invoked by pg_cron weekly. Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 // Body: { dry_run?: boolean, max_theses?: number }.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { UMAP } from "npm:umap-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,9 +13,6 @@ const corsHeaders = {
 
 const SIMILARITY_THRESHOLD = 0.65;
 const MAX_THESES = 50;
-const N_NEIGHBORS = 15;
-const MIN_DIST = 0.1;
-const SPREAD = 1.0;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -43,25 +40,6 @@ function parseEmbedding(v: unknown): number[] | null {
   return null;
 }
 
-// Seeded RNG for deterministic UMAP (mulberry32)
-function createSeededRandom(seed: number): () => number {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function hashString(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = (h << 5) - h + s.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
-
 function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length || a.length === 0) return 0;
   let sum = 0;
@@ -74,24 +52,6 @@ function cosineSimilarity(a: number[], b: number[]): number {
   }
   const denom = Math.sqrt(na) * Math.sqrt(nb);
   return denom === 0 ? 0 : sum / denom;
-}
-
-function normalizeCoords(coords: number[][]): number[][] {
-  if (coords.length === 0) return coords;
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const [x, y] of coords) {
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-  }
-  const rangeX = maxX - minX || 1;
-  const rangeY = maxY - minY || 1;
-  const scale = 2 / Math.max(rangeX, rangeY);
-  return coords.map(([x, y]) => [
-    ((x - minX) / rangeX) * scale - 1,
-    ((y - minY) / rangeY) * scale - 1,
-  ]);
 }
 
 Deno.serve(async (req: Request) => {
@@ -119,11 +79,52 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  // Fetch theses with centroid and at least one claim
+  // Fetch ALL thesis_ids with valid thesis_text (for orphan cleanup)
+  const { data: allThesesWithText } = await supabase
+    .from("theses")
+    .select("thesis_id, thesis_text")
+    .not("thesis_text", "is", null);
+
+  const validThesisIds = new Set(
+    (allThesesWithText ?? [])
+      .filter((t) => t.thesis_text && String(t.thesis_text).trim() !== "")
+      .map((t) => t.thesis_id)
+  );
+
+  // Remove orphaned maps (thesis scope but thesis no longer has text)
+  const { data: thesisMaps } = await supabase
+    .from("viz_maps")
+    .select("id, scope_id")
+    .eq("scope_type", "thesis");
+
+  let mapsDeleted = 0;
+  if (thesisMaps) {
+    const orphanIds = thesisMaps
+      .filter((m) => m.scope_id && !validThesisIds.has(m.scope_id))
+      .map((m) => m.id);
+    if (orphanIds.length > 0) {
+      if (dryRun) {
+        mapsDeleted = orphanIds.length;
+      } else {
+        const { error: deleteErr } = await supabase
+          .from("viz_maps")
+          .delete()
+          .in("id", orphanIds);
+        if (deleteErr) {
+          console.error("[generate_atlas_map] Delete orphaned maps error:", deleteErr.message);
+        } else {
+          mapsDeleted = orphanIds.length;
+        }
+      }
+    }
+  }
+
+  // Fetch theses with centroid, at least one claim, and thesis_text (centroid required by label_thesis for drift check)
   const { data: thesesData, error: thesesErr } = await supabase
     .from("theses")
     .select("thesis_id, topic_id, thesis_text, label, centroid_embedding, claim_count")
     .not("centroid_embedding", "is", null)
+    .not("thesis_text", "is", null)
     .gte("claim_count", 1)
     .limit(maxTheses);
 
@@ -132,7 +133,18 @@ Deno.serve(async (req: Request) => {
     return json({ error: thesesErr.message }, 500);
   }
 
-  const theses = (Array.isArray(thesesData) ? thesesData : []) as Array<{
+  const rawTheses = (Array.isArray(thesesData) ? thesesData : []) as Array<{
+    thesis_id: string;
+    topic_id: string | null;
+    thesis_text: string | null;
+    label: string | null;
+    centroid_embedding: unknown;
+    claim_count: number;
+  }>;
+
+  const theses = rawTheses.filter(
+    (t) => t.thesis_text && String(t.thesis_text).trim() !== ""
+  ) as Array<{
     thesis_id: string;
     topic_id: string | null;
     thesis_text: string | null;
@@ -176,30 +188,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (embeddings.length < 2) continue; // UMAP needs at least nNeighbors+1 points
-
-    // Deterministic seed from thesis_id + sorted claim_ids
-    const seedStr = thesis.thesis_id + validClaimIds.sort().join("");
-    const seed = hashString(seedStr);
-    const random = createSeededRandom(seed);
-
-    const umap = new UMAP({
-      nComponents: 2,
-      nNeighbors: Math.min(N_NEIGHBORS, embeddings.length - 1),
-      minDist: MIN_DIST,
-      spread: SPREAD,
-      random,
-    });
-
-    let coords2d: number[][];
-    try {
-      coords2d = umap.fit(embeddings);
-    } catch (e) {
-      console.warn("[generate_atlas_map] UMAP fit failed for thesis", thesis.thesis_id, e);
-      continue;
-    }
-
-    coords2d = normalizeCoords(coords2d);
+    if (embeddings.length < 1) continue;
 
     const mapName = (thesis.thesis_text || thesis.label || thesis.thesis_id).slice(0, 200);
 
@@ -244,31 +233,26 @@ Deno.serve(async (req: Request) => {
     await supabase.from("viz_edges").delete().eq("map_id", mapIdStr);
     await supabase.from("viz_nodes").delete().eq("map_id", mapIdStr);
 
-    // Thesis at centroid of claims
-    const cx = coords2d.reduce((s, p) => s + p[0], 0) / coords2d.length;
-    const cy = coords2d.reduce((s, p) => s + p[1], 0) / coords2d.length;
-    const driftSeed = (seed % 1000) / 1000;
-
     await supabase.from("viz_nodes").insert({
       map_id: mapIdStr,
       entity_type: "thesis",
       entity_id: thesis.thesis_id,
-      x: cx,
-      y: cy,
+      x: 0,
+      y: 0,
       layer: 1,
       size: 1.5,
-      drift_seed: driftSeed,
+      drift_seed: 0,
     });
 
     const nodeRows = validClaimIds.map((claimId, i) => ({
       map_id: mapIdStr,
       entity_type: "claim",
       entity_id: claimId,
-      x: coords2d[i][0],
-      y: coords2d[i][1],
+      x: 0,
+      y: 0,
       layer: 2,
       size: 1.0,
-      drift_seed: driftSeed + (i * 0.001) % 0.01,
+      drift_seed: (i * 0.001) % 0.01,
     }));
 
     await supabase.from("viz_nodes").insert(nodeRows);
@@ -312,6 +296,7 @@ Deno.serve(async (req: Request) => {
   return json({
     ok: true,
     dry_run: dryRun,
+    maps_deleted: mapsDeleted,
     maps_created: mapsCreated,
     nodes_created: nodesCreated,
     edges_created: edgesCreated,

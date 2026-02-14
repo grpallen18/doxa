@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Panel } from '@/components/Panel'
-import type { VizNode } from './AtlasMap'
+import type { VizNode } from './types'
 
 interface StoryClaimWithStory {
   story_claim_id: string

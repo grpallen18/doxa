@@ -37,12 +37,43 @@ export async function GET(
       }
     }
 
-    const { data: nodes, error: nodesError } = await nodesQuery
+    const { data: rawNodes, error: nodesError } = await nodesQuery
 
     if (nodesError) {
       return NextResponse.json(
         { data: null, error: { message: nodesError.message } },
         { status: 500 }
+      )
+    }
+
+    const nodes = (rawNodes ?? []) as Array<{
+      map_id: string
+      entity_type: string
+      entity_id: string
+      [key: string]: unknown
+    }>
+
+    // Filter thesis nodes: only include those with thesis_text
+    const thesisNodeIds = nodes
+      .filter((n) => n.entity_type === 'thesis')
+      .map((n) => n.entity_id)
+
+    let filteredNodes = nodes
+    if (thesisNodeIds.length > 0) {
+      const { data: thesesWithText } = await supabase
+        .from('theses')
+        .select('thesis_id, thesis_text')
+        .in('thesis_id', thesisNodeIds)
+        .not('thesis_text', 'is', null)
+
+      const validThesisIds = new Set(
+        (thesesWithText ?? [])
+          .filter((t) => t.thesis_text && String(t.thesis_text).trim() !== '')
+          .map((t) => t.thesis_id as string)
+      )
+      filteredNodes = nodes.filter(
+        (n) =>
+          n.entity_type !== 'thesis' || validThesisIds.has(n.entity_id)
       )
     }
 
@@ -61,7 +92,7 @@ export async function GET(
     return NextResponse.json({
       data: {
         map: mapData,
-        nodes: nodes ?? [],
+        nodes: filteredNodes,
         edges: edges ?? [],
       },
       error: null,

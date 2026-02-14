@@ -4,12 +4,58 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { SearchBar } from '@/components/SearchBar'
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from '@/components/ui/navigation-menu'
 import { createClient } from '@/lib/supabase/client'
 import { useLogoutTransition } from '@/components/LogoutTransitionWrapper'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import type { User } from '@supabase/supabase-js'
 
-export function LandingHeader() {
+const exploreItems: { title: string; href: string; description: string }[] = [
+  {
+    title: 'Search',
+    href: '/search',
+    description: 'Search for a headline or topic to research.',
+  },
+  {
+    title: 'Living Atlas',
+    href: '/atlas',
+    description: 'Explore theses and claims in an interactive map.',
+  },
+]
+
+function NavListItem({
+  title,
+  children,
+  href,
+  ...props
+}: React.ComponentPropsWithoutRef<'li'> & { href: string }) {
+  return (
+    <li {...props}>
+      <NavigationMenuLink asChild>
+        <Link href={href}>
+          <div className="flex flex-col gap-1 text-sm">
+            <div className="leading-none font-medium">{title}</div>
+            <div className="text-muted-foreground line-clamp-2">{children}</div>
+          </div>
+        </Link>
+      </NavigationMenuLink>
+    </li>
+  )
+}
+
+interface LandingHeaderProps {
+  variant?: 'default' | 'atlas'
+}
+
+export function LandingHeader({ variant = 'default' }: LandingHeaderProps) {
   const [open, setOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const startLogout = useLogoutTransition()
@@ -38,6 +84,84 @@ export function LandingHeader() {
     }
   }
 
+  // Atlas page: centered nav menu, no search bar
+  if (variant === 'atlas') {
+    return (
+      <header className="flex flex-col gap-4 pt-2">
+        <NavigationMenu className="max-w-none justify-center">
+          <NavigationMenuList className="flex flex-col gap-2 md:flex-row md:gap-1">
+            <NavigationMenuItem>
+              <NavigationMenuLink asChild>
+                <Link href="/" className={navigationMenuTriggerStyle()}>
+                  DOXA
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuTrigger className={navigationMenuTriggerStyle()}>
+                Explore
+              </NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <ul className="grid w-[320px] gap-2 p-4 md:w-[400px] md:grid-cols-1">
+                  {exploreItems.map((item) => (
+                    <NavListItem
+                      key={item.title}
+                      title={item.title}
+                      href={item.href}
+                    >
+                      {item.description}
+                    </NavListItem>
+                  ))}
+                </ul>
+              </NavigationMenuContent>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuLink asChild>
+                <Link href="/about" className={navigationMenuTriggerStyle()}>
+                  About
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuTrigger className={navigationMenuTriggerStyle()}>
+                Account
+              </NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <ul className="grid w-[240px] gap-1 p-2">
+                  <li>
+                    <NavigationMenuLink asChild>
+                      <Link
+                        href="/profile"
+                        className="flex flex-col gap-1 rounded-sm px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <span className="font-medium">{displayName}</span>
+                        <span className="text-muted-foreground text-xs">View profile</span>
+                      </Link>
+                    </NavigationMenuLink>
+                  </li>
+                  <li className="flex items-center gap-2 px-3 py-2">
+                    <ThemeToggle />
+                    <span className="text-sm text-muted-foreground">Theme</span>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="w-full rounded-sm px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                    >
+                      Log out
+                    </button>
+                  </li>
+                </ul>
+              </NavigationMenuContent>
+            </NavigationMenuItem>
+          </NavigationMenuList>
+        </NavigationMenu>
+      </header>
+    )
+  }
+
+  // Main page and others: DOXA left, links right, search bar below (original layout)
   return (
     <header className="pt-2">
       <Panel
@@ -47,7 +171,10 @@ export function LandingHeader() {
         className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
       >
         <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="text-sm font-semibold uppercase tracking-[0.18em] text-muted transition-colors hover:text-accent-primary">
+          <Link
+            href="/"
+            className="text-sm font-semibold uppercase tracking-[0.18em] text-muted transition-colors hover:text-accent-primary"
+          >
             DOXA
           </Link>
 
@@ -96,7 +223,6 @@ export function LandingHeader() {
                 }}
                 aria-hidden
               >
-                {/* Top bar: morphs down and rotates into X */}
                 <line
                   x1="6"
                   y1="6"
@@ -108,7 +234,6 @@ export function LandingHeader() {
                     transition: 'transform 200ms ease-out',
                   }}
                 />
-                {/* Middle bar: fades out */}
                 <line
                   x1="6"
                   y1="12"
@@ -119,7 +244,6 @@ export function LandingHeader() {
                     transition: 'opacity 200ms ease-out',
                   }}
                 />
-                {/* Bottom bar: morphs up and rotates into X */}
                 <line
                   x1="6"
                   y1="18"
