@@ -70,6 +70,8 @@ export default function AtlasForceGraph({
   selectedNodeId,
 }: AtlasForceGraphProps) {
   const graphRef = useRef<ForceGraphMethods | undefined>(undefined)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [centerStrength, setCenterStrength] = useState(DEFAULT_CENTER_STRENGTH)
   const [linkDistance, setLinkDistance] = useState(DEFAULT_LINK_DISTANCE)
   const [linkStrength, setLinkStrength] = useState(DEFAULT_LINK_STRENGTH)
@@ -95,6 +97,19 @@ export default function AtlasForceGraph({
       }))
     return { nodes: fgNodes, links: fgLinks }
   }, [nodes, edges])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        setDimensions({ width: Math.floor(width), height: Math.floor(height) })
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -137,7 +152,11 @@ export default function AtlasForceGraph({
   const nodeVal = useCallback((node: Record<string, unknown>) => getBubbleRadius(node as unknown as VizNode), [])
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-bevel" style={{ backgroundColor: 'var(--atlas-bg)' }}>
+    <div
+      ref={containerRef}
+      className="absolute inset-0 overflow-hidden rounded-bevel"
+      style={{ backgroundColor: 'var(--atlas-bg)' }}
+    >
       <div className="absolute left-3 top-3 z-10 flex gap-2">
         <button
           type="button"
@@ -201,6 +220,8 @@ export default function AtlasForceGraph({
       )}
       <ForceGraph2D
         ref={graphRef}
+        width={dimensions.width || 800}
+        height={dimensions.height || 500}
         graphData={graphData}
         nodeId="id"
         linkSource="source"
@@ -213,13 +234,17 @@ export default function AtlasForceGraph({
         backgroundColor={getAtlasBgColor()}
         onNodeClick={handleNodeClick}
         onBackgroundClick={handleBackgroundClick}
+        showPointerCursor={(obj) => !!obj}
         enableNodeDrag
+        enablePanInteraction={false}
         nodeCanvasObject={(node, ctx, globalScale) => {
           const id = node.id as string
           const vizNode = nodes.find((n) => `${n.entity_type}:${n.entity_id}` === id)
           if (!vizNode) return
           const radius = getBubbleRadius(vizNode) / globalScale
           const selected = selectedNodeId === id
+          const pointerMultiplier = vizNode.entity_type === 'claim' ? 7 : 4.5
+          ;(node as Record<string, unknown>).__pointerRadius = radius * pointerMultiplier
           ctx.beginPath()
           ctx.arc(node.x ?? 0, node.y ?? 0, selected ? radius * 1.15 : radius, 0, 2 * Math.PI)
           ctx.fillStyle = getNodeFillColor(vizNode)
@@ -231,11 +256,12 @@ export default function AtlasForceGraph({
         nodePointerAreaPaint={(node, color, ctx, globalScale) => {
           const id = node.id as string
           const vizNode = nodes.find((n) => `${n.entity_type}:${n.entity_id}` === id)
-          if (!vizNode) return
-          const radius = getBubbleRadius(vizNode) / globalScale
+          const visualRadius = vizNode ? getBubbleRadius(vizNode) / globalScale : 8 / globalScale
+          const pointerMultiplier = vizNode?.entity_type === 'claim' ? 7 : 4.5
+          const pointerRadius = (node as Record<string, unknown>).__pointerRadius as number | undefined ?? visualRadius * pointerMultiplier
           ctx.fillStyle = color
           ctx.beginPath()
-          ctx.arc(node.x ?? 0, node.y ?? 0, radius * 1.5, 0, 2 * Math.PI)
+          ctx.arc(node.x ?? 0, node.y ?? 0, pointerRadius, 0, 2 * Math.PI)
           ctx.fill()
         }}
       />
