@@ -257,15 +257,21 @@ Deno.serve(async (req: Request) => {
 
     await supabase.from("viz_nodes").insert(nodeRows);
 
-    const edgeRows = validClaimIds.map((claimId) => ({
-      map_id: mapIdStr,
-      source_type: "thesis",
-      source_id: thesis.thesis_id,
-      target_type: "claim",
-      target_id: claimId,
-      edge_type: "explicit",
-      weight: 1.0,
-    }));
+    // Compute cosine similarity between each claim embedding and the thesis centroid
+    const centroidEmb = parseEmbedding(thesis.centroid_embedding);
+    const edgeRows = validClaimIds.map((claimId, i) => {
+      const sim = centroidEmb ? cosineSimilarity(embeddings[i], centroidEmb) : null;
+      return {
+        map_id: mapIdStr,
+        source_type: "thesis",
+        source_id: thesis.thesis_id,
+        target_type: "claim",
+        target_id: claimId,
+        edge_type: "explicit",
+        weight: 1.0,
+        similarity_score: sim,
+      };
+    });
 
     // Add similarity edges between claims above threshold
     for (let i = 0; i < embeddings.length; i++) {

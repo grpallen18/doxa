@@ -36,12 +36,9 @@ export default function Error({
           <Button onClick={reset} variant="primary">
             Try again
           </Button>
-          <a
-            href="/"
-            className="btn-primary inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-medium"
-          >
+          <Button href="/" variant="primary">
             Go home
-          </a>
+          </Button>
         </div>
         <p className="text-xs text-muted-soft">
           Using &quot;Go home&quot; does a full page load and often fixes load errors.

@@ -1,11 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LandingHeader } from '@/components/LandingHeader'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/Button'
-import AtlasForceGraph from '@/components/atlas/AtlasForceGraph'
-import AtlasThesisDrawer from '@/components/atlas/AtlasThesisDrawer'
+import AtlasNodeTestCanvas from '@/components/atlas/AtlasNodeTestCanvas'
 import type { VizNode, VizEdge } from '@/components/atlas/types'
 
 interface VizMap {
@@ -21,7 +20,6 @@ export default function AtlasPage() {
   const [maps, setMaps] = useState<VizMap[]>([])
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null)
   const [mapData, setMapData] = useState<{ nodes: VizNode[]; edges: VizEdge[] } | null>(null)
-  const [selectedNode, setSelectedNode] = useState<VizNode | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,16 +65,6 @@ export default function AtlasPage() {
         setLoading(false)
       })
   }, [selectedMapId])
-
-  const handleNodeClick = useCallback((node: VizNode) => {
-    if (node.entity_type === 'thesis') setSelectedNode(node)
-  }, [])
-
-  const handleBackgroundClick = useCallback(() => {
-    setSelectedNode(null)
-  }, [])
-
-  const selectedNodeId = selectedNode ? `${selectedNode.entity_type}:${selectedNode.entity_id}` : null
 
   if (loading && maps.length === 0) {
     return (
@@ -136,36 +124,12 @@ export default function AtlasPage() {
         </Panel>
 
         <Panel variant="soft" interactive={false} className="overflow-hidden p-0">
-          <div
-            className="relative min-h-[420px] h-[min(840px,75vh)] w-full"
-          >
-            {mapData ? (
-              <AtlasForceGraph
-                nodes={mapData.nodes}
-                edges={mapData.edges}
-                onNodeClick={handleNodeClick}
-                onBackgroundClick={handleBackgroundClick}
-                selectedNodeId={selectedNodeId}
-              />
-            ) : maps.length === 0 ? (
-              <div className="flex h-full min-h-[200px] items-center justify-center p-8">
-                <p className="text-sm text-muted">
-                  No maps yet. Maps are generated weekly by the pipeline.
-                </p>
-              </div>
-            ) : (
-              <div className="flex h-full min-h-[200px] items-center justify-center p-8">
-                <p className="text-sm text-muted">Loading map…</p>
-              </div>
-            )}
-          </div>
+          <AtlasNodeTestCanvas
+            thesisNode={mapData?.nodes.find((n) => n.entity_type === 'thesis') ?? null}
+            nodes={mapData?.nodes ?? []}
+            edges={mapData?.edges ?? []}
+          />
         </Panel>
-
-        <AtlasThesisDrawer
-          node={selectedNode}
-          open={!!selectedNode}
-          onOpenChange={(open) => !open && setSelectedNode(null)}
-        />
       </div>
     </main>
   )
