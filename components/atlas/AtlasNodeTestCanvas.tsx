@@ -3,15 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 // @ts-expect-error -- d3-force-3d ships no type declarations; used as a drop-in d3-force
 import { forceSimulation, forceLink, forceManyBody } from 'd3-force-3d'
-import type { VizNode, VizEdge } from './types'
+import type { VizNode } from './types'
+import type { SourceDetail } from './types'
 
 interface AtlasNodeTestCanvasProps {
   /** The thesis node to center on */
   thesisNode: VizNode | null
-  /** All nodes in the map (we'll filter for claims linked to the thesis) */
-  nodes: VizNode[]
-  /** All edges in the map (we'll filter for thesis↔claim links) */
-  edges: VizEdge[]
+  /** Sources (from top 20 claims grouped by source) */
+  sourceDetails: SourceDetail[]
+  /** When set, the source node with this source_id is shown as hovered (synced from content panel) */
+  hoveredSourceId?: string | null
+  /** Called when the user hovers a source node (so the content panel can highlight the card) */
+  onHoveredSourceChange?: (sourceId: string | null) => void
+  /** Called when the user clicks a source node (without dragging) to expand its accordion */
+  onSourceSelect?: (sourceId: string | null) => void
 }
 
 const DEFAULT_NODE_RADIUS = 14
@@ -26,6 +31,26 @@ const ORBIT_DISTANCE = 120
 const DEFAULT_LINK_DISTANCE = 80
 const DEFAULT_LINK_STRENGTH = 0.5
 const DEFAULT_CHARGE_STRENGTH = -10
+
+// ---- Node / edge / background colors ----
+// Each entry is [dark mode, light mode]
+const COLORS = {
+  // Thesis node
+  thesisPositive:  ['#2dd4bf', '#0d9488'] as [string, string],
+  thesisNegative:  ['#dc2626', '#dc2626'] as [string, string],
+  thesisNeutral:   ['#22d3ee', '#0f766e'] as [string, string],
+  // Claim / source node (tan brown, matches Doxa palette)
+  claimPositive:   ['#9a8a7a', '#a68b6d'] as [string, string],
+  claimNegative:   ['#9a8a7a', '#a68b6d'] as [string, string],
+  claimNeutral:    ['#9a8a7a', '#a68b6d'] as [string, string],
+  // Edges connecting nodes
+  edge:            ['rgba(176,176,176,0.35)', 'rgba(74,69,57,0.35)'] as [string, string],
+  // Canvas background
+  background:      ['#1a1a1a', '#e8e5e1'] as [string, string],
+  // Node borders (dark complements to fill colors)
+  claimBorder:     ['#5a4a3a', '#7a6a52'] as [string, string],
+  thesisBorder:    ['#0a6b5e', '#065f54'] as [string, string],   // darker green to complement thesis teal
+}
 
 // ---- Helpers ----
 
@@ -50,27 +75,31 @@ function rgbStr(rgb: [number, number, number]): string {
   return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`
 }
 
-function getBaseColor(node: VizNode): string {
+/** Pick the dark or light variant based on the current theme */
+function pick(pair: [string, string]): string {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  return isDark ? pair[0] : pair[1]
+}
+
+function getBaseColor(node: VizNode): string {
   const score = node.polarity_score
   if (node.entity_type === 'thesis') {
-    if (score != null && score > 0) return isDark ? '#2dd4bf' : '#0d9488'
-    if (score != null && score < 0) return '#dc2626'
-    return isDark ? '#22d3ee' : '#0f766e'
+    if (score != null && score > 0) return pick(COLORS.thesisPositive)
+    if (score != null && score < 0) return pick(COLORS.thesisNegative)
+    return pick(COLORS.thesisNeutral)
   }
-  if (score != null && score > 0) return isDark ? '#22c55e' : '#4ade80'
-  if (score != null && score < 0) return isDark ? '#fb7185' : '#f87171'
-  return '#94a3b8'
+  // Claim and source nodes use accent-secondary
+  if (score != null && score > 0) return pick(COLORS.claimPositive)
+  if (score != null && score < 0) return pick(COLORS.claimNegative)
+  return pick(COLORS.claimNeutral)
 }
 
 function getEdgeColor(): string {
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  return isDark ? 'rgba(176,176,176,0.35)' : 'rgba(74,69,57,0.35)'
+  return pick(COLORS.edge)
 }
 
 function getBgColor(): string {
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  return isDark ? '#1a1a1a' : '#e8e5e1'
+  return pick(COLORS.background)
 }
 
 // ---- Per-node animated state (hover/drag visual effects) ----
@@ -121,21 +150,40 @@ function clampToCanvas(sn: SimNode, cw: number, ch: number) {
   sn.y = Math.max(r, Math.min(ch - r, sn.y))
 }
 
-export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasNodeTestCanvasProps) {
+export default function AtlasNodeTestCanvas({
+  thesisNode,
+  sourceDetails,
+  hoveredSourceId = null,
+  onHoveredSourceChange,
+  onSourceSelect,
+}: AtlasNodeTestCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasWidth, setCanvasWidth] = useState(800)
-  const [showSliders, setShowSliders] = useState(false)
 
-  // Visual controls — thesis is always 1.5x the node radius
-  const [nodeRadius, setNodeRadius] = useState(DEFAULT_NODE_RADIUS)
+  // Layout defaults (no user controls)
+  const nodeRadius = DEFAULT_NODE_RADIUS
   const claimRadius = nodeRadius
   const thesisRadius = Math.round(nodeRadius * 1.5)
+  const linkDistance = DEFAULT_LINK_DISTANCE
+  const linkStrength = DEFAULT_LINK_STRENGTH
+  const chargeStrength = DEFAULT_CHARGE_STRENGTH
 
-  // Force controls
-  const [linkDistance, setLinkDistance] = useState(DEFAULT_LINK_DISTANCE)
-  const [linkStrength, setLinkStrength] = useState(DEFAULT_LINK_STRENGTH)
-  const [chargeStrength, setChargeStrength] = useState(DEFAULT_CHARGE_STRENGTH)
+  // Refs for hover sync (avoid stale closures in callbacks)
+  const hoveredSourceIdRef = useRef<string | null>(hoveredSourceId)
+  hoveredSourceIdRef.current = hoveredSourceId
+  const onHoveredSourceChangeRef = useRef(onHoveredSourceChange)
+  onHoveredSourceChangeRef.current = onHoveredSourceChange
+  const onSourceSelectRef = useRef(onSourceSelect)
+  onSourceSelectRef.current = onSourceSelect
+
+  // Track click vs drag: left click = accordion, right click = drag
+  const dragStartNodeRef = useRef<SimNode | null>(null)
+  const dragButtonRef = useRef<number>(0)
+  const hasMovedDuringDragRef = useRef(false)
+  const dragOffsetXRef = useRef(0)
+  const dragOffsetYRef = useRef(0)
+  const preventContextMenuRef = useRef(false)
 
   // All drawn nodes (thesis + connected claims)
   const drawnNodes = useRef<DrawnNode[]>([])
@@ -231,15 +279,13 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
       ctx.fillStyle = rgbStr(litRgb)
       ctx.fill()
 
-      // Border
-      const defaultBorder = isDark ? [255, 255, 255, 0.15] : [0, 0, 0, 0.2]
-      const hoverBorder = isDark ? [203, 213, 225, 0.9] : [71, 85, 105, 0.9]
-      const t = a.borderAlpha
-      const br = defaultBorder[0] + (hoverBorder[0] - defaultBorder[0]) * t
-      const bg = defaultBorder[1] + (hoverBorder[1] - defaultBorder[1]) * t
-      const bb = defaultBorder[2] + (hoverBorder[2] - defaultBorder[2]) * t
-      const ba = (defaultBorder[3] as number) + ((hoverBorder[3] as number) - (defaultBorder[3] as number)) * t
-      ctx.strokeStyle = `rgba(${Math.round(br)},${Math.round(bg)},${Math.round(bb)},${ba.toFixed(2)})`
+      // Border (node-type specific; fades out on hover)
+      const borderHex = dn.vizNode.entity_type === 'thesis'
+        ? pick(COLORS.thesisBorder)
+        : pick(COLORS.claimBorder)
+      const borderRgb = hexToRgb(borderHex)
+      const borderAlpha = a.borderAlpha // 1 when idle, 0 when hovered
+      ctx.strokeStyle = `rgba(${borderRgb[0]},${borderRgb[1]},${borderRgb[2]},${borderAlpha.toFixed(2)})`
       ctx.lineWidth = a.borderWidth
       if (a.borderWidth > 0.1) ctx.stroke()
     }
@@ -327,24 +373,8 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
     const cx = canvasWidth / 2
     const cy = CANVAS_HEIGHT / 2
 
-    // Find claims linked to this thesis, ranked by similarity to the thesis centroid
-    const MAX_CLAIMS = 12
-    const claimEdges: { claimId: string; similarity: number }[] = []
-    for (const e of edges) {
-      if (e.source_type === 'thesis' && e.source_id === thesis.entity_id && e.target_type === 'claim') {
-        claimEdges.push({ claimId: e.target_id, similarity: e.similarity_score ?? 0 })
-      }
-      if (e.target_type === 'thesis' && e.target_id === thesis.entity_id && e.source_type === 'claim') {
-        claimEdges.push({ claimId: e.source_id, similarity: e.similarity_score ?? 0 })
-      }
-    }
-    // Sort by similarity descending, take top 12
-    claimEdges.sort((a, b) => b.similarity - a.similarity)
-    const topClaimIds = new Set(claimEdges.slice(0, MAX_CLAIMS).map((c) => c.claimId))
-
-    const claimVizNodes = nodes.filter(
-      (n) => n.entity_type === 'claim' && topClaimIds.has(n.entity_id)
-    )
+    // Build source nodes from sourceDetails (already sorted by claim_count)
+    const sources = sourceDetails ?? []
 
     // Preserve existing positions from old sim nodes
     const oldPosMap = new Map<string, { x: number; y: number }>()
@@ -367,22 +397,28 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
       anim: oldThesis?.anim ?? defaultAnim(),
     })
 
-    const claimCount = claimVizNodes.length
-    claimVizNodes.forEach((claim, i) => {
-      const claimId = `${claim.entity_type}:${claim.entity_id}`
-      const old = oldDrawnMap.get(claimId)
+    const sourceCount = sources.length
+    sources.forEach((src, i) => {
+      const sourceId = `source:${src.source_id}`
+      const syntheticNode: VizNode = {
+        map_id: '',
+        entity_type: 'source',
+        entity_id: src.source_id,
+        layer: 2,
+        size: 1,
+      }
+      const old = oldDrawnMap.get(sourceId)
       newDrawn.push({
-        vizNode: claim,
-        id: claimId,
+        vizNode: syntheticNode,
+        id: sourceId,
         radius: claimRadius,
         hovered: old?.hovered ?? false,
         dragging: old?.dragging ?? false,
         anim: old?.anim ?? defaultAnim(),
       })
-      // Pre-calculate initial orbit position if no old position exists
-      if (!oldPosMap.has(claimId)) {
-        const angle = (2 * Math.PI * i) / claimCount - Math.PI / 2
-        oldPosMap.set(claimId, {
+      if (!oldPosMap.has(sourceId)) {
+        const angle = (2 * Math.PI * i) / sourceCount - Math.PI / 2
+        oldPosMap.set(sourceId, {
           x: cx + Math.cos(angle) * ORBIT_DISTANCE,
           y: cy + Math.sin(angle) * ORBIT_DISTANCE,
         })
@@ -403,9 +439,9 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
     })
     simNodes.current = newSimNodes
 
-    // Build SimLinks (thesis <-> each claim)
+    // Build SimLinks (thesis <-> each source)
     const newSimLinks: SimLink[] = newDrawn
-      .filter((dn) => dn.vizNode.entity_type === 'claim')
+      .filter((dn) => dn.vizNode.entity_type === 'source')
       .map((dn) => ({
         source: thesisId,
         target: dn.id,
@@ -435,7 +471,7 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
       sim.stop()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thesisNode, nodes, edges, canvasWidth, nodeRadius])
+  }, [thesisNode, sourceDetails, canvasWidth, nodeRadius])
 
   // ---- Reconfigure forces when slider values change (without rebuilding nodes) ----
   useEffect(() => {
@@ -453,6 +489,22 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
     // Reheat so the changes take effect
     sim.alpha(0.3).restart()
   }, [linkDistance, linkStrength, chargeStrength])
+
+  // Sync hoveredSourceId from content panel into node hover states
+  useEffect(() => {
+    const sNodes = simNodes.current
+    const id = hoveredSourceId
+    let changed = false
+    for (const sn of sNodes) {
+      const isSource = sn.drawnNode.vizNode.entity_type === 'source'
+      const shouldHover = isSource && sn.drawnNode.vizNode.entity_id === id
+      if (sn.drawnNode.hovered !== shouldHover) {
+        sn.drawnNode.hovered = shouldHover
+        changed = true
+      }
+    }
+    if (changed) startAnim()
+  }, [hoveredSourceId, startAnim])
 
   // Clean up on unmount
   useEffect(() => {
@@ -497,13 +549,16 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
       const my = e.clientY - rect.top
       const sNodes = simNodes.current
 
-      // Handle active drag: update the fixed position in the simulation
+      // Handle active drag: update the fixed position in the simulation (preserve grab offset)
       const draggingSim = sNodes.find((sn) => sn.drawnNode.dragging)
       if (draggingSim) {
+        hasMovedDuringDragRef.current = true
         const r = draggingSim.drawnNode.radius
         const cw = canvasWidthRef.current
-        draggingSim.fx = Math.max(r, Math.min(cw - r, mx))
-        draggingSim.fy = Math.max(r, Math.min(CANVAS_HEIGHT - r, my))
+        const nx = mx - dragOffsetXRef.current
+        const ny = my - dragOffsetYRef.current
+        draggingSim.fx = Math.max(r, Math.min(cw - r, nx))
+        draggingSim.fy = Math.max(r, Math.min(CANVAS_HEIGHT - r, ny))
         // Keep the simulation alive while the user is actively dragging
         if (simulationRef.current) {
           simulationRef.current.alpha(0.3).restart()
@@ -511,16 +566,24 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
         return
       }
 
-      // Update hover states
+      // Update hover states (merge canvas hit + hoveredSourceId from content panel)
       const hit = findNodeAt(mx, my)
+      const extId = hoveredSourceIdRef.current
       let changed = false
       for (const sn of sNodes) {
-        const shouldHover = sn === hit
+        const isSource = sn.drawnNode.vizNode.entity_type === 'source'
+        const shouldHover =
+          sn === hit || (isSource && sn.drawnNode.vizNode.entity_id === extId)
         if (sn.drawnNode.hovered !== shouldHover) {
           sn.drawnNode.hovered = shouldHover
           changed = true
         }
       }
+      const sourceId =
+        hit?.drawnNode.vizNode.entity_type === 'source'
+          ? hit.drawnNode.vizNode.entity_id
+          : null
+      onHoveredSourceChangeRef.current?.(sourceId)
       if (changed) startAnim()
     },
     [findNodeAt, startAnim]
@@ -535,23 +598,39 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
 
       const hit = findNodeAt(mx, my)
       if (hit) {
-        hit.drawnNode.dragging = true
-        // Fix the node's position in the simulation (clamped to canvas)
-        const r = hit.drawnNode.radius
-        const cw = canvasWidthRef.current
-        hit.fx = Math.max(r, Math.min(cw - r, mx))
-        hit.fy = Math.max(r, Math.min(CANVAS_HEIGHT - r, my))
-        // Reheat the simulation so other nodes react
-        if (simulationRef.current) {
-          simulationRef.current.alpha(0.3).restart()
+        dragStartNodeRef.current = hit
+        dragButtonRef.current = e.button
+        hasMovedDuringDragRef.current = false
+
+        // Right click (button 2): start drag
+        if (e.button === 2) {
+          preventContextMenuRef.current = true
+          hit.drawnNode.dragging = true
+          const cx = hit.x ?? 0
+          const cy = hit.y ?? 0
+          dragOffsetXRef.current = mx - cx
+          dragOffsetYRef.current = my - cy
+          const r = hit.drawnNode.radius
+          const cw = canvasWidthRef.current
+          hit.fx = Math.max(r, Math.min(cw - r, cx))
+          hit.fy = Math.max(r, Math.min(CANVAS_HEIGHT - r, cy))
+          if (simulationRef.current) {
+            simulationRef.current.alpha(0.3).restart()
+          }
+          startAnim()
         }
-        startAnim()
+        // Left click (button 0): only accordion on mouseup, no drag setup
       }
     },
     [findNodeAt, startAnim]
   )
 
   const handleMouseUp = useCallback(() => {
+    const startNode = dragStartNodeRef.current
+    const didDrag = hasMovedDuringDragRef.current
+    dragStartNodeRef.current = null
+    hasMovedDuringDragRef.current = false
+
     let changed = false
     for (const sn of simNodes.current) {
       if (sn.drawnNode.dragging) {
@@ -562,6 +641,17 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
         changed = true
       }
     }
+
+    // Left click (no drag) on a source node: open accordion
+    if (
+      startNode &&
+      !didDrag &&
+      dragButtonRef.current === 0 &&
+      startNode.drawnNode.vizNode.entity_type === 'source'
+    ) {
+      onSourceSelectRef.current?.(startNode.drawnNode.vizNode.entity_id)
+    }
+
     if (changed) {
       // Give a small reheat so nodes settle naturally
       if (simulationRef.current) {
@@ -571,16 +661,31 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
     }
   }, [startAnim])
 
+  const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (preventContextMenuRef.current) {
+      preventContextMenuRef.current = false
+      e.preventDefault()
+    }
+  }, [])
+
   const handleMouseLeave = useCallback(() => {
+    onHoveredSourceChangeRef.current?.(null)
+    dragStartNodeRef.current = null
+    hasMovedDuringDragRef.current = false
+    preventContextMenuRef.current = false
+    const extId = hoveredSourceIdRef.current
     let changed = false
     for (const sn of simNodes.current) {
-      if (sn.drawnNode.hovered || sn.drawnNode.dragging) {
-        sn.drawnNode.hovered = false
-        if (sn.drawnNode.dragging) {
-          sn.drawnNode.dragging = false
-          sn.fx = null
-          sn.fy = null
-        }
+      const isSource = sn.drawnNode.vizNode.entity_type === 'source'
+      const shouldHover = isSource && sn.drawnNode.vizNode.entity_id === extId
+      if (sn.drawnNode.dragging) {
+        sn.drawnNode.dragging = false
+        sn.fx = null
+        sn.fy = null
+        changed = true
+      }
+      if (sn.drawnNode.hovered !== shouldHover) {
+        sn.drawnNode.hovered = shouldHover
         changed = true
       }
     }
@@ -594,68 +699,6 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <div className="absolute left-3 top-3 z-10 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setShowSliders((s) => !s)}
-          className="rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-1.5 text-sm text-foreground shadow-[var(--shadow-panel-soft)] hover:bg-[var(--surface-soft)]"
-        >
-          {showSliders ? 'Hide' : 'Show'} layout controls
-        </button>
-      </div>
-      {showSliders && (
-        <div className="absolute left-3 top-12 z-10 flex flex-col gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] p-3 shadow-[var(--shadow-panel-soft)]">
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Node size
-            <input
-              type="range"
-              min={4}
-              max={11}
-              step={0.5}
-              value={nodeRadius}
-              onChange={(e) => setNodeRadius(Number(e.target.value))}
-              className="w-32"
-            />
-          </label>
-          <hr className="border-[var(--border-subtle)]" />
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Link distance
-            <input
-              type="range"
-              min={20}
-              max={90}
-              step={2}
-              value={linkDistance}
-              onChange={(e) => setLinkDistance(Number(e.target.value))}
-              className="w-32"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Link strength
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={linkStrength}
-              onChange={(e) => setLinkStrength(Number(e.target.value))}
-              className="w-32"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Repel (charge)
-            <input
-              type="range"
-              min={-15}
-              max={0}
-              step={1}
-              value={chargeStrength}
-              onChange={(e) => setChargeStrength(Number(e.target.value))}
-              className="w-32"
-            />
-          </label>
-        </div>
-      )}
       <canvas
         ref={canvasRef}
         width={canvasWidth}
@@ -665,6 +708,7 @@ export default function AtlasNodeTestCanvas({ thesisNode, nodes, edges }: AtlasN
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onContextMenu={handleContextMenu}
       />
     </div>
   )

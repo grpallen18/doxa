@@ -15,10 +15,15 @@
   /* Accent system (primary = main CTAs/signals; secondary = secondary states) */
   --accent-primary: #4ca7887e;
   --accent-primary-soft: rgba(93, 201, 174, 0.22);
-  --accent-secondary: #b88a7e;
+  --accent-secondary: #a68b6d;
+  --accent-secondary-soft: rgba(166, 139, 109, 0.28);
+
+  /* Accordion idle: subtly darker than panel surface for contrast */
+  --surface-accordion: #e2dfdb;
 
   /* Borders & shadows — tighter offset and blur, ~20% transparency to soften glow */
   --border-subtle: #d4d1cd;
+  --separator: #b8b4b0;
   --shadow-panel-soft: 0.5em 0.5em 0.6em rgba(0, 0, 0, 0.05),
     -0.45em -0.45em 0.6em rgba(255, 255, 255, 0.72);
   --shadow-panel-hover: 0.5em 0.5em 0.6em rgba(0, 0, 0, 0.05),
@@ -82,9 +87,13 @@
 
   --accent-primary: #60ffd54d;
   --accent-primary-soft: rgba(90, 141, 130, 0.25);
-  --accent-secondary: #7a7a72;
+  --accent-secondary: #9a8a7a;
+  --accent-secondary-soft: rgba(154, 138, 122, 0.28);
+
+  --surface-accordion: #1e1e1e;
 
   --border-subtle: #333333;
+  --separator: #444444;
 
   --button-primary-border: rgba(48, 48, 48, 0.6);
   --button-secondary-border: rgba(48, 48, 48, 0.5);
