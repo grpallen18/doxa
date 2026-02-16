@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -31,4 +32,13 @@ export async function createClient() {
       },
     },
   })
+}
+
+/** Admin client with service role - bypasses RLS. Use for topic creation etc. */
+export function createAdminClient() {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY for admin operations')
+  }
+  return createSupabaseClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
 }

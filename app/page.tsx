@@ -88,9 +88,15 @@ export default async function Home() {
             <Link href="/about#how-heading" className="hover:text-foreground">
               How it works
             </Link>
+            <Link href="/topics" className="hover:text-foreground">
+              Topics
+            </Link>
             <a href="/atlas" className="hover:text-foreground">
               Atlas
             </a>
+            <Link href="/admin/topics" className="hover:text-foreground">
+              Admin
+            </Link>
             <Link href="#signin" className="hover:text-foreground">
               Log in
             </Link>

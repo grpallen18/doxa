@@ -20,6 +20,11 @@ import type { User } from '@supabase/supabase-js'
 
 const exploreItems: { title: string; href: string; description: string }[] = [
   {
+    title: 'Browse topics',
+    href: '/topics',
+    description: 'Read topic summaries and linked theses.',
+  },
+  {
     title: 'Search',
     href: '/search',
     description: 'Search for a headline or topic to research.',

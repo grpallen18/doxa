@@ -125,6 +125,7 @@ The site is **gated**: unauthenticated users are redirected to `/login`. Authent
 - **Search (`/search`):** Placeholder search results page that echoes the query and shows static example topics; a real search backend is not yet implemented.
 - **Profile (`/profile`):** Account & ideology stub page showing read-only, placeholder factor ratings and an overall ideology label; the real ideology engine is not yet implemented.
 - **Topic map (graph) (`/graph`):** From the main page, click **Topics** in the top navigation bar to open the interactive knowledge graph. The topic map shows political topics; click a topic to open its page at `/page/[id]`.
+- **Admin: Topics (`/admin/topics`):** Create new topics by title and run the topic pipeline (link theses via embedding similarity, synthesize 1,000–1,500 word summary, build topic-to-topic relationships). Requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
 
 ## Getting Started
 
@@ -148,6 +149,7 @@ npm install
    ```
    OPENAI_API_KEY=your_key_here
    ```
+   - Add `SUPABASE_SERVICE_ROLE_KEY` for admin operations (topic creation, process_topic Edge Function). Get it from Supabase Dashboard → Settings → API → service_role key.
 
 4. **Configure Supabase Dashboard (Auth):**
    - **URL Configuration:** In [Auth → URL Configuration](https://supabase.com/dashboard/project/_/auth/url-configuration), set **Site URL** (e.g. `http://localhost:3000` for dev, `https://yourdomain.com` for production) and add **Redirect URLs**:  
@@ -171,7 +173,7 @@ doxa/
 ├── middleware.ts               # Session refresh + redirect unauthenticated to /login
 ├── app/                        # Next.js App Router
 │   ├── api/                   # API routes
-│   │   ├── topics/            # Topic list and detail API (topic_id, slug, title, summary)
+│   │   ├── topics/            # Topic list (GET), create (POST), detail ([id]), process ([id]/process)
 │   │   └── viewpoints/        # Viewpoint list (optional ?topic_id filter)
 │   ├── globals.css            # Design tokens and neumorphic component classes
 │   ├── layout.tsx             # Root layout
@@ -190,6 +192,8 @@ doxa/
 │   ├── search/                # Search results (placeholder)
 │   ├── profile/               # Profile & ideology stub
 │   ├── page/[id]/             # Topic detail pages
+│   ├── admin/topics/          # Admin: create topics, run process_topic pipeline
+│   ├── atlas/                 # Thesis map visualization
 │   ├── graph/                 # Topics list (graph visualization removed)
 │   ├── error.tsx              # Route-level error boundary
 │   ├── global-error.tsx       # Global error boundary

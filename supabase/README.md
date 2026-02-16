@@ -116,11 +116,43 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `topic_id` | uuid (PK) | Unique topic. |
 | `slug` | text (unique) | URL-safe slug. |
 | `title` | text | Topic title. |
-| `summary` | text (nullable) | Canonical topic blurb. |
+| `summary` | text (nullable) | Canonical topic blurb (1,000–1,500 words, LLM-synthesized). |
+| `topic_description` | text (nullable) | LLM-generated description for initial embedding; used before summary exists. |
+| `topic_embedding` | vector(1536) (nullable) | Embedding of description (initial) or title+summary (after synthesis); used for thesis and topic similarity. |
 | `status` | text | e.g. draft \| published \| archived. |
 | `metadata` | jsonb | Tags, time window defaults, etc. |
 | `created_at` | timestamptz | When the topic was created. |
 | `updated_at` | timestamptz | Last update. |
+
+---
+
+### topic_theses
+
+**Purpose:** Many-to-many link between topics and theses. Links theses to topics via embedding similarity (process_topic).
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `topic_id` | uuid (FK → topics.topic_id) | Which topic. |
+| `thesis_id` | uuid (FK → theses.thesis_id) | Which thesis. |
+| `similarity_score` | numeric | Cosine similarity at link time. |
+| `rank` | int | Order for display. |
+| `linked_at` | timestamptz | When the link was created. |
+
+**Keys:** PK `(topic_id, thesis_id)`.
+
+---
+
+### topic_relationships
+
+**Purpose:** Topic-to-topic links for navigation (e.g. "Related topics"). Built by process_topic from embedding similarity.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `source_topic_id` | uuid (FK → topics.topic_id) | Source topic. |
+| `target_topic_id` | uuid (FK → topics.topic_id) | Target (related) topic. |
+| `similarity_score` | numeric | Cosine similarity. |
+
+**Keys:** PK `(source_topic_id, target_topic_id)`. CHECK: source != target.
 
 ---
 
@@ -429,6 +461,9 @@ sources ─── source_id ──┬── stories (story_id)
                         │
 topics (topic_id) ──────┼── topic_stories ─── story_id ──► stories
                         │
+                        ├── topic_theses ─── thesis_id ──► theses (embedding-based linking)
+                        ├── topic_relationships ──► topics (topic-to-topic, symmetric)
+                        │
                         ├── theses (topic_id, archetype_id) ── thesis_claims ──► claims
                         ├── viewpoints (topic_id, archetype_id) ── viewpoint_theses ──► theses
                         └── global_viewpoints ── global_viewpoint_members ──► viewpoints
@@ -472,6 +507,8 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `026_story_bodies_content_raw_clean.sql` | content → content_raw; content_clean, content_length_raw/clean, cleaned_at, cleaner_model. |
 | `027_story_bodies_drop_extractor_rename_scraped.sql` | Drop extractor_version; rename extracted_at to scraped_at. |
 | `028_relevance_status_threshold_50.sql` | Lower relevance_status KEEP threshold from 75 to 50. |
+| `044_topic_theses_and_embeddings.sql` | Adds topic_description, topic_embedding to topics; creates topic_theses, topic_relationships; HNSW index on topic_embedding. |
+| `045_match_theses_nearest_rpc.sql` | RPCs match_theses_nearest and match_topics_nearest for pgvector similarity search. |
 
 After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims.
 
@@ -575,6 +612,16 @@ Finds theses with the biggest centroid-vs-text discrepancy, fetches representati
 
 **Cron (pg_cron):** [cron_label_thesis.sql](cron_label_thesis.sql) — every 10 minutes (optional).
 
+### process_topic
+
+Creates or processes a topic: (1) LLM expands title to description, (2) embeds and stores in topic_embedding, (3) links theses via match_theses_nearest (similarity ≥ 0.60), (4) synthesizes 1,000–1,500 word summary from linked thesis_text, (5) re-embeds title+summary, (6) links related topics via match_topics_nearest (similarity ≥ 0.70, cap 10). Invoked manually or via Admin UI.
+
+**Request body:** `{ title?: string, topic_id?: string }` — either create new topic by title, or process existing topic by id.
+
+**Secrets:** OPENAI_API_KEY. Optional: OPENAI_MODEL, OPENAI_EMBEDDING_MODEL.
+
+**Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/process_topic' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{"title":"NATO"}'`
+
 ### review_pending_stories
 
 Re-reviews stories with **relevance_status = PENDING** that have `content_clean` in **story_bodies** (skips stories not yet cleaned). Sends the first 3000 characters of content_clean to the LLM (same classification prompt as relevance_gate). If confidence >= 60, writes the LLM result (relevance_score, etc.); if confidence < 60, writes a template DROP (score=0, confidence=100, reason="Relevance unclear after thorough review, choosing to drop."). Run after clean_scraped_content so PENDING stories have cleaned bodies.
@@ -610,8 +657,8 @@ receive_scraped_content has no cron; it is invoked by the Cloudflare Worker afte
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `label_thesis`). For receive_scraped_content, use `--no-verify-jwt`.
-- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/label_thesis`)
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/label_thesis`, `/process_topic`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 
 ---

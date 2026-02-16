@@ -13,7 +13,7 @@ export default function TopicNotFound() {
           The topic you&apos;re looking for doesn&apos;t exist or has been removed.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Button href="/atlas" variant="primary">
+          <Button href="/topics" variant="primary">
             Browse topics
           </Button>
           <Button href="/" variant="primary">
