@@ -268,10 +268,11 @@ Deno.serve(async (req: Request) => {
           evidence: result.evidence,
           links: result.links,
         };
+        const now = new Date().toISOString();
 
         const { error: updateErr } = await supabase
           .from("story_chunks")
-          .update({ extraction_json: extractionJson })
+          .update({ extraction_json: extractionJson, extraction_completed_at: now })
           .eq("story_id", chunk.story_id)
           .eq("chunk_index", chunk.chunk_index);
 
