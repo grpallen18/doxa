@@ -218,7 +218,7 @@ doxa/
 
 See `steering-document.md` for the complete project philosophy and design principles. Product and UX decisions should align with the \"What Doxa Is For (and Not For)\" section above so the site stays focused on epistemic clarity and depolarization, not on becoming a news destination or opinion platform.
 
-For database schema, data dictionary, and implementation status of the topic lifecycle (claims, versions, feedback), see **supabase/README.md**.
+For database schema, data dictionary, and implementation status of the topic lifecycle (claims, versions, feedback), see **supabase/README.md**. The thesis layer has been refactored: **claim_clusters** (cross-claim controversy clusters) replace the editorial thesis model. Clustering uses two-stage similarity + contradiction detection and runs nightly via **claim_cluster_nightly**.
 
 ## Planned / not yet implemented
 

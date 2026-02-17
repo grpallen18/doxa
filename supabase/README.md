@@ -209,6 +209,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `location` | text (nullable) | Location. |
 | `embedding` | vector/array (nullable) | If using pgvector. |
 | `metadata` | jsonb | Entities, normalization notes, etc. |
+| `cluster_computed_at` | timestamptz (nullable) | Set when processed by claim_cluster_nightly; null = not yet clustered. |
 | `created_at` | timestamptz | When the claim was created. |
 | `updated_at` | timestamptz | Last update. |
 
@@ -304,7 +305,63 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ---
 
-### theses
+### claim_clusters (new thesis engine)
+
+**Purpose:** Cross-claim controversy clusters. Replaces editorial theses with structural semantic competition detection. Global (no topic_id); clusters are computed from contradiction edges.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `cluster_id` | uuid (PK) | Unique cluster; stable via fingerprint upsert. |
+| `cluster_fingerprint` | text (UNIQUE) | Hash of sorted claim_ids; enables cluster_id reuse across runs. |
+| `centroid_embedding` | vector(1536) | Mean of member embeddings. |
+| `controversy_score` | numeric | Entropy + diversity - dominance; higher = more balanced competition. |
+| `total_support_count` | int | Sum of story_claims across members. |
+| `distinct_source_count` | int | Unique sources across members. |
+| `dominant_claim_ratio` | numeric | top_claim_support / total_support. |
+| `claim_count` | int | Member count. |
+| `cluster_label` | text (nullable) | Auto-generated neutral question (1 sentence). |
+| `cluster_label_computed_at` | timestamptz (nullable) | When label was last generated. |
+| `last_computed_at` | timestamptz | For incremental runs. |
+| `seeded_from_thesis` | boolean | True if migrated from old thesis. |
+| `created_at` | timestamptz | Creation. |
+
+---
+
+### claim_cluster_members
+
+**Purpose:** Which claims belong to which cluster. Rank by distinct_source_count DESC, support_count DESC for viewpoint display.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `cluster_id` | uuid (FK) | Which cluster. |
+| `claim_id` | uuid (FK) | Which claim. |
+| `membership_score` | numeric | Similarity to centroid (internal/diagnostics only). |
+| `support_count` | int | story_claim_count for this claim. |
+| `distinct_source_count` | int | Sources for this claim. |
+| `rank` | int | Display order (by source diversity, then support). |
+| `created_at` | timestamptz | Creation. |
+
+**Keys:** PK `(cluster_id, claim_id)`.
+
+---
+
+### claim_relationships
+
+**Purpose:** LLM result cache for claim pair classification (contradicts, supports_same_position, orthogonal, competing_framing). Avoids re-classifying same pair. Claim-centric only (claim ↔ neighbor).
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `claim_a_id` | uuid (FK) | Lower UUID of pair (canonical order). |
+| `claim_b_id` | uuid (FK) | Higher UUID of pair. |
+| `relationship` | text | supports_same_position \| contradicts \| orthogonal \| competing_framing. |
+| `similarity_at_classification` | numeric | Embedding similarity when classified. |
+| `classified_at` | timestamptz | When LLM ran. |
+
+**Keys:** PK `(claim_a_id, claim_b_id)` where claim_a_id < claim_b_id.
+
+---
+
+### theses (legacy; deprecated for new clustering)
 
 **Purpose:** A “cluster object” of claims for a specific topic + archetype (the cluster is the thesis).
 
@@ -441,10 +498,11 @@ The **target** Doxa backend is built around:
 2. **Extraction:** **story_claims** (raw claims per story) and **story_evidence** (quotes, stats, citations). **story_claim_evidence_links** ties evidence to story-claims (Phase 1).
 3. **Canonical layer:** **claims** (normalized, de-duplicated). **claim_evidence_links** ties canonical claims to evidence (Phase 2).
 4. **Lenses:** **archetypes** (economic, legal, moral, etc.). **claim_archetypes** assigns claims to archetypes.
-5. **Clustering:** **theses** (claim clusters per topic + archetype). **thesis_claims** links claims to theses.
-6. **Synthesis:** **viewpoints** (archetype-scoped positions per topic, from theses). **viewpoint_theses** links theses to viewpoints.
-7. **Cross-topic:** **narratives** (aggregation of viewpoints into overarching narratives). **narrative_viewpoint_links** links narratives to topic-level viewpoints.
-8. **Audit:** **pipeline_runs** tracks AI/ETL runs for idempotency and debugging.
+5. **Clustering (new):** **claim_clusters** (cross-claim controversy clusters via similarity + contradiction). **claim_cluster_members** links claims to clusters; **claim_relationships** caches LLM pair classifications. Replaces editorial theses for structural controversy detection.
+6. **Clustering (legacy):** **theses** (claim clusters per topic + archetype). **thesis_claims** links claims to theses. Kept for Atlas; migrate later.
+7. **Synthesis:** **viewpoints** (archetype-scoped positions per topic, from theses). **viewpoint_theses** links theses to viewpoints.
+8. **Cross-topic:** **narratives** (aggregation of viewpoints into overarching narratives). **narrative_viewpoint_links** links narratives to topic-level viewpoints.
+9. **Audit:** **pipeline_runs** tracks AI/ETL runs for idempotency and debugging.
 
 ---
 
@@ -471,6 +529,9 @@ topics (topic_id) ──────┼── topic_stories ─── story_id �
 archetypes (archetype_id) ── claim_archetypes ──► claims
 
 claims ◄── claim_evidence_links ──► story_evidence
+
+claims ◄── claim_cluster_members ──► claim_clusters (centroid_embedding, controversy_score)
+claims ◄── claim_relationships (claim_a_id, claim_b_id) ──► claims (LLM pair cache)
 
 pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_evidence,
   story_claim_evidence_links, claim_evidence_links, claim_archetypes, theses,
@@ -509,8 +570,11 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `028_relevance_status_threshold_50.sql` | Lower relevance_status KEEP threshold from 75 to 50. |
 | `044_topic_theses_and_embeddings.sql` | Adds topic_description, topic_embedding to topics; creates topic_theses, topic_relationships; HNSW index on topic_embedding. |
 | `045_match_theses_nearest_rpc.sql` | RPCs match_theses_nearest and match_topics_nearest for pgvector similarity search. |
+| `047_claim_clusters.sql` | claim_clusters, claim_cluster_members, claim_relationships; claims.cluster_computed_at; RLS. |
+| `048_match_clusters_rpc.sql` | RPC match_clusters_nearest for centroid similarity (future topic/consumer use). |
+| `049_migrate_thesis_to_clusters.sql` | One-time migration: seed claim_clusters from thesis_claims (seeded_from_thesis=true). |
 
-After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims.
+After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims. Run 047–049 for the new claim cluster engine.
 
 ---
 
@@ -598,15 +662,23 @@ Backfills `stance` on story_claims that have null stance. For each claim, sends 
 
 **Cron (pg_cron):** [cron_update_stance.sql](cron_update_stance.sql) — every 20 minutes.
 
-### claim_to_thesis (Postgres function)
+### claim_cluster_nightly (new thesis engine)
 
-Clusters canonical claims into theses by embedding similarity. Processes up to 5 claims per run (FOR UPDATE SKIP LOCKED). Links each claim to matching theses (cosine similarity >= 0.70, cap 3) or creates a new thesis bucket; updates thesis centroid embeddings. No Edge Function; runs inside the DB.
+Two-stage clustering: (1) similarity via `match_claims_nearest`, filter sim ≥ 0.65, drop self; (2) claim-centric LLM classification (claim ↔ neighbor only), cache in `claim_relationships`; (3) connected components on contradicts/competing_framing edges, size cap MIN=2 MAX=50. Computes controversy_score (entropy + diversity - dominance), generates cluster_label via LLM, upserts by cluster_fingerprint, orphan cleanup. One bounded batch per run (MAX_CLAIMS_PER_RUN=50).
+
+**Request body (optional):** `max_claims` (1–50, default 50), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+
+**Cron (pg_cron):** [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) — every hour. **Unschedule** `claim-to-thesis-every-2min` and `label-thesis-every-10min` when switching to the new engine.
+
+### claim_to_thesis (Postgres function) — **deprecated**
+
+Clusters canonical claims into theses by embedding similarity. **Deprecated:** replaced by **claim_cluster_nightly**. Unschedule when using the new claim cluster engine.
 
 **Cron (pg_cron):** [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) — every 2 minutes. Runs `SELECT claim_to_thesis_run(5);` (no HTTP, no Vault).
 
-### label_thesis
+### label_thesis — **deprecated**
 
-Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims (up to 30: mix of most central and most recent), calls the LLM to produce one thesis sentence, embeds it, and updates thesis_text / thesis_text_embedding / thesis_text_ok / last_text_ok_claim_count. Covers both new labels and relabels. One LLM call per thesis per run. Eligible when: no text yet and claim_count >= 5; or thesis_text_ok = false; or text has drifted (similarity < 0.70) and at least 5 new claims since last OK. Diversity guardrail: only theses with >= 3 distinct story_ids and >= 3 distinct sources (via thesis_claims → story_claims → stories → source_id) get thesis text, to avoid single-source framing.
+Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims, calls the LLM to produce one thesis sentence. **Deprecated:** replaced by **claim_cluster_nightly** (cluster labels). Unschedule when using the new claim cluster engine.
 
 **Request body (optional):** `dry_run` (boolean), `batch_theses` (1–20, default 10). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (chat + embedding).
 
@@ -643,11 +715,12 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
 | link-canonical-claims-every-2min | link_canonical_claims | Every 2 min | [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) |
 | update-stance-every-20min | update_stances | Every 20 min | [cron_update_stance.sql](cron_update_stance.sql) |
-| claim-to-thesis-every-2min | claim_to_thesis_run (SQL) | Every 2 min | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
-| label-thesis-every-10min | label_thesis | Every 10 min | [cron_label_thesis.sql](cron_label_thesis.sql) |
+| claim-cluster-hourly | claim_cluster_nightly | Every hour | [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) |
+| claim-to-thesis-every-2min *(deprecated)* | claim_to_thesis_run (SQL) | Every 2 min | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
+| label-thesis-every-10min *(deprecated)* | label_thesis | Every 10 min | [cron_label_thesis.sql](cron_label_thesis.sql) |
 | review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 
-receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
+**New engine:** Use `claim-cluster-hourly`; unschedule `claim-to-thesis-every-2min` and `label-thesis-every-10min` when switching. receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
 
 ### Deploy and secrets
 
@@ -657,7 +730,7 @@ receive_scraped_content has no cron; it is invoked by the Cloudflare Worker afte
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `claim_cluster_nightly`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`.
 - **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/label_thesis`, `/process_topic`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 

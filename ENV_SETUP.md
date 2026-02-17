@@ -68,6 +68,7 @@ Edge Functions use secrets set in **Supabase** (not in `.env.local`): Dashboard 
 - **merge_story_claims:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 - **link_canonical_claims:** `OPENAI_API_KEY`; optional `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`); optional `SIMILARITY_THRESHOLD` (0–1, default 0.9).
 - **update_stances:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (default `gpt-4o-mini`). Backfills stance on story_claims with null stance.
+- **claim_cluster_nightly:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`. Two-stage claim clustering (similarity + contradiction); replaces claim_to_thesis and label_thesis. Runs every hour.
 
 See [supabase/README.md](supabase/README.md) for deploy and cron.
 
