@@ -81,6 +81,14 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return denom === 0 ? 0 : sum / denom;
 }
 
+async function sha256Hex(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -177,41 +185,29 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, position_clusters: clusters.length, dry_run: true });
   }
 
-  // 3. Clear and insert (delete in order: controversies first, then pair_scores, then positions)
-  const { data: existingControversies } = await supabase.from("controversy_clusters").select("controversy_cluster_id");
-  const cIds = (existingControversies ?? []).map((r) => (r as { controversy_cluster_id: string }).controversy_cluster_id);
-  if (cIds.length > 0) {
-    await supabase.from("controversy_clusters").delete().in("controversy_cluster_id", cIds);
-  }
-  const { data: existingPairs } = await supabase.from("position_pair_scores").select("position_a_id");
-  const pairAIds = [...new Set((existingPairs ?? []).map((r) => (r as { position_a_id: string }).position_a_id))];
-  if (pairAIds.length > 0) {
-    await supabase.from("position_pair_scores").delete().in("position_a_id", pairAIds);
-  }
-  const { data: existingPositions } = await supabase.from("position_clusters").select("position_cluster_id");
-  const existingIds = (existingPositions ?? []).map((r) => (r as { position_cluster_id: string }).position_cluster_id);
-  if (existingIds.length > 0) {
-    await supabase.from("position_clusters").delete().in("position_cluster_id", existingIds);
-  }
-
+  // 3. Build fingerprint + claim_ids for each cluster, call RPC (single transaction)
+  const pClusters: Array<{ fingerprint: string; claim_ids: string[] }> = [];
   for (const memberIds of clusters) {
-    const { data: ins, error: insErr } = await supabase
-      .from("position_clusters")
-      .insert({})
-      .select("position_cluster_id")
-      .single();
-    if (insErr) {
-      console.error("[build_position_clusters] insert position_cluster:", insErr.message);
-      continue;
-    }
-    const pid = (ins as { position_cluster_id: string }).position_cluster_id;
-    const rows = memberIds.map((claim_id, i) => ({
-      position_cluster_id: pid,
-      claim_id,
-      role: i < Math.min(5, memberIds.length) ? "core" : "supporting",
-    }));
-    await supabase.from("position_cluster_claims").insert(rows);
+    const sorted = [...memberIds].sort();
+    const fpInput = sorted.join("|");
+    const fingerprint = await sha256Hex(fpInput);
+    pClusters.push({ fingerprint, claim_ids: sorted });
   }
 
-  return json({ ok: true, position_clusters: clusters.length });
+  const { data: rpcResult, error: rpcErr } = await supabase.rpc("upsert_position_clusters_batch", {
+    p_clusters: pClusters,
+  });
+
+  if (rpcErr) {
+    console.error("[build_position_clusters] RPC:", rpcErr.message);
+    return json({ error: rpcErr.message }, 500);
+  }
+
+  const res = rpcResult as { kept_count?: number; marked_inactive_count?: number } | null;
+  return json({
+    ok: true,
+    position_clusters: clusters.length,
+    kept_count: res?.kept_count ?? clusters.length,
+    marked_inactive_count: res?.marked_inactive_count ?? 0,
+  });
 });

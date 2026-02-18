@@ -307,7 +307,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### position_clusters
 
-**Purpose:** Coherent stance groups from supporting claim edges. Stage 1 of position-controversy clustering. Enforced MIN/MAX size via splitting.
+**Purpose:** Coherent stance groups from supporting claim edges. Stage 1 of position-controversy clustering. Enforced MIN/MAX size via splitting. Upsert by membership_fingerprint preserves IDs when membership unchanged.
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -315,6 +315,9 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `topic_id` | uuid (FK, nullable) | Optional for V1. Derive from claim → story_claims → topic_stories. |
 | `label` | text (nullable) | Short stance name (LLM). |
 | `summary` | text (nullable) | Stance summary (LLM). |
+| `membership_fingerprint` | text (unique, nullable) | SHA256 of sorted claim_ids; used for upsert. |
+| `status` | text | active \| inactive. Inactive = orphan (grace period before delete). |
+| `deactivated_at` | timestamptz (nullable) | When marked inactive. |
 | `centroid_embedding` | vector(1536) (nullable) | Optional. |
 | `created_at` | timestamptz | Creation. |
 
@@ -356,7 +359,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### controversy_clusters
 
-**Purpose:** Debate containers linking 2+ opposing position clusters. question = neutral debate question (LLM).
+**Purpose:** Debate containers linking 2+ opposing position clusters. question = neutral debate question (LLM). Upsert by controversy_fingerprint preserves IDs when position pair unchanged.
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -366,6 +369,9 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `proposition` | text (nullable) | Optional contested statement. |
 | `label` | text (nullable) | Short display label. |
 | `summary` | text (nullable) | Neutral overview (LLM). |
+| `controversy_fingerprint` | text (unique, nullable) | SHA256 of sorted position_ids; used for upsert. |
+| `status` | text | active \| inactive. Inactive = orphan (grace period before delete). |
+| `deactivated_at` | timestamptz (nullable) | When marked inactive. |
 | `created_at` | timestamptz | Creation. |
 
 ---
@@ -403,6 +409,32 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `created_at` | timestamptz | Creation. |
 
 **Keys:** Unique `(controversy_cluster_id, position_cluster_id)`.
+
+---
+
+### position_summary_cache
+
+**Purpose:** LLM-generated label/summary keyed by membership fingerprint. Persists across rebuilds; avoids re-calling LLM when position membership unchanged.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `membership_fingerprint` | text (PK) | SHA256 of sorted claim_ids. |
+| `label` | text (nullable) | Cached stance name. |
+| `summary` | text (nullable) | Cached stance summary. |
+| `created_at` | timestamptz | When cached. |
+
+---
+
+### position_cluster_migrations
+
+**Purpose:** Lineage when positions merge or split. old_position_cluster_id has no FK (may be deleted). Purged after 30 days.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `old_position_cluster_id` | uuid | Historical position (no FK). |
+| `new_position_cluster_id` | uuid (FK) | Surviving position. |
+| `relationship` | text | merged_into \| split_into. |
+| `created_at` | timestamptz | When recorded. |
 
 ---
 
@@ -639,8 +671,15 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `049_migrate_thesis_to_clusters.sql` | One-time migration: seed claim_clusters from thesis_claims (seeded_from_thesis=true). |
 | `050_position_controversy_clustering.sql` | Hard cutover: drop claim_clusters; create position_clusters, position_cluster_claims, position_pair_scores, controversy_clusters, controversy_cluster_positions, controversy_viewpoints. |
 | `051_claims_needs_cluster_update.sql` | Add claims.needs_cluster_update for split refresh/classify scaling. |
+| `052_position_controversy_upsert_schema.sql` | Add membership_fingerprint, status, deactivated_at to position_clusters; controversy_fingerprint, status, deactivated_at to controversy_clusters; position_summary_cache; position_cluster_migrations. |
+| `053_upsert_position_clusters_rpc.sql` | RPC upsert_position_clusters_batch: fingerprint-based upsert, lineage, mark orphans inactive. |
+| `054_upsert_position_pair_scores_rpc.sql` | RPC upsert_position_pair_scores: compute and upsert pair scores (active positions only). |
+| `055_upsert_controversy_clusters_rpc.sql` | RPC upsert_controversy_clusters_batch: fingerprint-based upsert, mark orphans inactive. |
+| `056_orphan_cleanup_rpc.sql` | RPC run_orphan_cleanup: delete inactive positions/controversies (7+ days), purge lineage (30+ days). |
+| `057_upsert_position_clusters_ambiguous_c_fix.sql` | Fix ambiguous column "c" in upsert_position_clusters_batch (orphan block alias). |
+| `058_sync_position_summaries_from_cache_rpc.sql` | RPC sync_position_summaries_from_cache: bulk-update position_clusters from cache (no LLM). |
 
-After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims. Run 050 for the position-controversy clustering engine (replaces 047–049). Run 051 for split refresh/classify scaling.
+After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims. Run 050 for the position-controversy clustering engine (replaces 047–049). Run 051 for split refresh/classify scaling. Run 052–058 for iterative upsert (zero-downtime rebuilds).
 
 ---
 
@@ -730,11 +769,11 @@ Backfills `stance` on story_claims that have null stance. For each claim, sends 
 
 ### clustering_pipeline (position-controversy engine)
 
-Orchestrates: (1) classify_claim_pairs — populate claim_relationships; (2) build_position_clusters — supporting graph, split; (3) aggregate_position_pair_scores; (4) build_controversy_clusters; (5) generate_position_summaries; (6) generate_viewpoints. Single cron invokes all steps in order.
+Orchestrates: (1) classify_claim_pairs — populate claim_relationships; (2) build_position_clusters — supporting graph, upsert by fingerprint; (3) aggregate_position_pair_scores; (4) build_controversy_clusters; (5) generate_position_summaries; (6) generate_viewpoints. Uses fingerprint-based upsert for zero-downtime; orphans marked inactive (grace period), deleted by orphan-cleanup-weekly. The periodic cron (`clustering-upsert-periodic`) runs only steps 1–4 (structure only); summaries and viewpoints run on separate crons every 6 hours.
 
-**Request body (optional):** `dry_run` (boolean), `skip_classify` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+**Request body (optional):** `dry_run` (boolean), `skip_classify` (boolean), `skip_summaries_viewpoints` (boolean, default true; pass false to run summaries/viewpoints in-pipeline). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
-**Cron (pg_cron):** [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) — `refresh_claim_eligibility` daily at 3am UTC; `classify_claim_pairs` every 15 min; `clustering_pipeline` (skip_classify) on 1st and 15th at 2am UTC. **Unschedule** `claim-cluster-hourly` when switching.
+**Cron (pg_cron):** [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) — `refresh_claim_eligibility` daily at 3am UTC; `classify_claim_pairs` every 15 min; `clustering-upsert-periodic` (skip_classify, skip_summaries_viewpoints) on 1st and 15th at 2am UTC; `generate-position-summaries-every-6h` every 6h at :00; `generate-viewpoints-every-6h` every 6h at :30; `orphan-cleanup-weekly` Sundays 4am UTC.
 
 ### refresh_claim_eligibility
 
@@ -746,23 +785,23 @@ Populates claim_relationships for eligible claims (cluster_computed_at null OR n
 
 ### build_position_clusters
 
-Builds position clusters from supporting edges. Connected components + enforced split (MIN=2, MAX=30). Step 2.
+Builds position clusters from supporting edges. Connected components + enforced split (MIN=2, MAX=30). Calls upsert_position_clusters_batch RPC: fingerprint-based upsert, lineage (merge/split), mark orphans inactive. Step 2.
 
 ### aggregate_position_pair_scores
 
-Populates position_pair_scores from claim_relationships + position_cluster_claims. Step 3.
+Invokes upsert_position_pair_scores RPC: computes pair scores from claim_relationships + position_cluster_claims (active positions only), upserts. Step 3.
 
 ### build_controversy_clusters
 
-Reads position_pair_scores, creates controversy clusters (pairs) where score ≥ threshold. Step 4. **Secrets:** `OPENAI_API_KEY`.
+Reads position_pair_scores, creates controversy clusters (pairs) where score ≥ threshold. Calls upsert_controversy_clusters_batch RPC: fingerprint-based upsert, mark orphans inactive. Step 4. **Secrets:** `OPENAI_API_KEY`.
 
 ### generate_position_summaries
 
-LLM label + summary per position_cluster. Step 5. **Secrets:** `OPENAI_API_KEY`.
+Two modes run in parallel: (1) LLM for cache misses (up to 10 per call); (2) sync from position_summary_cache to position_clusters (up to 500, no LLM). Uses membership_fingerprint from position_clusters. Step 5. **Secrets:** `OPENAI_API_KEY`.
 
 ### generate_viewpoints
 
-LLM viewpoint per (controversy, position). Step 6. **Secrets:** `OPENAI_API_KEY`.
+LLM viewpoint per (controversy, position). New-only (skips links with existing viewpoint); positions must have label. max_viewpoints default 25. Step 6. **Secrets:** `OPENAI_API_KEY`.
 
 ### claim_cluster_nightly — **deprecated**
 
@@ -815,13 +854,16 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | update-stance-every-20min | update_stances | Every 20 min | [cron_update_stance.sql](cron_update_stance.sql) |
 | refresh-claim-eligibility-daily | refresh_claim_eligibility | Daily 3am UTC (no LLM, 500/run) | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
 | classify-claim-pairs-every-15min | classify_claim_pairs | Every 15 min (LLM, 25/run) | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
-| clustering-rebuild-periodic | clustering_pipeline (skip_classify) | 1st & 15th, 2am UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
-| claim-cluster-hourly *(deprecated)* | claim_cluster_nightly | Every hour | [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) |
-| claim-to-thesis-every-2min *(deprecated)* | claim_to_thesis_run (SQL) | Every 2 min | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
-| label-thesis-every-10min *(deprecated)* | label_thesis | Every 10 min | [cron_label_thesis.sql](cron_label_thesis.sql) |
+| clustering-upsert-periodic | clustering_pipeline (skip_classify, skip_summaries_viewpoints) | 1st & 15th, 2am UTC (incremental upsert, structure only) | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
+| generate-position-summaries-every-6h | generate_position_summaries | Every 6h at :00 UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
+| generate-viewpoints-every-6h | generate_viewpoints | Every 6h at :30 UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
+| orphan-cleanup-weekly | run_orphan_cleanup (RPC) | Sundays 4am UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
+| claim-cluster-hourly *(removed)* | claim_cluster_nightly | — | [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) |
+| claim-to-thesis-every-2min *(removed)* | claim_to_thesis_run (SQL) | — | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
+| label-thesis-every-10min *(removed)* | label_thesis | — | [cron_label_thesis.sql](cron_label_thesis.sql) |
 | review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 
-**New engine:** Use `refresh-claim-eligibility-daily`, `classify-claim-pairs-every-15min`, and `clustering-rebuild-periodic`; unschedule `claim-cluster-hourly`, `claim-to-thesis-every-2min`, and `label-thesis-every-10min` when switching. receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
+**New engine:** Use `refresh-claim-eligibility-daily`, `classify-claim-pairs-every-15min`, `clustering-upsert-periodic`, `generate-position-summaries-every-6h`, and `generate-viewpoints-every-6h`. Deprecated crons (claim-cluster-hourly, claim-to-thesis-every-2min, label-thesis-every-10min) have been removed. receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
 
 ### Deploy and secrets
 
@@ -831,7 +873,15 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `refresh_claim_eligibility`, `classify_claim_pairs`, `build_position_clusters`, `aggregate_position_pair_scores`, `build_controversy_clusters`, `generate_position_summaries`, `generate_viewpoints`, `clustering_pipeline`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `refresh_claim_eligibility`, `classify_claim_pairs`, `build_position_clusters`, `aggregate_position_pair_scores`, `build_controversy_clusters`, `generate_position_summaries`, `generate_viewpoints`, `clustering_pipeline`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`. **Clustering sub-functions** must be deployed with `--no-verify-jwt` so clustering_pipeline can invoke them (config.toml alone may not apply on updates). Redeploy with:
+```
+supabase functions deploy classify_claim_pairs --no-verify-jwt
+supabase functions deploy build_position_clusters --no-verify-jwt
+supabase functions deploy aggregate_position_pair_scores --no-verify-jwt
+supabase functions deploy build_controversy_clusters --no-verify-jwt
+supabase functions deploy generate_position_summaries --no-verify-jwt
+supabase functions deploy generate_viewpoints --no-verify-jwt
+```
 - **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/label_thesis`, `/process_topic`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 

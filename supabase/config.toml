@@ -315,6 +315,21 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Clustering sub-functions: called by clustering_pipeline via HTTP with service role key.
+# verify_jwt = false avoids 401 when invoked from another function or cron.
+[functions.classify_claim_pairs]
+verify_jwt = false
+[functions.build_position_clusters]
+verify_jwt = false
+[functions.aggregate_position_pair_scores]
+verify_jwt = false
+[functions.build_controversy_clusters]
+verify_jwt = false
+[functions.generate_position_summaries]
+verify_jwt = false
+[functions.generate_viewpoints]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

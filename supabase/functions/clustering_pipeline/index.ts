@@ -1,7 +1,7 @@
 // Supabase Edge Function: clustering_pipeline.
 // Orchestrates position-controversy clustering: classify -> position clusters -> aggregate -> controversy -> summaries -> viewpoints.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { dry_run?: boolean, skip_classify?: boolean }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { dry_run?: boolean, skip_classify?: boolean, skip_summaries_viewpoints?: boolean }.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -90,6 +90,7 @@ Deno.serve(async (req: Request) => {
   }
   const dryRun = Boolean(body.dry_run ?? false);
   const skipClassify = Boolean(body.skip_classify ?? false);
+  const skipSummariesViewpoints = Boolean(body.skip_summaries_viewpoints ?? true);
 
   const steps: StepResult[] = [];
   let failedStep: string | null = null;
@@ -175,36 +176,40 @@ Deno.serve(async (req: Request) => {
     }, 500);
   }
 
-  // 5. generate_position_summaries
-  const t5 = performance.now();
-  const r5 = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, "generate_position_summaries", {
-    dry_run: dryRun,
-  });
-  addStep("generate_position_summaries", t5, r5);
-  if (!r5.ok) {
-    return json({
-      ok: false,
+  // 5. generate_position_summaries (skipped when skip_summaries_viewpoints)
+  if (!skipSummariesViewpoints) {
+    const t5 = performance.now();
+    const r5 = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, "generate_position_summaries", {
       dry_run: dryRun,
-      failed_at: "generate_position_summaries",
-      error: toErrorString(r5.data?.error) || `HTTP ${r5.http_status}`,
-      summary: { total_steps: steps.length, failed_step: failedStep },
-      steps,
-    }, 500);
-  }
+    });
+    addStep("generate_position_summaries", t5, r5);
+    if (!r5.ok) {
+      return json({
+        ok: false,
+        dry_run: dryRun,
+        skip_summaries_viewpoints: skipSummariesViewpoints,
+        failed_at: "generate_position_summaries",
+        error: toErrorString(r5.data?.error) || `HTTP ${r5.http_status}`,
+        summary: { total_steps: steps.length, failed_step: failedStep },
+        steps,
+      }, 500);
+    }
 
-  // 6. generate_viewpoints
-  const t6 = performance.now();
-  const r6 = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, "generate_viewpoints", { dry_run: dryRun });
-  addStep("generate_viewpoints", t6, r6);
-  if (!r6.ok) {
-    return json({
-      ok: false,
-      dry_run: dryRun,
-      failed_at: "generate_viewpoints",
-      error: toErrorString(r6.data?.error) || `HTTP ${r6.http_status}`,
-      summary: { total_steps: steps.length, failed_step: failedStep },
-      steps,
-    }, 500);
+    // 6. generate_viewpoints
+    const t6 = performance.now();
+    const r6 = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, "generate_viewpoints", { dry_run: dryRun });
+    addStep("generate_viewpoints", t6, r6);
+    if (!r6.ok) {
+      return json({
+        ok: false,
+        dry_run: dryRun,
+        skip_summaries_viewpoints: skipSummariesViewpoints,
+        failed_at: "generate_viewpoints",
+        error: toErrorString(r6.data?.error) || `HTTP ${r6.http_status}`,
+        summary: { total_steps: steps.length, failed_step: failedStep },
+        steps,
+      }, 500);
+    }
   }
 
   const total_ms = steps.reduce((s, st) => s + st.duration_ms, 0);
@@ -212,6 +217,7 @@ Deno.serve(async (req: Request) => {
     total_steps: steps.length,
     total_duration_ms: total_ms,
     all_success: true,
+    skip_summaries_viewpoints: skipSummariesViewpoints,
   };
   for (const st of steps) {
     if (st.result && typeof st.result === "object") {
@@ -222,6 +228,7 @@ Deno.serve(async (req: Request) => {
   return json({
     ok: true,
     dry_run: dryRun,
+    skip_summaries_viewpoints: skipSummariesViewpoints,
     summary,
     steps,
   });

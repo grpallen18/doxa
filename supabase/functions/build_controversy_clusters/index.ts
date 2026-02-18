@@ -13,6 +13,14 @@ const corsHeaders = {
 const MIN_CONTROVERSY_SCORE = 1; // at least 1 contradictory or competing edge
 const DEFAULT_CHAT_MODEL = "gpt-4o-mini";
 
+async function sha256Hex(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -106,24 +114,27 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, controversies_found: pairs.length, dry_run: true });
   }
 
-  // Clear existing
-  const { data: existing } = await supabase.from("controversy_clusters").select("controversy_cluster_id");
-  const existingIds = (existing ?? []).map((r) => (r as { controversy_cluster_id: string }).controversy_cluster_id);
-  if (existingIds.length > 0) {
-    await supabase.from("controversy_clusters").delete().in("controversy_cluster_id", existingIds);
-  }
+  const pControversies: Array<{
+    fingerprint: string;
+    position_a_id: string;
+    position_b_id: string;
+    question: string;
+    label_a: string;
+    label_b: string;
+  }> = [];
 
-  let created = 0;
   for (const p of pairs) {
     const { data: posA } = await supabase
       .from("position_clusters")
       .select("position_cluster_id, label")
       .eq("position_cluster_id", p.position_a_id)
+      .eq("status", "active")
       .single();
     const { data: posB } = await supabase
       .from("position_clusters")
       .select("position_cluster_id, label")
       .eq("position_cluster_id", p.position_b_id)
+      .eq("status", "active")
       .single();
     if (!posA || !posB) continue;
 
@@ -164,24 +175,33 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { data: ins, error: insErr } = await supabase
-      .from("controversy_clusters")
-      .insert({ question, label: question })
-      .select("controversy_cluster_id")
-      .single();
+    const fpInput = [p.position_a_id, p.position_b_id].sort().join("|");
+    const fingerprint = await sha256Hex(fpInput);
 
-    if (insErr) {
-      console.error("[build_controversy_clusters] insert:", insErr.message);
-      continue;
-    }
-
-    const cid = (ins as { controversy_cluster_id: string }).controversy_cluster_id;
-    await supabase.from("controversy_cluster_positions").insert([
-      { controversy_cluster_id: cid, position_cluster_id: p.position_a_id, side: "A", stance_label: labelA },
-      { controversy_cluster_id: cid, position_cluster_id: p.position_b_id, side: "B", stance_label: labelB },
-    ]);
-    created++;
+    pControversies.push({
+      fingerprint,
+      position_a_id: p.position_a_id,
+      position_b_id: p.position_b_id,
+      question,
+      label_a: labelA,
+      label_b: labelB,
+    });
   }
 
-  return json({ ok: true, controversies_created: created });
+  const { data: rpcResult, error: rpcErr } = await supabase.rpc("upsert_controversy_clusters_batch", {
+    p_controversies: pControversies,
+  });
+
+  if (rpcErr) {
+    console.error("[build_controversy_clusters] RPC:", rpcErr.message);
+    return json({ error: rpcErr.message }, 500);
+  }
+
+  const res = rpcResult as { kept_count?: number; marked_inactive_count?: number } | null;
+  return json({
+    ok: true,
+    controversies_created: pControversies.length,
+    kept_count: res?.kept_count ?? pControversies.length,
+    marked_inactive_count: res?.marked_inactive_count ?? 0,
+  });
 });
