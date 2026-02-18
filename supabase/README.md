@@ -305,43 +305,104 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ---
 
-### claim_clusters (new thesis engine)
+### position_clusters
 
-**Purpose:** Cross-claim controversy clusters. Replaces editorial theses with structural semantic competition detection. Global (no topic_id); clusters are computed from contradiction edges.
+**Purpose:** Coherent stance groups from supporting claim edges. Stage 1 of position-controversy clustering. Enforced MIN/MAX size via splitting.
 
 | Column | Type | Purpose |
 |--------|------|---------|
-| `cluster_id` | uuid (PK) | Unique cluster; stable via fingerprint upsert. |
-| `cluster_fingerprint` | text (UNIQUE) | Hash of sorted claim_ids; enables cluster_id reuse across runs. |
-| `centroid_embedding` | vector(1536) | Mean of member embeddings. |
-| `controversy_score` | numeric | Entropy + diversity - dominance; higher = more balanced competition. |
-| `total_support_count` | int | Sum of story_claims across members. |
-| `distinct_source_count` | int | Unique sources across members. |
-| `dominant_claim_ratio` | numeric | top_claim_support / total_support. |
-| `claim_count` | int | Member count. |
-| `cluster_label` | text (nullable) | Auto-generated neutral question (1 sentence). |
-| `cluster_label_computed_at` | timestamptz (nullable) | When label was last generated. |
-| `last_computed_at` | timestamptz | For incremental runs. |
-| `seeded_from_thesis` | boolean | True if migrated from old thesis. |
+| `position_cluster_id` | uuid (PK) | Unique position. |
+| `topic_id` | uuid (FK, nullable) | Optional for V1. Derive from claim → story_claims → topic_stories. |
+| `label` | text (nullable) | Short stance name (LLM). |
+| `summary` | text (nullable) | Stance summary (LLM). |
+| `centroid_embedding` | vector(1536) (nullable) | Optional. |
 | `created_at` | timestamptz | Creation. |
 
 ---
 
-### claim_cluster_members
+### position_cluster_claims
 
-**Purpose:** Which claims belong to which cluster. Rank by distinct_source_count DESC, support_count DESC for viewpoint display.
+**Purpose:** Which claims belong to which position. role: core | supporting for display priority.
 
 | Column | Type | Purpose |
 |--------|------|---------|
-| `cluster_id` | uuid (FK) | Which cluster. |
+| `position_cluster_id` | uuid (FK) | Which position. |
 | `claim_id` | uuid (FK) | Which claim. |
-| `membership_score` | numeric | Similarity to centroid (internal/diagnostics only). |
-| `support_count` | int | story_claim_count for this claim. |
-| `distinct_source_count` | int | Sources for this claim. |
-| `rank` | int | Display order (by source diversity, then support). |
+| `weight` | numeric (nullable) | Optional. |
+| `role` | text (nullable) | core \| supporting. |
 | `created_at` | timestamptz | Creation. |
 
-**Keys:** PK `(cluster_id, claim_id)`.
+**Keys:** PK `(position_cluster_id, claim_id)`.
+
+---
+
+### position_pair_scores
+
+**Purpose:** Pre-aggregated edge counts between position clusters. controversy_score = contradictory + alpha*competing_framing. Populated by aggregate_position_pair_scores.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `position_a_id` | uuid (FK) | Lower UUID of pair (canonical). |
+| `position_b_id` | uuid (FK) | Higher UUID of pair. |
+| `contradictory_count` | int | Count of claim pairs with contradicts. |
+| `competing_framing_count` | int | Count with competing_framing. |
+| `supporting_count` | int | Count with supports_same_position. |
+| `controversy_score` | numeric | contradictory + alpha*competing. |
+| `last_aggregated_at` | timestamptz | When computed. |
+
+**Keys:** PK `(position_a_id, position_b_id)` where position_a_id < position_b_id.
+
+---
+
+### controversy_clusters
+
+**Purpose:** Debate containers linking 2+ opposing position clusters. question = neutral debate question (LLM).
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `controversy_cluster_id` | uuid (PK) | Unique controversy. |
+| `topic_id` | uuid (FK, nullable) | Optional for V1. |
+| `question` | text | Neutral debate question. |
+| `proposition` | text (nullable) | Optional contested statement. |
+| `label` | text (nullable) | Short display label. |
+| `summary` | text (nullable) | Neutral overview (LLM). |
+| `created_at` | timestamptz | Creation. |
+
+---
+
+### controversy_cluster_positions
+
+**Purpose:** Links positions to controversies. side: A/B for display. V1: pairs only.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `controversy_cluster_id` | uuid (FK) | Which controversy. |
+| `position_cluster_id` | uuid (FK) | Which position. |
+| `side` | text (nullable) | A \| B. |
+| `stance_label` | text (nullable) | Per-side label. |
+| `weight` | numeric (nullable) | Optional. |
+| `created_at` | timestamptz | Creation. |
+
+**Keys:** PK `(controversy_cluster_id, position_cluster_id)`.
+
+---
+
+### controversy_viewpoints
+
+**Purpose:** LLM-generated viewpoint summary per position within a controversy. Versioned for audit.
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `viewpoint_id` | uuid (PK) | Unique viewpoint. |
+| `controversy_cluster_id` | uuid (FK) | Which controversy. |
+| `position_cluster_id` | uuid (FK) | Which position. |
+| `title` | text (nullable) | Optional title. |
+| `summary` | text | Viewpoint summary (LLM). |
+| `version` | int | Audit version. |
+| `model` | text (nullable) | LLM model used. |
+| `created_at` | timestamptz | Creation. |
+
+**Keys:** Unique `(controversy_cluster_id, position_cluster_id)`.
 
 ---
 
@@ -498,7 +559,7 @@ The **target** Doxa backend is built around:
 2. **Extraction:** **story_claims** (raw claims per story) and **story_evidence** (quotes, stats, citations). **story_claim_evidence_links** ties evidence to story-claims (Phase 1).
 3. **Canonical layer:** **claims** (normalized, de-duplicated). **claim_evidence_links** ties canonical claims to evidence (Phase 2).
 4. **Lenses:** **archetypes** (economic, legal, moral, etc.). **claim_archetypes** assigns claims to archetypes.
-5. **Clustering (new):** **claim_clusters** (cross-claim controversy clusters via similarity + contradiction). **claim_cluster_members** links claims to clusters; **claim_relationships** caches LLM pair classifications. Replaces editorial theses for structural controversy detection.
+5. **Clustering (new):** **position_clusters** (supporting-claim stances) → **controversy_clusters** (opposing positions). **position_cluster_claims**, **position_pair_scores**, **controversy_cluster_positions**, **controversy_viewpoints**. **claim_relationships** caches LLM pair classifications.
 6. **Clustering (legacy):** **theses** (claim clusters per topic + archetype). **thesis_claims** links claims to theses. Kept for Atlas; migrate later.
 7. **Synthesis:** **viewpoints** (archetype-scoped positions per topic, from theses). **viewpoint_theses** links theses to viewpoints.
 8. **Cross-topic:** **narratives** (aggregation of viewpoints into overarching narratives). **narrative_viewpoint_links** links narratives to topic-level viewpoints.
@@ -530,7 +591,10 @@ archetypes (archetype_id) ── claim_archetypes ──► claims
 
 claims ◄── claim_evidence_links ──► story_evidence
 
-claims ◄── claim_cluster_members ──► claim_clusters (centroid_embedding, controversy_score)
+claims ◄── position_cluster_claims ──► position_clusters (stance groups)
+position_clusters ◄── position_pair_scores ──► position_clusters (aggregated cross-edges)
+position_clusters ◄── controversy_cluster_positions ──► controversy_clusters (debate containers)
+controversy_clusters ◄── controversy_viewpoints ──► position_clusters (LLM viewpoint per side)
 claims ◄── claim_relationships (claim_a_id, claim_b_id) ──► claims (LLM pair cache)
 
 pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_evidence,
@@ -573,8 +637,10 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `047_claim_clusters.sql` | claim_clusters, claim_cluster_members, claim_relationships; claims.cluster_computed_at; RLS. |
 | `048_match_clusters_rpc.sql` | RPC match_clusters_nearest for centroid similarity (future topic/consumer use). |
 | `049_migrate_thesis_to_clusters.sql` | One-time migration: seed claim_clusters from thesis_claims (seeded_from_thesis=true). |
+| `050_position_controversy_clustering.sql` | Hard cutover: drop claim_clusters; create position_clusters, position_cluster_claims, position_pair_scores, controversy_clusters, controversy_cluster_positions, controversy_viewpoints. |
+| `051_claims_needs_cluster_update.sql` | Add claims.needs_cluster_update for split refresh/classify scaling. |
 
-After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims. Run 047–049 for the new claim cluster engine.
+After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims. Run 050 for the position-controversy clustering engine (replaces 047–049). Run 051 for split refresh/classify scaling.
 
 ---
 
@@ -662,13 +728,45 @@ Backfills `stance` on story_claims that have null stance. For each claim, sends 
 
 **Cron (pg_cron):** [cron_update_stance.sql](cron_update_stance.sql) — every 20 minutes.
 
-### claim_cluster_nightly (new thesis engine)
+### clustering_pipeline (position-controversy engine)
 
-Two-stage clustering: (1) similarity via `match_claims_nearest`, filter sim ≥ 0.65, drop self; (2) claim-centric LLM classification (claim ↔ neighbor only), cache in `claim_relationships`; (3) connected components on contradicts/competing_framing edges, size cap MIN=2 MAX=50. Computes controversy_score (entropy + diversity - dominance), generates cluster_label via LLM, upserts by cluster_fingerprint, orphan cleanup. One bounded batch per run (MAX_CLAIMS_PER_RUN=50).
+Orchestrates: (1) classify_claim_pairs — populate claim_relationships; (2) build_position_clusters — supporting graph, split; (3) aggregate_position_pair_scores; (4) build_controversy_clusters; (5) generate_position_summaries; (6) generate_viewpoints. Single cron invokes all steps in order.
 
-**Request body (optional):** `max_claims` (1–50, default 50), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
+**Request body (optional):** `dry_run` (boolean), `skip_classify` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
-**Cron (pg_cron):** [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) — every hour. **Unschedule** `claim-to-thesis-every-2min` and `label-thesis-every-10min` when switching to the new engine.
+**Cron (pg_cron):** [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) — `refresh_claim_eligibility` daily at 3am UTC; `classify_claim_pairs` every 15 min; `clustering_pipeline` (skip_classify) on 1st and 15th at 2am UTC. **Unschedule** `claim-cluster-hourly` when switching.
+
+### refresh_claim_eligibility
+
+Reevaluates claims with `cluster_computed_at` older than 14 days via vector search (no LLM). Up to 500 claims/run. Resets 14-day timer if no new pairs; sets `needs_cluster_update = true` if new pairs found. **Secrets:** none (SUPABASE_URL, SERVICE_ROLE_KEY only).
+
+### classify_claim_pairs
+
+Populates claim_relationships for eligible claims (cluster_computed_at null OR needs_cluster_update true). Up to 25 claims/run. match_claims_nearest + LLM. Step 1 of clustering_pipeline. **Secrets:** `OPENAI_API_KEY`.
+
+### build_position_clusters
+
+Builds position clusters from supporting edges. Connected components + enforced split (MIN=2, MAX=30). Step 2.
+
+### aggregate_position_pair_scores
+
+Populates position_pair_scores from claim_relationships + position_cluster_claims. Step 3.
+
+### build_controversy_clusters
+
+Reads position_pair_scores, creates controversy clusters (pairs) where score ≥ threshold. Step 4. **Secrets:** `OPENAI_API_KEY`.
+
+### generate_position_summaries
+
+LLM label + summary per position_cluster. Step 5. **Secrets:** `OPENAI_API_KEY`.
+
+### generate_viewpoints
+
+LLM viewpoint per (controversy, position). Step 6. **Secrets:** `OPENAI_API_KEY`.
+
+### claim_cluster_nightly — **deprecated**
+
+Replaced by **clustering_pipeline**. claim_clusters table dropped in migration 050. Unschedule when using new pipeline.
 
 ### claim_to_thesis (Postgres function) — **deprecated**
 
@@ -715,12 +813,15 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
 | link-canonical-claims-every-2min | link_canonical_claims | Every 2 min | [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) |
 | update-stance-every-20min | update_stances | Every 20 min | [cron_update_stance.sql](cron_update_stance.sql) |
-| claim-cluster-hourly | claim_cluster_nightly | Every hour | [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) |
+| refresh-claim-eligibility-daily | refresh_claim_eligibility | Daily 3am UTC (no LLM, 500/run) | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
+| classify-claim-pairs-every-15min | classify_claim_pairs | Every 15 min (LLM, 25/run) | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
+| clustering-rebuild-periodic | clustering_pipeline (skip_classify) | 1st & 15th, 2am UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
+| claim-cluster-hourly *(deprecated)* | claim_cluster_nightly | Every hour | [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) |
 | claim-to-thesis-every-2min *(deprecated)* | claim_to_thesis_run (SQL) | Every 2 min | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
 | label-thesis-every-10min *(deprecated)* | label_thesis | Every 10 min | [cron_label_thesis.sql](cron_label_thesis.sql) |
 | review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 
-**New engine:** Use `claim-cluster-hourly`; unschedule `claim-to-thesis-every-2min` and `label-thesis-every-10min` when switching. receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
+**New engine:** Use `refresh-claim-eligibility-daily`, `classify-claim-pairs-every-15min`, and `clustering-rebuild-periodic`; unschedule `claim-cluster-hourly`, `claim-to-thesis-every-2min`, and `label-thesis-every-10min` when switching. receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
 
 ### Deploy and secrets
 
@@ -730,7 +831,7 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `claim_cluster_nightly`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`.
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `refresh_claim_eligibility`, `classify_claim_pairs`, `build_position_clusters`, `aggregate_position_pair_scores`, `build_controversy_clusters`, `generate_position_summaries`, `generate_viewpoints`, `clustering_pipeline`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`.
 - **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/label_thesis`, `/process_topic`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 

@@ -1,3 +1,6 @@
+-- DEPRECATED: Use cron_clustering_pipeline.sql instead (position-controversy architecture).
+-- claim_cluster_nightly is deprecated; claim_clusters table was dropped in migration 050.
+--
 -- One-time setup: schedule claim_cluster_nightly Edge Function via pg_cron.
 -- Two-stage clustering (similarity + contradiction), controversy scoring, cluster labels.
 -- Runs every hour (at minute 0). Replaces claim_to_thesis and label_thesis.
@@ -13,6 +16,8 @@
 --   select cron.unschedule('claim-cluster-nightly');  -- if upgrading from nightly
 --
 -- To remove later: select cron.unschedule('claim-cluster-hourly');
+--
+-- When switching to new pipeline: unschedule this, run cron_clustering_pipeline.sql.
 
 select cron.schedule(
   'claim-cluster-hourly',
