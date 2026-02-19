@@ -1,5 +1,5 @@
 // Supabase Edge Function: generate_position_summaries.
-// Two modes in parallel: (1) LLM for cache misses up to 10, (2) sync from cache up to 500. No LLM for sync.
+// Two modes in parallel: (1) LLM for cache misses up to 30, (2) sync from cache up to 500. No LLM for sync.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { dry_run?: boolean }.
 
@@ -11,7 +11,7 @@ const corsHeaders = {
 };
 
 const DEFAULT_CHAT_MODEL = "gpt-4o-mini";
-const LLM_BATCH_SIZE = 10;
+const LLM_BATCH_SIZE = 30;
 const SYNC_BATCH_SIZE = 500;
 const MAX_POSITIONS_TO_SCAN = 600;
 
@@ -48,7 +48,7 @@ For each position: label = short 2-5 word stance name; summary = 2-5 sentences, 
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      max_tokens: Math.min(4000, 200 * positionsTexts.length + 500),
+      max_tokens: Math.min(10000, 250 * positionsTexts.length + 1000),
     }),
   });
 

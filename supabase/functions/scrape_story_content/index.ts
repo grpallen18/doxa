@@ -9,8 +9,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const CONTENT_MIN_LENGTH = 500;
-const COOLDOWN_MINUTES = 15;
 const WORKER_TIMEOUT_MS = 60_000;
 
 function json(body: unknown, status = 200) {
@@ -57,130 +55,84 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: storiesRaw, error: storiesErr } = await supabase
-    .from("stories")
-    .select("story_id, url")
-    .in("relevance_status", ["KEEP", "PENDING"])
-    .eq("being_processed", false)
-    .eq("scrape_skipped", false)
-    .is("scraped_at", null)
-    .order("created_at", { ascending: true })
-    .limit(10);
+  const { data: storiesRaw, error: rpcErr } = await supabase
+    .rpc("get_stories_ready_for_scrape", { p_limit: 1 });
 
-  if (storiesErr) {
-    console.error("[scrape_story_content] Stories fetch error:", storiesErr.message);
-    return json({ error: storiesErr.message }, 500);
+  if (rpcErr) {
+    console.error("[scrape_story_content] RPC error:", rpcErr.message);
+    return json({ error: rpcErr.message }, 500);
   }
 
-  const stories = (Array.isArray(storiesRaw) ? storiesRaw : []).filter(
-    (s): s is { story_id: string; url: string | null } =>
-      typeof s === "object" && s !== null && typeof (s as { story_id: string; url: string | null }).story_id === "string"
-  );
+  const stories = Array.isArray(storiesRaw) ? storiesRaw : [];
+  const story = stories[0] as { story_id: string; url: string | null } | undefined;
 
-  if (stories.length === 0) {
-    return json({ ok: true, dispatched: 0, message: "No KEEP or PENDING stories to scrape" });
+  if (!story?.story_id) {
+    return json({ ok: true, dispatched: 0, message: "No stories ready for scrape" });
   }
 
-  const storyIds = stories.map((s) => s.story_id);
-  const { data: bodiesRaw } = await supabase
-    .from("story_bodies")
-    .select("story_id, content_raw, content_length_raw")
-    .in("story_id", storyIds);
-
-  const bodiesMap = new Map<string, number>(
-    (Array.isArray(bodiesRaw) ? bodiesRaw : []).map((b) => {
-      const row = b as { story_id: string; content_raw?: string | null; content_length_raw?: number | null };
-      const len = row.content_length_raw ?? (row.content_raw ?? "").length;
-      return [row.story_id, len] as const;
-    })
-  );
-
-  const candidates = stories.filter((s) => {
-    const len = bodiesMap.get(s.story_id) ?? 0;
-    return len < CONTENT_MIN_LENGTH;
-  });
-
-  if (candidates.length === 0) {
-    return json({ ok: true, dispatched: 0, message: "No stories needing body" });
+  const url = (story.url ?? "").trim();
+  if (!url) {
+    return json({ ok: true, dispatched: 0, message: "Story has no URL" });
   }
 
-  const now = new Date();
-  const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
+  const domain = domainFromUrl(url);
+  if (!domain) {
+    return json({ ok: true, dispatched: 0, message: "Could not parse domain from URL" });
+  }
 
-  for (const story of candidates) {
-    const url = (story.url ?? "").trim();
-    if (!url) continue;
+  if (!dryRun) {
+    const { error: lockErr } = await supabase
+      .from("stories")
+      .update({ being_processed: true })
+      .eq("story_id", story.story_id);
 
-    const domain = domainFromUrl(url);
-    if (!domain) continue;
-
-    const { data: throttleRow } = await supabase
-      .from("domain_throttle")
-      .select("last_dispatched_at")
-      .eq("domain", domain)
-      .maybeSingle();
-
-    const lastAt = throttleRow?.last_dispatched_at;
-    if (lastAt) {
-      const last = new Date(lastAt).getTime();
-      if (now.getTime() - last < cooldownMs) continue;
+    if (lockErr) {
+      console.error("[scrape_story_content] Lock error:", lockErr.message);
+      return json({ error: lockErr.message }, 500);
     }
 
-    if (!dryRun) {
-      const { error: lockErr } = await supabase
-        .from("stories")
-        .update({ being_processed: true })
-        .eq("story_id", story.story_id);
+    const now = new Date();
+    await supabase.from("domain_throttle").upsert(
+      { domain, last_dispatched_at: now.toISOString() },
+      { onConflict: "domain" }
+    );
+  }
 
-      if (lockErr) {
-        console.error("[scrape_story_content] Lock error:", lockErr.message);
-        continue;
-      }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS);
 
-      await supabase.from("domain_throttle").upsert(
-        { domain, last_dispatched_at: now.toISOString() },
-        { onConflict: "domain" }
-      );
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS);
-
-    try {
-      const res = await fetch(`${WORKER_SCRAPE_URL}/scrape`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SCRAPE_SECRET}`,
-        },
-        body: JSON.stringify({ url, story_id: story.story_id, dry_run: dryRun }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) {
-        console.error("[scrape_story_content] Worker response:", res.status);
-        if (!dryRun) {
-          const { error: rpcErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
-            p_story_id: story.story_id,
-          });
-          if (rpcErr) console.error("[scrape_story_content] RPC error:", rpcErr.message);
-        }
-        return json({ error: `Worker returned ${res.status}`, story_id: story.story_id }, 502);
-      }
-      return json({ ok: true, dispatched: 1, story_id: story.story_id, dry_run: dryRun });
-    } catch (e) {
-      clearTimeout(timeoutId);
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[scrape_story_content] Worker request error:", msg);
+  try {
+    const res = await fetch(`${WORKER_SCRAPE_URL}/scrape`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SCRAPE_SECRET}`,
+      },
+      body: JSON.stringify({ url, story_id: story.story_id, dry_run: dryRun }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      console.error("[scrape_story_content] Worker response:", res.status);
       if (!dryRun) {
-        const { error: rpcErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
+        const { error: incErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
           p_story_id: story.story_id,
         });
-        if (rpcErr) console.error("[scrape_story_content] RPC error:", rpcErr.message);
+        if (incErr) console.error("[scrape_story_content] RPC error:", incErr.message);
       }
-      return json({ error: msg, story_id: story.story_id }, 502);
+      return json({ error: `Worker returned ${res.status}`, story_id: story.story_id }, 502);
     }
+    return json({ ok: true, dispatched: 1, story_id: story.story_id, dry_run: dryRun });
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[scrape_story_content] Worker request error:", msg);
+    if (!dryRun) {
+      const { error: incErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
+        p_story_id: story.story_id,
+      });
+      if (incErr) console.error("[scrape_story_content] RPC error:", incErr.message);
+    }
+    return json({ error: msg, story_id: story.story_id }, 502);
   }
-
-  return json({ ok: true, dispatched: 0, message: "No story outside domain cooldown" });
 });

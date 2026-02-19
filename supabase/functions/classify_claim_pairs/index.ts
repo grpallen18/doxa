@@ -1,5 +1,6 @@
 // Supabase Edge Function: classify_claim_pairs.
 // Populates claim_relationships for eligible claims (match_claims_nearest + LLM classification).
+// Batches up to 50 pairs per LLM call, max 250 pairs per run, up to 5 batches in parallel.
 // Extracted from claim_cluster_nightly; used by clustering_pipeline step 1.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_claims?: number, dry_run?: boolean }.
@@ -14,7 +15,8 @@ const corsHeaders = {
 const SIM_THRESHOLD = 0.65;
 const K = 20;
 const MAX_CLAIMS_PER_RUN = 25;
-const LLM_PARALLEL_BATCH = 8;
+const PAIRS_PER_BATCH = 50;
+const MAX_PAIRS_PER_RUN = 250;
 const DEFAULT_CHAT_MODEL = "gpt-4o-mini";
 
 type Relationship = "supports_same_position" | "contradicts" | "orthogonal" | "competing_framing";
@@ -49,20 +51,28 @@ function embeddingToStr(emb: number[]): string {
   return `[${emb.join(",")}]`;
 }
 
-async function classifyRelationship(
+async function classifyRelationshipBatch(
   apiKey: string,
   model: string,
-  claimA: string,
-  claimB: string
-): Promise<Relationship> {
-  const system = `Classify the relationship between two claims. Return exactly one of: supports_same_position, contradicts, orthogonal, competing_framing.
+  pairs: Array<{ textA: string; textB: string }>
+): Promise<Relationship[]> {
+  if (pairs.length === 0) return [];
+
+  const blocks = pairs
+    .map(
+      (p, i) =>
+        `Pair ${i + 1}:\nClaim A: ${p.textA}\nClaim B: ${p.textB}`
+    )
+    .join("\n\n");
+
+  const system = `Classify the relationship between each pair of claims below. For each pair, return exactly one of: supports_same_position, contradicts, orthogonal, competing_framing.
 - supports_same_position: Both claims assert the same or reinforcing positions.
 - contradicts: One claim directly contradicts the other.
 - orthogonal: Claims address different questions or are unrelated.
 - competing_framing: Claims answer the same underlying question differently (competing framings, not direct contradiction).
-Output only the single word. No preamble.`;
+Output only a JSON array of exactly ${pairs.length} strings in order, one per pair. No preamble.`;
 
-  const user = `Claim A: ${claimA}\n\nClaim B: ${claimB}`;
+  const user = `${blocks}\n\nOutput only the JSON array.`;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -76,7 +86,7 @@ Output only the single word. No preamble.`;
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      max_tokens: 30,
+      max_tokens: 1000,
     }),
   });
 
@@ -86,9 +96,21 @@ Output only the single word. No preamble.`;
   }
 
   const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  const content = (data?.choices?.[0]?.message?.content ?? "").trim().toLowerCase();
-  const match = content.match(/(supports_same_position|contradicts|orthogonal|competing_framing)/);
-  return (match ? match[1] : "orthogonal") as Relationship;
+  const content = (data?.choices?.[0]?.message?.content ?? "").trim();
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    if (!Array.isArray(parsed)) {
+      return pairs.map(() => "orthogonal" as Relationship);
+    }
+    const valid: Relationship[] = ["supports_same_position", "contradicts", "orthogonal", "competing_framing"];
+    return pairs.map((_, i) => {
+      const s = String(parsed[i] ?? "").toLowerCase();
+      const match = s.match(/(supports_same_position|contradicts|orthogonal|competing_framing)/);
+      return (match && valid.includes(match[1] as Relationship) ? match[1] : "orthogonal") as Relationship;
+    });
+  } catch {
+    return pairs.map(() => "orthogonal" as Relationship);
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -138,7 +160,16 @@ Deno.serve(async (req: Request) => {
   );
 
   if (eligibleClaims.length === 0) {
-    return json({ ok: true, processed: 0, message: "No eligible claims", dry_run: dryRun });
+    return json({
+      ok: true,
+      claims_processed: 0,
+      pairs_to_classify: 0,
+      pairs_classified: 0,
+      llm_calls: 0,
+      drained: true,
+      message: "No eligible claims",
+      dry_run: dryRun,
+    });
   }
 
   type PendingPair = { a: string; b: string; textA: string; textB: string; similarity: number };
@@ -194,40 +225,59 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  for (let i = 0; i < pendingPairs.length; i += LLM_PARALLEL_BATCH) {
-    const batch = pendingPairs.slice(i, i + LLM_PARALLEL_BATCH);
-    const results = await Promise.all(
-      batch.map(async (p) => {
-        try {
-          return await classifyRelationship(OPENAI_API_KEY, MODEL, p.textA, p.textB);
-        } catch (e) {
-          console.error("[classify_claim_pairs] LLM:", e);
-          return "orthogonal" as Relationship;
-        }
-      })
-    );
+  const toProcess = pendingPairs.slice(0, MAX_PAIRS_PER_RUN);
+  const batches: Array<typeof toProcess> = [];
+  for (let i = 0; i < toProcess.length; i += PAIRS_PER_BATCH) {
+    batches.push(toProcess.slice(i, i + PAIRS_PER_BATCH));
+  }
 
-    if (!dryRun && batch.length > 0) {
-      const rows = batch.map((p, j) => ({
-        claim_a_id: p.a,
-        claim_b_id: p.b,
-        relationship: results[j],
-        similarity_at_classification: p.similarity,
-        classified_at: new Date().toISOString(),
-      }));
-      await supabase.from("claim_relationships").upsert(rows, { onConflict: "claim_a_id,claim_b_id" });
+  const batchResults = await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const results = await classifyRelationshipBatch(
+          OPENAI_API_KEY,
+          MODEL,
+          batch.map((p) => ({ textA: p.textA, textB: p.textB }))
+        );
+        return { batch, results };
+      } catch (e) {
+        console.error("[classify_claim_pairs] LLM batch:", e);
+        return { batch, results: batch.map(() => "orthogonal" as Relationship) };
+      }
+    })
+  );
+
+  if (!dryRun) {
+    for (const { batch, results } of batchResults) {
+      if (batch.length > 0) {
+        const rows = batch.map((p, j) => ({
+          claim_a_id: p.a,
+          claim_b_id: p.b,
+          relationship: results[j] ?? ("orthogonal" as Relationship),
+          similarity_at_classification: p.similarity,
+          classified_at: new Date().toISOString(),
+        }));
+        await supabase.from("claim_relationships").upsert(rows, { onConflict: "claim_a_id,claim_b_id" });
+      }
     }
   }
 
-  await supabase
-    .from("claims")
-    .update({ cluster_computed_at: new Date().toISOString(), needs_cluster_update: false })
-    .in("claim_id", eligibleClaims.map((c) => c.claim_id));
+  const pairsClassified = batchResults.reduce((sum, { batch }) => sum + batch.length, 0);
+  const drained = pairsClassified < MAX_PAIRS_PER_RUN;
+  if (drained && !dryRun) {
+    await supabase
+      .from("claims")
+      .update({ cluster_computed_at: new Date().toISOString(), needs_cluster_update: false })
+      .in("claim_id", eligibleClaims.map((c) => c.claim_id));
+  }
 
   return json({
     ok: true,
-    processed: eligibleClaims.length,
-    pairs_classified: pendingPairs.length,
+    claims_processed: eligibleClaims.length,
+    pairs_to_classify: pendingPairs.length,
+    pairs_classified: pairsClassified,
+    llm_calls: batchResults.length,
+    drained,
     dry_run: dryRun,
   });
 });

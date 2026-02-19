@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
     /* use defaults */
   }
   const dryRun = Boolean(body.dry_run ?? false);
-  const skipClassify = Boolean(body.skip_classify ?? false);
+  const skipClassify = Boolean(body.skip_classify ?? true);
   const skipSummariesViewpoints = Boolean(body.skip_summaries_viewpoints ?? true);
 
   const steps: StepResult[] = [];
