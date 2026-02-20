@@ -42,13 +42,49 @@ const YELLOW = 0xffaa00;
 const RED = 0xff0000;
 
 function getHealthColor(row: HealthRow): number {
-  const stuck = Number(row.stuck_processing ?? 0);
-  const pending = Number(row.pending_stories_count ?? 0);
-  const awaitingScrape = Number(row.awaiting_scrape ?? 0);
-  const scrapeFailed = Number(row.scrape_failed ?? 0);
-  if (stuck > 0) return RED;
-  if (pending > 100 || awaitingScrape > 50 || scrapeFailed > 5) return YELLOW;
+  const pipelineMetrics = [
+    row.stories_ingested,
+    row.stories_approved,
+    row.stories_dropped,
+    row.stories_scraped,
+    row.scrape_failed,
+    row.stories_cleaned,
+    row.chunks_created,
+    row.chunks_extracted,
+    row.merges_completed,
+    row.story_claims_created,
+    row.claims_created,
+  ];
+  const backlogMetrics = [
+    row.pending_stories_count,
+    row.awaiting_scrape,
+    row.awaiting_cleaning,
+    row.awaiting_merge,
+    row.unclassified_stories,
+    row.stuck_processing,
+  ];
+  const anyPipelineLow = pipelineMetrics.some((n) => Number(n ?? 0) < 50);
+  const anyBacklogHigh = backlogMetrics.some((n) => Number(n ?? 0) > 50);
+  if (anyPipelineLow) return RED;
+  if (anyBacklogHigh) return YELLOW;
   return GREEN;
+}
+
+function getHealthSummary(row: HealthRow): string {
+  const pipelineMetrics = [
+    row.stories_ingested, row.stories_approved, row.stories_dropped, row.stories_scraped,
+    row.scrape_failed, row.stories_cleaned, row.chunks_created, row.chunks_extracted,
+    row.merges_completed, row.story_claims_created, row.claims_created,
+  ];
+  const backlogMetrics = [
+    row.pending_stories_count, row.awaiting_scrape, row.awaiting_cleaning,
+    row.awaiting_merge, row.unclassified_stories, row.stuck_processing,
+  ];
+  const anyPipelineLow = pipelineMetrics.some((n) => Number(n ?? 0) < 50);
+  const anyBacklogHigh = backlogMetrics.some((n) => Number(n ?? 0) > 50);
+  if (anyPipelineLow) return "Uh oh! Doxa's engine is failing. Address it soon to get things back up and running.";
+  if (anyBacklogHigh) return "Heads up — backlogs are growing. Worth a look before things get worse.";
+  return "Doxa is running smoothly. Hooray!";
 }
 
 function formatNum(n: unknown): string {
@@ -63,8 +99,8 @@ function buildEmbeds(row: HealthRow): Record<string, unknown>[] {
   const color = getHealthColor(row);
 
   const pipeline: Record<string, unknown> = {
-    title: "Pipeline (24h)",
-    description: date,
+    title: `Daily Health Check (${date})`,
+    description: "In the last 24 hours...",
     color,
     fields: [
       { name: "Stories Ingested", value: formatNum(row.stories_ingested), inline: true },
@@ -83,6 +119,7 @@ function buildEmbeds(row: HealthRow): Record<string, unknown>[] {
 
   const backlogs: Record<string, unknown> = {
     title: "Backlogs",
+    description: "are currently running at...",
     color,
     fields: [
       { name: "Pending", value: formatNum(row.pending_stories_count), inline: true },
@@ -90,19 +127,13 @@ function buildEmbeds(row: HealthRow): Record<string, unknown>[] {
       { name: "Awaiting Clean", value: formatNum(row.awaiting_cleaning), inline: true },
       { name: "Awaiting Merge", value: formatNum(row.awaiting_merge), inline: true },
       { name: "Unclassified", value: formatNum(row.unclassified_stories), inline: true },
-    ],
-  };
-
-  const health: Record<string, unknown> = {
-    title: "Health",
-    color,
-    fields: [
       { name: "Stuck Processing", value: formatNum(row.stuck_processing), inline: true },
     ],
   };
 
-  const clustering: Record<string, unknown> = {
-    title: "Clustering",
+  const semanticEngine: Record<string, unknown> = {
+    title: "Semantic Engine",
+    description: "we've generated and/or reprocessed...",
     color,
     fields: [
       { name: "Claim Pairs (24h)", value: formatNum(row.claim_relationships_24h), inline: true },
@@ -115,7 +146,7 @@ function buildEmbeds(row: HealthRow): Record<string, unknown>[] {
     ],
   };
 
-  return [pipeline, backlogs, health, clustering];
+  return [pipeline, backlogs, semanticEngine];
 }
 
 function jsonResponse(body: object, status: number, headers: Record<string, string> = {}) {
@@ -155,12 +186,14 @@ Deno.serve(async (req: Request) => {
   }
 
   let embeds: Record<string, unknown>[];
+  let content: string | undefined;
   if (isTest) {
     embeds = [{
       title: "Doxa Test",
       description: "Webhook test successful.",
       color: 0x3498db,
     }];
+    content = "All good — webhook test passed!";
   } else {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -180,9 +213,11 @@ Deno.serve(async (req: Request) => {
     }
 
     embeds = buildEmbeds(row as HealthRow);
+    content = getHealthSummary(row as HealthRow);
   }
 
   const payload: Record<string, unknown> = { embeds };
+  if (content) payload.content = content;
   const threadName = Deno.env.get("DISCORD_THREAD_NAME")?.trim();
   if (threadName) {
     payload.thread_name = threadName;

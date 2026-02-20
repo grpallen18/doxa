@@ -135,7 +135,7 @@ npm install
 ```
 
 2. **Set up Supabase database:**
-   - See `supabase/README.md` for schema overview and `supabase/SETUP_INSTRUCTIONS.md` for step-by-step setup (run migrations and seed in order).
+   - See `supabase/README.md` for schema overview and migration/seed instructions.
 
 3. **Set up environment variables:**
    - Create `.env.local` file in the root directory
@@ -229,6 +229,8 @@ The following are out of scope for the current phase and should be tackled later
 - **Trending data:** The home page shows KEEP stories from the pipeline (ingest → relevance_gate). Future: traffic, multi-outlet coverage, or curated lists.
 - **Search API:** Wire the search bar to a backend that searches topics by query (e.g. by headline/topic).
 - **Ideology engine:** Doxa's proprietary system that computes a user's **factor ratings** (e.g. fiscal, social, foreign policy) from behavior—not user-controlled; displayed as read-only on the profile. Plus an **overall ideology** assignment. When implementing, consider existing **political science grading systems** (e.g. for categorizing people into named ideologies).
-- **Viewpoint votes and validations:** Removed for now; can be re-added later with new schema.
+- **Validation loop:** User feedback on viewpoint representation ("Is your viewpoint fairly represented?") — on hold until viewpoints and UI are more developed. Will require new schema.
+- **topic_version:** Immutable topic versions (Core Facts, Viewpoint Clusters, coverage analysis) with audit trail — topic pages point to latest; older versions remain auditable.
+- **Viewpoint votes and validations:** User validation of representation — on hold; see Validation loop above. Will be re-added with new schema once viewpoints and UI are ready.
 - **NewsAPI idempotency:** Check that the NewsAPI edge function (ingest-newsapi) is idempotent—i.e. repeated runs with the same data do not create duplicate sources or stories and behave predictably (e.g. upsert by URL, source name).
 - **Paid features:** None for now. If paid tiers are introduced later (e.g. poll participation, features that influence the feedback loop), document the model in this README.

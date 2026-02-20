@@ -30,25 +30,16 @@ Trust is procedural, not institutional.
 ========================================
 CORE UNIT: DOXA TOPIC
 ========================================
-A Doxa topic answers ONE narrowly scoped political question.
+A Doxa topic is like a Wikipedia topic: a broad, navigable subject people read about.
 
 Examples:
-- “Are undocumented immigrants eligible for welfare programs?”
-- “What happened during the Minneapolis ICE protest?”
-- “What does CBP mean by an ‘encounter’?”
+- "Immigration"
+- "NATO"
+- "2024 Presidential Election"
+- "The border crisis"
 
-NOT:
-- “Immigration”
-- “The border crisis”
+Topics are NOT phrased as questions or hyper-specific. They are subjects people browse in a wiki - familiar, linkable, and reusable across the knowledge graph.
 
-Each topic must be:
-- Narrow
-- Concrete
-- Reusable
-- Linkable to many other nodes
-
-========================================
-MULTI-PERSPECTIVE MODEL
 ========================================
 An SBS node may contain MORE THAN TWO perspectives.
 
@@ -76,7 +67,7 @@ DOXA TOPIC STRUCTURE (FLEXIBLE, BUT STRICT)
 ========================================
 Every Doxa topic contains:
 
-1. Question (clear, neutral, narrow)
+1. Topic title (clear, neutral)
 2. Viewpoint Sections (N viewpoints)
    For EACH perspective:
    - Core claim
@@ -147,7 +138,7 @@ For each perspective:
 Possible global states:
 - Most perspectives validate → node is stable
 - One or more perspectives fail → revise ONLY those sections
-- Most perspectives fail → question is mis-scoped
+- Most perspectives fail → topic is mis-scoped
 
 ========================================
 REVISION VS NEW NODE DECISION
@@ -159,7 +150,7 @@ REVISE CURRENT NODE if feedback indicates:
 - Outdated interpretation
 
 CREATE A NEW NODE if feedback indicates:
-- The question is doing too much
+- The topic is doing too much
 - Disagreement is driven by definitions or metrics
 - Users repeatedly ask the same follow-up question
 - Multiple concepts are being conflated
@@ -207,7 +198,7 @@ AI IS NOT USED FOR:
 ========================================
 ANTI-SLOP SAFEGUARDS
 ========================================
-- No node without a clear question
+- No node without a clear topic
 - No node without minimum source counts
 - No node promoted to “Stable” without validation thresholds
 - New nodes are demand-driven, not AI-pushed

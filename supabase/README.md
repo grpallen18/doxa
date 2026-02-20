@@ -1,12 +1,11 @@
 # Doxa Backend (Supabase)
 
-This document describes the Doxa database schema, data dictionary, table purposes, and how tables relate. It is the source of truth for backend/data intentions. For step-by-step setup of the current migrations, see [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md).
+This document describes the Doxa database schema, data dictionary, table purposes, and how tables relate. It is the source of truth for backend/data intentions. For step-by-step setup, run migrations in order and seed (see Quick setup below).
 
 ## Quick setup
 
-1. Run migrations in order (SQL Editor): `001_initial_schema.sql` through `021_claims_nearest_claim_rpc.sql`.
+1. Run migrations in order (SQL Editor): `001_initial_schema.sql` through the latest migration.
 2. Seed the database: run [seed_new_schema.sql](seed_new_schema.sql) in the Supabase SQL Editor (paste the file contents and run). See **Seeding** below for details.
-3. See [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md) for detailed instructions and verification (if that file exists).
 
 **Note:** The data dictionary below describes the **target schema** for the pipeline/ingestion model. Migrations 010 and 011 refactor topics and add the new tables; seed_new_schema.sql populates them.
 
@@ -31,7 +30,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### stories
 
-**Purpose:** One row per ingested article/story. Rolls up to sources. Relevance fields are filled by cron #2 (classify ingested stories into KEEP/DROP). Full article text is stored in **story_bodies**; stories holds only scrape status flags (`being_processed`, `scrape_skipped`, `scrape_fail_count`).
+**Purpose:** One row per ingested article/story. Rolls up to sources. Relevance fields are filled by cron #2 (classify ingested stories into KEEP/DROP). Full article text is stored in **story_bodies**; stories holds scrape status flags (`being_processed`, `scrape_skipped`, `scrape_fail_count`).
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -43,7 +42,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `published_at` | timestamptz (nullable) | Publication time. |
 | `fetched_at` | timestamptz | When the story was fetched. |
 | `content_snippet` | text (nullable) | Short snippet. |
-| `content_full` | text (nullable) | Full text from NewsAPI (optional). |
+| `content_full` | text (nullable) | Truncated excerpt from NewsAPI (not full article). Used for relevance_gate pre-scrape classification; full content lives in story_bodies. |
 | `language` | text (nullable) | Language. |
 | `metadata` | jsonb | NewsAPI payload, tags, etc. |
 | `created_at` | timestamptz | When the row was created. |
@@ -64,7 +63,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### story_bodies
 
-**Purpose:** Full article text scraped from story URLs. One row per story. Written by **receive_scraped_content** (called by the Cloudflare Worker after scraping). **clean_scraped_content** cleans `content_raw` with an LLM and writes `content_clean`. Chunking and re-review use `content_clean`.
+**Purpose:** Full article text scraped from story URLs. One row per story. Written by **receive_scraped_content** (called by the Cloudflare Worker after scraping). **clean_scraped_content** cleans `content_raw` with an LLM and writes `content_clean`. Chunking and re-review use `content_clean`. This table segments large article text for storage/query efficiency — full content could conceptually live on stories but is separated here for large-text handling.
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -209,7 +208,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 | `location` | text (nullable) | Location. |
 | `embedding` | vector/array (nullable) | If using pgvector. |
 | `metadata` | jsonb | Entities, normalization notes, etc. |
-| `cluster_computed_at` | timestamptz (nullable) | Set when processed by claim_cluster_nightly; null = not yet clustered. |
+| `cluster_computed_at` | timestamptz (nullable) | Set when processed by clustering pipeline; null = not yet clustered. |
 | `created_at` | timestamptz | When the claim was created. |
 | `updated_at` | timestamptz | Last update. |
 
@@ -254,26 +253,9 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ---
 
-### claim_evidence_links
+**Note:** Phase 2 canonical claim–evidence links (`claim_evidence_links`) were never implemented and the table was dropped in migration 066. Evidence remains story-local via story_claim_evidence_links.
 
-**Purpose:** Canonical claim ↔ evidence links for aggregation and drilldown (Phase 2 “lift”: “This cross-story canonical claim relates to the evidence in this story.”).
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| `claim_id` | uuid (FK → claims.claim_id) | Which canonical claim. |
-| `evidence_id` | uuid (FK → story_evidence.evidence_id) | Which evidence. |
-| `relation_type` | text | supports \| contradicts \| contextual. |
-| `confidence` | numeric | Confidence. |
-| `rationale` | text (nullable) | Short explanation. |
-| `link_origin` | text | intra_story \| cross_story. |
-| `origin_story_id` | uuid (FK → stories.story_id, nullable) | Where link was discovered. |
-| `origin_story_claim_id` | uuid (FK → story_claims.story_claim_id, nullable) | Origin story-claim. |
-| `run_id` | uuid (FK → pipeline_runs.run_id, nullable) | Which run produced this. |
-| `created_at` | timestamptz | When the link was created. |
-
-**Keys:** Recommend unique `(claim_id, evidence_id, relation_type, origin_story_id)`.
-
----
 
 ### archetypes
 
@@ -578,8 +560,8 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 - Use uuid PKs everywhere; add appropriate indexes on FK columns and `published_at`.
 - Keep ingestion tables (`stories`, `story_claims`, `story_evidence`) topic-agnostic; scope by `topic_stories`.
-- Canonical/derived layers are topic-scoped (`theses`, `viewpoints`, `global_viewpoints`) and use bridge tables for flexibility.
-- Evidence is stored as story-scoped artifacts (`story_evidence`), but is claim-aggregated via `claim_evidence_links` after canonicalization.
+- Canonical/derived layers use **position_clusters**, **controversy_clusters**, and **controversy_viewpoints**. Legacy theses/viewpoints are obsolete.
+- Evidence is stored as story-scoped artifacts (`story_evidence`); Phase 2 claim–evidence aggregation was never implemented (table dropped in migration 066).
 
 ---
 
@@ -589,7 +571,7 @@ The **target** Doxa backend is built around:
 
 1. **Ingestion:** **sources** (publishers) and **stories** (articles). **topic_stories** assigns stories to topics.
 2. **Extraction:** **story_claims** (raw claims per story) and **story_evidence** (quotes, stats, citations). **story_claim_evidence_links** ties evidence to story-claims (Phase 1).
-3. **Canonical layer:** **claims** (normalized, de-duplicated). **claim_evidence_links** ties canonical claims to evidence (Phase 2).
+3. **Canonical layer:** **claims** (normalized, de-duplicated). Phase 2 claim–evidence links were never implemented (table dropped in 066).
 4. **Lenses:** **archetypes** (economic, legal, moral, etc.). **claim_archetypes** assigns claims to archetypes.
 5. **Clustering (new):** **position_clusters** (supporting-claim stances) → **controversy_clusters** (opposing positions). **position_cluster_claims**, **position_pair_scores**, **controversy_cluster_positions**, **controversy_viewpoints**. **claim_relationships** caches LLM pair classifications.
 6. **Clustering (legacy):** **theses** (claim clusters per topic + archetype). **thesis_claims** links claims to theses. Kept for Atlas; migrate later.
@@ -612,16 +594,10 @@ sources ─── source_id ──┬── stories (story_id)
                         │
 topics (topic_id) ──────┼── topic_stories ─── story_id ──► stories
                         │
-                        ├── topic_theses ─── thesis_id ──► theses (embedding-based linking)
+                        ├── topic_theses ─── thesis_id ──► theses (legacy; obsolete)
                         ├── topic_relationships ──► topics (topic-to-topic, symmetric)
-                        │
-                        ├── theses (topic_id, archetype_id) ── thesis_claims ──► claims
-                        ├── viewpoints (topic_id, archetype_id) ── viewpoint_theses ──► theses
-                        └── global_viewpoints ── global_viewpoint_members ──► viewpoints
 
 archetypes (archetype_id) ── claim_archetypes ──► claims
-
-claims ◄── claim_evidence_links ──► story_evidence
 
 claims ◄── position_cluster_claims ──► position_clusters (stance groups)
 position_clusters ◄── position_pair_scores ──► position_clusters (aggregated cross-edges)
@@ -630,13 +606,13 @@ controversy_clusters ◄── controversy_viewpoints ──► position_cluster
 claims ◄── claim_relationships (claim_a_id, claim_b_id) ──► claims (LLM pair cache)
 
 pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_evidence,
-  story_claim_evidence_links, claim_evidence_links, claim_archetypes, theses,
-  thesis_claims, viewpoints, viewpoint_theses, global_viewpoints, global_viewpoint_members
+  story_claim_evidence_links, claim_archetypes, theses, thesis_claims,
+  viewpoints, viewpoint_theses (legacy); position_clusters, controversy_clusters, controversy_viewpoints (active)
 ```
 
 - **Stories** are topic-agnostic; **topic_stories** scopes them to topics.
-- **Canonical claims** are linked to **story_evidence** via **claim_evidence_links**; **story_claim_evidence_links** is story-local (Phase 1).
-- **Theses** and **viewpoints** are topic- and archetype-scoped; **global_viewpoints** is the UX-facing consolidation per topic.
+- **Evidence** is story-local via **story_claim_evidence_links** (Phase 1); Phase 2 canonical claim–evidence links were never implemented.
+- **Theses** and **viewpoints** (legacy) are topic- and archetype-scoped; the active pipeline uses **position_clusters** → **controversy_clusters** → **controversy_viewpoints**.
 
 ---
 
@@ -678,6 +654,7 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `056_orphan_cleanup_rpc.sql` | RPC run_orphan_cleanup: delete inactive positions/controversies (7+ days), purge lineage (30+ days). |
 | `057_upsert_position_clusters_ambiguous_c_fix.sql` | Fix ambiguous column "c" in upsert_position_clusters_batch (orphan block alias). |
 | `058_sync_position_summaries_from_cache_rpc.sql` | RPC sync_position_summaries_from_cache: bulk-update position_clusters from cache (no LLM). |
+| `066_drop_claim_evidence_links.sql` | Drop claim_evidence_links (Phase 2 canonical evidence layer never implemented). |
 
 After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims. Run 050 for the position-controversy clustering engine (replaces 047–049). Run 051 for split refresh/classify scaling. Run 052–058 for iterative upsert (zero-downtime rebuilds).
 
@@ -803,27 +780,13 @@ Two modes run in parallel: (1) LLM for cache misses (up to 10 per call); (2) syn
 
 LLM viewpoint per (controversy, position). New-only (skips links with existing viewpoint); positions must have label. max_viewpoints default 25. Step 6. **Secrets:** `OPENAI_API_KEY`.
 
-### claim_cluster_nightly — **deprecated**
+### claim_cluster_nightly — **removed**
 
-Replaced by **clustering_pipeline**. claim_clusters table dropped in migration 050. Unschedule when using new pipeline.
-
-### claim_to_thesis (Postgres function) — **deprecated**
-
-Clusters canonical claims into theses by embedding similarity. **Deprecated:** replaced by **claim_cluster_nightly**. Unschedule when using the new claim cluster engine.
-
-**Cron (pg_cron):** [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) — every 2 minutes. Runs `SELECT claim_to_thesis_run(5);` (no HTTP, no Vault).
-
-### label_thesis — **deprecated**
-
-Finds theses with the biggest centroid-vs-text discrepancy, fetches representative claims, calls the LLM to produce one thesis sentence. **Deprecated:** replaced by **claim_cluster_nightly** (cluster labels). Unschedule when using the new claim cluster engine.
-
-**Request body (optional):** `dry_run` (boolean), `batch_theses` (1–20, default 10). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (chat + embedding).
-
-**Cron (pg_cron):** [cron_label_thesis.sql](cron_label_thesis.sql) — every 10 minutes (optional).
+Replaced by **clustering_pipeline**. Function and cron removed; claim_clusters table was dropped in migration 050.
 
 ### process_topic
 
-Creates or processes a topic: (1) LLM expands title to description, (2) embeds and stores in topic_embedding, (3) links theses via match_theses_nearest (similarity ≥ 0.60), (4) synthesizes 1,000–1,500 word summary from linked thesis_text, (5) re-embeds title+summary, (6) links related topics via match_topics_nearest (similarity ≥ 0.70, cap 10). Invoked manually or via Admin UI.
+Creates or processes a topic: (1) LLM expands title to description, (2) embeds and stores in topic_embedding, (3) links theses via match_theses_nearest (similarity ≥ 0.60), (4) synthesizes 1,000–1,500 word summary from linked thesis_text, (5) re-embeds title+summary, (6) links related topics via match_topics_nearest (similarity ≥ 0.70, cap 10). Invoked manually or via Admin UI. **On hold:** uses legacy theses; will be overhauled when backend migration to controversy_viewpoints is complete.
 
 **Request body:** `{ title?: string, topic_id?: string }` — either create new topic by title, or process existing topic by id.
 
@@ -858,12 +821,12 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | generate-position-summaries-every-6h | generate_position_summaries | Every 6h at :00 UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
 | generate-viewpoints-every-6h | generate_viewpoints | Every 6h at :30 UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
 | orphan-cleanup-weekly | run_orphan_cleanup (RPC) | Sundays 4am UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
-| claim-cluster-hourly *(removed)* | claim_cluster_nightly | — | [cron_claim_cluster_nightly.sql](cron_claim_cluster_nightly.sql) |
-| claim-to-thesis-every-2min *(removed)* | claim_to_thesis_run (SQL) | — | [cron_claim_to_thesis.sql](cron_claim_to_thesis.sql) |
-| label-thesis-every-10min *(removed)* | label_thesis | — | [cron_label_thesis.sql](cron_label_thesis.sql) |
+| cleanup-cron-job-run-details-daily | DELETE cron.job_run_details | Daily 4:30am UTC (2-day retention) | [cron_cleanup_logs.sql](cron_cleanup_logs.sql) |
+| cleanup-http-responses-hourly | DELETE net._http_response | Every hour (1-hour retention) | [cron_cleanup_logs.sql](cron_cleanup_logs.sql) |
+| claim-cluster-hourly *(removed)* | claim_cluster_nightly | — | *(function and cron removed)* |
 | review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 
-**New engine:** Use `refresh-claim-eligibility-daily`, `classify-claim-pairs-every-15min`, `clustering-upsert-periodic`, `generate-position-summaries-every-6h`, and `generate-viewpoints-every-6h`. Deprecated crons (claim-cluster-hourly, claim-to-thesis-every-2min, label-thesis-every-10min) have been removed. receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
+**New engine:** Use `refresh-claim-eligibility-daily`, `classify-claim-pairs-every-15min`, `clustering-upsert-periodic`, `generate-position-summaries-every-6h`, and `generate-viewpoints-every-6h`. Deprecated crons (claim-cluster-hourly, claim-to-thesis, label-thesis) have been removed; their SQL files are deleted. receive_scraped_content has no cron; it is invoked by the Cloudflare Worker after scrape_story_content triggers the Worker. Prerequisites for all: pg_cron and pg_net enabled; Vault secrets `project_url` and `service_role_key`. To change a schedule: `cron.unschedule('job-name')` then run the updated SQL file.
 
 ### Deploy and secrets
 
@@ -873,7 +836,7 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `refresh_claim_eligibility`, `classify_claim_pairs`, `build_position_clusters`, `aggregate_position_pair_scores`, `build_controversy_clusters`, `generate_position_summaries`, `generate_viewpoints`, `clustering_pipeline`, `label_thesis`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`. **Clustering sub-functions** must be deployed with `--no-verify-jwt` so clustering_pipeline can invoke them (config.toml alone may not apply on updates). Redeploy with:
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `refresh_claim_eligibility`, `classify_claim_pairs`, `build_position_clusters`, `aggregate_position_pair_scores`, `build_controversy_clusters`, `generate_position_summaries`, `generate_viewpoints`, `clustering_pipeline`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`. **Clustering sub-functions** must be deployed with `--no-verify-jwt` so clustering_pipeline can invoke them (config.toml alone may not apply on updates). Redeploy with:
 ```
 supabase functions deploy classify_claim_pairs --no-verify-jwt
 supabase functions deploy build_position_clusters --no-verify-jwt
@@ -882,7 +845,7 @@ supabase functions deploy build_controversy_clusters --no-verify-jwt
 supabase functions deploy generate_position_summaries --no-verify-jwt
 supabase functions deploy generate_viewpoints --no-verify-jwt
 ```
-- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/label_thesis`, `/process_topic`)
+- **Invoke (test):** `curl -L -X POST 'https://<project_ref>.supabase.co/functions/v1/ingest-newsapi' -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' -H 'Content-Type: application/json' -d '{}'` (or `/relevance_gate`, `/chunk_story_bodies`, `/extract_chunk_claims`, `/merge_story_claims`, `/link_canonical_claims`, `/update_stances`, `/process_topic`)
 - **Cron:** See [Cron jobs (pg_cron)](#cron-jobs-pg_cron-all-times-cst) above. Run each SQL file once (after Vault is set up); to update a schedule, unschedule the job then run the script again.
 
 ---
@@ -907,7 +870,7 @@ When you review this doc and the target schema:
 
 1. **Tables and keys:** Confirm that every table and PK/unique in the data dictionary matches product intentions (ingestion → extraction → canonical → clustering → synthesis → narratives).
 2. **Column names and types:** Check that types (uuid, text, jsonb, numeric, timestamptz, optional vector) and key columns (e.g. `canonical_hash`, `run_id`, `assignment_method`) match how the pipeline and app will use them.
-3. **Relationships:** Confirm FKs and recommended unique constraints (e.g. claim_evidence_links, topic_stories) match business rules.
+3. **Relationships:** Confirm FKs and recommended unique constraints (e.g. topic_stories) match business rules.
 4. **RLS and access:** Ensure read/write rules for the new tables will match who can see or edit what (public read for published content; pipeline/service role for writes).
 
 Once you’ve reviewed, we can adjust this README and add migrations so the backend evolves toward the data dictionary above.

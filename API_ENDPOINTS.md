@@ -31,9 +31,9 @@
 - List publisher sources (new schema: name, domain, bias_tags)
 - Returns: Array of source objects
 
-### Topic graph (removed)
+### Topic graph
 
-The previous graph API (`/api/graph`, `/api/graph/[id]/neighbors`) and `topic_relationships` table have been removed. The `/graph` page now shows a topic list; related-topics can be re-added later via a `topic_links` table if needed.
+The previous graph API (`/api/graph`, `/api/graph/[id]/neighbors`) and interactive graph visualization have been removed. The `/graph` page now shows a topic list. The `topic_relationships` table exists and is used for related topics on topic detail pages; a dedicated graph API can be re-added later if needed.
 
 ## Response Format
 
