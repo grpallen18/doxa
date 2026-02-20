@@ -138,9 +138,10 @@ export interface Narrative {
   created_at: string
 }
 
-export interface TopicThesis {
-  thesis_id: string
-  thesis_text: string | null
+export interface TopicControversy {
+  controversy_cluster_id: string
+  question: string | null
+  summary: string | null
   similarity_score: number
   rank: number
 }
@@ -153,8 +154,6 @@ export interface TopicRelationship {
 }
 
 export interface TopicWithDetails extends Topic {
-  viewpoints: Viewpoint[]
-  stories?: Story[]
-  theses?: TopicThesis[]
+  controversies?: TopicControversy[]
   related_topics?: TopicRelationship[]
 }

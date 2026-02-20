@@ -1,6 +1,7 @@
 // Supabase Edge Function: build_controversy_clusters.
 // Reads position_pair_scores, creates controversy clusters (pairs) where score >= threshold.
-// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
+// Embeds the debate question for topic similarity search (match_controversies_nearest).
+// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL, OPENAI_EMBEDDING_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { dry_run?: boolean, min_controversy_score?: number }.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -12,6 +13,8 @@ const corsHeaders = {
 
 const MIN_CONTROVERSY_SCORE = 1; // at least 1 contradictory or competing edge
 const DEFAULT_CHAT_MODEL = "gpt-4o-mini";
+const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+const DEFAULT_EMBEDDING_DIMS = 1536;
 
 async function sha256Hex(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -70,6 +73,31 @@ Neutral question:`;
   return (data?.choices?.[0]?.message?.content ?? "What is the debate?").trim().slice(0, 500);
 }
 
+async function getEmbedding(apiKey: string, text: string, model: string): Promise<number[]> {
+  const resp = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ input: text, model }),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`OpenAI embeddings ${resp.status}: ${err.slice(0, 300)}`);
+  }
+  const data = (await resp.json()) as { data?: Array<{ embedding?: number[] }> };
+  const emb = data?.data?.[0]?.embedding;
+  if (!Array.isArray(emb) || emb.length !== DEFAULT_EMBEDDING_DIMS) {
+    throw new Error("Invalid embedding response");
+  }
+  return emb;
+}
+
+function embeddingToString(emb: number[]): string {
+  return `[${emb.join(",")}]`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
@@ -78,6 +106,7 @@ Deno.serve(async (req: Request) => {
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
   const MODEL = Deno.env.get("OPENAI_MODEL") ?? DEFAULT_CHAT_MODEL;
+  const EMBEDDING_MODEL = Deno.env.get("OPENAI_EMBEDDING_MODEL") ?? Deno.env.get("OPENAI_MODEL") ?? DEFAULT_EMBEDDING_MODEL;
 
   if (!SUPABASE_URL || !SERVICE_ROLE) {
     return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }, 500);
@@ -121,6 +150,7 @@ Deno.serve(async (req: Request) => {
     question: string;
     label_a: string;
     label_b: string;
+    question_embedding?: string;
   }> = [];
 
   for (const p of pairs) {
@@ -178,6 +208,16 @@ Deno.serve(async (req: Request) => {
     const fpInput = [p.position_a_id, p.position_b_id].sort().join("|");
     const fingerprint = await sha256Hex(fpInput);
 
+    let questionEmbedding: string | undefined;
+    if (OPENAI_API_KEY && question && question !== "What is the debate?") {
+      try {
+        const emb = await getEmbedding(OPENAI_API_KEY, question, EMBEDDING_MODEL);
+        questionEmbedding = embeddingToString(emb);
+      } catch (e) {
+        console.error("[build_controversy_clusters] Embed question:", e);
+      }
+    }
+
     pControversies.push({
       fingerprint,
       position_a_id: p.position_a_id,
@@ -185,6 +225,7 @@ Deno.serve(async (req: Request) => {
       question,
       label_a: labelA,
       label_b: labelB,
+      question_embedding: questionEmbedding,
     });
   }
 

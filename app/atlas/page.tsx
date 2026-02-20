@@ -70,6 +70,7 @@ export default function AtlasPage() {
     edges: VizEdge[]
     sourceDetails: SourceDetail[]
     thesisText: string | null
+    viewpointText: string | null
   } | null>(null)
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const [expandedStoryKey, setExpandedStoryKey] = useState<string | null>(null)
@@ -152,6 +153,7 @@ export default function AtlasPage() {
             edges: d.data.edges ?? [],
             sourceDetails: d.data.sourceDetails ?? [],
             thesisText: d.data.thesisText ?? null,
+            viewpointText: d.data.viewpointText ?? null,
           })
         } else {
           setMapData(null)
@@ -227,7 +229,7 @@ export default function AtlasPage() {
           <ResizablePanelGroup orientation={isHorizontal ? 'horizontal' : 'vertical'}>
             <ResizablePanel defaultSize={20} minSize={10}>
               <AtlasNodeTestCanvas
-                thesisNode={mapData?.nodes.find((n) => n.entity_type === 'thesis') ?? null}
+                centerNode={mapData?.nodes.find((n) => n.entity_type === 'thesis' || n.entity_type === 'viewpoint') ?? null}
                 sourceDetails={mapData?.sourceDetails ?? []}
                 hoveredSourceId={
                   spotlightSourceId ?? expandedSourceId ?? hoveredSourceId
@@ -249,23 +251,25 @@ export default function AtlasPage() {
                   )}
                 >
                 {(() => {
-                  const thesis = mapData?.nodes.find((n) => n.entity_type === 'thesis')
+                  const centerNode = mapData?.nodes.find((n) => n.entity_type === 'thesis' || n.entity_type === 'viewpoint')
                   const selectedMap = maps.find((m) => m.id === selectedMapId)
-                  if (!thesis) {
+                  if (!centerNode) {
                     return (
-                      <p className="text-sm text-muted">Select a map to view thesis details.</p>
+                      <p className="text-sm text-muted">Select a map to view details.</p>
                     )
                   }
 
                   const sources = mapData?.sourceDetails ?? []
+                  const centerLabel = centerNode.entity_type === 'viewpoint' ? 'Viewpoint' : 'Thesis'
+                  const centerText = mapData?.viewpointText ?? mapData?.thesisText ?? selectedMap?.name ?? centerNode.entity_id
 
                   return (
                     <>
                       <CollapsibleSection collapsed={!!spotlightSourceId}>
                         <div>
-                          <h2 className="text-lg font-semibold text-foreground">Thesis</h2>
+                          <h2 className="text-lg font-semibold text-foreground">{centerLabel}</h2>
                           <p className="mt-1 whitespace-pre-wrap text-sm text-muted">
-                            {mapData?.thesisText ?? selectedMap?.name ?? thesis.entity_id}
+                            {centerText}
                           </p>
                         </div>
                       </CollapsibleSection>

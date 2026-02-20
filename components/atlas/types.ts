@@ -1,6 +1,6 @@
 export interface VizNode {
   map_id: string
-  entity_type: 'thesis' | 'claim' | 'story_claim' | 'source'
+  entity_type: 'thesis' | 'viewpoint' | 'claim' | 'story_claim' | 'source'
   entity_id: string
   x?: number
   y?: number
@@ -28,6 +28,7 @@ export interface StoryClaimInStory {
   story_claim_id: string
   raw_text: string | null
   linked_to_thesis?: boolean
+  linked_to_viewpoint?: boolean
 }
 
 export interface StoryInSource {

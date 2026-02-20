@@ -1,5 +1,5 @@
 // Supabase Edge Function: process_topic.
-// Creates or processes a topic: LLM description, embed, link theses, synthesize summary, re-embed, topic-to-topic links.
+// Creates or processes a topic: LLM description, embed, link controversies, synthesize summary, re-embed, topic-to-topic links.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL, OPENAI_EMBEDDING_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { title?: string, topic_id?: string }.
 
@@ -13,8 +13,8 @@ const corsHeaders = {
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_CHAT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_DIMS = 1536;
-const THESIS_LINK_SIMILARITY = 0.50;
-const THESIS_MATCH_COUNT = 50;
+const CONTROVERSY_LINK_SIMILARITY = 0.50;
+const CONTROVERSY_MATCH_COUNT = 50;
 const TOPIC_LINK_SIMILARITY = 0.70;
 const TOPIC_MATCH_COUNT = 10;
 
@@ -96,13 +96,13 @@ async function synthesizeSummary(
   apiKey: string,
   model: string,
   topicTitle: string,
-  thesisTexts: string[]
+  inputTexts: string[]
 ): Promise<string> {
-  const system = `Synthesize these thesis statements into a 1,000-1,500 word neutral summary for the topic.
+  const system = `Synthesize these debate questions and viewpoint summaries into a 1,000-1,500 word neutral summary for the topic.
 Be factual and descriptive. Use markdown for structure: ### for section headers (e.g. ### Overview, ### Key debates, ### Recent developments).
 Output only the summary. No preamble.`;
 
-  const userContent = `Topic: ${topicTitle}\n\nThesis statements:\n${thesisTexts.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
+  const userContent = `Topic: ${topicTitle}\n\nDebate points and viewpoints:\n${inputTexts.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -174,18 +174,18 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  // check_similar mode: embed title, return similar topics + theses count (no create)
+  // check_similar mode: embed title, return similar topics + controversies count (no create)
   if (checkSimilar && title) {
     try {
       const description = await expandDescription(OPENAI_API_KEY, CHAT_MODEL, title);
       const textToEmbed = description || title;
       const embedding = await getEmbedding(OPENAI_API_KEY, textToEmbed, EMBEDDING_MODEL);
 
-      const [thesisRes, topicRes] = await Promise.all([
-        supabase.rpc("match_theses_nearest", {
+      const [controversyRes, topicRes] = await Promise.all([
+        supabase.rpc("match_controversies_nearest", {
           query_embedding: embeddingToString(embedding),
-          match_count: THESIS_MATCH_COUNT,
-          min_similarity: THESIS_LINK_SIMILARITY,
+          match_count: CONTROVERSY_MATCH_COUNT,
+          min_similarity: CONTROVERSY_LINK_SIMILARITY,
         }),
         supabase.rpc("match_topics_nearest", {
           query_embedding: embeddingToString(embedding),
@@ -195,7 +195,7 @@ Deno.serve(async (req: Request) => {
         }),
       ]);
 
-      const thesisMatches = (Array.isArray(thesisRes.data) ? thesisRes.data : []) as Array<{ thesis_id: string }>;
+      const controversyMatches = (Array.isArray(controversyRes.data) ? controversyRes.data : []) as Array<{ controversy_cluster_id: string }>;
       const topicMatches = (Array.isArray(topicRes.data) ? topicRes.data : []) as Array<{
         topic_id: string;
         similarity: number;
@@ -221,7 +221,7 @@ Deno.serve(async (req: Request) => {
 
       return json({
         check_similar: true,
-        theses_count: thesisMatches.length,
+        controversies_count: controversyMatches.length,
         similar_topics: similarTopics,
       });
     } catch (e) {
@@ -341,96 +341,106 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Step 4: Find/link theses
-    const { data: thesisMatches, error: rpcErr } = await supabase.rpc("match_theses_nearest", {
+    // Step 4: Find/link controversies
+    const { data: controversyMatches, error: rpcErr } = await supabase.rpc("match_controversies_nearest", {
       query_embedding: embeddingToString(embedding),
-      match_count: THESIS_MATCH_COUNT,
-      min_similarity: THESIS_LINK_SIMILARITY,
+      match_count: CONTROVERSY_MATCH_COUNT,
+      min_similarity: CONTROVERSY_LINK_SIMILARITY,
     });
 
     if (rpcErr) {
-      console.error("[process_topic] match_theses_nearest error:", rpcErr.message);
-      return json({ error: rpcErr.message, step: "link_theses" }, 500);
+      console.error("[process_topic] match_controversies_nearest error:", rpcErr.message);
+      return json({ error: rpcErr.message, step: "link_controversies" }, 500);
     }
 
-    const matches = (Array.isArray(thesisMatches) ? thesisMatches : []) as Array<{
-      thesis_id: string;
+    const matches = (Array.isArray(controversyMatches) ? controversyMatches : []) as Array<{
+      controversy_cluster_id: string;
       distance: number;
       similarity: number;
     }>;
 
-    // Preview mode: return theses count and list without inserting
+    // Preview mode: return controversies count and list without inserting
     if (preview) {
-      const thesisIds = matches.map((m) => m.thesis_id);
-      let thesesWithText: Array<{ thesis_id: string; thesis_text: string | null; similarity: number }> = matches.map(
-        (m) => ({ thesis_id: m.thesis_id, thesis_text: null as string | null, similarity: m.similarity })
+      const controversyIds = matches.map((m) => m.controversy_cluster_id);
+      let controversiesWithQuestion: Array<{ controversy_cluster_id: string; question: string | null; similarity: number }> = matches.map(
+        (m) => ({ controversy_cluster_id: m.controversy_cluster_id, question: null as string | null, similarity: m.similarity })
       );
-      if (thesisIds.length > 0) {
-        const { data: thesesData } = await supabase
-          .from("theses")
-          .select("thesis_id, thesis_text")
-          .in("thesis_id", thesisIds);
-        const textMap = new Map(
-          (thesesData ?? []).map((t) => [(t as { thesis_id: string }).thesis_id, (t as { thesis_text: string | null }).thesis_text])
+      if (controversyIds.length > 0) {
+        const { data: ccData } = await supabase
+          .from("controversy_clusters")
+          .select("controversy_cluster_id, question")
+          .in("controversy_cluster_id", controversyIds);
+        const questionMap = new Map(
+          (ccData ?? []).map((c) => [(c as { controversy_cluster_id: string }).controversy_cluster_id, (c as { question: string | null }).question])
         );
-        thesesWithText = matches.map((m) => ({
-          thesis_id: m.thesis_id,
-          thesis_text: textMap.get(m.thesis_id) ?? null,
+        controversiesWithQuestion = matches.map((m) => ({
+          controversy_cluster_id: m.controversy_cluster_id,
+          question: questionMap.get(m.controversy_cluster_id) ?? null,
           similarity: m.similarity,
         }));
       }
       return json({
         preview: true,
         topic_id: currentTopicId,
-        theses_count: matches.length,
-        theses: thesesWithText,
+        controversies_count: matches.length,
+        controversies: controversiesWithQuestion,
       });
     }
 
-    await supabase.from("topic_theses").delete().eq("topic_id", currentTopicId!);
+    await supabase.from("topic_controversies").delete().eq("topic_id", currentTopicId!);
 
     if (matches.length > 0) {
       const inserts = matches.map((m, i) => ({
         topic_id: currentTopicId,
-        thesis_id: m.thesis_id,
+        controversy_cluster_id: m.controversy_cluster_id,
         similarity_score: m.similarity,
         rank: i + 1,
       }));
-      const { error: insErr } = await supabase.from("topic_theses").insert(inserts);
+      const { error: insErr } = await supabase.from("topic_controversies").insert(inserts);
       if (insErr) {
-        console.error("[process_topic] Insert topic_theses error:", insErr.message);
-        return json({ error: insErr.message, step: "link_theses" }, 500);
+        console.error("[process_topic] Insert topic_controversies error:", insErr.message);
+        return json({ error: insErr.message, step: "link_controversies" }, 500);
       }
-      console.log("[process_topic] Linked", matches.length, "theses");
+      console.log("[process_topic] Linked", matches.length, "controversies");
     }
 
-    // Step 5: Synthesize summary (if linked theses exist)
+    // Step 5: Synthesize summary (if linked controversies exist)
     let summary: string | null = null;
     if (matches.length > 0) {
-      const { data: thesisRows } = await supabase
-        .from("topic_theses")
-        .select("thesis_id, rank")
+      const { data: tcRows } = await supabase
+        .from("topic_controversies")
+        .select("controversy_cluster_id, rank")
         .eq("topic_id", currentTopicId!)
         .order("rank", { ascending: true });
 
-      const orderedThesisIds = (thesisRows ?? []).map((r) => (r as { thesis_id: string }).thesis_id);
-      const { data: thesesData } = await supabase
-        .from("theses")
-        .select("thesis_id, thesis_text")
-        .in("thesis_id", orderedThesisIds);
+      const orderedControversyIds = (tcRows ?? []).map((r) => (r as { controversy_cluster_id: string }).controversy_cluster_id);
 
-      const thesisTexts = (thesesData ?? [])
-        .sort((a, b) => {
-          const aIdx = orderedThesisIds.indexOf((a as { thesis_id: string }).thesis_id);
-          const bIdx = orderedThesisIds.indexOf((b as { thesis_id: string }).thesis_id);
-          return aIdx - bIdx;
-        })
-        .map((t) => ((t as { thesis_text: string | null }).thesis_text ?? "").trim())
-        .filter(Boolean);
+      const inputTexts: string[] = [];
+      for (const cid of orderedControversyIds) {
+        const { data: ccRow } = await supabase
+          .from("controversy_clusters")
+          .select("question, summary")
+          .eq("controversy_cluster_id", cid)
+          .single();
+        if (ccRow) {
+          const q = ((ccRow as { question?: string }).question ?? "").trim();
+          const s = ((ccRow as { summary?: string }).summary ?? "").trim();
+          if (q) inputTexts.push(q);
+          if (s) inputTexts.push(s);
+        }
+        const { data: vpRows } = await supabase
+          .from("controversy_viewpoints")
+          .select("summary")
+          .eq("controversy_cluster_id", cid);
+        for (const vp of vpRows ?? []) {
+          const vpSummary = ((vp as { summary?: string }).summary ?? "").trim();
+          if (vpSummary) inputTexts.push(vpSummary);
+        }
+      }
 
-      if (thesisTexts.length > 0) {
+      if (inputTexts.length > 0) {
         console.log("[process_topic] Synthesizing summary");
-        summary = await synthesizeSummary(OPENAI_API_KEY, CHAT_MODEL, currentTitle!, thesisTexts);
+        summary = await synthesizeSummary(OPENAI_API_KEY, CHAT_MODEL, currentTitle!, inputTexts);
         const { error: sumErr } = await supabase
           .from("topics")
           .update({ summary })
@@ -494,7 +504,7 @@ Deno.serve(async (req: Request) => {
     return json({
       ok: true,
       topic_id: currentTopicId,
-      theses_linked: matches.length,
+      controversies_linked: matches.length,
       summary_generated: !!summary,
     });
   } catch (e) {

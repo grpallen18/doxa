@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { TopicWithDetails, TopicThesis, TopicRelationship } from '@/lib/types'
+import { TopicWithDetails, TopicControversy, TopicRelationship } from '@/lib/types'
 
 export async function GET(
   request: NextRequest,
@@ -23,11 +23,10 @@ export async function GET(
       )
     }
 
-    const [viewpointsRes, topicThesesRes, relsRes] = await Promise.all([
-      supabase.from('viewpoints').select('*').eq('topic_id', topicId).order('title', { ascending: true }),
+    const [topicControversiesRes, relsRes] = await Promise.all([
       supabase
-        .from('topic_theses')
-        .select('thesis_id, similarity_score, rank, theses(thesis_text)')
+        .from('topic_controversies')
+        .select('controversy_cluster_id, similarity_score, rank, controversy_clusters(question, summary)')
         .eq('topic_id', topicId)
         .order('rank', { ascending: true }),
       supabase
@@ -36,11 +35,12 @@ export async function GET(
         .or(`source_topic_id.eq.${topicId},target_topic_id.eq.${topicId}`),
     ])
 
-    const theses: TopicThesis[] = (topicThesesRes.data ?? []).map((row: Record<string, unknown>) => {
-      const t = row.theses as { thesis_text?: string | null } | null | undefined
+    const controversies: TopicControversy[] = (topicControversiesRes.data ?? []).map((row: Record<string, unknown>) => {
+      const cc = row.controversy_clusters as { question?: string | null; summary?: string | null } | null | undefined
       return {
-        thesis_id: row.thesis_id as string,
-        thesis_text: (Array.isArray(t) ? t[0]?.thesis_text : t?.thesis_text) ?? null,
+        controversy_cluster_id: row.controversy_cluster_id as string,
+        question: (Array.isArray(cc) ? cc[0]?.question : cc?.question) ?? null,
+        summary: (Array.isArray(cc) ? cc[0]?.summary : cc?.summary) ?? null,
         similarity_score: Number(row.similarity_score),
         rank: Number(row.rank),
       }
@@ -82,8 +82,7 @@ export async function GET(
 
     const topicWithDetails: TopicWithDetails = {
       ...topic,
-      viewpoints: viewpointsRes.data || [],
-      theses,
+      controversies,
       related_topics: relatedTopics,
     }
 

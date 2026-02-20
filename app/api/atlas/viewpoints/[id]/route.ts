@@ -7,17 +7,17 @@ export async function GET(
 ) {
   const supabase = await createClient()
   try {
-    const thesisId = params.id
+    const viewpointId = params.id
 
     const { data, error } = await supabase
-      .from('theses')
-      .select('thesis_id, thesis_text, label, summary, created_at')
-      .eq('thesis_id', thesisId)
+      .from('controversy_viewpoints')
+      .select('viewpoint_id, title, summary, created_at')
+      .eq('viewpoint_id', viewpointId)
       .single()
 
     if (error || !data) {
       return NextResponse.json(
-        { data: null, error: { message: 'Thesis not found', code: 'NOT_FOUND' } },
+        { data: null, error: { message: 'Viewpoint not found', code: 'NOT_FOUND' } },
         { status: 404 }
       )
     }

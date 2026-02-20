@@ -7,8 +7,8 @@ import type { VizNode } from './types'
 import type { SourceDetail } from './types'
 
 interface AtlasNodeTestCanvasProps {
-  /** The thesis node to center on */
-  thesisNode: VizNode | null
+  /** The center node (thesis or viewpoint) to center on */
+  centerNode: VizNode | null
   /** Sources (from top 20 claims grouped by source) */
   sourceDetails: SourceDetail[]
   /** When set, the source node with this source_id is shown as hovered (synced from content panel) */
@@ -83,7 +83,7 @@ function pick(pair: [string, string]): string {
 
 function getBaseColor(node: VizNode): string {
   const score = node.polarity_score
-  if (node.entity_type === 'thesis') {
+  if (node.entity_type === 'thesis' || node.entity_type === 'viewpoint') {
     if (score != null && score > 0) return pick(COLORS.thesisPositive)
     if (score != null && score < 0) return pick(COLORS.thesisNegative)
     return pick(COLORS.thesisNeutral)
@@ -151,7 +151,7 @@ function clampToCanvas(sn: SimNode, cw: number, ch: number) {
 }
 
 export default function AtlasNodeTestCanvas({
-  thesisNode,
+  centerNode,
   sourceDetails,
   hoveredSourceId = null,
   onHoveredSourceChange,
@@ -224,7 +224,7 @@ export default function AtlasNodeTestCanvas({
       ctx.fillStyle = isDark ? '#888' : '#999'
       ctx.font = '14px sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText('No thesis node loaded', canvas.width / 2, canvas.height / 2)
+      ctx.fillText('No center node loaded', canvas.width / 2, canvas.height / 2)
       return
     }
 
@@ -234,20 +234,20 @@ export default function AtlasNodeTestCanvas({
       posMap.set(sn.id, { x: sn.x ?? 0, y: sn.y ?? 0 })
     }
 
-    // Find thesis for edge drawing
-    const thesisDrawn = all.find((dn) => dn.vizNode.entity_type === 'thesis')
-    const thesisPos = thesisDrawn ? posMap.get(thesisDrawn.id) : null
+    // Find center node (thesis or viewpoint) for edge drawing
+    const centerDrawn = all.find((dn) => dn.vizNode.entity_type === 'thesis' || dn.vizNode.entity_type === 'viewpoint')
+    const centerPos = centerDrawn ? posMap.get(centerDrawn.id) : null
 
     // Draw edges (behind nodes)
-    if (thesisPos) {
+    if (centerPos) {
       ctx.strokeStyle = getEdgeColor()
       ctx.lineWidth = 1.5
       for (const dn of all) {
-        if (dn === thesisDrawn) continue
+        if (dn === centerDrawn) continue
         const pos = posMap.get(dn.id)
         if (!pos) continue
         ctx.beginPath()
-        ctx.moveTo(thesisPos.x, thesisPos.y)
+        ctx.moveTo(centerPos.x, centerPos.y)
         ctx.lineTo(pos.x, pos.y)
         ctx.stroke()
       }
@@ -280,7 +280,7 @@ export default function AtlasNodeTestCanvas({
       ctx.fill()
 
       // Border (node-type specific; fades out on hover)
-      const borderHex = dn.vizNode.entity_type === 'thesis'
+      const borderHex = (dn.vizNode.entity_type === 'thesis' || dn.vizNode.entity_type === 'viewpoint')
         ? pick(COLORS.thesisBorder)
         : pick(COLORS.claimBorder)
       const borderRgb = hexToRgb(borderHex)
@@ -360,7 +360,7 @@ export default function AtlasNodeTestCanvas({
       simulationRef.current = null
     }
 
-    if (!thesisNode) {
+    if (!centerNode) {
       drawnNodes.current = []
       simNodes.current = []
       simLinks.current = []
@@ -368,8 +368,8 @@ export default function AtlasNodeTestCanvas({
       return
     }
 
-    const thesis = thesisNode
-    const thesisId = `${thesis.entity_type}:${thesis.entity_id}`
+    const center = centerNode
+    const centerId = `${center.entity_type}:${center.entity_id}`
     const cx = canvasWidth / 2
     const cy = CANVAS_HEIGHT / 2
 
@@ -387,10 +387,10 @@ export default function AtlasNodeTestCanvas({
     const oldDrawnMap = new Map<string, DrawnNode>()
     for (const dn of drawnNodes.current) oldDrawnMap.set(dn.id, dn)
 
-    const oldThesis = oldDrawnMap.get(thesisId)
+    const oldCenter = oldDrawnMap.get(centerId)
     newDrawn.push({
-      vizNode: thesis,
-      id: thesisId,
+      vizNode: center,
+      id: centerId,
       radius: thesisRadius,
       hovered: oldThesis?.hovered ?? false,
       dragging: oldThesis?.dragging ?? false,
@@ -439,11 +439,11 @@ export default function AtlasNodeTestCanvas({
     })
     simNodes.current = newSimNodes
 
-    // Build SimLinks (thesis <-> each source)
+    // Build SimLinks (center <-> each source)
     const newSimLinks: SimLink[] = newDrawn
       .filter((dn) => dn.vizNode.entity_type === 'source')
       .map((dn) => ({
-        source: thesisId,
+        source: centerId,
         target: dn.id,
       }))
     simLinks.current = newSimLinks
@@ -471,7 +471,7 @@ export default function AtlasNodeTestCanvas({
       sim.stop()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thesisNode, sourceDetails, canvasWidth, nodeRadius])
+  }, [centerNode, sourceDetails, canvasWidth, nodeRadius])
 
   // ---- Reconfigure forces when slider values change (without rebuilding nodes) ----
   useEffect(() => {

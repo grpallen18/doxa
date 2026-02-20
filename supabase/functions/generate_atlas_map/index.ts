@@ -1,8 +1,8 @@
 // Supabase Edge Function: generate_atlas_map.
-// Thesis-centric map generation: builds graph (viz_maps, viz_nodes, viz_edges) from theses + thesis_claims + claims.
+// Viewpoint-centric map generation: builds graph (viz_maps, viz_nodes, viz_edges) from controversy_viewpoints + position_cluster_claims + claims.
 // Layout is computed client-side via force-directed simulation.
 // Invoked by pg_cron weekly. Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
-// Body: { dry_run?: boolean, max_theses?: number }.
+// Body: { dry_run?: boolean, max_viewpoints?: number }.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -12,7 +12,7 @@ const corsHeaders = {
 };
 
 const SIMILARITY_THRESHOLD = 0.65;
-const MAX_THESES = 50;
+const MAX_VIEWPOINTS = 50;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -75,98 +75,61 @@ Deno.serve(async (req: Request) => {
     // use defaults
   }
   const dryRun = Boolean(body.dry_run ?? false);
-  const maxTheses = clampInt(body.max_theses, 1, 100, MAX_THESES);
+  const maxViewpoints = clampInt(body.max_viewpoints, 1, 100, MAX_VIEWPOINTS);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  // Fetch ALL thesis_ids with valid thesis_text (for orphan cleanup)
-  const { data: allThesesWithText } = await supabase
-    .from("theses")
-    .select("thesis_id, thesis_text")
-    .not("thesis_text", "is", null);
-
-  const validThesisIds = new Set(
-    (allThesesWithText ?? [])
-      .filter((t) => t.thesis_text && String(t.thesis_text).trim() !== "")
-      .map((t) => t.thesis_id)
-  );
-
-  // Remove orphaned maps (thesis scope but thesis no longer has text)
+  // Orphan cleanup: delete thesis-scoped maps (legacy)
   const { data: thesisMaps } = await supabase
     .from("viz_maps")
-    .select("id, scope_id")
+    .select("id")
     .eq("scope_type", "thesis");
 
   let mapsDeleted = 0;
-  if (thesisMaps) {
-    const orphanIds = thesisMaps
-      .filter((m) => m.scope_id && !validThesisIds.has(m.scope_id))
-      .map((m) => m.id);
-    if (orphanIds.length > 0) {
-      if (dryRun) {
-        mapsDeleted = orphanIds.length;
-      } else {
-        const { error: deleteErr } = await supabase
-          .from("viz_maps")
-          .delete()
-          .in("id", orphanIds);
-        if (deleteErr) {
-          console.error("[generate_atlas_map] Delete orphaned maps error:", deleteErr.message);
-        } else {
-          mapsDeleted = orphanIds.length;
-        }
-      }
+  if (thesisMaps && thesisMaps.length > 0) {
+    const orphanIds = thesisMaps.map((m) => m.id);
+    if (!dryRun) {
+      const { error: deleteErr } = await supabase
+        .from("viz_maps")
+        .delete()
+        .in("id", orphanIds);
+      if (!deleteErr) mapsDeleted = orphanIds.length;
+    } else {
+      mapsDeleted = orphanIds.length;
     }
   }
 
-  // Fetch theses with centroid, at least one claim, and thesis_text (centroid required by label_thesis for drift check)
-  const { data: thesesData, error: thesesErr } = await supabase
-    .from("theses")
-    .select("thesis_id, topic_id, thesis_text, label, centroid_embedding, claim_count")
-    .not("centroid_embedding", "is", null)
-    .not("thesis_text", "is", null)
-    .gte("claim_count", 1)
-    .limit(maxTheses);
+  // Fetch controversy_viewpoints (each has position_cluster_id for claims)
+  const { data: viewpointsData, error: vpErr } = await supabase
+    .from("controversy_viewpoints")
+    .select("viewpoint_id, position_cluster_id, title, summary")
+    .limit(maxViewpoints);
 
-  if (thesesErr) {
-    console.error("[generate_atlas_map] Fetch theses error:", thesesErr.message);
-    return json({ error: thesesErr.message }, 500);
+  if (vpErr) {
+    console.error("[generate_atlas_map] Fetch viewpoints error:", vpErr.message);
+    return json({ error: vpErr.message }, 500);
   }
 
-  const rawTheses = (Array.isArray(thesesData) ? thesesData : []) as Array<{
-    thesis_id: string;
-    topic_id: string | null;
-    thesis_text: string | null;
-    label: string | null;
-    centroid_embedding: unknown;
-    claim_count: number;
-  }>;
-
-  const theses = rawTheses.filter(
-    (t) => t.thesis_text && String(t.thesis_text).trim() !== ""
-  ) as Array<{
-    thesis_id: string;
-    topic_id: string | null;
-    thesis_text: string | null;
-    label: string | null;
-    centroid_embedding: unknown;
-    claim_count: number;
+  const viewpoints = (viewpointsData ?? []) as Array<{
+    viewpoint_id: string;
+    position_cluster_id: string;
+    title: string | null;
+    summary: string | null;
   }>;
 
   let mapsCreated = 0;
   let nodesCreated = 0;
   let edgesCreated = 0;
 
-  for (const thesis of theses) {
-    // Get claims for this thesis
-    const { data: tcData, error: tcErr } = await supabase
-      .from("thesis_claims")
+  for (const vp of viewpoints) {
+    const { data: pccData, error: pccErr } = await supabase
+      .from("position_cluster_claims")
       .select("claim_id")
-      .eq("thesis_id", thesis.thesis_id);
+      .eq("position_cluster_id", vp.position_cluster_id);
 
-    if (tcErr || !tcData?.length) continue;
+    if (pccErr || !pccData?.length) continue;
 
-    const claimIds = tcData.map((r) => r.claim_id);
+    const claimIds = pccData.map((r) => r.claim_id);
 
     const { data: claimsData, error: claimsErr } = await supabase
       .from("claims")
@@ -190,21 +153,20 @@ Deno.serve(async (req: Request) => {
 
     if (embeddings.length < 1) continue;
 
-    const mapName = (thesis.thesis_text || thesis.label || thesis.thesis_id).slice(0, 200);
+    const mapName = (vp.title || vp.summary || vp.viewpoint_id).slice(0, 200);
 
     if (dryRun) {
       mapsCreated++;
       nodesCreated += 1 + validClaimIds.length;
-      edgesCreated += validClaimIds.length; // thesis -> claim
+      edgesCreated += validClaimIds.length;
       continue;
     }
 
-    // Find or create viz_map for this thesis
     const { data: existingMap } = await supabase
       .from("viz_maps")
       .select("id")
-      .eq("scope_type", "thesis")
-      .eq("scope_id", thesis.thesis_id)
+      .eq("scope_type", "viewpoint")
+      .eq("scope_id", vp.viewpoint_id)
       .maybeSingle();
 
     let mapIdStr: string;
@@ -216,8 +178,8 @@ Deno.serve(async (req: Request) => {
         .from("viz_maps")
         .insert({
           name: mapName,
-          scope_type: "thesis",
-          scope_id: thesis.thesis_id,
+          scope_type: "viewpoint",
+          scope_id: vp.viewpoint_id,
           time_window_days: null,
         })
         .select("id")
@@ -229,14 +191,13 @@ Deno.serve(async (req: Request) => {
       mapIdStr = newMap.id;
     }
 
-    // Delete existing nodes/edges for this map (idempotent regenerate)
     await supabase.from("viz_edges").delete().eq("map_id", mapIdStr);
     await supabase.from("viz_nodes").delete().eq("map_id", mapIdStr);
 
     await supabase.from("viz_nodes").insert({
       map_id: mapIdStr,
-      entity_type: "thesis",
-      entity_id: thesis.thesis_id,
+      entity_type: "viewpoint",
+      entity_id: vp.viewpoint_id,
       x: 0,
       y: 0,
       layer: 1,
@@ -257,23 +218,17 @@ Deno.serve(async (req: Request) => {
 
     await supabase.from("viz_nodes").insert(nodeRows);
 
-    // Compute cosine similarity between each claim embedding and the thesis centroid
-    const centroidEmb = parseEmbedding(thesis.centroid_embedding);
-    const edgeRows = validClaimIds.map((claimId, i) => {
-      const sim = centroidEmb ? cosineSimilarity(embeddings[i], centroidEmb) : null;
-      return {
-        map_id: mapIdStr,
-        source_type: "thesis",
-        source_id: thesis.thesis_id,
-        target_type: "claim",
-        target_id: claimId,
-        edge_type: "explicit",
-        weight: 1.0,
-        similarity_score: sim,
-      };
-    });
+    const edgeRows = validClaimIds.map((claimId) => ({
+      map_id: mapIdStr,
+      source_type: "viewpoint",
+      source_id: vp.viewpoint_id,
+      target_type: "claim",
+      target_id: claimId,
+      edge_type: "explicit",
+      weight: 1.0,
+      similarity_score: 1.0,
+    }));
 
-    // Add similarity edges between claims above threshold
     for (let i = 0; i < embeddings.length; i++) {
       for (let j = i + 1; j < embeddings.length; j++) {
         const sim = cosineSimilarity(embeddings[i], embeddings[j]);

@@ -29,25 +29,24 @@ interface AtlasSidePanelProps {
 export default function AtlasSidePanel({ node, onClose }: AtlasSidePanelProps) {
   const [claimDetail, setClaimDetail] = useState<{ canonical_text: string } | null>(null)
   const [storyClaims, setStoryClaims] = useState<StoryClaimWithStory[]>([])
-  const [thesisDetail, setThesisDetail] = useState<{ thesis_text: string; label: string } | null>(null)
+  const [centerDetail, setCenterDetail] = useState<{ title?: string; summary?: string; thesis_text?: string; label?: string } | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!node) {
       setClaimDetail(null)
       setStoryClaims([])
-      setThesisDetail(null)
+      setCenterDetail(null)
       return
     }
 
     setLoading(true)
-    const key = `${node.entity_type}:${node.entity_id}`
 
-    if (node.entity_type === 'thesis') {
-      fetch(`/api/atlas/theses/${node.entity_id}`)
+    if (node.entity_type === 'viewpoint') {
+      fetch(`/api/atlas/viewpoints/${node.entity_id}`)
         .then((r) => r.json())
         .then((d) => {
-          if (d?.data) setThesisDetail(d.data)
+          if (d?.data) setCenterDetail(d.data)
         })
         .catch(() => {})
         .finally(() => setLoading(false))
@@ -67,10 +66,10 @@ export default function AtlasSidePanel({ node, onClose }: AtlasSidePanelProps) {
         })
         .catch(() => {})
         .finally(() => setLoading(false))
-      setThesisDetail(null)
+      setCenterDetail(null)
     } else {
       setClaimDetail(null)
-      setThesisDetail(null)
+      setCenterDetail(null)
       setStoryClaims([])
       setLoading(false)
     }
@@ -101,12 +100,12 @@ export default function AtlasSidePanel({ node, onClose }: AtlasSidePanelProps) {
           <p className="text-muted">Loading…</p>
         )}
 
-        {node.entity_type === 'thesis' && thesisDetail && (
+        {node.entity_type === 'viewpoint' && centerDetail && (
           <div className="space-y-3">
-            {thesisDetail.label && (
-              <p className="font-medium text-foreground">{thesisDetail.label}</p>
+            {(centerDetail.title || centerDetail.label) && (
+              <p className="font-medium text-foreground">{centerDetail.title || centerDetail.label}</p>
             )}
-            <p className="text-muted">{thesisDetail.thesis_text}</p>
+            <p className="text-muted">{centerDetail.summary ?? centerDetail.thesis_text ?? 'No summary.'}</p>
           </div>
         )}
 

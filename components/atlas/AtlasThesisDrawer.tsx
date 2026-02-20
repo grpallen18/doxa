@@ -19,9 +19,11 @@ interface AtlasThesisDrawerProps {
   onOpenChange: (open: boolean) => void
 }
 
-interface ThesisDetail {
-  thesis_text: string
-  label: string
+interface CenterDetail {
+  title?: string | null
+  summary?: string | null
+  thesis_text?: string
+  label?: string
 }
 
 export default function AtlasThesisDrawer({
@@ -29,21 +31,21 @@ export default function AtlasThesisDrawer({
   open,
   onOpenChange,
 }: AtlasThesisDrawerProps) {
-  const [thesisDetail, setThesisDetail] = useState<ThesisDetail | null>(null)
+  const [centerDetail, setCenterDetail] = useState<CenterDetail | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!node || node.entity_type !== 'thesis') {
-      setThesisDetail(null)
+    if (!node || node.entity_type !== 'viewpoint') {
+      setCenterDetail(null)
       return
     }
 
     setLoading(true)
-    setThesisDetail(null)
-    fetch(`/api/atlas/theses/${node.entity_id}`)
+    setCenterDetail(null)
+    fetch(`/api/atlas/viewpoints/${node.entity_id}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d?.data) setThesisDetail(d.data)
+        if (d?.data) setCenterDetail(d.data)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -66,7 +68,7 @@ export default function AtlasThesisDrawer({
       >
         <DrawerHeader className="border-b border-[var(--border-subtle)] p-4 text-left">
           <DrawerTitle className="text-sm font-semibold uppercase tracking-wider text-[var(--muted)]">
-            Thesis
+            Viewpoint
           </DrawerTitle>
         </DrawerHeader>
 
@@ -74,21 +76,21 @@ export default function AtlasThesisDrawer({
           {loading && (
             <p className="text-sm text-[var(--muted)]">Loading…</p>
           )}
-          {!loading && thesisDetail && (
+          {!loading && centerDetail && (
             <div className="space-y-3 text-sm">
-              {thesisDetail.label && (
+              {(centerDetail.title || centerDetail.label) && (
                 <p className="font-medium text-foreground">
-                  {thesisDetail.label}
+                  {centerDetail.title || centerDetail.label}
                 </p>
               )}
               <p className="leading-relaxed text-[var(--muted)]">
-                {thesisDetail.thesis_text}
+                {centerDetail.summary ?? centerDetail.thesis_text ?? 'No summary.'}
               </p>
             </div>
           )}
-          {!loading && !thesisDetail && node && (
+          {!loading && !centerDetail && node && (
             <p className="text-sm text-[var(--muted)]">
-              Could not load thesis details.
+              Could not load details.
             </p>
           )}
         </ScrollArea>

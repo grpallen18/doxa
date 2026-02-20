@@ -13,33 +13,33 @@ export async function GET(request: NextRequest) {
     }
 
     const results: Array<{
-      entity_type: 'thesis' | 'claim' | 'story'
+      entity_type: 'viewpoint' | 'claim' | 'story'
       entity_id: string
       map_id: string | null
       label: string
     }> = []
 
-    // Search theses (thesis_text, label)
-    const { data: theses } = await supabase
-      .from('theses')
-      .select('thesis_id, thesis_text, label')
-      .or(`thesis_text.ilike.%${q}%,label.ilike.%${q}%`)
+    // Search controversy_viewpoints (title, summary)
+    const { data: viewpoints } = await supabase
+      .from('controversy_viewpoints')
+      .select('viewpoint_id, title, summary')
+      .or(`title.ilike.%${q}%,summary.ilike.%${q}%`)
       .limit(limit)
 
-    if (theses?.length) {
+    if (viewpoints?.length) {
       const { data: maps } = await supabase
         .from('viz_maps')
         .select('id, scope_id')
-        .eq('scope_type', 'thesis')
-        .in('scope_id', theses.map((t) => t.thesis_id))
+        .eq('scope_type', 'viewpoint')
+        .in('scope_id', viewpoints.map((v) => v.viewpoint_id))
 
-      const mapByThesis = new Map((maps ?? []).map((m: { id: string; scope_id: string }) => [m.scope_id, m.id]))
-      for (const t of theses) {
+      const mapByViewpoint = new Map((maps ?? []).map((m: { id: string; scope_id: string }) => [m.scope_id, m.id]))
+      for (const v of viewpoints) {
         results.push({
-          entity_type: 'thesis',
-          entity_id: t.thesis_id,
-          map_id: mapByThesis.get(t.thesis_id) ?? null,
-          label: (t.thesis_text || t.label || t.thesis_id).slice(0, 120),
+          entity_type: 'viewpoint',
+          entity_id: v.viewpoint_id,
+          map_id: mapByViewpoint.get(v.viewpoint_id) ?? null,
+          label: (v.title || v.summary || v.viewpoint_id).slice(0, 120),
         })
       }
     }

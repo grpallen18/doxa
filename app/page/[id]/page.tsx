@@ -2,10 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LandingHeader } from '@/components/LandingHeader'
 import { Panel } from '@/components/Panel'
-import ViewpointSection from '@/components/topic/ViewpointSection'
 import TopicSummary from '@/components/topic/TopicSummary'
-import { ViewpointStatisticsCard } from '@/components/topic/ViewpointStatistics'
-import { TopicWithDetails, Viewpoint, TopicThesis, TopicRelationship } from '@/lib/types'
+import { TopicWithDetails, TopicControversy, TopicRelationship } from '@/lib/types'
 import { createClient } from '@/lib/supabase/server'
 
 async function getTopic(id: string): Promise<TopicWithDetails | null> {
@@ -21,11 +19,10 @@ async function getTopic(id: string): Promise<TopicWithDetails | null> {
       return null
     }
 
-    const [viewpointsRes, topicThesesRes, relsRes] = await Promise.all([
-      supabase.from('viewpoints').select('*').eq('topic_id', id).order('title', { ascending: true }),
+    const [topicControversiesRes, relsRes] = await Promise.all([
       supabase
-        .from('topic_theses')
-        .select('thesis_id, similarity_score, rank, theses(thesis_text)')
+        .from('topic_controversies')
+        .select('controversy_cluster_id, similarity_score, rank, controversy_clusters(question, summary)')
         .eq('topic_id', id)
         .order('rank', { ascending: true }),
       supabase
@@ -34,11 +31,12 @@ async function getTopic(id: string): Promise<TopicWithDetails | null> {
         .or(`source_topic_id.eq.${id},target_topic_id.eq.${id}`),
     ])
 
-    const theses: TopicThesis[] = (topicThesesRes.data ?? []).map((row: Record<string, unknown>) => {
-      const t = row.theses as { thesis_text?: string | null } | null | undefined
+    const controversies: TopicControversy[] = (topicControversiesRes.data ?? []).map((row: Record<string, unknown>) => {
+      const cc = row.controversy_clusters as { question?: string | null; summary?: string | null } | null | undefined
       return {
-        thesis_id: row.thesis_id as string,
-        thesis_text: (Array.isArray(t) ? t[0]?.thesis_text : t?.thesis_text) ?? null,
+        controversy_cluster_id: row.controversy_cluster_id as string,
+        question: (Array.isArray(cc) ? cc[0]?.question : cc?.question) ?? null,
+        summary: (Array.isArray(cc) ? cc[0]?.summary : cc?.summary) ?? null,
         similarity_score: Number(row.similarity_score),
         rank: Number(row.rank),
       }
@@ -80,8 +78,7 @@ async function getTopic(id: string): Promise<TopicWithDetails | null> {
 
     const topicWithDetails: TopicWithDetails = {
       ...topic,
-      viewpoints: (viewpointsRes.data || []) as Viewpoint[],
-      theses,
+      controversies,
       related_topics: relatedTopics,
     }
 
@@ -115,22 +112,22 @@ export default async function TopicPage({ params }: { params: { id: string } }) 
           )}
         </Panel>
 
-        {topic.theses && topic.theses.length > 0 && (
-          <section aria-labelledby="theses-heading" className="space-y-4">
+        {topic.controversies && topic.controversies.length > 0 && (
+          <section aria-labelledby="debates-heading" className="space-y-4">
             <h2
-              id="theses-heading"
+              id="debates-heading"
               className="text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              Linked theses
+              Debates
             </h2>
             <ul className="space-y-2">
-              {topic.theses.map((t) => (
-                <li key={t.thesis_id}>
+              {topic.controversies.map((c) => (
+                <li key={c.controversy_cluster_id}>
                   <Panel variant="soft" interactive={false} className="p-3">
-                    {t.thesis_text ? (
-                      <p className="text-sm">{t.thesis_text}</p>
+                    {c.question ? (
+                      <p className="text-sm">{c.question}</p>
                     ) : (
-                      <p className="text-sm text-muted">Thesis (no label yet)</p>
+                      <p className="text-sm text-muted">Debate (no question yet)</p>
                     )}
                   </Panel>
                 </li>
@@ -162,37 +159,6 @@ export default async function TopicPage({ params }: { params: { id: string } }) 
           </section>
         )}
 
-        <section aria-labelledby="viewpoints-heading" className="space-y-4">
-          <h2
-            id="viewpoints-heading"
-            className="text-xl font-semibold tracking-tight sm:text-2xl"
-          >
-            Viewpoints
-          </h2>
-          {topic.viewpoints && topic.viewpoints.length > 0 ? (
-            <div className="flex flex-col gap-4">
-              {topic.viewpoints.map((viewpoint, index) => (
-                <Panel
-                  key={viewpoint.viewpoint_id}
-                  variant="soft"
-                  interactive={false}
-                  className="p-4 md:p-6"
-                >
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,6fr)_minmax(0,4fr)] md:gap-6 md:items-start">
-                    <ViewpointSection viewpoint={viewpoint} embedInPanel />
-                    <ViewpointStatisticsCard
-                      viewpoint={viewpoint}
-                      showHeading={index === 0}
-                      embedInPanel
-                    />
-                  </div>
-                </Panel>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted">No viewpoints available yet.</p>
-          )}
-        </section>
       </div>
     </main>
   )

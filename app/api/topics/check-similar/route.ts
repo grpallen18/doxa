@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-/** Calls process_topic Edge Function with check_similar mode. Returns similar_topics and theses_count. */
+/** Calls process_topic Edge Function with check_similar mode. Returns similar_topics and controversies_count. */
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     data: {
-      theses_count: data.theses_count ?? 0,
+      controversies_count: data.controversies_count ?? 0,
       similar_topics: data.similar_topics ?? [],
     },
     error: null,

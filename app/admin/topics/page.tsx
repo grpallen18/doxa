@@ -37,16 +37,16 @@ export default function AdminTopicsPage() {
   const [processError, setProcessError] = useState<string | null>(null)
   const [processResult, setProcessResult] = useState<{
     topic_id: string
-    theses_linked: number
+    controversies_linked: number
     summary_generated: boolean
   } | null>(null)
   const [preCreateDialog, setPreCreateDialog] = useState<{
-    thesesCount: number
+    controversiesCount: number
     similarTopics: SimilarTopic[]
     pendingTitle: string
   } | null>(null)
-  const [fewThesesDialog, setFewThesesDialog] = useState<{
-    thesesCount: number
+  const [fewControversiesDialog, setFewControversiesDialog] = useState<{
+    controversiesCount: number
     topicId: string
   } | null>(null)
   const [cancelMessage, setCancelMessage] = useState<string | null>(null)
@@ -71,16 +71,16 @@ export default function AdminTopicsPage() {
   }, [fetchTopics])
 
   useEffect(() => {
-    if (!preCreateDialog && !fewThesesDialog) return
+    if (!preCreateDialog && !fewControversiesDialog) return
     const onEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (fewThesesDialog) handleFewThesesNo()
+        if (fewControversiesDialog) handleFewControversiesNo()
         else setPreCreateDialog(null)
       }
     }
     window.addEventListener('keydown', onEscape)
     return () => window.removeEventListener('keydown', onEscape)
-  }, [preCreateDialog, fewThesesDialog])
+  }, [preCreateDialog, fewControversiesDialog])
 
   async function doCreate(pendingTitle: string) {
     setCreateLoading(true)
@@ -124,11 +124,11 @@ export default function AdminTopicsPage() {
         return
       }
       const data = json?.data ?? {}
-      const thesesCount = data.theses_count ?? 0
+      const controversiesCount = data.controversies_count ?? 0
       const similarTopics: SimilarTopic[] = data.similar_topics ?? []
-      const needsConfirm = similarTopics.length > 0 || thesesCount <= CONFIRM_THRESHOLD
+      const needsConfirm = similarTopics.length > 0 || controversiesCount <= CONFIRM_THRESHOLD
       if (needsConfirm) {
-        setPreCreateDialog({ thesesCount, similarTopics, pendingTitle: trimmed })
+        setPreCreateDialog({ controversiesCount, similarTopics, pendingTitle: trimmed })
       } else {
         await doCreate(trimmed)
       }
@@ -157,7 +157,7 @@ export default function AdminTopicsPage() {
     }
     setProcessResult({ topic_id: topicId, ...json.data })
     setProcessTargetId(null)
-    setFewThesesDialog(null)
+    setFewControversiesDialog(null)
     await fetchTopics()
   }
 
@@ -166,7 +166,7 @@ export default function AdminTopicsPage() {
     setProcessLoading(true)
     setProcessError(null)
     setProcessResult(null)
-    setFewThesesDialog(null)
+    setFewControversiesDialog(null)
     setCancelMessage(null)
     try {
       const res = await fetch(`/api/topics/${topicId}/process`, {
@@ -179,11 +179,11 @@ export default function AdminTopicsPage() {
         setProcessError(json?.error?.message ?? 'Failed to process topic')
         return
       }
-      const thesesCount = json?.data?.theses_count ?? 0
-      if (thesesCount > CONFIRM_THRESHOLD) {
+      const controversiesCount = json?.data?.controversies_count ?? 0
+      if (controversiesCount > CONFIRM_THRESHOLD) {
         await runProcess(topicId)
       } else {
-        setFewThesesDialog({ thesesCount, topicId })
+        setFewControversiesDialog({ controversiesCount, topicId })
       }
     } catch (e) {
       setProcessError(e instanceof Error ? e.message : 'Network error')
@@ -192,13 +192,13 @@ export default function AdminTopicsPage() {
     }
   }
 
-  async function handleFewThesesYes() {
-    if (!fewThesesDialog) return
+  async function handleFewControversiesYes() {
+    if (!fewControversiesDialog) return
     setProcessLoading(true)
-    setFewThesesDialog(null)
+    setFewControversiesDialog(null)
     setProcessError(null)
     try {
-      await runProcess(fewThesesDialog.topicId)
+      await runProcess(fewControversiesDialog.topicId)
     } catch (e) {
       setProcessError(e instanceof Error ? e.message : 'Network error')
     } finally {
@@ -206,12 +206,12 @@ export default function AdminTopicsPage() {
     }
   }
 
-  async function handleFewThesesNo() {
-    if (!fewThesesDialog) return
+  async function handleFewControversiesNo() {
+    if (!fewControversiesDialog) return
     setProcessLoading(true)
-    setFewThesesDialog(null)
+    setFewControversiesDialog(null)
     try {
-      const res = await fetch(`/api/topics/${fewThesesDialog.topicId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/topics/${fewControversiesDialog.topicId}`, { method: 'DELETE' })
       if (res.ok) {
         setCancelMessage('Topic deleted.')
         await fetchTopics()
@@ -261,7 +261,7 @@ export default function AdminTopicsPage() {
           <h2 className="mb-4 text-lg font-semibold">Create new topic</h2>
           <p className="mb-4 text-sm text-muted">
             Enter a topic title (e.g. NATO, Russian-Ukrainian War). After creating, click Process to run the pipeline:
-            link theses, generate summary, and build topic-to-topic relationships.
+            link controversies, generate summary, and build topic-to-topic relationships.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-2">
@@ -293,7 +293,7 @@ export default function AdminTopicsPage() {
         )}
         {processResult && (
           <div className="rounded-md border border-subtle bg-muted/30 p-3 text-sm">
-            <p>Processed: {processResult.theses_linked} theses linked, summary {processResult.summary_generated ? 'generated' : 'not generated'}.</p>
+            <p>Processed: {processResult.controversies_linked} controversies linked, summary {processResult.summary_generated ? 'generated' : 'not generated'}.</p>
           </div>
         )}
 
@@ -383,9 +383,9 @@ export default function AdminTopicsPage() {
                     ))}
                   </p>
                 )}
-                {preCreateDialog.thesesCount <= CONFIRM_THRESHOLD && (
+                {preCreateDialog.controversiesCount <= CONFIRM_THRESHOLD && (
                   <p>
-                    Only {preCreateDialog.thesesCount} related theses would be linked.
+                    Only {preCreateDialog.controversiesCount} related controversies would be linked.
                   </p>
                 )}
                 <p>Create &quot;{preCreateDialog.pendingTitle}&quot; anyway?</p>
@@ -406,35 +406,35 @@ export default function AdminTopicsPage() {
           </div>
         )}
 
-        {fewThesesDialog && (
+        {fewControversiesDialog && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="few-theses-dialog-title"
-            onClick={handleFewThesesNo}
+            aria-labelledby="few-controversies-dialog-title"
+            onClick={handleFewControversiesNo}
           >
             <Panel
               variant="base"
               className="max-w-md p-6 shadow-lg"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 id="few-theses-dialog-title" className="mb-3 text-lg font-semibold">
-                Few theses found
+              <h2 id="few-controversies-dialog-title" className="mb-3 text-lg font-semibold">
+                Few controversies found
               </h2>
               <p className="mb-4 text-sm text-muted">
-                There are only {fewThesesDialog.thesesCount} related theses found for this topic.
+                There are only {fewControversiesDialog.controversiesCount} related controversies found for this topic.
                 Are you sure you want to keep it?
               </p>
               <div className="flex justify-end gap-3">
                 <Button
                   variant="outline"
-                  onClick={handleFewThesesNo}
+                  onClick={handleFewControversiesNo}
                   disabled={processLoading}
                 >
                   No, delete topic
                 </Button>
-                <Button onClick={handleFewThesesYes} disabled={processLoading}>
+                <Button onClick={handleFewControversiesYes} disabled={processLoading}>
                   {processLoading ? 'Processing…' : 'Yes, process topic'}
                 </Button>
               </div>

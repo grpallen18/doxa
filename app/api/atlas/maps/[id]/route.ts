@@ -53,33 +53,36 @@ export async function GET(
       [key: string]: unknown
     }>
 
-    // Filter thesis nodes: only include those with thesis_text
-    const thesisNodeIds = nodes
-      .filter((n) => n.entity_type === 'thesis')
-      .map((n) => n.entity_id)
-
+    // Center node text: thesis (legacy) or viewpoint
     let filteredNodes = nodes
-    let thesisText: string | null = null
-    if (thesisNodeIds.length > 0) {
-      const { data: thesesWithText } = await supabase
-        .from('theses')
-        .select('thesis_id, thesis_text')
-        .in('thesis_id', thesisNodeIds)
-        .not('thesis_text', 'is', null)
+    let centerText: string | null = null
 
-      const validThesisIds = new Set(
-        (thesesWithText ?? [])
-          .filter((t) => t.thesis_text && String(t.thesis_text).trim() !== '')
-          .map((t) => t.thesis_id as string)
-      )
-      filteredNodes = nodes.filter(
-        (n) =>
-          n.entity_type !== 'thesis' || validThesisIds.has(n.entity_id)
-      )
-      // Full thesis text for the map's thesis (scope_id when scope_type is 'thesis')
-      const mapThesisId = mapData.scope_type === 'thesis' ? mapData.scope_id : null
-      const thesisRow = (thesesWithText ?? []).find((t) => t.thesis_id === mapThesisId)
-      thesisText = thesisRow?.thesis_text ?? null
+    if (mapData.scope_type === 'viewpoint' && mapData.scope_id) {
+      const { data: vpRow } = await supabase
+        .from('controversy_viewpoints')
+        .select('title, summary')
+        .eq('viewpoint_id', mapData.scope_id)
+        .single()
+      centerText = (vpRow?.title || vpRow?.summary || null) ?? null
+    } else if (mapData.scope_type === 'thesis' && mapData.scope_id) {
+      const thesisNodeIds = nodes.filter((n) => n.entity_type === 'thesis').map((n) => n.entity_id)
+      if (thesisNodeIds.length > 0) {
+        const { data: thesesWithText } = await supabase
+          .from('theses')
+          .select('thesis_id, thesis_text')
+          .in('thesis_id', thesisNodeIds)
+          .not('thesis_text', 'is', null)
+        const validThesisIds = new Set(
+          (thesesWithText ?? [])
+            .filter((t) => t.thesis_text && String(t.thesis_text).trim() !== '')
+            .map((t) => t.thesis_id as string)
+        )
+        filteredNodes = nodes.filter(
+          (n) => n.entity_type !== 'thesis' || validThesisIds.has(n.entity_id)
+        )
+        const thesisRow = (thesesWithText ?? []).find((t) => t.thesis_id === mapData.scope_id)
+        centerText = thesisRow?.thesis_text ?? null
+      }
     }
 
     const { data: edges, error: edgesError } = await supabase
@@ -95,7 +98,8 @@ export async function GET(
     }
 
     // Build sourceDetails: top 20 claims by similarity, grouped by source
-    const thesisId = mapData.scope_type === 'thesis' ? mapData.scope_id : null
+    const centerId = (mapData.scope_type === 'thesis' || mapData.scope_type === 'viewpoint') ? mapData.scope_id : null
+    const centerType = mapData.scope_type === 'thesis' ? 'thesis' : mapData.scope_type === 'viewpoint' ? 'viewpoint' : null
     const rawEdges = (edges ?? []) as Array<{
       source_type: string
       source_id: string
@@ -105,12 +109,12 @@ export async function GET(
     }>
 
     const claimEdges: { claimId: string; similarity: number }[] = []
-    if (thesisId) {
+    if (centerId && centerType) {
       for (const e of rawEdges) {
-        if (e.source_type === 'thesis' && e.source_id === thesisId && e.target_type === 'claim') {
+        if (e.source_type === centerType && e.source_id === centerId && e.target_type === 'claim') {
           claimEdges.push({ claimId: e.target_id, similarity: e.similarity_score ?? 0 })
         }
-        if (e.target_type === 'thesis' && e.target_id === thesisId && e.source_type === 'claim') {
+        if (e.target_type === centerType && e.target_id === centerId && e.source_type === 'claim') {
           claimEdges.push({ claimId: e.source_id, similarity: e.similarity_score ?? 0 })
         }
       }
@@ -260,9 +264,9 @@ export async function GET(
             .map((sc) => ({
               story_claim_id: sc.story_claim_id,
               raw_text: sc.raw_text,
-              linked_to_thesis: top20Set.has(sc.claim_id),
+              linked_to_viewpoint: top20Set.has(sc.claim_id),
             }))
-            .sort((a, b) => (b.linked_to_thesis ? 1 : 0) - (a.linked_to_thesis ? 1 : 0))
+            .sort((a, b) => (b.linked_to_viewpoint ? 1 : 0) - (a.linked_to_viewpoint ? 1 : 0))
           return {
             ...s,
             published_at: s.published_at ?? null,
@@ -279,7 +283,8 @@ export async function GET(
         nodes: filteredNodes,
         edges: edges ?? [],
         sourceDetails,
-        thesisText,
+        thesisText: centerText,
+        viewpointText: centerText,
       },
       error: null,
     })
