@@ -107,6 +107,20 @@ Optional (Browser Rendering fallback):
 
 ---
 
+## Known issue: new deployments may fail (Cloudflare runtime)
+
+As of Feb 2026, we observed that **new deployments can fail with 503/CPU errors** even when the Worker code is identical. A diff between a working deployment (9ddeb96) and a broken one (6de4a16) showed no changes to `workers/`—same code, same dependencies, same bundle size. The failure appears to be caused by changes on Cloudflare’s side (runtime or deployment pipeline), not our code.
+
+**Mitigation:** Use **Build watch paths** in Cloudflare Build settings and set it to `workers` so the Worker only redeploys when this folder changes. Avoid redeploying unless you’ve actually changed the Worker.
+
+**Rollback:** If the Worker is accidentally redeployed and scrapes start failing, roll back to the known-good version in Cloudflare:
+
+- **Workers & Pages** → **doxa** → **Deployments**
+- Find version **c0627331-6742-405b-96f1-a1d25e82c3c3** (deployed 2026-02-18)
+- Use **Rollback** or **Set as active**
+
+---
+
 ## Adding a new handler
 
 1. Implement the logic in a new module under `src/` (e.g. `src/otherHandler.ts`).
