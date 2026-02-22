@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth'
 
 function slugify(title: string): string {
   return title
@@ -49,6 +50,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   try {
     const body = await request.json().catch(() => ({}))
     const title = typeof body?.title === 'string' ? body.title.trim() : ''

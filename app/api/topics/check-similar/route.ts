@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
-/** Calls process_topic Edge Function with check_similar mode. Returns similar_topics and controversies_count. */
+/** Calls process_topic Edge Function with check_similar mode. Returns similar_topics and controversies_count. Admin only. */
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 

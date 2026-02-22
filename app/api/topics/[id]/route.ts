@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { TopicWithDetails, TopicControversy, TopicRelationship } from '@/lib/types'
+import { requireAdmin } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
@@ -100,6 +101,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   const topicId = params.id
   if (!topicId) {
     return NextResponse.json(

@@ -18,12 +18,13 @@ async function notifyReceiveScrapedContent(
   receiveUrl: string,
   secret: string,
   storyId: string,
+  targetUrl: string,
   result: { ok: true; title: string; content: string; scrape_method?: string } | { ok: false; error: string },
   dryRun: boolean
 ): Promise<{ ok: true } | { ok: false; status: number; body: string }> {
   const body = result.ok
-    ? { story_id: storyId, title: result.title, content: result.content, scrape_method: result.scrape_method ?? null, dry_run: dryRun }
-    : { story_id: storyId, error: result.error, dry_run: dryRun }
+    ? { story_id: storyId, url: targetUrl, title: result.title, content: result.content, scrape_method: result.scrape_method ?? null, dry_run: dryRun }
+    : { story_id: storyId, url: targetUrl, error: result.error, dry_run: dryRun }
   try {
     const res = await fetch(receiveUrl, {
       method: "POST",
@@ -99,7 +100,7 @@ export default {
       const receiveUrl = env.SUPABASE_RECEIVE_URL?.trim()
       if (storyId && receiveUrl) {
         console.log("[doxa] calling receive_scraped_content", { story_id: storyId })
-        const callbackResult = await notifyReceiveScrapedContent(receiveUrl, secret.trim(), storyId, result, dryRun)
+        const callbackResult = await notifyReceiveScrapedContent(receiveUrl, secret.trim(), storyId, targetUrl, result, dryRun)
         if (!callbackResult.ok) {
           const errBody = callbackResult.body.slice(0, 300)
           return jsonResponse(

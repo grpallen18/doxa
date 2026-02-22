@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth'
 
-/** Returns all topics (including draft). Uses service role to bypass RLS. */
+/** Returns all topics (including draft). Uses service role to bypass RLS. Admin only. */
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   try {
     const supabase = createAdminClient()
     const searchParams = request.nextUrl.searchParams

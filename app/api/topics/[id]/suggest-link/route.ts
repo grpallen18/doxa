@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth'
 
 const MARKDOWN_LINK_REGEX = /(\[[^\]]+\]\([^)]+\))/g
 
@@ -22,20 +23,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   const topicId = params.id
   if (!topicId) {
     return NextResponse.json(
       { ok: false, error: 'Topic ID required' },
       { status: 400 }
-    )
-  }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json(
-      { ok: false, error: 'Authentication required' },
-      { status: 401 }
     )
   }
 

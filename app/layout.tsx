@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { AppShell } from '@/components/AppShell'
 import { LogoutTransitionWrapper } from '@/components/LogoutTransitionWrapper'
 import { NavigationOverlayProvider, PageNavigationOverlay } from '@/components/NavigationOverlayContext'
 import { ThemeProvider } from '@/components/ThemeProvider'
@@ -41,7 +42,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <NavigationOverlayProvider>
-            <LogoutTransitionWrapper>{children}</LogoutTransitionWrapper>
+            <LogoutTransitionWrapper>
+            <AppShell>{children}</AppShell>
+          </LogoutTransitionWrapper>
             <PageNavigationOverlay />
           </NavigationOverlayProvider>
         </ThemeProvider>

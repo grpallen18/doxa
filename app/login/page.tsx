@@ -38,10 +38,18 @@ function LoginFormWrapper() {
         >
           <div className="text-center">
             <span className="text-6xl font-semibold uppercase tracking-[0.18em] text-[rgb(96,84,72)] font-['Times_New_Roman',serif] sm:text-7xl">
-              DOXA
+              {'DOXA'.split('').map((letter, i) => (
+                <span
+                  key={i}
+                  className="inline-block animate-doxa-letter opacity-0"
+                  style={{ animationDelay: `${i * 360}ms` }}
+                >
+                  {letter}
+                </span>
+              ))}
             </span>
           </div>
-          <Panel variant="soft" interactive={false} className="p-6">
+          <Panel variant="soft" interactive={false} className="animate-panel-fade-in p-6 opacity-0">
             <LoginForm onLoginSuccess={() => setTransitioning(true)} />
           </Panel>
         </div>

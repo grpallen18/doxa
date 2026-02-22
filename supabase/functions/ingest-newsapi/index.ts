@@ -48,7 +48,6 @@ const NEWSAPI_SOURCES_WHITELIST = [
   "time",
   "newsweek",
   "usa-today",
-  "cbs-news",
 ];
 
 const SOURCES_BATCH_SIZE = 4;

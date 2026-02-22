@@ -29,6 +29,14 @@ function getBearerSecret(request: Request): string | null {
   return auth.slice(7).trim() || null;
 }
 
+function domainFromUrl(urlStr: string): string | null {
+  try {
+    return new URL(urlStr.trim()).hostname.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
@@ -45,11 +53,11 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }, 500);
   }
 
-  let body: { story_id?: string; title?: string; content?: string; scrape_method?: string | null; error?: string; dry_run?: boolean } = {};
+  let body: { story_id?: string; url?: string; title?: string; content?: string; scrape_method?: string | null; error?: string; dry_run?: boolean } = {};
   try {
     const raw = await req.json().catch(() => ({}));
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-      body = raw as { story_id?: string; title?: string; content?: string; scrape_method?: string | null; error?: string; dry_run?: boolean };
+      body = raw as { story_id?: string; url?: string; title?: string; content?: string; scrape_method?: string | null; error?: string; dry_run?: boolean };
     }
   } catch {
     return json({ error: "Invalid JSON" }, 400);
@@ -58,6 +66,9 @@ Deno.serve(async (req: Request) => {
   const dryRun = Boolean(body.dry_run ?? false);
   const storyId = typeof body.story_id === "string" ? body.story_id.trim() : "";
   if (!storyId) return json({ error: "story_id is required" }, 400);
+
+  const url = typeof body.url === "string" ? body.url.trim() || null : null;
+  const domain = url ? domainFromUrl(url) : null;
 
   const content = typeof body.content === "string" ? body.content.trim() : "";
   const hasContent = content.length > 0;
@@ -96,6 +107,14 @@ Deno.serve(async (req: Request) => {
         console.error("[receive_scraped_content] stories update error:", updateErr.message);
         return json({ error: updateErr.message }, 500);
       }
+      const { error: logErr } = await supabase.from("scrape_log").insert({
+        story_id: storyId,
+        outcome: "success",
+        scrape_method: scrapeMethod,
+        url,
+        domain,
+      });
+      if (logErr) console.error("[receive_scraped_content] scrape_log insert error:", logErr.message);
     }
     return json({ ok: true, story_id: storyId, dry_run: dryRun });
   }
@@ -103,12 +122,25 @@ Deno.serve(async (req: Request) => {
   if (!dryRun) {
     const { error: updateErr } = await supabase
       .from("stories")
-      .update({ being_processed: false, scrape_skipped: true })
+      .update({
+        being_processed: false,
+        scrape_skipped: true,
+        scrape_skipped_at: new Date().toISOString(),
+      })
       .eq("story_id", storyId);
     if (updateErr) {
       console.error("[receive_scraped_content] stories update (skip) error:", updateErr.message);
       return json({ error: updateErr.message }, 500);
     }
+    const errorMsg = typeof body.error === "string" ? body.error.trim().slice(0, 500) : null;
+    const { error: logErr } = await supabase.from("scrape_log").insert({
+      story_id: storyId,
+      outcome: "failure",
+      error: errorMsg,
+      url,
+      domain,
+    });
+    if (logErr) console.error("[receive_scraped_content] scrape_log insert error:", logErr.message);
   }
   return json({ ok: true, story_id: storyId, skipped: true, dry_run: dryRun });
 });

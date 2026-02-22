@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
 
-/** Invokes process_topic Edge Function for the given topic_id. */
+/** Invokes process_topic Edge Function for the given topic_id. Admin only. */
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   const topicId = params.id
   if (!topicId) {
     return NextResponse.json(

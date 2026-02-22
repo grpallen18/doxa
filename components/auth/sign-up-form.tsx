@@ -9,7 +9,6 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -70,7 +69,6 @@ export function SignUpForm() {
     <Card className="w-full max-w-sm border-border bg-card">
       <CardHeader>
         <CardTitle className="text-2xl">Create an account</CardTitle>
-        <CardDescription>Sign up with your email and password. The site is free.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Form {...form}>

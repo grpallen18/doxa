@@ -128,6 +128,14 @@ Deno.serve(async (req: Request) => {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[scrape_story_content] Worker request error:", msg);
     if (!dryRun) {
+      const { error: logErr } = await supabase.from("scrape_log").insert({
+        story_id: story.story_id,
+        outcome: "failure",
+        error: msg.slice(0, 500),
+        url: url || null,
+        domain: domain || null,
+      });
+      if (logErr) console.error("[scrape_story_content] scrape_log insert error:", logErr.message);
       const { error: incErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
         p_story_id: story.story_id,
       });

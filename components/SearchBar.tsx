@@ -157,11 +157,6 @@ export function SearchBar() {
                       onMouseEnter={() => setHighlightedIndex(i)}
                     >
                       <p className="font-medium text-foreground">{topic.title}</p>
-                      {topic.summary && (
-                        <p className="mt-0.5 line-clamp-1 text-xs text-muted">
-                          {topic.summary.length > 80 ? `${topic.summary.slice(0, 80)}…` : topic.summary}
-                        </p>
-                      )}
                     </button>
                   ))
                 )}

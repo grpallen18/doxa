@@ -313,12 +313,7 @@ export default function AdminTopicsPage() {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-foreground">{topic.title}</p>
-                        <p className="text-xs text-muted">{topic.slug} · {topic.status}</p>
-                        {topic.summary && (
-                          <p className="mt-1 line-clamp-2 text-sm text-muted">
-                            {topic.summary.length > 80 ? `${topic.summary.slice(0, 80)}…` : topic.summary}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted">{topic.slug}</p>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button

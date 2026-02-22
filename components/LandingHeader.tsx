@@ -16,6 +16,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useLogoutTransition } from '@/components/LogoutTransitionWrapper'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useUserRole } from '@/hooks/use-user-role'
 import type { User } from '@supabase/supabase-js'
 
 const exploreItems: { title: string; href: string; description: string }[] = [
@@ -63,6 +64,7 @@ interface LandingHeaderProps {
 export function LandingHeader({ variant = 'default' }: LandingHeaderProps) {
   const [open, setOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
+  const role = useUserRole()
   const startLogout = useLogoutTransition()
 
   useEffect(() => {
@@ -144,6 +146,19 @@ export function LandingHeader({ variant = 'default' }: LandingHeaderProps) {
                       </Link>
                     </NavigationMenuLink>
                   </li>
+                  {role === 'admin' && (
+                    <li>
+                      <NavigationMenuLink asChild>
+                        <Link
+                          href="/admin/topics"
+                          className="flex flex-col gap-1 rounded-sm px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                        >
+                          <span className="font-medium">Admin</span>
+                          <span className="text-muted-foreground text-xs">Manage topics</span>
+                        </Link>
+                      </NavigationMenuLink>
+                    </li>
+                  )}
                   <li className="flex items-center gap-2 px-3 py-2">
                     <ThemeToggle />
                     <span className="text-sm text-muted-foreground">Theme</span>
@@ -192,6 +207,11 @@ export function LandingHeader({ variant = 'default' }: LandingHeaderProps) {
               >
                 <span>{displayName}</span>
               </Link>
+              {role === 'admin' && (
+                <Link href="/admin/topics" className="transition-colors hover:text-accent-primary">
+                  Admin
+                </Link>
+              )}
               <Link href="/about" className="transition-colors hover:text-accent-primary">
                 About
               </Link>
@@ -286,6 +306,14 @@ export function LandingHeader({ variant = 'default' }: LandingHeaderProps) {
               >
                 <span>{displayName}</span>
               </Link>
+              {role === 'admin' && (
+                <>
+                  <span className="text-muted-foreground/50 select-none" aria-hidden>·</span>
+                  <Link href="/admin/topics" className="hover:text-accent-primary">
+                    Admin
+                  </Link>
+                </>
+              )}
               <span className="text-muted-foreground/50 select-none" aria-hidden>·</span>
               <Link href="/about" className="hover:text-accent-primary">
                 About

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -10,7 +10,6 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -25,6 +24,20 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
+import { SiFacebook, SiGithub, SiGoogle, SiX } from 'react-icons/si'
+import { FaMicrosoft } from 'react-icons/fa'
+import { Mail } from 'lucide-react'
+
+type OAuthProvider = 'facebook' | 'github' | 'google' | 'azure' | 'twitter'
+
+const SOCIAL_PROVIDERS: { provider: OAuthProvider; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+  { provider: 'facebook', label: 'Facebook', Icon: SiFacebook },
+  { provider: 'github', label: 'Github', Icon: SiGithub },
+  { provider: 'google', label: 'Google', Icon: SiGoogle },
+  { provider: 'azure', label: 'Microsoft', Icon: FaMicrosoft },
+  { provider: 'twitter', label: 'X', Icon: SiX },
+]
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -37,7 +50,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect') ?? '/'
   const [error, setError] = useState<string | null>(null)
-  const [anonymousLoading, setAnonymousLoading] = useState(false)
+  const emailSectionRef = useRef<HTMLDivElement>(null)
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -46,7 +59,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
 
   const supabase = createClient()
 
-  async function handleSocialLogin(provider: 'github' | 'google' = 'github') {
+  async function handleSocialLogin(provider: OAuthProvider) {
     setError(null)
     const callbackUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`
     const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -60,18 +73,6 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
     if (data?.url) {
       window.location.href = data.url
     }
-  }
-
-  async function handleAnonymousLogin() {
-    setError(null)
-    setAnonymousLoading(true)
-    const { error: anonError } = await supabase.auth.signInAnonymously()
-    setAnonymousLoading(false)
-    if (anonError) {
-      setError(anonError.message)
-      return
-    }
-    onLoginSuccess?.()
   }
 
   async function onSubmit(values: LoginValues) {
@@ -91,9 +92,9 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
     <Card className="w-full max-w-sm border-border bg-card">
           <CardHeader>
             <CardTitle className="text-2xl">Sign in</CardTitle>
-            <CardDescription>Sign in with your email and password to access the site.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <Separator />
+          <CardContent className="space-y-4 pt-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 {error && (
@@ -101,6 +102,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                     {error}
                   </p>
                 )}
+                <div ref={emailSectionRef}>
                 <FormField
                   control={form.control}
                   name="email"
@@ -114,6 +116,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                     </FormItem>
                   )}
                 />
+                </div>
                 <FormField
                   control={form.control}
                   name="password"
@@ -127,31 +130,40 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                <Button type="submit" className="!mt-4 w-full" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
                 </Button>
                 <div className="relative my-4">
-                  <span className="relative flex justify-center text-xs uppercase text-muted-foreground">
-                    or continue with
+                  <span className="relative flex justify-center text-xs text-muted-foreground">
+                    or login with:
                   </span>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleAnonymousLogin}
-                  disabled={anonymousLoading}
-                >
-                  {anonymousLoading ? 'Signing in…' : 'Continue as guest'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => handleSocialLogin('github')}
-                >
-                  Login with GitHub
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  {SOCIAL_PROVIDERS.map(({ provider, label, Icon }) => (
+                    <Button
+                      key={provider}
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-between"
+                      onClick={() => handleSocialLogin(provider)}
+                    >
+                      {label}
+                      <Icon className="size-4 shrink-0 text-black" />
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between"
+                    onClick={() => {
+                      emailSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+                      setTimeout(() => emailSectionRef.current?.querySelector('input')?.focus(), 300)
+                    }}
+                  >
+                    Email
+                    <Mail className="size-4 shrink-0 text-black" />
+                  </Button>
+                </div>
               </form>
             </Form>
             <p className="text-center text-sm text-muted-foreground">
@@ -160,9 +172,10 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
               </Link>
             </p>
           </CardContent>
-          <CardFooter className="flex flex-col gap-2 text-center text-sm text-muted-foreground">
+          <Separator />
+          <CardFooter className="flex flex-col gap-2 pt-6 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link href="/auth/sign-up" className="font-medium text-foreground underline underline-offset-2 hover:no-underline">
+            <Link href="/auth/sign-up" className="font-medium text-foreground underline underline-offset-2">
               Sign up
         </Link>
       </CardFooter>

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getUserRole } from '@/lib/auth-utils'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey =
@@ -27,8 +28,15 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const { data } = await supabase.auth.getUser()
-  const user = data?.user
+  // Use getUser() to validate against the Auth server. getSession() reads from cookies
+  // only and can return stale data (e.g. deleted users).
+  const { data: userData, error } = await supabase.auth.getUser()
+  const user = userData?.user
+
+  // Clear invalid session cookies (e.g. from deleted users) so the user isn't stuck
+  if (error) {
+    await supabase.auth.signOut()
+  }
 
   const pathname = request.nextUrl.pathname
   const isAuthPage = pathname === '/login' || pathname.startsWith('/auth/')
@@ -51,6 +59,18 @@ export async function updateSession(request: NextRequest) {
       redirectResponse.cookies.set(cookie.name, cookie.value)
     )
     return redirectResponse
+  }
+
+  if (user && pathname.startsWith('/admin')) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const role = getUserRole(sessionData?.session?.access_token ?? '')
+    if (role !== 'admin') {
+      const redirectResponse = NextResponse.redirect(new URL('/', request.url))
+      supabaseResponse.cookies.getAll().forEach((cookie) =>
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      )
+      return redirectResponse
+    }
   }
 
   return supabaseResponse

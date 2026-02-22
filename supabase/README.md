@@ -823,6 +823,7 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | orphan-cleanup-weekly | run_orphan_cleanup (RPC) | Sundays 4am UTC | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
 | cleanup-cron-job-run-details-daily | DELETE cron.job_run_details | Daily 4:30am UTC (2-day retention) | [cron_cleanup_logs.sql](cron_cleanup_logs.sql) |
 | cleanup-http-responses-hourly | DELETE net._http_response | Every hour (1-hour retention) | [cron_cleanup_logs.sql](cron_cleanup_logs.sql) |
+| purge-drop-stories-monthly | purge_drop_stories (RPC) | 1st of month, 4am UTC (30-day retention) | [cron_purge_drop_stories.sql](cron_purge_drop_stories.sql) |
 | claim-cluster-hourly *(removed)* | claim_cluster_nightly | — | *(function and cron removed)* |
 | review-pending-stories-every-hour | review_pending_stories | Every hour | [cron_review_pending_stories.sql](cron_review_pending_stories.sql) |
 

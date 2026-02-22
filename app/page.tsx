@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { LandingHeader } from '@/components/LandingHeader'
 import { HomeFadeWrapper } from '@/components/HomeFadeWrapper'
 import { TrendingStoriesList } from '@/components/TrendingStoriesList'
+import { AppFooterLinks } from '@/components/AppFooterLinks'
 import { createClient } from '@/lib/supabase/server'
 
 type RecentStory = { story_id: string; title: string; url: string; created_at: string; source_name: string | null }
@@ -80,27 +81,7 @@ export default async function Home() {
           id="signin"
           className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"
         >
-          <div className="flex flex-wrap items-center gap-4">
-            <span>© {new Date().getFullYear()} Doxa.</span>
-            <Link href="/about" className="hover:text-foreground">
-              About
-            </Link>
-            <Link href="/about#how-heading" className="hover:text-foreground">
-              How it works
-            </Link>
-            <Link href="/topics" className="hover:text-foreground">
-              Topics
-            </Link>
-            <a href="/atlas" className="hover:text-foreground">
-              Atlas
-            </a>
-            <Link href="/admin/topics" className="hover:text-foreground">
-              Admin
-            </Link>
-            <Link href="#signin" className="hover:text-foreground">
-              Log in
-            </Link>
-          </div>
+          <AppFooterLinks />
           <div className="flex gap-4">
             <Link href="#" className="hover:text-foreground">
               Terms
