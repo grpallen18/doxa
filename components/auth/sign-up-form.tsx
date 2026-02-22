@@ -79,7 +79,7 @@ export function SignUpForm() {
               </p>
             )}
             {message && (
-              <p className="rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-800 dark:text-green-200" role="status">
+              <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success-foreground" role="status">
                 {message}
               </p>
             )}

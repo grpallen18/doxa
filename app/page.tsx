@@ -1,10 +1,8 @@
-import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/Button'
 import { LandingHeader } from '@/components/LandingHeader'
 import { HomeFadeWrapper } from '@/components/HomeFadeWrapper'
 import { TrendingStoriesList } from '@/components/TrendingStoriesList'
-import { AppFooterLinks } from '@/components/AppFooterLinks'
 import { createClient } from '@/lib/supabase/server'
 
 type RecentStory = { story_id: string; title: string; url: string; created_at: string; source_name: string | null }
@@ -36,8 +34,8 @@ export default async function Home() {
   return (
     <HomeFadeWrapper>
       <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
-        <LandingHeader />
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
+        <LandingHeader animateTitle />
 
         {/* Three columns: This week's question (30%) | middle (40%) | Trending (30%) */}
         <section aria-labelledby="discovery-heading" className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)]">
@@ -75,22 +73,6 @@ export default async function Home() {
             <TrendingStoriesList stories={recentStories} />
           </div>
         </section>
-
-        {/* Footer */}
-        <footer
-          id="signin"
-          className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"
-        >
-          <AppFooterLinks />
-          <div className="flex gap-4">
-            <Link href="#" className="hover:text-foreground">
-              Terms
-            </Link>
-            <Link href="#" className="hover:text-foreground">
-              Privacy
-            </Link>
-          </div>
-        </footer>
       </div>
     </main>
     </HomeFadeWrapper>

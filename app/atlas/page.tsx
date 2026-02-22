@@ -169,7 +169,7 @@ export default function AtlasPage() {
   if (loading && maps.length === 0) {
     return (
       <main className="min-h-screen px-4 pb-8 pt-6 text-foreground sm:px-6 md:px-8 md:pt-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <div className="mx-auto flex max-w-content flex-col gap-6">
           <LandingHeader variant="atlas" />
           <Panel variant="soft" className="flex min-h-[400px] items-center justify-center p-8">
             <div className="flex flex-col items-center gap-4">
@@ -188,7 +188,7 @@ export default function AtlasPage() {
   if (error) {
     return (
       <main className="min-h-screen px-4 pb-8 pt-6 text-foreground sm:px-6 md:px-8 md:pt-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <div className="mx-auto flex max-w-content flex-col gap-6">
           <LandingHeader variant="atlas" />
           <Panel variant="soft" className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8 text-center">
             <p className="text-sm text-foreground">Error: {error}</p>
@@ -203,7 +203,7 @@ export default function AtlasPage() {
 
   return (
     <main className="min-h-screen px-4 pb-8 pt-6 text-foreground sm:px-6 md:px-8 md:pt-8">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="mx-auto flex max-w-content flex-col gap-6">
         <LandingHeader variant="atlas" />
 
         <Panel variant="soft" interactive={false} className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">

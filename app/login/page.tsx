@@ -37,7 +37,7 @@ function LoginFormWrapper() {
           aria-hidden={transitioning}
         >
           <div className="text-center">
-            <span className="text-6xl font-semibold uppercase tracking-[0.18em] text-[rgb(96,84,72)] font-['Times_New_Roman',serif] sm:text-7xl">
+            <span className="text-6xl font-semibold uppercase tracking-[0.18em] text-muted font-['Times_New_Roman',serif] sm:text-7xl">
               {'DOXA'.split('').map((letter, i) => (
                 <span
                   key={i}
@@ -78,7 +78,7 @@ function LoginPageFallback() {
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex max-w-md flex-col gap-8 pt-12">
         <div className="text-center">
-          <span className="text-6xl font-semibold uppercase tracking-[0.18em] text-[rgb(96,84,72)] font-['Times_New_Roman',serif] sm:text-7xl">DOXA</span>
+          <span className="text-6xl font-semibold uppercase tracking-[0.18em] text-muted font-['Times_New_Roman',serif] sm:text-7xl">DOXA</span>
         </div>
         <Panel variant="soft" interactive={false} className="flex flex-col gap-6 p-6">
           <div className="h-8 w-48 animate-pulse rounded bg-muted" />

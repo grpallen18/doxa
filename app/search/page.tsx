@@ -38,7 +38,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   return (
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
         <LandingHeader />
 
         <section aria-labelledby="results-heading" className="space-y-4">
@@ -155,12 +155,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             </>
           )}
         </section>
-
-        <footer className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/" className="hover:text-foreground">
-            ← Home
-          </Link>
-        </footer>
       </div>
     </main>
   )

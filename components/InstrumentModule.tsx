@@ -16,7 +16,7 @@ export function InstrumentModule({ title, value = '60%', indicator }: Instrument
 
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-inset-soft">
-          <div className="h-3 w-3 rounded-full bg-[#8a7f6f]" />
+          <div className="h-3 w-3 rounded-full bg-accent-secondary" />
         </div>
         <div className="flex-1 rounded-full bg-background shadow-inset-soft">
           <div

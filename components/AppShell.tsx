@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, LayoutDashboard, Map, Search, User, FileText } from 'lucide-react'
+import { Home, LayoutDashboard, Search, FileText, BookOpen, Activity } from 'lucide-react'
 
 import {
   Sidebar,
@@ -11,7 +11,6 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
@@ -22,18 +21,20 @@ import {
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { useUserRole } from '@/hooks/use-user-role'
+import { SidebarUserSection } from '@/components/SidebarUserSection'
+import { AppFooter } from '@/components/AppFooter'
 
 const navigationItems = [
   { href: '/', label: 'Home', icon: Home },
-  { href: '/topics', label: 'Topics', icon: FileText },
-  { href: '/atlas', label: 'Atlas', icon: Map },
   { href: '/search', label: 'Search', icon: Search },
   { href: '/about', label: 'About', icon: FileText },
-  { href: '/profile', label: 'Profile', icon: User },
 ]
 
 const adminItems = [
-  { href: '/admin/topics', label: 'Topics', icon: LayoutDashboard },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/topics', label: 'Topics', icon: FileText },
+  { href: '/admin/stories', label: 'Stories', icon: BookOpen },
+  { href: '/admin/health', label: 'Health', icon: Activity },
 ]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -61,11 +62,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             side="left"
             className="top-[--header-height] !h-[calc(100svh-var(--header-height))]"
           >
-            <SidebarHeader className="border-b border-sidebar-border">
-              <div className="flex items-center gap-2 px-2 py-2">
-                <span className="font-semibold text-sidebar-foreground">Doxa</span>
-              </div>
-            </SidebarHeader>
             <SidebarContent>
               <SidebarGroup>
                 <SidebarGroupLabel>Navigation</SidebarGroupLabel>
@@ -113,16 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </SidebarContent>
             <SidebarFooter className="border-t border-sidebar-border">
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Home">
-                    <Link href="/">
-                      <Home className="size-4" />
-                      <span>Home</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
+              <SidebarUserSection />
             </SidebarFooter>
             <SidebarRail />
           </Sidebar>
@@ -131,6 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </SidebarInset>
         </div>
       </SidebarProvider>
+      <AppFooter />
     </div>
   )
 }

@@ -1,11 +1,10 @@
-import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { LandingHeader } from '@/components/LandingHeader'
 
 export default function AboutPage() {
   return (
     <main className="min-h-screen px-4 pb-16 pt-6 text-muted sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
         <LandingHeader />
 
         <section aria-labelledby="about-heading" className="space-y-8">
@@ -63,17 +62,6 @@ export default function AboutPage() {
             </div>
           </div>
         </section>
-
-        <footer className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <Link href="/" className="hover:opacity-80">
-              Home
-            </Link>
-            <a href="/atlas" className="hover:opacity-80">
-              Topics
-            </a>
-          </div>
-        </footer>
       </div>
     </main>
   )

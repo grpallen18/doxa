@@ -50,7 +50,7 @@ function getAtlasBgColor(): string {
 
 function getAtlasEdgeColor(): string {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  return isDark ? 'rgba(176,176,176,0.35)' : 'rgba(74,69,57,0.35)'
+  return isDark ? 'rgba(168,168,168,0.35)' : 'rgba(82,71,54,0.35)'
 }
 
 function getBubbleRadius(node: VizNode): number {

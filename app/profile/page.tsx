@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { LandingHeader } from '@/components/LandingHeader'
 import { InstrumentModule } from '@/components/InstrumentModule'
@@ -16,7 +15,7 @@ const IDEOLOGY_FACTORS = [
 export default function ProfilePage() {
   return (
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
         <LandingHeader />
 
         <section aria-labelledby="profile-heading" className="space-y-6">
@@ -62,17 +61,6 @@ export default function ProfilePage() {
             </div>
           </div>
         </section>
-
-        <footer className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <a href="/" className="hover:text-foreground">
-              ← Home
-            </a>
-            <Link href="/atlas" className="hover:text-foreground">
-              Topics
-            </Link>
-          </div>
-        </footer>
       </div>
     </main>
   )

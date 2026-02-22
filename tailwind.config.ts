@@ -12,13 +12,14 @@ const config: Config = {
   		colors: {
   			background: 'var(--background)',
   			foreground: 'var(--foreground)',
-  			muted: {
-  				DEFAULT: 'var(--muted)',
-  				foreground: 'var(--muted-foreground)'
+  		muted: {
+  				DEFAULT: 'var(--muted-bg)',
+  				foreground: 'var(--muted)'
   			},
   			'muted-soft': 'var(--muted-soft)',
   			accent: {
   				primary: 'var(--accent-primary)',
+  				'primary-foreground': 'var(--accent-primary-foreground)',
   				secondary: 'var(--accent-secondary)',
   				DEFAULT: 'var(--accent)',
   				foreground: 'var(--accent-foreground)'
@@ -42,6 +43,10 @@ const config: Config = {
   			destructive: {
   				DEFAULT: 'var(--destructive)',
   				foreground: 'var(--destructive-foreground)'
+  			},
+  			success: {
+  				DEFAULT: 'var(--success)',
+  				foreground: 'var(--success-foreground)'
   			},
   			border: 'var(--border)',
   			input: 'var(--input)',
@@ -81,7 +86,14 @@ const config: Config = {
   		backgroundColor: {
   			surface: 'var(--surface)',
   			'surface-soft': 'var(--surface-soft)',
-  			'surface-section': 'var(--surface-section)'
+  			'surface-section': 'var(--surface-section)',
+  			muted: 'var(--muted-bg)'
+  		},
+  		textColor: {
+  			muted: 'var(--muted)'
+  		},
+  		maxWidth: {
+  			content: 'var(--content-max-width)'
   		},
   		borderColor: {
   			subtle: 'var(--border-subtle)'

@@ -97,7 +97,7 @@ export default async function TopicPage({ params }: { params: { id: string } }) 
 
   return (
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 md:gap-10">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-8 md:gap-10">
         <LandingHeader />
 
         <Panel as="article" variant="base" className="space-y-6">

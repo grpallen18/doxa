@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { LandingHeader } from '@/components/LandingHeader'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -244,17 +243,16 @@ export default function AdminTopicsPage() {
   return (
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-        <LandingHeader />
         <div className="flex items-center gap-4">
           <Link href="/" className="text-sm text-muted hover:text-foreground">
             Home
           </Link>
           <span className="text-muted">/</span>
-          <Link href="/topics" className="text-sm text-muted hover:text-foreground">
-            Browse topics
+          <Link href="/admin" className="text-sm text-muted hover:text-foreground">
+            Admin
           </Link>
           <span className="text-muted">/</span>
-          <span className="text-sm font-medium">Admin: Topics</span>
+          <span className="text-sm font-medium">Topics</span>
         </div>
 
         <Panel variant="soft" interactive={false} className="p-6">

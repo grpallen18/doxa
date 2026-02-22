@@ -4,31 +4,37 @@ import { Separator } from '@/components/ui/separator'
 
 const contentClass = 'min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10'
 
+const LandingHeaderSkeleton = () => (
+  <header className="pt-2">
+    <div className="mb-6 text-center">
+      <Skeleton className="mx-auto h-16 w-48 sm:h-20 sm:w-56" />
+    </div>
+    <Panel
+      as="nav"
+      variant="soft"
+      interactive={false}
+      className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-4 w-16" />
+        <div className="hidden items-center gap-6 md:flex">
+          <Skeleton className="h-4 w-4 rounded-full" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+      </div>
+      <Skeleton className="h-10 w-full" />
+    </Panel>
+  </header>
+)
+
 export function PageSkeletonHome() {
   return (
     <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
-        {/* Nav panel (LandingHeader) */}
-        <header className="pt-2">
-          <Panel
-            as="nav"
-            variant="soft"
-            interactive={false}
-            className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-4 w-16" />
-              <div className="hidden items-center gap-6 md:flex">
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            </div>
-            <Skeleton className="h-10 w-full" />
-          </Panel>
-        </header>
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
+        <LandingHeaderSkeleton />
 
         {/* Three columns: This week's question | middle | Trending stories */}
         <section className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)]">
@@ -76,24 +82,6 @@ export function PageSkeletonHome() {
             </Panel>
           </div>
         </section>
-
-        <footer
-          id="signin"
-          className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div className="flex flex-wrap items-center gap-4">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-14" />
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-12" />
-          </div>
-          <div className="flex gap-4">
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-14" />
-          </div>
-        </footer>
       </div>
     </main>
   )
@@ -102,7 +90,7 @@ export function PageSkeletonHome() {
 export function PageSkeletonTopics() {
   return (
     <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
         {/* Nav panel (LandingHeader) */}
         <header className="pt-2">
           <Panel
@@ -148,12 +136,6 @@ export function PageSkeletonTopics() {
             <Skeleton className="h-9 w-9" />
           </div>
         </section>
-
-        <footer className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <Skeleton className="h-4 w-16" />
-          </div>
-        </footer>
       </div>
     </main>
   )
@@ -162,7 +144,7 @@ export function PageSkeletonTopics() {
 export function PageSkeletonAbout() {
   return (
     <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
         {/* Nav panel (LandingHeader) */}
         <header className="pt-2">
           <Panel
@@ -221,13 +203,6 @@ export function PageSkeletonAbout() {
             </div>
           </div>
         </section>
-
-        <footer className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <Skeleton className="h-4 w-14" />
-            <Skeleton className="h-4 w-14" />
-          </div>
-        </footer>
       </div>
     </main>
   )
@@ -236,28 +211,8 @@ export function PageSkeletonAbout() {
 export function PageSkeletonSearch() {
   return (
     <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
-        {/* Nav panel (LandingHeader) */}
-        <header className="pt-2">
-          <Panel
-            as="nav"
-            variant="soft"
-            interactive={false}
-            className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-4 w-16" />
-              <div className="hidden items-center gap-6 md:flex">
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            </div>
-            <Skeleton className="h-10 w-full" />
-          </Panel>
-        </header>
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
+        <LandingHeaderSkeleton />
 
         <section className="space-y-4">
           {/* h2 Results for "..." */}
@@ -280,12 +235,6 @@ export function PageSkeletonSearch() {
             <Skeleton className="h-9 w-9" />
           </div>
         </section>
-
-        <footer className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <Skeleton className="h-4 w-16" />
-          </div>
-        </footer>
       </div>
     </main>
   )
@@ -294,7 +243,7 @@ export function PageSkeletonSearch() {
 export function PageSkeletonProfile() {
   return (
     <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
         {/* Nav panel (LandingHeader) */}
         <header className="pt-2">
           <Panel
@@ -360,13 +309,6 @@ export function PageSkeletonProfile() {
             </div>
           </div>
         </section>
-
-        <footer className="flex flex-col gap-3 border-t border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-4 w-14" />
-          </div>
-        </footer>
       </div>
     </main>
   )
@@ -375,7 +317,7 @@ export function PageSkeletonProfile() {
 export function PageSkeletonTopicDetail() {
   return (
     <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 md:gap-12">
+      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
         <Skeleton className="h-12 w-64" />
         <section className="space-y-6">
           <div className="space-y-2">
@@ -389,9 +331,6 @@ export function PageSkeletonTopicDetail() {
             ))}
           </div>
         </section>
-        <footer className="flex gap-4 border-t border-subtle pt-6">
-          <Skeleton className="h-4 w-16" />
-        </footer>
       </div>
     </main>
   )
@@ -400,7 +339,7 @@ export function PageSkeletonTopicDetail() {
 export function PageSkeletonAtlas() {
   return (
     <main className="min-h-screen px-4 pb-8 pt-6 text-foreground sm:px-6 md:px-8 md:pt-8">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="mx-auto flex max-w-content flex-col gap-6">
         {/* Atlas header: centered nav (DOXA, Explore, About, Account) */}
         <header className="flex flex-col gap-4 pt-2">
           <nav className="flex flex-1 items-center justify-center">
