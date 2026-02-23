@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
-    const status = searchParams.get('status') // active | inactive | null (all)
+    const status = searchParams.get('status') ?? 'active' // active | inactive; default active
 
     let query = supabase
       .from('controversy_clusters')

@@ -203,6 +203,13 @@ Deno.serve(async (req: Request) => {
     return json({ error: rpcErr.message }, 500);
   }
 
+  // 4. Compute position centroids (required for drift checks in generate_position_summaries and build_controversy_clusters)
+  const { error: centroidErr } = await supabase.rpc("compute_position_centroids");
+  if (centroidErr) {
+    console.error("[build_position_clusters] compute_position_centroids:", centroidErr.message);
+    // Non-fatal: continue; drift checks will skip positions without centroids
+  }
+
   const res = rpcResult as { kept_count?: number; marked_inactive_count?: number } | null;
   return json({
     ok: true,

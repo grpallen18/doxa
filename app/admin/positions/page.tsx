@@ -586,7 +586,7 @@ function DrillDownPanel({
         <h4 className="text-sm font-medium">Position detail</h4>
         <p className="mt-1 text-xs text-muted">{d.label || 'No label'}</p>
         {d.summary && (
-          <p className="mt-2 text-xs text-muted line-clamp-3">{d.summary}</p>
+          <p className="mt-2 text-xs text-muted whitespace-pre-wrap">{d.summary}</p>
         )}
         <p className="mt-2 text-xs text-muted">Status: {d.status}</p>
         <p className="text-xs text-muted">Created: {formatDate(d.created_at)}</p>
@@ -695,9 +695,9 @@ function DrillDownPanel({
     return (
       <div className="h-[320px] overflow-y-auto rounded-lg border border-subtle bg-muted/10 p-4">
         <h4 className="text-sm font-medium">Controversy detail</h4>
-        <p className="mt-1 text-xs text-muted line-clamp-2">{d.question || 'No question'}</p>
+        <p className="mt-1 text-xs text-muted whitespace-pre-wrap">{d.question || 'No question'}</p>
         {d.summary && (
-          <p className="mt-2 text-xs text-muted line-clamp-3">{d.summary}</p>
+          <p className="mt-2 text-xs text-muted whitespace-pre-wrap">{d.summary}</p>
         )}
         <p className="mt-2 text-xs text-muted">Status: {d.status}</p>
 
@@ -774,7 +774,7 @@ function DrillDownPanel({
       <div className="h-[320px] overflow-y-auto rounded-lg border border-subtle bg-muted/10 p-4">
         <h4 className="text-sm font-medium">Viewpoint detail</h4>
         <p className="mt-1 text-xs text-muted">{d.title || 'No title'}</p>
-        <p className="mt-2 text-xs text-muted line-clamp-4">{d.summary}</p>
+        <p className="mt-2 text-xs text-muted whitespace-pre-wrap">{d.summary}</p>
         <div className="mt-3 space-y-2">
           <p className="text-xs font-medium text-muted">Controversy</p>
           <Link

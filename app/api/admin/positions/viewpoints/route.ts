@@ -17,7 +17,12 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('controversy_viewpoints')
-      .select('viewpoint_id, title, summary, controversy_cluster_id, position_cluster_id, created_at', { count: 'exact' })
+      .select(
+        'viewpoint_id, title, summary, controversy_cluster_id, position_cluster_id, created_at, controversy_clusters!inner(status), position_clusters!inner(status)',
+        { count: 'exact' }
+      )
+      .eq('controversy_clusters.status', 'active')
+      .eq('position_clusters.status', 'active')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -82,7 +87,12 @@ export async function GET(request: NextRequest) {
 
     let countQuery = supabase
       .from('controversy_viewpoints')
-      .select('*', { count: 'exact', head: true })
+      .select('viewpoint_id, controversy_clusters!inner(status), position_clusters!inner(status)', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('controversy_clusters.status', 'active')
+      .eq('position_clusters.status', 'active')
     if (controversyId) {
       countQuery = countQuery.eq('controversy_cluster_id', controversyId)
     }
