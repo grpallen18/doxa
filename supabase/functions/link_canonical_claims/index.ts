@@ -13,7 +13,7 @@ const corsHeaders = {
 const DEFAULT_MODEL = "text-embedding-3-small";
 const DEFAULT_EMBEDDING_DIMS = 1536;
 const DEFAULT_MAX_CLAIMS = 10;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.9;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.8;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

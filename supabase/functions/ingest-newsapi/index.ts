@@ -43,7 +43,6 @@ const NEWSAPI_SOURCES_WHITELIST = [
   "the-hill",
   "the-washington-times",
   "vice-news",
-  "bloomberg",
   "axios",
   "time",
   "newsweek",
