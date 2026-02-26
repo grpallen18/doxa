@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { Info } from 'lucide-react'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +49,13 @@ export default function AdminTopicsPage() {
     controversiesCount: number
     topicId: string
   } | null>(null)
+  const [countsModal, setCountsModal] = useState<{ topicId: string; title: string } | null>(null)
+  const [countsData, setCountsData] = useState<{
+    controversy_count: number
+    position_count: number
+    viewpoint_count: number
+  } | null>(null)
+  const [countsLoading, setCountsLoading] = useState(false)
   const [cancelMessage, setCancelMessage] = useState<string | null>(null)
 
   const fetchTopics = useCallback(async () => {
@@ -70,16 +78,17 @@ export default function AdminTopicsPage() {
   }, [fetchTopics])
 
   useEffect(() => {
-    if (!preCreateDialog && !fewControversiesDialog) return
+    if (!preCreateDialog && !fewControversiesDialog && !countsModal) return
     const onEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (fewControversiesDialog) handleFewControversiesNo()
+        if (countsModal) setCountsModal(null)
+        else if (fewControversiesDialog) handleFewControversiesNo()
         else setPreCreateDialog(null)
       }
     }
     window.addEventListener('keydown', onEscape)
     return () => window.removeEventListener('keydown', onEscape)
-  }, [preCreateDialog, fewControversiesDialog])
+  }, [preCreateDialog, fewControversiesDialog, countsModal])
 
   async function doCreate(pendingTitle: string) {
     setCreateLoading(true)
@@ -225,6 +234,23 @@ export default function AdminTopicsPage() {
     }
   }
 
+  async function handleShowCounts(topicId: string, topicTitle: string) {
+    setCountsModal({ topicId, title: topicTitle })
+    setCountsData(null)
+    setCountsLoading(true)
+    try {
+      const res = await fetch(`/api/admin/topics/${topicId}/counts`)
+      const json = await res.json()
+      if (res.ok && json?.data) {
+        setCountsData(json.data)
+      }
+    } catch {
+      setCountsData(null)
+    } finally {
+      setCountsLoading(false)
+    }
+  }
+
   async function handleDelete(topicId: string) {
     try {
       const res = await fetch(`/api/topics/${topicId}`, { method: 'DELETE' })
@@ -310,8 +336,17 @@ export default function AdminTopicsPage() {
                   <Panel variant="soft" interactive={false} className="p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground">{topic.title}</p>
-                        <p className="text-xs text-muted">{topic.slug}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground">{topic.title}</p>
+                          <button
+                            type="button"
+                            onClick={() => handleShowCounts(topic.topic_id, topic.title)}
+                            className="rounded p-0.5 text-muted hover:bg-muted hover:text-foreground"
+                            aria-label="View topic counts"
+                          >
+                            <Info className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button
@@ -399,6 +434,43 @@ export default function AdminTopicsPage() {
           </div>
         )}
 
+        {countsModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="counts-dialog-title"
+            onClick={() => setCountsModal(null)}
+          >
+            <Panel
+              variant="base"
+              className="max-w-md p-6 shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="counts-dialog-title" className="mb-3 text-lg font-semibold">
+                {countsModal.title}
+              </h2>
+              <div className="mb-4 text-sm text-muted">
+                {countsLoading ? (
+                  <p>Loading…</p>
+                ) : countsData ? (
+                  <p>
+                    {countsData.controversy_count} controversies · {countsData.position_count} positions ·{' '}
+                    {countsData.viewpoint_count} viewpoints
+                  </p>
+                ) : (
+                  <p>Failed to load counts.</p>
+                )}
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setCountsModal(null)}>
+                  Close
+                </Button>
+              </div>
+            </Panel>
+          </div>
+        )}
+
         {fewControversiesDialog && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -416,8 +488,12 @@ export default function AdminTopicsPage() {
                 Few controversies found
               </h2>
               <p className="mb-4 text-sm text-muted">
-                There are only {fewControversiesDialog.controversiesCount} related controversies found for this topic.
-                Are you sure you want to keep it?
+                {fewControversiesDialog.controversiesCount === 0
+                  ? 'There are no related controversies found for this topic.'
+                  : fewControversiesDialog.controversiesCount === 1
+                    ? 'There is only 1 related controversy found for this topic.'
+                    : `There are only ${fewControversiesDialog.controversiesCount} related controversies found for this topic.`}
+                {' '}Are you sure you want to keep it?
               </p>
               <div className="flex justify-end gap-3">
                 <Button

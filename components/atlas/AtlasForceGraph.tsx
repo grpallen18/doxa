@@ -28,7 +28,7 @@ const DEFAULT_CHARGE_STRENGTH = -100
 function getNodeFillColor(node: VizNode): string {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   const score = node.polarity_score
-  if (node.entity_type === 'thesis') {
+  if (node.entity_type === 'viewpoint' || node.entity_type === 'controversy') {
     if (score != null && score > 0) return isDark ? '#2dd4bf' : '#0d9488'
     if (score != null && score < 0) return '#dc2626'
     return isDark ? '#22d3ee' : '#0f766e'
@@ -87,8 +87,8 @@ export default function AtlasForceGraph({
     const fgLinks = (edges ?? [])
       .filter(
         (e) =>
-          (e.source_type === 'thesis' && e.target_type === 'claim') ||
-          (e.source_type === 'claim' && e.target_type === 'thesis')
+          ((e.source_type === 'viewpoint' || e.source_type === 'controversy') && e.target_type === 'claim') ||
+          (e.source_type === 'claim' && (e.target_type === 'viewpoint' || e.target_type === 'controversy'))
       )
       .map((e) => ({
         source: `${e.source_type}:${e.source_id}`,

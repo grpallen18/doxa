@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('controversy_clusters')
-      .select('controversy_cluster_id, question, summary, status, created_at', { count: 'exact' })
+      .select('controversy_cluster_id, question, summary, label, status, created_at', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
       controversy_cluster_id: c.controversy_cluster_id,
       question: c.question ?? null,
       summary: c.summary ?? null,
+      label: (c as { label?: string | null }).label ?? null,
       status: c.status ?? 'active',
       created_at: c.created_at,
       position_count: positionCountByControversy.get(c.controversy_cluster_id) ?? 0,

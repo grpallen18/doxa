@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, LayoutDashboard, Search, FileText, BookOpen, Activity } from 'lucide-react'
+import { Home, LayoutDashboard, Search, FileText, BookOpen, Activity, Map } from 'lucide-react'
 
 import {
   Sidebar,
@@ -27,6 +27,7 @@ import { AppFooter } from '@/components/AppFooter'
 const navigationItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/search', label: 'Search', icon: Search },
+  { href: '/atlas', label: 'Atlas', icon: Map },
   { href: '/about', label: 'About', icon: FileText },
 ]
 
@@ -71,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton
                           asChild
-                          isActive={pathname === item.href}
+                          isActive={pathname === item.href || (item.href === '/atlas' && pathname.startsWith('/atlas'))}
                           tooltip={item.label}
                         >
                           <Link href={item.href}>

@@ -3,20 +3,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 // @ts-expect-error -- d3-force-3d ships no type declarations; used as a drop-in d3-force
 import { forceSimulation, forceLink, forceManyBody } from 'd3-force-3d'
+import { cn } from '@/lib/utils'
 import type { VizNode } from './types'
-import type { SourceDetail } from './types'
+import type { OuterNode } from './types'
 
 interface AtlasNodeTestCanvasProps {
-  /** The center node (thesis or viewpoint) to center on */
+  /** Optional class names for the root container (e.g. min-h-0 flex-1 for flex layout) */
+  className?: string
+  /** The center node (viewpoint or controversy) to center on */
   centerNode: VizNode | null
-  /** Sources (from top 20 claims grouped by source) */
-  sourceDetails: SourceDetail[]
-  /** When set, the source node with this source_id is shown as hovered (synced from content panel) */
-  hoveredSourceId?: string | null
-  /** Called when the user hovers a source node (so the content panel can highlight the card) */
-  onHoveredSourceChange?: (sourceId: string | null) => void
-  /** Called when the user clicks a source node (without dragging) to expand its accordion */
-  onSourceSelect?: (sourceId: string | null) => void
+  /** Outer nodes (viewpoints, sources, etc.) to orbit around the center */
+  outerNodes: OuterNode[]
+  /** When set, the outer node with this entity_id is shown as hovered (synced from content panel) */
+  hoveredOuterId?: string | null
+  /** Called when the user hovers an outer node (so the content panel can highlight) */
+  onHoveredOuterChange?: (entityId: string | null) => void
+  /** Called when the user clicks an outer node (without dragging). Passes entityType and entityId. */
+  onOuterNodeClick?: (entityType: string, entityId: string) => void
+  /** Called when the user clicks a drillable node, before the morph starts. Use to prefetch data in parallel. */
+  onDrillPrepare?: (entityType: string, entityId: string) => void
+  /** When true, canvas runs zoom-out morph (center drifts to outer orbit). Page clears after onZoomOutComplete. */
+  pendingZoomOut?: boolean
+  /** Called when zoom-out morph finishes so the page can load the parent scope. */
+  onZoomOutComplete?: () => void
+  /** Scope depth (1 = controversy, 2 = viewpoint, etc.). Nodes scale up when zoomed in. */
+  scopeDepth?: number
 }
 
 const DEFAULT_NODE_RADIUS = 14
@@ -28,17 +39,50 @@ const HOVER_BRIGHTNESS = 1.18
 const ORBIT_DISTANCE = 120
 
 // Force defaults (match the main graph)
-const DEFAULT_LINK_DISTANCE = 80
+const DEFAULT_LINK_DISTANCE = 110
 const DEFAULT_LINK_STRENGTH = 0.5
 const DEFAULT_CHARGE_STRENGTH = -10
+
+// Morph animation (drill-down)
+const MORPH_DRIFT_DURATION_MS = 800
+const MORPH_FADE_DURATION_MS = 200
+const FADE_IN_STAGGER_MS = 300
+const FADE_IN_DURATION_MS = 900
+
+// ---- Jitter (internal: edit here to tune; not exposed to users) ----
+type JitterTarget = 'all' | 'center' | 'outer'
+
+interface JitterConfig {
+  /** Base velocity injection per application (e.g. 0.15) */
+  strength: number
+  /** Which nodes to apply jitter to */
+  target: JitterTarget
+  /** Scale strength by entity_type. Unlisted types use 1. */
+  typeScale?: Partial<Record<string, number>>
+  /** Apply jitter every N ticks (1 = every tick) */
+  frequency: number
+}
+
+/** Internal: jitter config. Edit here to tune; not exposed to users. Set to null to disable. */
+const JITTER_CONFIG: JitterConfig | null = {
+  strength: .6,
+  target: 'outer',
+  typeScale: { viewpoint: 1, source: 0.8, controversy: 0.5 },
+  frequency: 10,
+}
+
+/** When alpha drops below this, switch to alphaDecay(0) so sim keeps running for jitter */
+const JITTER_ALPHA_THRESHOLD = 0.005
+/** Alpha value to hold when in "jitter mode" (low, so link/charge are weak) */
+const JITTER_ALPHA_LOW = 0.001
 
 // ---- Node / edge / background colors ----
 // Each entry is [dark mode, light mode]
 const COLORS = {
-  // Thesis node
-  thesisPositive:  ['#2dd4bf', '#0d9488'] as [string, string],
-  thesisNegative:  ['#dc2626', '#dc2626'] as [string, string],
-  thesisNeutral:   ['#22d3ee', '#0f766e'] as [string, string],
+  // Center node (viewpoint / controversy)
+  centerPositive:  ['#2dd4bf', '#0d9488'] as [string, string],
+  centerNegative:  ['#dc2626', '#dc2626'] as [string, string],
+  centerNeutral:   ['#22d3ee', '#0f766e'] as [string, string],
   // Claim / source node (tan brown, matches Doxa palette)
   claimPositive:   ['#9a8a7a', '#a68b6d'] as [string, string],
   claimNegative:   ['#9a8a7a', '#a68b6d'] as [string, string],
@@ -49,13 +93,18 @@ const COLORS = {
   background:      ['#1a1a1a', '#e8e5e1'] as [string, string],
   // Node borders (dark complements to fill colors)
   claimBorder:     ['#5a4a3a', '#7a6a52'] as [string, string],
-  thesisBorder:    ['#0a6b5e', '#065f54'] as [string, string],   // darker green to complement thesis teal
+  centerBorder:    ['#0a6b5e', '#065f54'] as [string, string],
 }
 
 // ---- Helpers ----
 
 function lerp(current: number, target: number, speed: number): number {
   return current + (target - current) * speed
+}
+
+/** Ease-in-out: starts slow, speeds up, then slows down at the end. t in [0,1]. */
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -83,12 +132,13 @@ function pick(pair: [string, string]): string {
 
 function getBaseColor(node: VizNode): string {
   const score = node.polarity_score
-  if (node.entity_type === 'thesis' || node.entity_type === 'viewpoint') {
-    if (score != null && score > 0) return pick(COLORS.thesisPositive)
-    if (score != null && score < 0) return pick(COLORS.thesisNegative)
-    return pick(COLORS.thesisNeutral)
+  // Center-style: topic, viewpoint, controversy (including outer nodes of same type)
+  if (node.entity_type === 'topic' || node.entity_type === 'viewpoint' || node.entity_type === 'controversy') {
+    if (score != null && score > 0) return pick(COLORS.centerPositive)
+    if (score != null && score < 0) return pick(COLORS.centerNegative)
+    return pick(COLORS.centerNeutral)
   }
-  // Claim and source nodes use accent-secondary
+  // Claim/source nodes use accent-secondary
   if (score != null && score > 0) return pick(COLORS.claimPositive)
   if (score != null && score < 0) return pick(COLORS.claimNegative)
   return pick(COLORS.claimNeutral)
@@ -104,16 +154,22 @@ function getBgColor(): string {
 
 // ---- Per-node animated state (hover/drag visual effects) ----
 
+type MorphPhase = 'idle' | 'drilling' | 'fadeIn'
+
 interface AnimState {
   scale: number
   glowOpacity: number
   borderWidth: number
   borderAlpha: number
   brightness: number
+  /** 1 = visible, 0 = invisible; used for morph fade-out and staggered fade-in */
+  transitionOpacity: number
+  /** During morph: overrides radius for smooth size transition. Undefined when not morphing. */
+  morphRadius?: number
 }
 
 function defaultAnim(): AnimState {
-  return { scale: 1, glowOpacity: 0, borderWidth: 2, borderAlpha: 1, brightness: 1 }
+  return { scale: 1, glowOpacity: 0, borderWidth: 2, borderAlpha: 1, brightness: 1, transitionOpacity: 1 }
 }
 
 /** Each drawn node tracks its own interaction state and animation */
@@ -124,6 +180,10 @@ interface DrawnNode {
   hovered: boolean
   dragging: boolean
   anim: AnimState
+  /** Delay in ms before this node starts fading in (staggered fade-in) */
+  fadeInDelayMs?: number
+  /** Label to show next to the node (e.g. source name when outer nodes are sources) */
+  label?: string
 }
 
 /** The d3-force simulation operates on SimNode objects (has x, y, vx, vy, fx, fy) */
@@ -150,32 +210,69 @@ function clampToCanvas(sn: SimNode, cw: number, ch: number) {
   sn.y = Math.max(r, Math.min(ch - r, sn.y))
 }
 
+function createJitterForce(
+  getNodes: () => SimNode[],
+  getCenterId: () => string,
+  config: JitterConfig,
+  tickCountRef: React.MutableRefObject<number>
+) {
+  return function jitterForce() {
+    tickCountRef.current++
+    const freq = config.frequency || 1
+    if (tickCountRef.current % freq !== 0) return
+    const nodes = getNodes()
+    const centerId = getCenterId()
+    const typeScale = config.typeScale ?? {}
+    for (const node of nodes) {
+      const isCenter = node.id === centerId
+      if (config.target === 'center' && !isCenter) continue
+      if (config.target === 'outer' && isCenter) continue
+      const scale = typeScale[node.drawnNode.vizNode.entity_type] ?? 1
+      const s = config.strength * scale
+      node.vx = (node.vx ?? 0) + (Math.random() - 0.5) * s
+      node.vy = (node.vy ?? 0) + (Math.random() - 0.5) * s
+    }
+  }
+}
+
 export default function AtlasNodeTestCanvas({
+  className,
   centerNode,
-  sourceDetails,
-  hoveredSourceId = null,
-  onHoveredSourceChange,
-  onSourceSelect,
+  outerNodes,
+  hoveredOuterId = null,
+  onHoveredOuterChange,
+  onOuterNodeClick,
+  onDrillPrepare,
+  pendingZoomOut = false,
+  onZoomOutComplete,
+  scopeDepth = 1,
 }: AtlasNodeTestCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasWidth, setCanvasWidth] = useState(800)
 
-  // Layout defaults (no user controls)
-  const nodeRadius = DEFAULT_NODE_RADIUS
+  // Layout defaults (no user controls). Scale up when zoomed in (higher scopeDepth).
+  const depthScale = 1 + (scopeDepth - 1) * 0.2
+  const nodeRadius = Math.round(DEFAULT_NODE_RADIUS * depthScale)
   const claimRadius = nodeRadius
-  const thesisRadius = Math.round(nodeRadius * 1.5)
+  const centerRadius = Math.round(nodeRadius * 1.5)
   const linkDistance = DEFAULT_LINK_DISTANCE
   const linkStrength = DEFAULT_LINK_STRENGTH
   const chargeStrength = DEFAULT_CHARGE_STRENGTH
 
   // Refs for hover sync (avoid stale closures in callbacks)
-  const hoveredSourceIdRef = useRef<string | null>(hoveredSourceId)
-  hoveredSourceIdRef.current = hoveredSourceId
-  const onHoveredSourceChangeRef = useRef(onHoveredSourceChange)
-  onHoveredSourceChangeRef.current = onHoveredSourceChange
-  const onSourceSelectRef = useRef(onSourceSelect)
-  onSourceSelectRef.current = onSourceSelect
+  const hoveredOuterIdRef = useRef<string | null>(hoveredOuterId)
+  hoveredOuterIdRef.current = hoveredOuterId
+  const onHoveredOuterChangeRef = useRef(onHoveredOuterChange)
+  onHoveredOuterChangeRef.current = onHoveredOuterChange
+  const onOuterNodeClickRef = useRef(onOuterNodeClick)
+  onOuterNodeClickRef.current = onOuterNodeClick
+  const onDrillPrepareRef = useRef(onDrillPrepare)
+  onDrillPrepareRef.current = onDrillPrepare
+  const onZoomOutCompleteRef = useRef(onZoomOutComplete)
+  onZoomOutCompleteRef.current = onZoomOutComplete
+  const pendingZoomOutRef = useRef(pendingZoomOut)
+  pendingZoomOutRef.current = pendingZoomOut
 
   // Track click vs drag: left click = accordion, right click = drag
   const dragStartNodeRef = useRef<SimNode | null>(null)
@@ -185,7 +282,7 @@ export default function AtlasNodeTestCanvas({
   const dragOffsetYRef = useRef(0)
   const preventContextMenuRef = useRef(false)
 
-  // All drawn nodes (thesis + connected claims)
+  // All drawn nodes (center + connected sources)
   const drawnNodes = useRef<DrawnNode[]>([])
   // The d3-force simulation nodes (these hold x/y positions that the sim updates)
   const simNodes = useRef<SimNode[]>([])
@@ -196,6 +293,23 @@ export default function AtlasNodeTestCanvas({
   // Hover animation loop (separate from simulation tick)
   const animFrameId = useRef<number>(0)
   const animRunning = useRef(false)
+
+  // Jitter force tick counter (for frequency)
+  const jitterTickCountRef = useRef(0)
+
+  // Morph animation state (drill-down and zoom-out)
+  const morphPhaseRef = useRef<MorphPhase>('idle')
+  const morphDirectionRef = useRef<'drill' | 'zoomOut'>('drill')
+  const morphClickedNodeIdRef = useRef<string | null>(null)
+  const morphClickedEntityRef = useRef<{ entityType: string; entityId: string } | null>(null)
+  const morphStartPosRef = useRef<{ x: number; y: number } | null>(null)
+  const morphFadeInStartTimeRef = useRef<number>(0)
+  const drillJustCompletedRef = useRef(false)
+  const morphStartTimeRef = useRef<number>(0)
+  const morphFrameIdRef = useRef<number>(0)
+  const zoomOutTargetPosRef = useRef<{ x: number; y: number } | null>(null)
+  const zoomOutJustCompletedRef = useRef(false)
+  const zoomOutReturnedNodeIdRef = useRef<string | null>(null)
 
   // Keep latest props/settings in refs for use inside callbacks
   const canvasWidthRef = useRef(canvasWidth)
@@ -234,11 +348,43 @@ export default function AtlasNodeTestCanvas({
       posMap.set(sn.id, { x: sn.x ?? 0, y: sn.y ?? 0 })
     }
 
-    // Find center node (thesis or viewpoint) for edge drawing
-    const centerDrawn = all.find((dn) => dn.vizNode.entity_type === 'thesis' || dn.vizNode.entity_type === 'viewpoint')
+    // Find center node by id (outer nodes can also be viewpoint type)
+    const centerDrawn = centerNode
+      ? all.find((dn) => dn.id === `${centerNode.entity_type}:${centerNode.entity_id}`)
+      : all[0]
     const centerPos = centerDrawn ? posMap.get(centerDrawn.id) : null
 
-    // Draw edges (behind nodes)
+    // Draw labels (behind nodes) - so nodes render on top when overlapping
+    for (const dn of all) {
+      if (!dn.label) continue
+      const pos = posMap.get(dn.id)
+      if (!pos) continue
+      const a = dn.anim
+      if (a.transitionOpacity < 0.01) continue
+      ctx.save()
+      ctx.globalAlpha = a.transitionOpacity
+      const baseRadius = a.morphRadius ?? dn.radius
+      const radius = baseRadius * a.scale
+      const { x, y } = pos
+      ctx.font = '11px sans-serif'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = isDark ? '#9ca3af' : '#6b7280'
+      const labelX = x + radius + 6
+      const maxWidth = cw - labelX - 8
+      let labelText = dn.label
+      const metrics = ctx.measureText(labelText)
+      if (metrics.width > maxWidth && maxWidth > 20) {
+        while (labelText.length > 0 && ctx.measureText(labelText + '…').width > maxWidth) {
+          labelText = labelText.slice(0, -1)
+        }
+        labelText = labelText + '…'
+      }
+      ctx.fillText(labelText, labelX, y)
+      ctx.restore()
+    }
+
+    // Draw edges (behind nodes) - line grows from center toward outer node
     if (centerPos) {
       ctx.strokeStyle = getEdgeColor()
       ctx.lineWidth = 1.5
@@ -246,10 +392,20 @@ export default function AtlasNodeTestCanvas({
         if (dn === centerDrawn) continue
         const pos = posMap.get(dn.id)
         if (!pos) continue
+        const centerOpacity = centerDrawn?.anim.transitionOpacity ?? 1
+        const outerOpacity = dn.anim.transitionOpacity
+        const t = Math.min(centerOpacity, outerOpacity)
+        if (t < 0.01) continue
+        ctx.save()
+        ctx.globalAlpha = t
         ctx.beginPath()
         ctx.moveTo(centerPos.x, centerPos.y)
-        ctx.lineTo(pos.x, pos.y)
+        // Draw only to interpolated point so line appears to grow from center
+        const endX = centerPos.x + (pos.x - centerPos.x) * t
+        const endY = centerPos.y + (pos.y - centerPos.y) * t
+        ctx.lineTo(endX, endY)
         ctx.stroke()
+        ctx.restore()
       }
     }
 
@@ -258,7 +414,11 @@ export default function AtlasNodeTestCanvas({
       const pos = posMap.get(dn.id)
       if (!pos) continue
       const a = dn.anim
-      const radius = dn.radius * a.scale
+      if (a.transitionOpacity < 0.01) continue
+      ctx.save()
+      ctx.globalAlpha = a.transitionOpacity
+      const baseRadius = a.morphRadius ?? dn.radius
+      const radius = baseRadius * a.scale
       const baseRgb = hexToRgb(getBaseColor(dn.vizNode))
       const { x, y } = pos
 
@@ -280,31 +440,35 @@ export default function AtlasNodeTestCanvas({
       ctx.fill()
 
       // Border (node-type specific; fades out on hover)
-      const borderHex = (dn.vizNode.entity_type === 'thesis' || dn.vizNode.entity_type === 'viewpoint')
-        ? pick(COLORS.thesisBorder)
-        : pick(COLORS.claimBorder)
+      const isCenterStyle =
+        dn.vizNode.entity_type === 'topic' ||
+        dn.vizNode.entity_type === 'viewpoint' ||
+        dn.vizNode.entity_type === 'controversy'
+      const borderHex = isCenterStyle ? pick(COLORS.centerBorder) : pick(COLORS.claimBorder)
       const borderRgb = hexToRgb(borderHex)
       const borderAlpha = a.borderAlpha // 1 when idle, 0 when hovered
       ctx.strokeStyle = `rgba(${borderRgb[0]},${borderRgb[1]},${borderRgb[2]},${borderAlpha.toFixed(2)})`
       ctx.lineWidth = a.borderWidth
       if (a.borderWidth > 0.1) ctx.stroke()
+      ctx.restore()
     }
 
     // Cursor
     const anyHovered = all.some((dn) => dn.hovered)
     const anyDragging = all.some((dn) => dn.dragging)
     canvas.style.cursor = anyDragging ? 'grabbing' : anyHovered ? 'grab' : 'default'
-  }, [])
+  }, [centerNode])
 
   // ---- Get animation targets for a node ----
   function getTargets(dn: DrawnNode): AnimState {
+    const preserve = { transitionOpacity: dn.anim.transitionOpacity }
     if (dn.dragging) {
-      return { scale: 0.94, glowOpacity: 0, borderWidth: 1.5, borderAlpha: 0.4, brightness: 0.95 }
+      return { scale: 0.94, glowOpacity: 0, borderWidth: 1.5, borderAlpha: 0.4, brightness: 0.95, ...preserve }
     }
     if (dn.hovered) {
-      return { scale: HOVER_SCALE, glowOpacity: 1, borderWidth: 0, borderAlpha: 0, brightness: HOVER_BRIGHTNESS }
+      return { scale: HOVER_SCALE, glowOpacity: 1, borderWidth: 0, borderAlpha: 0, brightness: HOVER_BRIGHTNESS, ...preserve }
     }
-    return { scale: 1, glowOpacity: 0, borderWidth: 2, borderAlpha: 1, brightness: 1 }
+    return { scale: 1, glowOpacity: 0, borderWidth: 2, borderAlpha: 1, brightness: 1, ...preserve }
   }
 
   // ---- Lerp all hover/drag animations one step, returns true if any still moving ----
@@ -352,6 +516,142 @@ export default function AtlasNodeTestCanvas({
     animFrameId.current = requestAnimationFrame(animTick)
   }, [animTick])
 
+  // ---- Morph loop (drill-down: outer drifts to center; zoom-out: center drifts to outer) ----
+  const runMorphLoop = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const cx = canvas.width / 2
+    const cy = CANVAS_HEIGHT / 2
+
+    const elapsed = performance.now() - morphStartTimeRef.current
+    const driftProgressRaw = Math.min(1, elapsed / MORPH_DRIFT_DURATION_MS)
+    const driftProgress = easeInOutCubic(driftProgressRaw)
+    const fadeProgress = Math.min(1, elapsed / MORPH_FADE_DURATION_MS)
+
+    const direction = morphDirectionRef.current
+    const sNodes = simNodes.current
+
+    if (direction === 'drill') {
+      const clickedId = morphClickedNodeIdRef.current
+      const startPos = morphStartPosRef.current
+      const centerRadius = sNodes[0]?.drawnNode.radius ?? DEFAULT_NODE_RADIUS * 1.5
+      for (const sn of sNodes) {
+        if (sn.id === clickedId && startPos) {
+          sn.x = startPos.x + (cx - startPos.x) * driftProgress
+          sn.y = startPos.y + (cy - startPos.y) * driftProgress
+          sn.drawnNode.anim.transitionOpacity = 1
+          const claimRadius = sn.drawnNode.radius
+          sn.drawnNode.anim.morphRadius =
+            claimRadius + (centerRadius - claimRadius) * driftProgress
+        } else {
+          sn.drawnNode.anim.transitionOpacity = 1 - fadeProgress
+          delete sn.drawnNode.anim.morphRadius
+        }
+      }
+    } else {
+      const centerId = zoomOutReturnedNodeIdRef.current
+      const targetPos = zoomOutTargetPosRef.current
+      const claimRadius =
+        sNodes.find((n) => n.id !== centerId)?.drawnNode.radius ?? DEFAULT_NODE_RADIUS
+      for (const sn of sNodes) {
+        if (sn.id === centerId && targetPos) {
+          sn.x = cx + (targetPos.x - cx) * driftProgress
+          sn.y = cy + (targetPos.y - cy) * driftProgress
+          sn.drawnNode.anim.transitionOpacity = 1
+          const centerRadius = sn.drawnNode.radius
+          sn.drawnNode.anim.morphRadius =
+            centerRadius + (claimRadius - centerRadius) * driftProgress
+        } else {
+          sn.drawnNode.anim.transitionOpacity = 1 - fadeProgress
+          delete sn.drawnNode.anim.morphRadius
+        }
+      }
+    }
+
+    drawFrame()
+
+    const driftDone = driftProgressRaw >= 1
+    const fadeDone = fadeProgress >= 1
+
+    if (driftDone && fadeDone) {
+      morphPhaseRef.current = 'idle'
+      if (direction === 'drill') {
+        morphClickedNodeIdRef.current = null
+        morphStartPosRef.current = null
+        const entity = morphClickedEntityRef.current
+        morphClickedEntityRef.current = null
+        drillJustCompletedRef.current = true
+        if (entity) {
+          onOuterNodeClickRef.current?.(entity.entityType, entity.entityId)
+        }
+      } else {
+        zoomOutJustCompletedRef.current = true
+        zoomOutTargetPosRef.current = null
+        onZoomOutCompleteRef.current?.()
+      }
+      morphFrameIdRef.current = 0
+      return
+    }
+
+    morphFrameIdRef.current = requestAnimationFrame(runMorphLoop)
+  }, [drawFrame])
+
+  const startMorph = useCallback(
+    (clickedNode: SimNode) => {
+      if (simulationRef.current) {
+        simulationRef.current.stop()
+        simulationRef.current = null
+      }
+      morphDirectionRef.current = 'drill'
+      morphPhaseRef.current = 'drilling'
+      morphClickedNodeIdRef.current = clickedNode.id
+      morphClickedEntityRef.current = {
+        entityType: clickedNode.drawnNode.vizNode.entity_type,
+        entityId: clickedNode.drawnNode.vizNode.entity_id,
+      }
+      morphStartPosRef.current = { x: clickedNode.x ?? 0, y: clickedNode.y ?? 0 }
+      morphStartTimeRef.current = performance.now()
+      for (const dn of drawnNodes.current) {
+        dn.anim.transitionOpacity = 1
+      }
+      morphFrameIdRef.current = requestAnimationFrame(runMorphLoop)
+    },
+    [runMorphLoop]
+  )
+
+  const startZoomOutMorph = useCallback(() => {
+    if (!centerNode || morphPhaseRef.current !== 'idle') return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const cx = canvas.width / 2
+    const cy = CANVAS_HEIGHT / 2
+    const centerId = `${centerNode.entity_type}:${centerNode.entity_id}`
+
+    if (simulationRef.current) {
+      simulationRef.current.stop()
+      simulationRef.current = null
+    }
+    morphDirectionRef.current = 'zoomOut'
+    morphPhaseRef.current = 'drilling'
+    zoomOutReturnedNodeIdRef.current = centerId
+    const angle = -Math.PI / 2
+    zoomOutTargetPosRef.current = {
+      x: cx + Math.cos(angle) * linkDistance,
+      y: cy + Math.sin(angle) * linkDistance,
+    }
+    morphStartTimeRef.current = performance.now()
+    for (const dn of drawnNodes.current) {
+      dn.anim.transitionOpacity = 1
+    }
+    morphFrameIdRef.current = requestAnimationFrame(runMorphLoop)
+  }, [centerNode, runMorphLoop])
+
+  useEffect(() => {
+    if (pendingZoomOut && centerNode) {
+      startZoomOutMorph()
+    }
+  }, [pendingZoomOut, centerNode, startZoomOutMorph])
+
   // ---- Build simulation whenever data changes ----
   useEffect(() => {
     // Stop any existing simulation
@@ -373,8 +673,8 @@ export default function AtlasNodeTestCanvas({
     const cx = canvasWidth / 2
     const cy = CANVAS_HEIGHT / 2
 
-    // Build source nodes from sourceDetails (already sorted by claim_count)
-    const sources = sourceDetails ?? []
+    // Build outer nodes from outerNodes
+    const outer = outerNodes ?? []
 
     // Preserve existing positions from old sim nodes
     const oldPosMap = new Map<string, { x: number; y: number }>()
@@ -387,45 +687,98 @@ export default function AtlasNodeTestCanvas({
     const oldDrawnMap = new Map<string, DrawnNode>()
     for (const dn of drawnNodes.current) oldDrawnMap.set(dn.id, dn)
 
+    const doZoomOutFadeIn = zoomOutJustCompletedRef.current
+    if (doZoomOutFadeIn) zoomOutJustCompletedRef.current = false
+    const doDrillFadeIn = drillJustCompletedRef.current
+    if (doDrillFadeIn) drillJustCompletedRef.current = false
+    const doFadeIn = doDrillFadeIn || doZoomOutFadeIn
+    const returnedNodeId = zoomOutReturnedNodeIdRef.current
+
     const oldCenter = oldDrawnMap.get(centerId)
+    const centerAnim = oldCenter?.anim ?? defaultAnim()
     newDrawn.push({
       vizNode: center,
       id: centerId,
-      radius: thesisRadius,
-      hovered: oldThesis?.hovered ?? false,
-      dragging: oldThesis?.dragging ?? false,
-      anim: oldThesis?.anim ?? defaultAnim(),
+      radius: centerRadius,
+      hovered: oldCenter?.hovered ?? false,
+      dragging: oldCenter?.dragging ?? false,
+      anim: doZoomOutFadeIn
+        ? { ...centerAnim, transitionOpacity: 0 }
+        : { ...centerAnim, transitionOpacity: 1 },
+      fadeInDelayMs: doZoomOutFadeIn ? 0 : undefined,
     })
 
-    const sourceCount = sources.length
-    sources.forEach((src, i) => {
-      const sourceId = `source:${src.source_id}`
+    const outerCount = outer.length
+    let outerFadeIndex = 0
+    // On zoom-out fade-in: slot 0 is reserved for the returned node (drifted from center).
+    // Other outer nodes use slots 1, 2, 3, ... to avoid collision.
+    let orbitSlotForNew = 0
+    outer.forEach((item, i) => {
+      const nodeId = `${item.entity_type}:${item.entity_id}`
       const syntheticNode: VizNode = {
         map_id: '',
-        entity_type: 'source',
-        entity_id: src.source_id,
+        entity_type: item.entity_type,
+        entity_id: item.entity_id,
         layer: 2,
         size: 1,
       }
-      const old = oldDrawnMap.get(sourceId)
+      const old = oldDrawnMap.get(nodeId)
+      const baseAnim = old?.anim ?? defaultAnim()
+      const isReturnedNode = nodeId === returnedNodeId
+      const anim: AnimState = doZoomOutFadeIn
+        ? isReturnedNode
+          ? { ...baseAnim, transitionOpacity: 1 }
+          : { ...baseAnim, transitionOpacity: 0 }
+        : doDrillFadeIn
+          ? { ...baseAnim, transitionOpacity: 0 }
+          : { ...baseAnim, transitionOpacity: baseAnim.transitionOpacity ?? 1 }
+      // Zoom-out: returned node stays visible; center fades in first, then other outer nodes
+      // stagger like drill-down: outer nodes start after FADE_IN_STAGGER_MS
+      const fadeInDelayMs = doZoomOutFadeIn
+        ? isReturnedNode
+          ? undefined
+          : FADE_IN_STAGGER_MS + outerFadeIndex++ * FADE_IN_STAGGER_MS
+        : doDrillFadeIn
+          ? i * FADE_IN_STAGGER_MS
+          : undefined
       newDrawn.push({
         vizNode: syntheticNode,
-        id: sourceId,
+        id: nodeId,
         radius: claimRadius,
         hovered: old?.hovered ?? false,
         dragging: old?.dragging ?? false,
-        anim: old?.anim ?? defaultAnim(),
+        anim,
+        fadeInDelayMs,
+        label:
+          item.entity_type === 'source' ||
+          item.entity_type === 'viewpoint' ||
+          item.entity_type === 'controversy'
+            ? item.label
+            : undefined,
       })
-      if (!oldPosMap.has(sourceId)) {
-        const angle = (2 * Math.PI * i) / sourceCount - Math.PI / 2
-        oldPosMap.set(sourceId, {
-          x: cx + Math.cos(angle) * ORBIT_DISTANCE,
-          y: cy + Math.sin(angle) * ORBIT_DISTANCE,
+      if (!oldPosMap.has(nodeId)) {
+        const slotIndex =
+          doZoomOutFadeIn && returnedNodeId
+            ? orbitSlotForNew++ + 1
+            : i
+        const angle = (2 * Math.PI * slotIndex) / outerCount - Math.PI / 2
+        // On zoom-out fade-in, use linkDistance (same as drift target) so all outer
+        // nodes start at the same radius; avoids the returned node snapping when sim runs.
+        const orbitRadius =
+          doZoomOutFadeIn && returnedNodeId ? linkDistance : ORBIT_DISTANCE
+        oldPosMap.set(nodeId, {
+          x: cx + Math.cos(angle) * orbitRadius,
+          y: cy + Math.sin(angle) * orbitRadius,
         })
       }
     })
 
     drawnNodes.current = newDrawn
+
+    if (doFadeIn) {
+      morphPhaseRef.current = 'fadeIn'
+      morphFadeInStartTimeRef.current = performance.now()
+    }
 
     // Build SimNodes
     const newSimNodes: SimNode[] = newDrawn.map((dn) => {
@@ -439,9 +792,9 @@ export default function AtlasNodeTestCanvas({
     })
     simNodes.current = newSimNodes
 
-    // Build SimLinks (center <-> each source)
+    // Build SimLinks (center <-> each outer node)
     const newSimLinks: SimLink[] = newDrawn
-      .filter((dn) => dn.vizNode.entity_type === 'source')
+      .filter((dn) => dn.id !== centerId)
       .map((dn) => ({
         source: centerId,
         target: dn.id,
@@ -449,6 +802,7 @@ export default function AtlasNodeTestCanvas({
     simLinks.current = newSimLinks
 
     // Create the d3-force simulation
+    jitterTickCountRef.current = 0
     const sim = forceSimulation(newSimNodes, 2)
       .force(
         'link',
@@ -459,8 +813,45 @@ export default function AtlasNodeTestCanvas({
       )
       .force('charge', forceManyBody().strength(chargeStrength))
       .alphaDecay(0.02)
-      .on('tick', () => {
-        // Lerp hover animations each physics tick; drawFrame clamps all nodes
+
+    if (JITTER_CONFIG) {
+      sim.force(
+        'jitter',
+        createJitterForce(
+          () => simNodes.current,
+          () => centerId,
+          JITTER_CONFIG,
+          jitterTickCountRef
+        )
+      )
+    }
+
+    sim.on('tick', () => {
+        if (JITTER_CONFIG && sim.alpha() <= JITTER_ALPHA_THRESHOLD) {
+          sim.alpha(JITTER_ALPHA_LOW).alphaDecay(0)
+        }
+        if (morphPhaseRef.current === 'fadeIn') {
+          const elapsed = performance.now() - morphFadeInStartTimeRef.current
+          let allDone = true
+          for (const dn of drawnNodes.current) {
+            const delay = dn.fadeInDelayMs ?? -1
+            if (delay < 0) continue
+            if (elapsed >= delay) {
+              const fadeProgress = Math.min(1, (elapsed - delay) / FADE_IN_DURATION_MS)
+              dn.anim.transitionOpacity = fadeProgress
+              if (fadeProgress < 1) allDone = false
+            } else {
+              allDone = false
+            }
+          }
+          if (allDone) {
+            morphPhaseRef.current = 'idle'
+            zoomOutReturnedNodeIdRef.current = null
+            if (pendingZoomOutRef.current) {
+              startZoomOutMorph()
+            }
+          }
+        }
         lerpAnimations()
         drawFrame()
       })
@@ -471,7 +862,7 @@ export default function AtlasNodeTestCanvas({
       sim.stop()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerNode, sourceDetails, canvasWidth, nodeRadius])
+  }, [centerNode, outerNodes, canvasWidth, nodeRadius])
 
   // ---- Reconfigure forces when slider values change (without rebuilding nodes) ----
   useEffect(() => {
@@ -487,29 +878,31 @@ export default function AtlasNodeTestCanvas({
     if (cf) cf.strength(chargeStrength)
 
     // Reheat so the changes take effect
-    sim.alpha(0.3).restart()
+    sim.alpha(0.3).alphaDecay(0.02).restart()
   }, [linkDistance, linkStrength, chargeStrength])
 
-  // Sync hoveredSourceId from content panel into node hover states
+  // Sync hoveredOuterId from content panel into node hover states
+  const centerIdForHover = centerNode ? `${centerNode.entity_type}:${centerNode.entity_id}` : ''
   useEffect(() => {
     const sNodes = simNodes.current
-    const id = hoveredSourceId
+    const id = hoveredOuterId
     let changed = false
     for (const sn of sNodes) {
-      const isSource = sn.drawnNode.vizNode.entity_type === 'source'
-      const shouldHover = isSource && sn.drawnNode.vizNode.entity_id === id
+      const isOuterNode = sn.id !== centerIdForHover
+      const shouldHover = isOuterNode && sn.drawnNode.vizNode.entity_id === id
       if (sn.drawnNode.hovered !== shouldHover) {
         sn.drawnNode.hovered = shouldHover
         changed = true
       }
     }
     if (changed) startAnim()
-  }, [hoveredSourceId, startAnim])
+  }, [hoveredOuterId, startAnim, centerIdForHover])
 
   // Clean up on unmount
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animFrameId.current)
+      cancelAnimationFrame(morphFrameIdRef.current)
       if (simulationRef.current) simulationRef.current.stop()
     }
   }, [])
@@ -561,32 +954,31 @@ export default function AtlasNodeTestCanvas({
         draggingSim.fy = Math.max(r, Math.min(CANVAS_HEIGHT - r, ny))
         // Keep the simulation alive while the user is actively dragging
         if (simulationRef.current) {
-          simulationRef.current.alpha(0.3).restart()
+          simulationRef.current.alpha(0.3).alphaDecay(0.02).restart()
         }
         return
       }
 
-      // Update hover states (merge canvas hit + hoveredSourceId from content panel)
+      // Update hover states (merge canvas hit + hoveredOuterId from content panel)
       const hit = findNodeAt(mx, my)
-      const extId = hoveredSourceIdRef.current
+      const extId = hoveredOuterIdRef.current
+      const centerId = centerNode ? `${centerNode.entity_type}:${centerNode.entity_id}` : ''
       let changed = false
       for (const sn of sNodes) {
-        const isSource = sn.drawnNode.vizNode.entity_type === 'source'
+        const isOuterNode = sn.id !== centerId
         const shouldHover =
-          sn === hit || (isSource && sn.drawnNode.vizNode.entity_id === extId)
+          sn === hit || (isOuterNode && sn.drawnNode.vizNode.entity_id === extId)
         if (sn.drawnNode.hovered !== shouldHover) {
           sn.drawnNode.hovered = shouldHover
           changed = true
         }
       }
-      const sourceId =
-        hit?.drawnNode.vizNode.entity_type === 'source'
-          ? hit.drawnNode.vizNode.entity_id
-          : null
-      onHoveredSourceChangeRef.current?.(sourceId)
+      const hoveredEntityId =
+        hit && hit.id !== centerId ? hit.drawnNode.vizNode.entity_id : null
+      onHoveredOuterChangeRef.current?.(hoveredEntityId)
       if (changed) startAnim()
     },
-    [findNodeAt, startAnim]
+    [findNodeAt, startAnim, centerNode]
   )
 
   const handleMouseDown = useCallback(
@@ -615,7 +1007,7 @@ export default function AtlasNodeTestCanvas({
           hit.fx = Math.max(r, Math.min(cw - r, cx))
           hit.fy = Math.max(r, Math.min(CANVAS_HEIGHT - r, cy))
           if (simulationRef.current) {
-            simulationRef.current.alpha(0.3).restart()
+            simulationRef.current.alpha(0.3).alphaDecay(0.02).restart()
           }
           startAnim()
         }
@@ -642,24 +1034,42 @@ export default function AtlasNodeTestCanvas({
       }
     }
 
-    // Left click (no drag) on a source node: open accordion
+    // Left click (no drag) on an outer node: notify parent (drill or expand)
     if (
       startNode &&
       !didDrag &&
-      dragButtonRef.current === 0 &&
-      startNode.drawnNode.vizNode.entity_type === 'source'
+      dragButtonRef.current === 0
     ) {
-      onSourceSelectRef.current?.(startNode.drawnNode.vizNode.entity_id)
+      const centerId = centerNode ? `${centerNode.entity_type}:${centerNode.entity_id}` : ''
+      if (startNode.id !== centerId) {
+        const isDrill =
+          (centerNode?.entity_type === 'controversy' &&
+            startNode.drawnNode.vizNode.entity_type === 'viewpoint') ||
+          (centerNode?.entity_type === 'topic' &&
+            startNode.drawnNode.vizNode.entity_type === 'controversy')
+        if (isDrill && morphPhaseRef.current === 'idle') {
+          onDrillPrepareRef.current?.(
+            startNode.drawnNode.vizNode.entity_type,
+            startNode.drawnNode.vizNode.entity_id
+          )
+          startMorph(startNode)
+        } else {
+          onOuterNodeClickRef.current?.(
+            startNode.drawnNode.vizNode.entity_type,
+            startNode.drawnNode.vizNode.entity_id
+          )
+        }
+      }
     }
 
     if (changed) {
       // Give a small reheat so nodes settle naturally
       if (simulationRef.current) {
-        simulationRef.current.alpha(0.1).restart()
+        simulationRef.current.alpha(0.1).alphaDecay(0.02).restart()
       }
       startAnim()
     }
-  }, [startAnim])
+  }, [startAnim, centerNode, startMorph])
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (preventContextMenuRef.current) {
@@ -669,15 +1079,13 @@ export default function AtlasNodeTestCanvas({
   }, [])
 
   const handleMouseLeave = useCallback(() => {
-    onHoveredSourceChangeRef.current?.(null)
+    onHoveredOuterChangeRef.current?.(null)
     dragStartNodeRef.current = null
     hasMovedDuringDragRef.current = false
     preventContextMenuRef.current = false
-    const extId = hoveredSourceIdRef.current
     let changed = false
     for (const sn of simNodes.current) {
-      const isSource = sn.drawnNode.vizNode.entity_type === 'source'
-      const shouldHover = isSource && sn.drawnNode.vizNode.entity_id === extId
+      const shouldHover = false // clear all hover on leave
       if (sn.drawnNode.dragging) {
         sn.drawnNode.dragging = false
         sn.fx = null
@@ -691,14 +1099,14 @@ export default function AtlasNodeTestCanvas({
     }
     if (changed) {
       if (simulationRef.current) {
-        simulationRef.current.alpha(0.1).restart()
+        simulationRef.current.alpha(0.1).alphaDecay(0.02).restart()
       }
       startAnim()
     }
   }, [startAnim])
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className={cn('relative w-full', className)}>
       <canvas
         ref={canvasRef}
         width={canvasWidth}
@@ -710,6 +1118,63 @@ export default function AtlasNodeTestCanvas({
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
       />
+      <div
+        className="absolute inset-x-0 top-3 z-10 flex flex-row flex-wrap justify-center items-center gap-x-4 gap-y-2 px-3 py-2"
+        aria-label="Graph legend"
+      >
+        <span className="text-xs font-medium text-foreground shrink-0">Legend</span>
+        <div className="flex flex-row flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+          <span className="shrink-0 whitespace-nowrap">Center / Viewpoints:</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className="shrink-0 rounded-full border"
+              style={{
+                width: 12,
+                height: 12,
+                backgroundColor: pick(COLORS.centerPositive),
+                borderColor: pick(COLORS.centerBorder),
+              }}
+            />
+            <span className="whitespace-nowrap">Positive</span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className="shrink-0 rounded-full border"
+              style={{
+                width: 12,
+                height: 12,
+                backgroundColor: pick(COLORS.centerNegative),
+                borderColor: pick(COLORS.centerBorder),
+              }}
+            />
+            <span className="whitespace-nowrap">Negative</span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className="shrink-0 rounded-full border"
+              style={{
+                width: 12,
+                height: 12,
+                backgroundColor: pick(COLORS.centerNeutral),
+                borderColor: pick(COLORS.centerBorder),
+              }}
+            />
+            <span className="whitespace-nowrap">Neutral</span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className="shrink-0 rounded-full border"
+              style={{
+                width: 12,
+                height: 12,
+                backgroundColor: pick(COLORS.claimNeutral),
+                borderColor: pick(COLORS.claimBorder),
+              }}
+            />
+            <span className="whitespace-nowrap">Sources</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

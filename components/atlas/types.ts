@@ -1,6 +1,6 @@
 export interface VizNode {
   map_id: string
-  entity_type: 'thesis' | 'viewpoint' | 'claim' | 'story_claim' | 'source'
+  entity_type: 'thesis' | 'viewpoint' | 'controversy' | 'topic' | 'claim' | 'story_claim' | 'source'
   entity_id: string
   x?: number
   y?: number
@@ -46,4 +46,27 @@ export interface SourceDetail {
   story_count: number
   best_similarity: number
   stories: StoryInSource[]
+}
+
+/** Outer node in the force graph (viewpoint, source, controversy, claim, etc.) */
+export interface OuterNode {
+  entity_type: 'viewpoint' | 'source' | 'controversy' | 'claim'
+  entity_id: string
+  label: string
+}
+
+/** Controversy detail for the side panel (topic scope) */
+export interface ControversyDetail {
+  controversy_cluster_id: string
+  question: string | null
+  summary: string | null
+}
+
+/** Viewpoint detail for the side panel (controversy scope) */
+export interface ViewpointDetail {
+  viewpoint_id: string
+  controversy_cluster_id: string
+  position_cluster_id: string
+  title: string | null
+  summary: string | null
 }

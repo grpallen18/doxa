@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    const { data, error } = await supabase
+    const { data: topics, error } = await supabase
       .from('topics')
       .select('topic_id, slug, title, status, summary, created_at')
       .order('created_at', { ascending: false })
@@ -26,7 +26,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ data, error: null })
+    if (!topics?.length) {
+      return NextResponse.json({ data: [], error: null })
+    }
+
+    return NextResponse.json({ data: topics, error: null })
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes('SUPABASE_SERVICE_ROLE_KEY')) {
       return NextResponse.json(

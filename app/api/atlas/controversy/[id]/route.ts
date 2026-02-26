@@ -1,127 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+/** Returns graph data for a controversy: center node + sourceDetails from claims in its positions. */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient()
-  try {
-    const mapId = params.id
-    const searchParams = request.nextUrl.searchParams
-    const layer = searchParams.get('layer') // optional: filter by zoom layer (1, 2, 3)
+  const controversyId = params.id
 
-    const { data: mapData, error: mapError } = await supabase
-      .from('viz_maps')
-      .select('*')
-      .eq('id', mapId)
+  try {
+    const { data: controversy, error: ccErr } = await supabase
+      .from('controversy_clusters')
+      .select('controversy_cluster_id, question, summary')
+      .eq('controversy_cluster_id', controversyId)
+      .eq('status', 'active')
       .single()
 
-    if (mapError || !mapData) {
+    if (ccErr || !controversy) {
       return NextResponse.json(
-        { data: null, error: { message: 'Map not found', code: 'NOT_FOUND' } },
+        { data: null, error: { message: 'Controversy not found', code: 'NOT_FOUND' } },
         { status: 404 }
       )
     }
 
-    let nodesQuery = supabase
-      .from('viz_nodes')
-      .select('*')
-      .eq('map_id', mapId)
-      .order('layer', { ascending: true })
+    const { data: positionLinks } = await supabase
+      .from('controversy_cluster_positions')
+      .select('position_cluster_id')
+      .eq('controversy_cluster_id', controversyId)
 
-    if (layer) {
-      const layerNum = parseInt(layer, 10)
-      if (Number.isFinite(layerNum)) {
-        nodesQuery = nodesQuery.lte('layer', layerNum)
-      }
+    const positionIds = (positionLinks ?? []).map((r) => r.position_cluster_id as string)
+    if (positionIds.length === 0) {
+      return NextResponse.json({
+        data: {
+          nodes: [
+            {
+              map_id: '',
+              entity_type: 'controversy',
+              entity_id: controversyId,
+              layer: 1,
+              size: 1.5,
+            },
+          ],
+          edges: [],
+          sourceDetails: [],
+          thesisText: null,
+          viewpointText: (controversy.question || controversy.summary) ?? null,
+        },
+        error: null,
+      })
     }
 
-    const { data: rawNodes, error: nodesError } = await nodesQuery
+    const { data: pccRows } = await supabase
+      .from('position_cluster_claims')
+      .select('claim_id')
+      .in('position_cluster_id', positionIds)
 
-    if (nodesError) {
-      return NextResponse.json(
-        { data: null, error: { message: nodesError.message } },
-        { status: 500 }
-      )
-    }
-
-    const nodes = (rawNodes ?? []) as Array<{
-      map_id: string
-      entity_type: string
-      entity_id: string
-      [key: string]: unknown
-    }>
-
-    // Center node text: thesis (legacy) or viewpoint
-    let filteredNodes = nodes
-    let centerText: string | null = null
-
-    if (mapData.scope_type === 'viewpoint' && mapData.scope_id) {
-      const { data: vpRow } = await supabase
-        .from('controversy_viewpoints')
-        .select('title, summary')
-        .eq('viewpoint_id', mapData.scope_id)
-        .single()
-      centerText = (vpRow?.title || vpRow?.summary || null) ?? null
-    } else if (mapData.scope_type === 'thesis' && mapData.scope_id) {
-      const thesisNodeIds = nodes.filter((n) => n.entity_type === 'thesis').map((n) => n.entity_id)
-      if (thesisNodeIds.length > 0) {
-        const { data: thesesWithText } = await supabase
-          .from('theses')
-          .select('thesis_id, thesis_text')
-          .in('thesis_id', thesisNodeIds)
-          .not('thesis_text', 'is', null)
-        const validThesisIds = new Set(
-          (thesesWithText ?? [])
-            .filter((t) => t.thesis_text && String(t.thesis_text).trim() !== '')
-            .map((t) => t.thesis_id as string)
-        )
-        filteredNodes = nodes.filter(
-          (n) => n.entity_type !== 'thesis' || validThesisIds.has(n.entity_id)
-        )
-        const thesisRow = (thesesWithText ?? []).find((t) => t.thesis_id === mapData.scope_id)
-        centerText = thesisRow?.thesis_text ?? null
-      }
-    }
-
-    const { data: edges, error: edgesError } = await supabase
-      .from('viz_edges')
-      .select('*')
-      .eq('map_id', mapId)
-
-    if (edgesError) {
-      return NextResponse.json(
-        { data: null, error: { message: edgesError.message } },
-        { status: 500 }
-      )
-    }
-
-    // Build sourceDetails: top 20 claims by similarity, grouped by source
-    const centerId = (mapData.scope_type === 'thesis' || mapData.scope_type === 'viewpoint') ? mapData.scope_id : null
-    const centerType = mapData.scope_type === 'thesis' ? 'thesis' : mapData.scope_type === 'viewpoint' ? 'viewpoint' : null
-    const rawEdges = (edges ?? []) as Array<{
-      source_type: string
-      source_id: string
-      target_type: string
-      target_id: string
-      similarity_score?: number | null
-    }>
-
-    const claimEdges: { claimId: string; similarity: number }[] = []
-    if (centerId && centerType) {
-      for (const e of rawEdges) {
-        if (e.source_type === centerType && e.source_id === centerId && e.target_type === 'claim') {
-          claimEdges.push({ claimId: e.target_id, similarity: e.similarity_score ?? 0 })
-        }
-        if (e.target_type === centerType && e.target_id === centerId && e.source_type === 'claim') {
-          claimEdges.push({ claimId: e.source_id, similarity: e.similarity_score ?? 0 })
-        }
-      }
-    }
-    claimEdges.sort((a, b) => b.similarity - a.similarity)
-    const top20ClaimIds = claimEdges.slice(0, 20).map((c) => c.claimId)
-    const claimSimilarityMap = new Map(claimEdges.map((c) => [c.claimId, c.similarity]))
+    const claimIds = [...new Set((pccRows ?? []).map((r) => r.claim_id as string))]
+    const top20ClaimIds = claimIds.slice(0, 20)
+    const claimSimilarityMap = new Map(top20ClaimIds.map((c) => [c, 1.0]))
+    const top20Set = new Set(top20ClaimIds)
 
     let sourceDetails: Array<{
       source_id: string
@@ -135,10 +73,10 @@ export async function GET(
         published_at: string | null
         content_clean: string | null
         story_claims: Array<{
-        story_claim_id: string
-        raw_text: string | null
-        linked_to_viewpoint: boolean
-      }>
+          story_claim_id: string
+          raw_text: string | null
+          linked_to_viewpoint: boolean
+        }>
       }>
     }> = []
 
@@ -150,7 +88,6 @@ export async function GET(
         )
         .in('claim_id', top20ClaimIds)
 
-      const top20Set = new Set(top20ClaimIds)
       const sourceGroups = new Map<
         string,
         {
@@ -158,7 +95,12 @@ export async function GET(
           best_similarity: number
           stories: Map<
             string,
-            { title: string | null; url: string | null; published_at: string | null; story_claims: Array<{ story_claim_id: string; raw_text: string | null }> }
+            {
+              title: string | null
+              url: string | null
+              published_at: string | null
+              story_claims: Array<{ story_claim_id: string; raw_text: string | null }>
+            }
           >
         }
       >()
@@ -220,7 +162,6 @@ export async function GET(
         }))
         .sort((a, b) => b.story_count - a.story_count)
 
-      // Fetch content_clean from story_bodies for all stories
       const allStoryIds = storiesArray.flatMap((sd) => sd.stories.map((s) => s.story_id))
       const uniqueStoryIds = [...new Set(allStoryIds)]
       const contentCleanMap = new Map<string, string | null>()
@@ -234,8 +175,10 @@ export async function GET(
         }
       }
 
-      // Fetch ALL story_claims for each story (not just linked ones), mark and sort
-      const allStoryClaimsByStory = new Map<string, Array<{ story_claim_id: string; raw_text: string | null; claim_id: string }>>()
+      const allStoryClaimsByStory = new Map<
+        string,
+        Array<{ story_claim_id: string; raw_text: string | null; claim_id: string }>
+      >()
       if (uniqueStoryIds.length > 0) {
         const { data: allClaims } = await supabase
           .from('story_claims')
@@ -277,13 +220,22 @@ export async function GET(
       }))
     }
 
+    const centerText = (controversy.question || controversy.summary) ?? null
+
     return NextResponse.json({
       data: {
-        map: mapData,
-        nodes: filteredNodes,
-        edges: edges ?? [],
+        nodes: [
+          {
+            map_id: '',
+            entity_type: 'controversy',
+            entity_id: controversyId,
+            layer: 1,
+            size: 1.5,
+          },
+        ],
+        edges: [],
         sourceDetails,
-        thesisText: centerText,
+        thesisText: null,
         viewpointText: centerText,
       },
       error: null,

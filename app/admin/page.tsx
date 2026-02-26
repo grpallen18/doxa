@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { FileText, Activity, BookOpen, GitBranch } from 'lucide-react'
+import { FileText, Activity, BookOpen, GitBranch, Scale } from 'lucide-react'
 import { Panel } from '@/components/Panel'
 
 const adminLinks = [
   { href: '/admin/topics', label: 'Topics', icon: FileText, description: 'Create topics, run the pipeline, and manage topic content.' },
+  { href: '/admin/controversies', label: 'Controversies', icon: Scale, description: 'View all controversies with positions and viewpoints.' },
   { href: '/admin/stories', label: 'Stories', icon: BookOpen, description: 'Review stories and moderate content.' },
   { href: '/admin/positions', label: 'Positions', icon: GitBranch, description: 'Browse positions, controversies, and viewpoints. Investigate pipeline output and trace to claims and stories.' },
   { href: '/admin/health', label: 'Health', icon: Activity, description: 'Monitor data health and pipeline status.' },
