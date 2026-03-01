@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('controversy_viewpoints')
       .select(
-        'viewpoint_id, title, summary, controversy_cluster_id, position_cluster_id, created_at, controversy_clusters!inner(status), position_clusters!inner(status)',
+        'viewpoint_id, title, summary, controversy_cluster_id, agreement_cluster_id, created_at, controversy_clusters!inner(status), agreement_clusters!inner(status)',
         { count: 'exact' }
       )
       .eq('controversy_clusters.status', 'active')
-      .eq('position_clusters.status', 'active')
+      .eq('agreement_clusters.status', 'active')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('controversy_cluster_id', controversyId)
     }
     if (positionId) {
-      query = query.eq('position_cluster_id', positionId)
+      query = query.eq('agreement_cluster_id', positionId)
     }
 
     const { data: viewpoints, error } = await query
@@ -54,24 +54,24 @@ export async function GET(request: NextRequest) {
     }
 
     const controversyIds = [...new Set(vpRows.map((v) => v.controversy_cluster_id))]
-    const positionIds = [...new Set(vpRows.map((v) => v.position_cluster_id))]
+    const agreementIds = [...new Set(vpRows.map((v) => v.agreement_cluster_id))]
 
-    const [ccRes, pcRes] = await Promise.all([
+    const [ccRes, acRes] = await Promise.all([
       supabase
         .from('controversy_clusters')
         .select('controversy_cluster_id, question')
         .in('controversy_cluster_id', controversyIds),
       supabase
-        .from('position_clusters')
-        .select('position_cluster_id, label')
-        .in('position_cluster_id', positionIds),
+        .from('agreement_clusters')
+        .select('agreement_cluster_id, label')
+        .in('agreement_cluster_id', agreementIds),
     ])
 
     const questionByControversy = new Map(
       (ccRes.data ?? []).map((r) => [r.controversy_cluster_id, r.question ?? null])
     )
-    const labelByPosition = new Map(
-      (pcRes.data ?? []).map((r) => [r.position_cluster_id, r.label ?? null])
+    const labelByAgreement = new Map(
+      (acRes.data ?? []).map((r) => [r.agreement_cluster_id, r.label ?? null])
     )
 
     const items = vpRows.map((v) => ({
@@ -79,25 +79,26 @@ export async function GET(request: NextRequest) {
       title: v.title,
       summary: v.summary,
       controversy_cluster_id: v.controversy_cluster_id,
-      position_cluster_id: v.position_cluster_id,
+      agreement_cluster_id: v.agreement_cluster_id,
+      position_cluster_id: v.agreement_cluster_id,
       controversy_question: questionByControversy.get(v.controversy_cluster_id) ?? null,
-      position_label: labelByPosition.get(v.position_cluster_id) ?? null,
+      position_label: labelByAgreement.get(v.agreement_cluster_id) ?? null,
       created_at: v.created_at,
     }))
 
     let countQuery = supabase
       .from('controversy_viewpoints')
-      .select('viewpoint_id, controversy_clusters!inner(status), position_clusters!inner(status)', {
+      .select('viewpoint_id, controversy_clusters!inner(status), agreement_clusters!inner(status)', {
         count: 'exact',
         head: true,
       })
       .eq('controversy_clusters.status', 'active')
-      .eq('position_clusters.status', 'active')
+      .eq('agreement_clusters.status', 'active')
     if (controversyId) {
       countQuery = countQuery.eq('controversy_cluster_id', controversyId)
     }
     if (positionId) {
-      countQuery = countQuery.eq('position_cluster_id', positionId)
+      countQuery = countQuery.eq('agreement_cluster_id', positionId)
     }
     const { count } = await countQuery
 

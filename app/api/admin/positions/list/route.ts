@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')?.trim() || ''
 
     let query = supabase
-      .from('position_clusters')
-      .select('position_cluster_id, label, summary, status, created_at', { count: 'exact' })
+      .from('agreement_clusters')
+      .select('agreement_cluster_id, label, summary, status, created_at', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const ids = (positions ?? []).map((p) => p.position_cluster_id)
+    const ids = (positions ?? []).map((p) => p.agreement_cluster_id)
     if (ids.length === 0) {
       return NextResponse.json({
         data: {
@@ -50,39 +50,40 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: claimCounts } = await supabase
-      .from('position_cluster_claims')
-      .select('position_cluster_id')
-      .in('position_cluster_id', ids)
+      .from('agreement_cluster_claims')
+      .select('agreement_cluster_id')
+      .in('agreement_cluster_id', ids)
 
-    const claimCountByPosition = new Map<string, number>()
+    const claimCountByAgreement = new Map<string, number>()
     for (const row of claimCounts ?? []) {
-      const pid = row.position_cluster_id as string
-      claimCountByPosition.set(pid, (claimCountByPosition.get(pid) ?? 0) + 1)
+      const aid = row.agreement_cluster_id as string
+      claimCountByAgreement.set(aid, (claimCountByAgreement.get(aid) ?? 0) + 1)
     }
 
     const { data: controversyRows } = await supabase
-      .from('controversy_cluster_positions')
-      .select('position_cluster_id')
-      .in('position_cluster_id', ids)
+      .from('controversy_cluster_agreements')
+      .select('agreement_cluster_id')
+      .in('agreement_cluster_id', ids)
 
-    const controversyCountByPosition = new Map<string, number>()
+    const controversyCountByAgreement = new Map<string, number>()
     for (const row of controversyRows ?? []) {
-      const pid = row.position_cluster_id as string
-      controversyCountByPosition.set(pid, (controversyCountByPosition.get(pid) ?? 0) + 1)
+      const aid = row.agreement_cluster_id as string
+      controversyCountByAgreement.set(aid, (controversyCountByAgreement.get(aid) ?? 0) + 1)
     }
 
     const items = (positions ?? []).map((p) => ({
-      position_cluster_id: p.position_cluster_id,
+      agreement_cluster_id: p.agreement_cluster_id,
+      position_cluster_id: p.agreement_cluster_id,
       label: p.label ?? null,
       summary: p.summary ?? null,
       status: p.status ?? 'active',
       created_at: p.created_at,
-      claim_count: claimCountByPosition.get(p.position_cluster_id) ?? 0,
-      controversy_count: controversyCountByPosition.get(p.position_cluster_id) ?? 0,
+      claim_count: claimCountByAgreement.get(p.agreement_cluster_id) ?? 0,
+      controversy_count: controversyCountByAgreement.get(p.agreement_cluster_id) ?? 0,
     }))
 
     let countQuery = supabase
-      .from('position_clusters')
+      .from('agreement_clusters')
       .select('*', { count: 'exact', head: true })
     if (status === 'active' || status === 'inactive') {
       countQuery = countQuery.eq('status', status)

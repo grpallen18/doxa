@@ -21,32 +21,32 @@ export async function GET(
   try {
     const supabase = createAdminClient()
 
-    const { data: position, error: posErr } = await supabase
-      .from('position_clusters')
-      .select('position_cluster_id, label, summary, status, created_at')
-      .eq('position_cluster_id', id)
+    const { data: agreement, error: posErr } = await supabase
+      .from('agreement_clusters')
+      .select('agreement_cluster_id, label, summary, status, created_at')
+      .eq('agreement_cluster_id', id)
       .single()
 
-    if (posErr || !position) {
+    if (posErr || !agreement) {
       return NextResponse.json(
-        { data: null, error: { message: 'Position not found', code: 'NOT_FOUND' } },
+        { data: null, error: { message: 'Agreement not found', code: 'NOT_FOUND' } },
         { status: 404 }
       )
     }
 
     const [controversiesRes, viewpointsRes, claimsRes] = await Promise.all([
       supabase
-        .from('controversy_cluster_positions')
+        .from('controversy_cluster_agreements')
         .select('controversy_cluster_id, side, stance_label, controversy_clusters(question, summary, status)')
-        .eq('position_cluster_id', id),
+        .eq('agreement_cluster_id', id),
       supabase
         .from('controversy_viewpoints')
         .select('viewpoint_id, title, summary, controversy_cluster_id')
-        .eq('position_cluster_id', id),
+        .eq('agreement_cluster_id', id),
       supabase
-        .from('position_cluster_claims')
-        .select('claim_id, role, claims(canonical_text, subject, predicate, object)')
-        .eq('position_cluster_id', id),
+        .from('agreement_cluster_claims')
+        .select('claim_id, claims(canonical_text, subject, predicate, object)')
+        .eq('agreement_cluster_id', id),
     ])
 
     const controversies = (controversiesRes.data ?? []).map((row) => {
@@ -93,7 +93,6 @@ export async function GET(
       const storyLinks = storyClaims.filter((s) => s.claim_id === row.claim_id)
       return {
         claim_id: row.claim_id,
-        role: row.role,
         canonical_text: c?.canonical_text ?? null,
         subject: c?.subject ?? null,
         predicate: c?.predicate ?? null,
@@ -127,7 +126,8 @@ export async function GET(
 
     return NextResponse.json({
       data: {
-        ...position,
+        ...agreement,
+        position_cluster_id: agreement.agreement_cluster_id,
         controversies,
         viewpoints,
         claims,

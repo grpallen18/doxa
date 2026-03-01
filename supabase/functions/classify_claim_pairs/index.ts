@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SIM_THRESHOLD = 0.65;
+const SIM_THRESHOLD = 0.55;
 const K = 20;
 const MAX_CLAIMS_PER_RUN = 25;
 const PAIRS_PER_BATCH = 50;

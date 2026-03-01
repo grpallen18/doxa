@@ -36,12 +36,12 @@ export async function GET(
 
     const [positionsRes, viewpointsRes, topicsRes] = await Promise.all([
       supabase
-        .from('controversy_cluster_positions')
-        .select('position_cluster_id, side, stance_label, position_clusters(label, summary)')
+        .from('controversy_cluster_agreements')
+        .select('agreement_cluster_id, side, stance_label, agreement_clusters(label, summary)')
         .eq('controversy_cluster_id', id),
       supabase
         .from('controversy_viewpoints')
-        .select('viewpoint_id, title, summary, position_cluster_id')
+        .select('viewpoint_id, title, summary, agreement_cluster_id')
         .eq('controversy_cluster_id', id),
       supabase
         .from('topic_controversies')
@@ -51,14 +51,15 @@ export async function GET(
     ])
 
     const positions = (positionsRes.data ?? []).map((row) => {
-      const rawPc = row.position_clusters as { label?: string; summary?: string } | Array<{ label?: string; summary?: string }> | null
-      const pc = Array.isArray(rawPc) ? rawPc[0] : rawPc
+      const rawAc = row.agreement_clusters as { label?: string; summary?: string } | Array<{ label?: string; summary?: string }> | null
+      const ac = Array.isArray(rawAc) ? rawAc[0] : rawAc
       return {
-        position_cluster_id: row.position_cluster_id,
+        position_cluster_id: row.agreement_cluster_id,
+        agreement_cluster_id: row.agreement_cluster_id,
         side: row.side,
         stance_label: row.stance_label,
-        label: pc?.label ?? null,
-        summary: pc?.summary ?? null,
+        label: ac?.label ?? null,
+        summary: ac?.summary ?? null,
       }
     })
 
@@ -66,7 +67,8 @@ export async function GET(
       viewpoint_id: row.viewpoint_id,
       title: row.title,
       summary: row.summary,
-      position_cluster_id: row.position_cluster_id,
+      position_cluster_id: row.agreement_cluster_id,
+      agreement_cluster_id: row.agreement_cluster_id,
     }))
 
     const topics = (topicsRes.data ?? []).map((row) => {

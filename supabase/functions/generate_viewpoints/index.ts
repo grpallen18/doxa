@@ -71,7 +71,7 @@ async function getEmbeddingsBatch(apiKey: string, texts: string[], model: string
 
 type ViewpointInput = {
   controversy_cluster_id: string;
-  position_cluster_id: string;
+  agreement_cluster_id: string;
   stance_label: string;
   question: string;
   claimTexts: string[];
@@ -159,23 +159,23 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  // Links without viewpoint yet; controversy active; position has label (summary exists)
+  // Links without viewpoint yet; controversy active; agreement has label (summary exists)
   const { data: links } = await supabase
-    .from("controversy_cluster_positions")
-    .select("controversy_cluster_id, position_cluster_id, stance_label");
+    .from("controversy_cluster_agreements")
+    .select("controversy_cluster_id, agreement_cluster_id, stance_label");
 
   const allLinks = (links ?? []) as Array<{
     controversy_cluster_id: string;
-    position_cluster_id: string;
+    agreement_cluster_id: string;
     stance_label: string | null;
   }>;
 
   const { data: existingViewpoints } = await supabase
     .from("controversy_viewpoints")
-    .select("controversy_cluster_id, position_cluster_id");
+    .select("controversy_cluster_id, agreement_cluster_id");
   const existingSet = new Set(
     (existingViewpoints ?? []).map(
-      (r) => `${(r as { controversy_cluster_id: string }).controversy_cluster_id}:${(r as { position_cluster_id: string }).position_cluster_id}`
+      (r) => `${(r as { controversy_cluster_id: string }).controversy_cluster_id}:${(r as { agreement_cluster_id: string }).agreement_cluster_id}`
     )
   );
 
@@ -190,14 +190,14 @@ Deno.serve(async (req: Request) => {
     ])
   );
 
-  const { data: positions } = await supabase
-    .from("position_clusters")
-    .select("position_cluster_id, label")
+  const { data: agreements } = await supabase
+    .from("agreement_clusters")
+    .select("agreement_cluster_id, label")
     .eq("status", "active")
     .not("label", "is", null);
-  const labelByPosition = new Map(
-    (positions ?? []).map((r) => [
-      (r as { position_cluster_id: string }).position_cluster_id,
+  const labelByAgreement = new Map(
+    (agreements ?? []).map((r) => [
+      (r as { agreement_cluster_id: string }).agreement_cluster_id,
       (r as { label?: string }).label ?? "This position",
     ])
   );
@@ -211,9 +211,9 @@ Deno.serve(async (req: Request) => {
   const items = allLinks
     .filter(
       (l) =>
-        !existingSet.has(`${l.controversy_cluster_id}:${l.position_cluster_id}`) &&
+        !existingSet.has(`${l.controversy_cluster_id}:${l.agreement_cluster_id}`) &&
         questionByControversy.has(l.controversy_cluster_id) &&
-        labelByPosition.has(l.position_cluster_id)
+        labelByAgreement.has(l.agreement_cluster_id)
     )
     .sort((a, b) => {
       const countA = viewpointCountByControversy.get(a.controversy_cluster_id) ?? 0;
@@ -222,12 +222,12 @@ Deno.serve(async (req: Request) => {
       if (a.controversy_cluster_id !== b.controversy_cluster_id) {
         return a.controversy_cluster_id.localeCompare(b.controversy_cluster_id);
       }
-      return a.position_cluster_id.localeCompare(b.position_cluster_id);
+      return a.agreement_cluster_id.localeCompare(b.agreement_cluster_id);
     })
     .slice(0, maxViewpoints);
 
   if (items.length === 0) {
-    return json({ ok: true, created: 0, message: "No controversy-position links needing viewpoints" });
+    return json({ ok: true, created: 0, message: "No controversy-agreement links needing viewpoints" });
   }
 
   if (dryRun) {
@@ -238,12 +238,12 @@ Deno.serve(async (req: Request) => {
   const toProcess: ViewpointInput[] = [];
   for (const item of items) {
     const question = questionByControversy.get(item.controversy_cluster_id) ?? "What is the debate?";
-    const stanceLabel = labelByPosition.get(item.position_cluster_id) ?? item.stance_label ?? "This position";
+    const stanceLabel = labelByAgreement.get(item.agreement_cluster_id) ?? item.stance_label ?? "This position";
 
     const { data: members } = await supabase
-      .from("position_cluster_claims")
+      .from("agreement_cluster_claims")
       .select("claim_id")
-      .eq("position_cluster_id", item.position_cluster_id)
+      .eq("agreement_cluster_id", item.agreement_cluster_id)
       .limit(8);
     const claimIds = (members ?? []).map((r) => (r as { claim_id: string }).claim_id);
 
@@ -257,7 +257,7 @@ Deno.serve(async (req: Request) => {
 
     toProcess.push({
       controversy_cluster_id: item.controversy_cluster_id,
-      position_cluster_id: item.position_cluster_id,
+      agreement_cluster_id: item.agreement_cluster_id,
       stance_label: stanceLabel,
       question,
       claimTexts,
@@ -271,17 +271,17 @@ Deno.serve(async (req: Request) => {
       const summaries = await generateViewpointBatch(OPENAI_API_KEY, MODEL, batch);
 
       // Batch fetch centroids for drift check
-      const posIds = batch.map((b) => b.position_cluster_id);
+      const aidIds = batch.map((b) => b.agreement_cluster_id);
       const { data: centroidRows } = await supabase
-        .from("position_clusters")
-        .select("position_cluster_id, centroid_embedding")
-        .in("position_cluster_id", posIds);
+        .from("agreement_clusters")
+        .select("agreement_cluster_id, centroid_embedding")
+        .in("agreement_cluster_id", aidIds);
 
-      const centroidByPos = new Map<string, number[]>();
+      const centroidByAgreement = new Map<string, number[]>();
       for (const row of centroidRows ?? []) {
         const emb = parseEmbedding((row as { centroid_embedding?: unknown }).centroid_embedding);
         if (emb && emb.length > 0) {
-          centroidByPos.set((row as { position_cluster_id: string }).position_cluster_id, emb);
+          centroidByAgreement.set((row as { agreement_cluster_id: string }).agreement_cluster_id, emb);
         }
       }
 
@@ -297,7 +297,7 @@ Deno.serve(async (req: Request) => {
       for (let j = 0; j < batch.length; j++) {
         const inp = batch[j];
         const summary = summaries[j] ?? "No viewpoint.";
-        const centroid = centroidByPos.get(inp.position_cluster_id);
+        const centroid = centroidByAgreement.get(inp.agreement_cluster_id);
         const summaryEmb = summaryEmbeddings[j];
 
         // Drift check: only persist if similarity >= threshold
@@ -312,14 +312,14 @@ Deno.serve(async (req: Request) => {
         await supabase.from("controversy_viewpoints").upsert(
           {
             controversy_cluster_id: inp.controversy_cluster_id,
-            position_cluster_id: inp.position_cluster_id,
+            agreement_cluster_id: inp.agreement_cluster_id,
             title: inp.stance_label,
             summary,
             summary_ok: true,
             version: 1,
             model: MODEL,
           },
-          { onConflict: "controversy_cluster_id,position_cluster_id" }
+          { onConflict: "controversy_cluster_id,agreement_cluster_id" }
         );
         created++;
       }

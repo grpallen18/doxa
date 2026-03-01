@@ -66,7 +66,8 @@ export interface ControversyDetail {
 export interface ViewpointDetail {
   viewpoint_id: string
   controversy_cluster_id: string
-  position_cluster_id: string
+  agreement_cluster_id: string
+  position_cluster_id?: string
   title: string | null
   summary: string | null
 }

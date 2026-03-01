@@ -258,13 +258,13 @@ export async function GET(
 
       const { data: vpRows } = await supabase
         .from('controversy_viewpoints')
-        .select('viewpoint_id, controversy_cluster_id, position_cluster_id, title, summary')
+        .select('viewpoint_id, controversy_cluster_id, agreement_cluster_id, title, summary')
         .eq('controversy_cluster_id', scopeId)
 
       const viewpointDetails = (vpRows ?? []).map((r) => ({
         viewpoint_id: r.viewpoint_id as string,
         controversy_cluster_id: r.controversy_cluster_id as string,
-        position_cluster_id: r.position_cluster_id as string,
+        position_cluster_id: (r.agreement_cluster_id ?? r.position_cluster_id) as string,
         title: (r.title as string) ?? null,
         summary: (r.summary as string) ?? null,
       }))
@@ -296,7 +296,7 @@ export async function GET(
     if (scopeType === 'viewpoint') {
       const { data: vpRow, error: vpErr } = await supabase
         .from('controversy_viewpoints')
-        .select('viewpoint_id, controversy_cluster_id, position_cluster_id, title, summary')
+        .select('viewpoint_id, controversy_cluster_id, agreement_cluster_id, title, summary')
         .eq('viewpoint_id', scopeId)
         .single()
 
@@ -307,14 +307,14 @@ export async function GET(
         )
       }
 
-      const positionClusterId = vpRow.position_cluster_id as string
+      const agreementClusterId = (vpRow.agreement_cluster_id ?? vpRow.position_cluster_id) as string
 
-      const { data: pccRows } = await supabase
-        .from('position_cluster_claims')
+      const { data: accRows } = await supabase
+        .from('agreement_cluster_claims')
         .select('claim_id')
-        .eq('position_cluster_id', positionClusterId)
+        .eq('agreement_cluster_id', agreementClusterId)
 
-      const claimIds = [...new Set((pccRows ?? []).map((r) => r.claim_id as string))]
+      const claimIds = [...new Set((accRows ?? []).map((r) => r.claim_id as string))]
       const sourceDetails = await buildSourceDetailsFromClaimIds(supabase, claimIds)
 
       const outerNodes = sourceDetails.map((sd) => ({

@@ -99,10 +99,10 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Fetch controversy_viewpoints (each has position_cluster_id for claims)
+  // Fetch controversy_viewpoints (each has agreement_cluster_id for claims)
   const { data: viewpointsData, error: vpErr } = await supabase
     .from("controversy_viewpoints")
-    .select("viewpoint_id, position_cluster_id, title, summary")
+    .select("viewpoint_id, agreement_cluster_id, title, summary")
     .limit(maxViewpoints);
 
   if (vpErr) {
@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
 
   const viewpoints = (viewpointsData ?? []) as Array<{
     viewpoint_id: string;
-    position_cluster_id: string;
+    agreement_cluster_id: string;
     title: string | null;
     summary: string | null;
   }>;
@@ -122,14 +122,14 @@ Deno.serve(async (req: Request) => {
   let edgesCreated = 0;
 
   for (const vp of viewpoints) {
-    const { data: pccData, error: pccErr } = await supabase
-      .from("position_cluster_claims")
+    const { data: accData, error: accErr } = await supabase
+      .from("agreement_cluster_claims")
       .select("claim_id")
-      .eq("position_cluster_id", vp.position_cluster_id);
+      .eq("agreement_cluster_id", vp.agreement_cluster_id);
 
-    if (pccErr || !pccData?.length) continue;
+    if (accErr || !accData?.length) continue;
 
-    const claimIds = pccData.map((r) => r.claim_id);
+    const claimIds = accData.map((r) => r.claim_id);
 
     const { data: claimsData, error: claimsErr } = await supabase
       .from("claims")

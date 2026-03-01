@@ -38,7 +38,7 @@ export async function GET(
 
     const [posRes, vpRes] = await Promise.all([
       supabase
-        .from('controversy_cluster_positions')
+        .from('controversy_cluster_agreements')
         .select('controversy_cluster_id')
         .in('controversy_cluster_id', cids),
       supabase

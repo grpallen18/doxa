@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     const [posCountRes, vpCountRes] = await Promise.all([
       supabase
-        .from('controversy_cluster_positions')
+        .from('controversy_cluster_agreements')
         .select('controversy_cluster_id')
         .in('controversy_cluster_id', ids),
       supabase

@@ -26,6 +26,8 @@ function clampInt(n: unknown, min: number, max: number, fallback: number) {
   return Math.max(min, Math.min(max, Math.round(x)));
 }
 
+const POSITION_CONFIDENCE_THRESHOLD = 0.6;
+
 async function callOpenAIChunk(
   apiKey: string,
   model: string,
@@ -33,8 +35,8 @@ async function callOpenAIChunk(
   chunkIndex: number,
   content: string,
   requestId: string
-): Promise<{ claims: unknown[]; evidence: unknown[]; links: unknown[] }> {
-  const system = `You extract claims and supporting/contradicting evidence from a news story segment for DOXA.
+): Promise<{ claims: unknown[]; evidence: unknown[]; links: unknown[]; positions: unknown[]; position_claim_links: unknown[]; position_evidence_links: unknown[] }> {
+  const system = `You extract claims, evidence, links, and positions from a news story segment for DOXA.
 You are given one segment of a longer story. Do not browse the web.
 
 CRITICAL GOAL: Only output claims that are usable out of context (self-contained). If you cannot make a claim self-contained from this segment WITHOUT inventing missing details, OMIT the claim.
@@ -59,6 +61,16 @@ Do NOT output evidence unless it clearly links to at least one claim you output 
 
 LINK RULES:
 Only create links when the evidence clearly supports/contradicts/contextualizes the claim. Do not force links.
+
+POSITION RULES (AP-style extraction):
+A position is an explicit argument statement the segment advances (e.g. "Immigration should be restricted", "The policy is harmful").
+- Each position MUST include excerpt_text: the exact cited span from the chunk that justifies the position.
+- Each position MUST include cue_phrases: array of phrases in the excerpt that justify the inferred position (e.g. "warned", "praised", "critics called", loaded adjectives like "reckless", "landmark").
+- speaker_type: narrator (article voice) | quoted (direct quote) | critics | supporters.
+- Allow "read-between-the-lines" ONLY when cue_phrases exist in the cited span; otherwise ABSTAIN (extract 0 positions for that chunk).
+- If extraction_confidence is below 0.6, OMIT the position (do not include it).
+- position_claim_links: { position_index, claim_index } — which claims support this position (0-based).
+- position_evidence_links: { position_index, evidence_index } — which evidence supports this position (0-based).
 
 STANCE (for each claim):
 polarity (asserts/denies/uncertain) = linguistic form of the claim.
@@ -151,8 +163,47 @@ Return JSON only in the required schema. If there are no valid anchored claims O
                   additionalProperties: false,
                 },
               },
+              positions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    raw_text: { type: "string" },
+                    extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
+                    excerpt_text: { type: "string" },
+                    cue_phrases: { type: "array", items: { type: "string" } },
+                    speaker_type: { type: ["string", "null"], enum: ["narrator", "quoted", "critics", "supporters", null] },
+                  },
+                  required: ["raw_text", "extraction_confidence", "excerpt_text", "cue_phrases", "speaker_type"],
+                  additionalProperties: false,
+                },
+              },
+              position_claim_links: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    position_index: { type: "integer", minimum: 0 },
+                    claim_index: { type: "integer", minimum: 0 },
+                  },
+                  required: ["position_index", "claim_index"],
+                  additionalProperties: false,
+                },
+              },
+              position_evidence_links: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    position_index: { type: "integer", minimum: 0 },
+                    evidence_index: { type: "integer", minimum: 0 },
+                  },
+                  required: ["position_index", "evidence_index"],
+                  additionalProperties: false,
+                },
+              },
             },
-            required: ["claims", "evidence", "links"],
+            required: ["claims", "evidence", "links", "positions", "position_claim_links", "position_evidence_links"],
             additionalProperties: false,
           },
         },
@@ -171,11 +222,44 @@ Return JSON only in the required schema. If there are no valid anchored claims O
   const contentStr = data?.choices?.[0]?.message?.content;
   if (typeof contentStr !== "string") throw new Error("Missing OpenAI content");
 
-  const parsed = JSON.parse(contentStr) as { claims?: unknown[]; evidence?: unknown[]; links?: unknown[] };
+  const parsed = JSON.parse(contentStr) as {
+    claims?: unknown[];
+    evidence?: unknown[];
+    links?: unknown[];
+    positions?: Array<{ extraction_confidence?: number } & Record<string, unknown>>;
+    position_claim_links?: unknown[];
+    position_evidence_links?: unknown[];
+  };
+  const positionsRaw = Array.isArray(parsed?.positions) ? parsed.positions : [];
+  const positions = positionsRaw.filter(
+    (p) => typeof p?.extraction_confidence === "number" && p.extraction_confidence >= POSITION_CONFIDENCE_THRESHOLD
+  );
+  const posIndexMap = new Map<number, number>();
+  let newIdx = 0;
+  for (let i = 0; i < positionsRaw.length; i++) {
+    if (typeof positionsRaw[i]?.extraction_confidence === "number" && positionsRaw[i].extraction_confidence >= POSITION_CONFIDENCE_THRESHOLD) {
+      posIndexMap.set(i, newIdx++);
+    }
+  }
+  const position_claim_links = (Array.isArray(parsed?.position_claim_links) ? parsed.position_claim_links : [])
+    .filter((l: { position_index?: number }) => posIndexMap.has(l?.position_index ?? -1))
+    .map((l: { position_index?: number; claim_index?: number }) => ({
+      position_index: posIndexMap.get(l.position_index ?? -1)!,
+      claim_index: l.claim_index ?? 0,
+    }));
+  const position_evidence_links = (Array.isArray(parsed?.position_evidence_links) ? parsed.position_evidence_links : [])
+    .filter((l: { position_index?: number }) => posIndexMap.has(l?.position_index ?? -1))
+    .map((l: { position_index?: number; evidence_index?: number }) => ({
+      position_index: posIndexMap.get(l.position_index ?? -1)!,
+      evidence_index: l.evidence_index ?? 0,
+    }));
   return {
     claims: Array.isArray(parsed?.claims) ? parsed.claims : [],
     evidence: Array.isArray(parsed?.evidence) ? parsed.evidence : [],
     links: Array.isArray(parsed?.links) ? parsed.links : [],
+    positions,
+    position_claim_links,
+    position_evidence_links,
   };
 }
 
@@ -267,6 +351,9 @@ Deno.serve(async (req: Request) => {
           claims: result.claims,
           evidence: result.evidence,
           links: result.links,
+          positions: result.positions,
+          position_claim_links: result.position_claim_links,
+          position_evidence_links: result.position_evidence_links,
         };
         const now = new Date().toISOString();
 
