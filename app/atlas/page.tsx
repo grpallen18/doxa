@@ -11,7 +11,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import type { SourceDetail, ViewpointDetail, ControversyDetail } from '@/components/atlas/types'
+import type { SourceDetail, ViewpointDetail, ControversyDetail, PositionDetail, ClaimDetail } from '@/components/atlas/types'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { ExternalLinkIcon, Maximize2, ChevronUp } from 'lucide-react'
@@ -64,7 +64,16 @@ interface ScopeFrame {
   label?: string
 }
 
+interface AgreementItem {
+  agreement_cluster_id: string
+  label: string | null
+  summary: string | null
+  position_count: number
+}
+
 export default function AtlasPage() {
+  const [agreements, setAgreements] = useState<AgreementItem[]>([])
+  const [selectedAgreementId, setSelectedAgreementId] = useState<string | null>(null)
   const [scopeStack, setScopeStack] = useState<ScopeFrame[]>([])
   const [zoomOutTarget, setZoomOutTarget] = useState<ScopeFrame | null>(null)
   const [mapData, setMapData] = useState<ScopeResponse | null>(null)
@@ -118,7 +127,7 @@ export default function AtlasPage() {
     try {
       const data = await layer.fetchScope(id)
       setMapData(data)
-      const label = (data.centerDescription ?? (type === 'topic' ? 'Topic' : type === 'viewpoint' ? 'Viewpoint' : 'Controversy')).slice(0, 40)
+      const label = (data.centerDescription ?? (type === 'agreement' ? 'Agreement' : type === 'position' ? 'Position' : type === 'topic' ? 'Topic' : type === 'viewpoint' ? 'Viewpoint' : 'Controversy')).slice(0, 40)
       if (options?.replaceStack) {
         setScopeStack([{ type, id, label }])
       } else if (options?.pushToStack !== false) {
@@ -132,32 +141,54 @@ export default function AtlasPage() {
     }
   }, [])
 
-  const loadRandomTopic = useCallback(async () => {
-    const rtr = await fetch('/api/atlas/topics/random')
-    const rtd = await rtr.json()
-    if (rtd?.data?.id) {
-      await loadScope('topic', rtd.data.id, { pushToStack: false, replaceStack: true })
-    } else {
-      const rcr = await fetch('/api/atlas/controversies/random')
-      const rcd = await rcr.json()
-      if (rcd?.data?.id) {
-        await loadScope('controversy', rcd.data.id, { pushToStack: false, replaceStack: true })
+  const loadAgreements = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/atlas/agreements')
+      const json = await res.json()
+      if (!res.ok || json.error) {
+        setError(json?.error?.message ?? 'Failed to load agreements')
+        setAgreements([])
+        return
       }
+      const items = json.data?.items ?? []
+      setAgreements(items)
+      if (items.length > 0 && !selectedAgreementId) {
+        const first = items[0]
+        setSelectedAgreementId(first.agreement_cluster_id)
+        await loadScope('agreement', first.agreement_cluster_id, { pushToStack: false, replaceStack: true })
+      } else if (selectedAgreementId && items.some((a: AgreementItem) => a.agreement_cluster_id === selectedAgreementId)) {
+        await loadScope('agreement', selectedAgreementId, { pushToStack: false, replaceStack: true })
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load')
+    } finally {
+      setLoading(false)
     }
-  }, [loadScope])
+  }, [loadScope, selectedAgreementId])
 
   useEffect(() => {
-    loadRandomTopic()
-  }, [loadRandomTopic])
+    loadAgreements()
+  }, [])
+
+  const handleAgreementSelect = useCallback(
+    async (agreementId: string) => {
+      setSelectedAgreementId(agreementId)
+      await loadScope('agreement', agreementId, { pushToStack: false, replaceStack: true })
+    },
+    [loadScope]
+  )
 
   const handleDrillPrepare = useCallback(
     (entityType: string, entityId: string) => {
       const currentScope = scopeStack[scopeStack.length - 1]
       const layer = currentScope ? SCOPE_LAYERS[currentScope.type] : null
       if (!layer || !layer.isDrillable) return
+      const matchesPosition = entityType === 'position' && layer.outerEntityType === 'position'
       const matchesViewpoint = entityType === 'viewpoint' && layer.outerEntityType === 'viewpoint'
       const matchesControversy = entityType === 'controversy' && layer.outerEntityType === 'controversy'
-      if (!matchesViewpoint && !matchesControversy) return
+      if (!matchesPosition && !matchesViewpoint && !matchesControversy) return
       const targetLayer = SCOPE_LAYERS[entityType as ScopeType]
       if (!targetLayer) return
       prefetchedEntityIdRef.current = entityId
@@ -171,7 +202,23 @@ export default function AtlasPage() {
       const currentScope = scopeStack[scopeStack.length - 1]
       const layer = currentScope ? SCOPE_LAYERS[currentScope.type] : null
       if (!layer) return
-      if (entityType === 'controversy' && layer.isDrillable && layer.outerEntityType === 'controversy') {
+      if (entityType === 'position' && layer.isDrillable && layer.outerEntityType === 'position') {
+        if (prefetchedEntityIdRef.current === entityId && prefetchedPromiseRef.current) {
+          try {
+            const data = await prefetchedPromiseRef.current
+            setMapData(data)
+            const label = (data.centerDescription ?? 'Position').slice(0, 40)
+            setScopeStack((prev) => [...prev, { type: 'position' as ScopeType, id: entityId, label }])
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to load')
+          } finally {
+            prefetchedEntityIdRef.current = null
+            prefetchedPromiseRef.current = null
+          }
+        } else {
+          await loadScope('position', entityId)
+        }
+      } else if (entityType === 'controversy' && layer.isDrillable && layer.outerEntityType === 'controversy') {
         if (prefetchedEntityIdRef.current === entityId && prefetchedPromiseRef.current) {
           try {
             const data = await prefetchedPromiseRef.current
@@ -206,6 +253,7 @@ export default function AtlasPage() {
       } else if (entityType === 'source' && layer.outerEntityType === 'source') {
         handleSourceChange(entityId === expandedSourceId ? null : entityId)
       }
+      // claim: leaf, no drill; highlight in panel via hoveredOuterId (already set by canvas)
     },
     [scopeStack, loadScope, expandedSourceId, handleSourceChange]
   )
@@ -245,6 +293,23 @@ export default function AtlasPage() {
     )
   }
 
+  if (!loading && agreements.length === 0 && !mapData) {
+    return (
+      <div className="flex min-h-[calc(100vh-var(--header-height))] flex-1 flex-col text-foreground">
+        <div className="flex flex-1 items-center justify-center p-8">
+          <Panel variant="soft" className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8 text-center max-w-md">
+            <p className="text-sm text-foreground">
+              No agreement clusters yet. Run the clustering pipeline to populate.
+            </p>
+            <Button onClick={() => loadAgreements()} variant="primary">
+              Retry
+            </Button>
+          </Panel>
+        </div>
+      </div>
+    )
+  }
+
   if (error) {
     return (
       <div className="flex min-h-[calc(100vh-var(--header-height))] flex-1 flex-col text-foreground">
@@ -264,22 +329,39 @@ export default function AtlasPage() {
   const currentLayer = currentScope ? SCOPE_LAYERS[currentScope.type] : null
   const outerEntityType = currentLayer?.outerEntityType ?? 'source'
 
-  /** Right sidebar content: summary, controversies/viewpoints/sources */
+  /** Right sidebar content: summary, positions/claims/controversies/viewpoints/sources */
   const rightSidebarContent = (
     <>
       <SidebarGroup>
         <SidebarGroupLabel>
           {!mapData
             ? 'Details'
-            : outerEntityType === 'controversy'
-              ? `Controversies (${mapData.controversyDetails?.length ?? 0})`
-              : outerEntityType === 'viewpoint'
-                ? `Viewpoints (${mapData.viewpointDetails?.length ?? 0})`
-                : `Sources (${mapData.sourceDetails?.length ?? 0})`}
+            : outerEntityType === 'position'
+              ? `Positions (${mapData.positionDetails?.length ?? 0})`
+              : outerEntityType === 'claim'
+                ? `Claims (${mapData.claimDetails?.length ?? 0})`
+                : outerEntityType === 'controversy'
+                  ? `Controversies (${mapData.controversyDetails?.length ?? 0})`
+                  : outerEntityType === 'viewpoint'
+                    ? `Viewpoints (${mapData.viewpointDetails?.length ?? 0})`
+                    : `Sources (${mapData.sourceDetails?.length ?? 0})`}
         </SidebarGroupLabel>
         <SidebarGroupContent>
           {!mapData ? (
             <p className="text-sm text-muted">Select a scope to view details.</p>
+          ) : outerEntityType === 'position' ? (
+            <PositionsPanel
+              positionDetails={mapData.positionDetails ?? []}
+              hoveredOuterId={hoveredOuterId}
+              onHoveredOuterChange={setHoveredOuterId}
+              onPositionClick={(id) => handleOuterNodeClick('position', id)}
+            />
+          ) : outerEntityType === 'claim' ? (
+            <ClaimsPanel
+              claimDetails={mapData.claimDetails ?? []}
+              hoveredOuterId={hoveredOuterId}
+              onHoveredOuterChange={setHoveredOuterId}
+            />
           ) : outerEntityType === 'controversy' ? (
             <ControversiesPanel
               controversyDetails={mapData.controversyDetails ?? []}
@@ -316,20 +398,39 @@ export default function AtlasPage() {
     <div className="flex min-h-[calc(100vh-var(--header-height))] flex-1 flex-col text-foreground">
       <div className="flex min-h-0 flex-1">
         <div className="relative flex min-h-0 flex-1 flex-col gap-2 p-4">
-          <button
-            type="button"
-            onClick={scopeStack.length > 1 ? handleZoomOut : undefined}
-            disabled={scopeStack.length <= 1}
-            className={cn(
-              'absolute left-6 top-6 z-20 flex size-9 items-center justify-center rounded-md border bg-background/80 shadow-sm transition-opacity',
-              scopeStack.length <= 1
-                ? 'cursor-not-allowed opacity-40'
-                : 'hover:bg-muted'
+          <div className="absolute left-6 top-6 z-20 flex flex-row items-center gap-2">
+            {agreements.length > 0 && (
+              <select
+                value={selectedAgreementId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value
+                  if (id) handleAgreementSelect(id)
+                }}
+                className="rounded-md border border-[var(--border-subtle)] bg-background/80 px-3 py-2 text-sm text-foreground shadow-sm"
+              >
+                {agreements.map((a) => (
+                  <option key={a.agreement_cluster_id} value={a.agreement_cluster_id}>
+                    {(a.label || a.summary || 'Agreement')?.slice(0, 50)}
+                    {a.position_count > 0 ? ` (${a.position_count})` : ''}
+                  </option>
+                ))}
+              </select>
             )}
-            aria-label="Zoom out"
-          >
-            <ChevronUp className="size-5" />
-          </button>
+            <button
+              type="button"
+              onClick={scopeStack.length > 1 ? handleZoomOut : undefined}
+              disabled={scopeStack.length <= 1}
+              className={cn(
+                'flex size-9 items-center justify-center rounded-md border bg-background/80 shadow-sm transition-opacity',
+                scopeStack.length <= 1
+                  ? 'cursor-not-allowed opacity-40'
+                  : 'hover:bg-muted'
+              )}
+              aria-label="Zoom out"
+            >
+              <ChevronUp className="size-5" />
+            </button>
+          </div>
           <AtlasNodeTestCanvas
             className="shrink-0"
             centerNode={mapData?.centerNode ?? null}
@@ -362,6 +463,80 @@ export default function AtlasPage() {
           </SidebarContent>
         </Sidebar>
       </div>
+    </div>
+  )
+}
+
+function PositionsPanel({
+  positionDetails,
+  hoveredOuterId,
+  onHoveredOuterChange,
+  onPositionClick,
+}: {
+  positionDetails: PositionDetail[]
+  hoveredOuterId: string | null
+  onHoveredOuterChange: (id: string | null) => void
+  onPositionClick: (id: string) => void
+}) {
+  return (
+    <div className="space-y-2">
+      {positionDetails.map((p) => {
+        const isHighlighted = hoveredOuterId === p.canonical_position_id
+        return (
+          <button
+            key={p.canonical_position_id}
+            type="button"
+            onClick={() => onPositionClick(p.canonical_position_id)}
+            onMouseEnter={() => onHoveredOuterChange(p.canonical_position_id)}
+            onMouseLeave={() => onHoveredOuterChange(null)}
+            className={cn(
+              'w-full rounded-md border px-3 py-2 text-left transition-colors',
+              isHighlighted
+                ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary-soft)]'
+                : 'border-[var(--border-subtle)] bg-[var(--surface-accordion)] hover:border-[var(--border-subtle)]'
+            )}
+          >
+            <p className="line-clamp-3 text-xs text-foreground">
+              {p.canonical_text || 'Position'}
+            </p>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ClaimsPanel({
+  claimDetails,
+  hoveredOuterId,
+  onHoveredOuterChange,
+}: {
+  claimDetails: ClaimDetail[]
+  hoveredOuterId: string | null
+  onHoveredOuterChange: (id: string | null) => void
+}) {
+  return (
+    <div className="space-y-2">
+      {claimDetails.map((c) => {
+        const isHighlighted = hoveredOuterId === c.claim_id
+        return (
+          <div
+            key={c.claim_id}
+            onMouseEnter={() => onHoveredOuterChange(c.claim_id)}
+            onMouseLeave={() => onHoveredOuterChange(null)}
+            className={cn(
+              'w-full rounded-md border px-3 py-2 text-left transition-colors',
+              isHighlighted
+                ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary-soft)]'
+                : 'border-[var(--border-subtle)] bg-[var(--surface-accordion)]'
+            )}
+          >
+            <p className="line-clamp-3 text-xs text-foreground">
+              {c.raw_text || 'Claim'}
+            </p>
+          </div>
+        )
+      })}
     </div>
   )
 }

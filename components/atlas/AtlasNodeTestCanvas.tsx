@@ -67,7 +67,7 @@ interface JitterConfig {
 const JITTER_CONFIG: JitterConfig | null = {
   strength: .6,
   target: 'outer',
-  typeScale: { viewpoint: 1, source: 0.8, controversy: 0.5 },
+  typeScale: { viewpoint: 1, source: 0.8, controversy: 0.5, agreement: 0.6, position: 0.7 },
   frequency: 10,
 }
 
@@ -132,8 +132,8 @@ function pick(pair: [string, string]): string {
 
 function getBaseColor(node: VizNode): string {
   const score = node.polarity_score
-  // Center-style: topic, viewpoint, controversy (including outer nodes of same type)
-  if (node.entity_type === 'topic' || node.entity_type === 'viewpoint' || node.entity_type === 'controversy') {
+  // Center-style: topic, viewpoint, controversy, agreement, position (including outer nodes of same type)
+  if (node.entity_type === 'topic' || node.entity_type === 'viewpoint' || node.entity_type === 'controversy' || node.entity_type === 'agreement' || node.entity_type === 'position') {
     if (score != null && score > 0) return pick(COLORS.centerPositive)
     if (score != null && score < 0) return pick(COLORS.centerNegative)
     return pick(COLORS.centerNeutral)
@@ -443,7 +443,9 @@ export default function AtlasNodeTestCanvas({
       const isCenterStyle =
         dn.vizNode.entity_type === 'topic' ||
         dn.vizNode.entity_type === 'viewpoint' ||
-        dn.vizNode.entity_type === 'controversy'
+        dn.vizNode.entity_type === 'controversy' ||
+        dn.vizNode.entity_type === 'agreement' ||
+        dn.vizNode.entity_type === 'position'
       const borderHex = isCenterStyle ? pick(COLORS.centerBorder) : pick(COLORS.claimBorder)
       const borderRgb = hexToRgb(borderHex)
       const borderAlpha = a.borderAlpha // 1 when idle, 0 when hovered
@@ -752,7 +754,9 @@ export default function AtlasNodeTestCanvas({
         label:
           item.entity_type === 'source' ||
           item.entity_type === 'viewpoint' ||
-          item.entity_type === 'controversy'
+          item.entity_type === 'controversy' ||
+          item.entity_type === 'position' ||
+          item.entity_type === 'claim'
             ? item.label
             : undefined,
       })
@@ -1043,6 +1047,8 @@ export default function AtlasNodeTestCanvas({
       const centerId = centerNode ? `${centerNode.entity_type}:${centerNode.entity_id}` : ''
       if (startNode.id !== centerId) {
         const isDrill =
+          (centerNode?.entity_type === 'agreement' &&
+            startNode.drawnNode.vizNode.entity_type === 'position') ||
           (centerNode?.entity_type === 'controversy' &&
             startNode.drawnNode.vizNode.entity_type === 'viewpoint') ||
           (centerNode?.entity_type === 'topic' &&

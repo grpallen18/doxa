@@ -2,7 +2,7 @@
 -- 1. refresh_claim_eligibility: daily at 3am UTC (optional; for claim layer).
 -- 2. link_canonical_positions: every 2 min (links story_positions to canonical).
 -- 3. classify_position_pairs: every 15 min (LLM; position pair classification).
--- 4. clustering_pipeline (skip_summaries_viewpoints): 1st and 15th at 2am (link -> assign_subtopics -> classify -> build_debate_topology).
+-- 4. clustering_pipeline (skip_summaries_viewpoints): 1st and 15th at 2am (build_debate_topology only; link/assign/classify run on own crons).
 -- 5. generate_agreement_summaries: every 6h.
 -- 6. generate_viewpoints: every 6h.
 --
