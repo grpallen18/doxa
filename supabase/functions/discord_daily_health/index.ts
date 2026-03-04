@@ -28,7 +28,7 @@ interface HealthRow {
   unclassified_stories: number;
   scrape_failed: number;
   stuck_processing: number;
-  claim_relationships_24h: number;
+  position_relationships_24h: number;
   positions_24h: number;
   controversies_24h: number;
   viewpoints_24h: number;
@@ -70,25 +70,22 @@ function getSectionColor(section: Section, row: HealthRow): number {
       const failures = num(row.scrape_failures_24h);
       const completed = successes + failures;
       const rate = completed > 0 ? (successes / completed) * 100 : 100;
-      if (total < 100) return RED;
-      if (rate < 80) return YELLOW;
+      if (rate < 80 || total < 10) return RED;
+      if (rate < 90 || total < 50) return YELLOW;
       return GREEN;
     }
     case "chunking": {
       const a = [num(row.stories_cleaned), num(row.chunks_created), num(row.chunks_extracted), num(row.merges_completed)];
-      if (a.some((x) => x < 100)) return RED;
-      if (a.some((x) => x >= 100 && x <= 199)) return YELLOW;
+      if (a.some((x) => x < 10)) return RED;
       return GREEN;
     }
     case "claims": {
-      const a = [num(row.story_claims_created), num(row.claims_created), num(row.claim_relationships_24h)];
-      if (a.some((x) => x < 10)) return RED;
-      if (a.some((x) => x < 50)) return YELLOW;
+      const a = [num(row.story_claims_created), num(row.claims_created), num(row.position_relationships_24h)];
+      if (a.some((x) => x < 50)) return RED;
       return GREEN;
     }
     case "semantics": {
       if (num(row.positions_active) === 0 || num(row.controversies_active) === 0) return RED;
-      if (num(row.positions_24h) < 5 && num(row.controversies_24h) < 5 && num(row.viewpoints_24h) < 5) return YELLOW;
       return GREEN;
     }
     case "backlog": {
@@ -226,7 +223,7 @@ function buildEmbeds(row: HealthRow, scrapeBySource: ScrapeBySourceRow[]): Recor
       { name: "New Story Claims", value: formatNum(row.story_claims_created), inline: true },
       { name: "New Evidence", value: formatNum(row.story_evidence_created), inline: true },
       { name: "New Canonical Claims", value: formatNum(row.claims_created), inline: true },
-      { name: "New Claim Pairs", value: formatNum(row.claim_relationships_24h), inline: true },
+      { name: "New Position Pairs", value: formatNum(row.position_relationships_24h), inline: true },
     ],
   };
 
@@ -235,12 +232,10 @@ function buildEmbeds(row: HealthRow, scrapeBySource: ScrapeBySourceRow[]): Recor
     description: getSectionSummary("semantics", row),
     color: getSectionColor("semantics", row),
     fields: [
-      { name: "New Positions", value: formatNum(row.positions_24h), inline: true },
+      { name: "New Agreements", value: formatNum(row.positions_24h), inline: true },
       { name: "New Controversies", value: formatNum(row.controversies_24h), inline: true },
-      { name: "New Viewpoints", value: formatNum(row.viewpoints_24h), inline: true },
-      { name: "Total Positions (Active)", value: formatNum(row.positions_active), inline: true },
-      { name: "Total Controversies (Active)", value: formatNum(row.controversies_active), inline: true },
-      { name: "Total Viewpoints (Active)", value: formatNum(row.viewpoints_active), inline: true },
+      { name: "Active Agreements", value: formatNum(row.positions_active), inline: true },
+      { name: "Active Controversies", value: formatNum(row.controversies_active), inline: true },
     ],
   };
 

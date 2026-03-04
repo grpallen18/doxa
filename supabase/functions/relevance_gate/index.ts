@@ -278,16 +278,60 @@ Deno.serve(async (req: Request) => {
       return json({ error: error.message }, 500);
     }
 
-    const stories = (Array.isArray(storiesRaw) ? storiesRaw : []).filter(
+    const allStories = (Array.isArray(storiesRaw) ? storiesRaw : []).filter(
       (s): s is StoryRow => typeof s === "object" && s !== null && typeof (s as StoryRow).story_id === "string"
     );
 
-    if (stories.length === 0) {
+    if (allStories.length === 0) {
       return json({ ok: true, processed: 0, message: "No stories to classify" });
     }
 
-    if (stories.length !== (storiesRaw?.length ?? 0)) {
-      console.warn(`[relevance_gate] Dropped ${(storiesRaw?.length ?? 0) - stories.length} rows without story_id`);
+    if (allStories.length !== (storiesRaw?.length ?? 0)) {
+      console.warn(`[relevance_gate] Dropped ${(storiesRaw?.length ?? 0) - allStories.length} rows without story_id`);
+    }
+
+    // Stories with no URL: mark as DROP immediately (cannot scrape).
+    const noUrlStories = allStories.filter((s) => !s.url || (typeof s.url === "string" && s.url.trim() === ""));
+    const stories = allStories.filter((s) => s.url && typeof s.url === "string" && s.url.trim() !== "");
+
+    if (noUrlStories.length > 0) {
+      const now = new Date().toISOString();
+      const noUrlFields = {
+        relevance_score: 0,
+        relevance_confidence: 100,
+        relevance_reason: "No URL; cannot scrape.",
+        relevance_tags: ["no_url"],
+        relevance_model: MODEL,
+        relevance_ran_at: now,
+        scrape_skipped: true,
+        scrape_skipped_at: now,
+      };
+      if (!dryRun) {
+        for (const s of noUrlStories) {
+          const { error: upErr } = await supabase
+            .from("stories")
+            .update(noUrlFields)
+            .eq("story_id", s.story_id);
+          if (upErr) {
+            console.error("[relevance_gate] No-URL update error:", upErr.message);
+            return json({ error: upErr.message }, 500);
+          }
+        }
+      }
+      console.log(`[relevance_gate] Marked ${noUrlStories.length} no-URL stories as DROP`);
+      if (stories.length === 0) {
+        return json({
+          ok: true,
+          processed: noUrlStories.length,
+          dry_run: dryRun,
+          counts: { KEEP: 0, DROP: noUrlStories.length, PENDING: 0 },
+          no_url_dropped: noUrlStories.length,
+          model: MODEL,
+          lookback_days: lookbackDays,
+          max_stories: maxStories,
+          content_max_chars: contentMaxChars,
+        });
+      }
     }
 
     const storyIds = stories.map((s) => s.story_id);
@@ -344,9 +388,10 @@ Deno.serve(async (req: Request) => {
 
         return json({
           ok: true,
-          processed: fallback.length,
+          processed: fallback.length + noUrlStories.length,
           dry_run: dryRun,
-          counts: { KEEP: 0, DROP: 0, PENDING: fallback.length },
+          counts: { KEEP: 0, DROP: noUrlStories.length, PENDING: fallback.length },
+          no_url_dropped: noUrlStories.length,
           model: MODEL,
           lookback_days: lookbackDays,
           max_stories: maxStories,
@@ -409,11 +454,18 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      const totalProcessed = updates.length + noUrlStories.length;
+      const finalCounts = {
+        ...counts,
+        DROP: counts.DROP + noUrlStories.length,
+      };
+
       return json({
         ok: true,
-        processed: updates.length,
+        processed: totalProcessed,
         dry_run: dryRun,
-        counts,
+        counts: finalCounts,
+        no_url_dropped: noUrlStories.length,
         model: MODEL,
         lookback_days: lookbackDays,
         max_stories: maxStories,
