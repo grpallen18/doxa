@@ -11,7 +11,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import type { SourceDetail, ViewpointDetail, ControversyDetail, PositionDetail, ClaimDetail } from '@/components/atlas/types'
+import type { SourceDetail, PositionDetail, ClaimDetail } from '@/components/atlas/types'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { ExternalLinkIcon, Maximize2, ChevronUp } from 'lucide-react'
@@ -127,7 +127,7 @@ export default function AtlasPage() {
     try {
       const data = await layer.fetchScope(id)
       setMapData(data)
-      const label = (data.centerDescription ?? (type === 'agreement' ? 'Agreement' : type === 'position' ? 'Position' : type === 'topic' ? 'Topic' : type === 'viewpoint' ? 'Viewpoint' : 'Controversy')).slice(0, 40)
+      const label = (data.centerDescription ?? (type === 'agreement' ? 'Agreement' : 'Position')).slice(0, 40)
       if (options?.replaceStack) {
         setScopeStack([{ type, id, label }])
       } else if (options?.pushToStack !== false) {
@@ -186,9 +186,7 @@ export default function AtlasPage() {
       const layer = currentScope ? SCOPE_LAYERS[currentScope.type] : null
       if (!layer || !layer.isDrillable) return
       const matchesPosition = entityType === 'position' && layer.outerEntityType === 'position'
-      const matchesViewpoint = entityType === 'viewpoint' && layer.outerEntityType === 'viewpoint'
-      const matchesControversy = entityType === 'controversy' && layer.outerEntityType === 'controversy'
-      if (!matchesPosition && !matchesViewpoint && !matchesControversy) return
+      if (!matchesPosition) return
       const targetLayer = SCOPE_LAYERS[entityType as ScopeType]
       if (!targetLayer) return
       prefetchedEntityIdRef.current = entityId
@@ -217,38 +215,6 @@ export default function AtlasPage() {
           }
         } else {
           await loadScope('position', entityId)
-        }
-      } else if (entityType === 'controversy' && layer.isDrillable && layer.outerEntityType === 'controversy') {
-        if (prefetchedEntityIdRef.current === entityId && prefetchedPromiseRef.current) {
-          try {
-            const data = await prefetchedPromiseRef.current
-            setMapData(data)
-            const label = (data.centerDescription ?? 'Controversy').slice(0, 40)
-            setScopeStack((prev) => [...prev, { type: 'controversy' as ScopeType, id: entityId, label }])
-          } catch (e) {
-            setError(e instanceof Error ? e.message : 'Failed to load')
-          } finally {
-            prefetchedEntityIdRef.current = null
-            prefetchedPromiseRef.current = null
-          }
-        } else {
-          await loadScope('controversy', entityId)
-        }
-      } else if (entityType === 'viewpoint' && layer.isDrillable && layer.outerEntityType === 'viewpoint') {
-        if (prefetchedEntityIdRef.current === entityId && prefetchedPromiseRef.current) {
-          try {
-            const data = await prefetchedPromiseRef.current
-            setMapData(data)
-            const label = (data.centerDescription ?? 'Viewpoint').slice(0, 40)
-            setScopeStack((prev) => [...prev, { type: 'viewpoint' as ScopeType, id: entityId, label }])
-          } catch (e) {
-            setError(e instanceof Error ? e.message : 'Failed to load')
-          } finally {
-            prefetchedEntityIdRef.current = null
-            prefetchedPromiseRef.current = null
-          }
-        } else {
-          await loadScope('viewpoint', entityId)
         }
       } else if (entityType === 'source' && layer.outerEntityType === 'source') {
         handleSourceChange(entityId === expandedSourceId ? null : entityId)
@@ -329,7 +295,7 @@ export default function AtlasPage() {
   const currentLayer = currentScope ? SCOPE_LAYERS[currentScope.type] : null
   const outerEntityType = currentLayer?.outerEntityType ?? 'source'
 
-  /** Right sidebar content: summary, positions/claims/controversies/viewpoints/sources */
+  /** Right sidebar content: summary, positions/claims/sources */
   const rightSidebarContent = (
     <>
       <SidebarGroup>
@@ -340,11 +306,7 @@ export default function AtlasPage() {
               ? `Positions (${mapData.positionDetails?.length ?? 0})`
               : outerEntityType === 'claim'
                 ? `Claims (${mapData.claimDetails?.length ?? 0})`
-                : outerEntityType === 'controversy'
-                  ? `Controversies (${mapData.controversyDetails?.length ?? 0})`
-                  : outerEntityType === 'viewpoint'
-                    ? `Viewpoints (${mapData.viewpointDetails?.length ?? 0})`
-                    : `Sources (${mapData.sourceDetails?.length ?? 0})`}
+                : `Sources (${mapData.sourceDetails?.length ?? 0})`}
         </SidebarGroupLabel>
         <SidebarGroupContent>
           {!mapData ? (
@@ -361,21 +323,6 @@ export default function AtlasPage() {
               claimDetails={mapData.claimDetails ?? []}
               hoveredOuterId={hoveredOuterId}
               onHoveredOuterChange={setHoveredOuterId}
-            />
-          ) : outerEntityType === 'controversy' ? (
-            <ControversiesPanel
-              controversyDetails={mapData.controversyDetails ?? []}
-              hoveredOuterId={hoveredOuterId}
-              onHoveredOuterChange={setHoveredOuterId}
-              onControversyClick={(id) => handleOuterNodeClick('controversy', id)}
-            />
-          ) : outerEntityType === 'viewpoint' ? (
-            <ViewpointsPanel
-              viewpointDetails={mapData.viewpointDetails ?? []}
-              hoveredOuterId={hoveredOuterId}
-              onHoveredOuterChange={setHoveredOuterId}
-              onViewpointClick={(id) => handleOuterNodeClick('viewpoint', id)}
-              spotlightSourceId={spotlightSourceId}
             />
           ) : (
             <SourcesPanel
@@ -541,93 +488,6 @@ function ClaimsPanel({
   )
 }
 
-function ControversiesPanel({
-  controversyDetails,
-  hoveredOuterId,
-  onHoveredOuterChange,
-  onControversyClick,
-}: {
-  controversyDetails: ControversyDetail[]
-  hoveredOuterId: string | null
-  onHoveredOuterChange: (id: string | null) => void
-  onControversyClick: (id: string) => void
-}) {
-  return (
-    <div className="space-y-2">
-      {controversyDetails.map((c) => {
-        const isHighlighted = hoveredOuterId === c.controversy_cluster_id
-        return (
-          <button
-            key={c.controversy_cluster_id}
-            type="button"
-            onClick={() => onControversyClick(c.controversy_cluster_id)}
-            onMouseEnter={() => onHoveredOuterChange(c.controversy_cluster_id)}
-            onMouseLeave={() => onHoveredOuterChange(null)}
-            className={cn(
-              'w-full rounded-md border px-3 py-2 text-left transition-colors',
-              isHighlighted
-                ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary-soft)]'
-                : 'border-[var(--border-subtle)] bg-[var(--surface-accordion)] hover:border-[var(--border-subtle)]'
-            )}
-          >
-            <span className="text-xs font-medium text-foreground">
-              {c.question || 'Controversy'}
-            </span>
-            <p className="mt-1 line-clamp-2 text-xs text-muted">{c.summary}</p>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function ViewpointsPanel({
-  viewpointDetails,
-  hoveredOuterId,
-  onHoveredOuterChange,
-  onViewpointClick,
-  spotlightSourceId,
-}: {
-  viewpointDetails: ViewpointDetail[]
-  hoveredOuterId: string | null
-  onHoveredOuterChange: (id: string | null) => void
-  onViewpointClick: (id: string) => void
-  spotlightSourceId: string | null
-}) {
-  return (
-    <>
-      <CollapsibleSection collapsed={!!spotlightSourceId}>
-        <div className="h-2" />
-      </CollapsibleSection>
-      <div className="space-y-2">
-        {viewpointDetails.map((vp) => {
-          const isHighlighted = hoveredOuterId === vp.viewpoint_id
-          return (
-            <button
-              key={vp.viewpoint_id}
-              type="button"
-              onClick={() => onViewpointClick(vp.viewpoint_id)}
-              onMouseEnter={() => onHoveredOuterChange(vp.viewpoint_id)}
-              onMouseLeave={() => onHoveredOuterChange(null)}
-              className={cn(
-                'w-full rounded-md border px-3 py-2 text-left transition-colors',
-                isHighlighted
-                  ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary-soft)]'
-                  : 'border-[var(--border-subtle)] bg-[var(--surface-accordion)] hover:border-[var(--border-subtle)]'
-              )}
-            >
-              <span className="text-xs font-medium text-foreground">
-                {vp.title || 'Viewpoint'}
-              </span>
-              <p className="mt-1 line-clamp-2 text-xs text-muted">{vp.summary}</p>
-            </button>
-          )
-        })}
-      </div>
-    </>
-  )
-}
-
 function SourcesPanel({
   sourceDetails,
   expandedSourceId,
@@ -647,6 +507,40 @@ function SourcesPanel({
   onStoryKeyChange: (key: string | null) => void
   onHoveredOuterChange: (id: string | null) => void
 }) {
+  const [drawerStoryId, setDrawerStoryId] = useState<string | null>(null)
+  const [contentCache, setContentCache] = useState<
+    Record<string, { content: string | null; status: 'loading' | 'loaded' | 'error' }>
+  >({})
+
+  const fetchStoryContent = useCallback((storyId: string) => {
+    setContentCache((prev) => {
+      if (prev[storyId]?.status === 'loading' || prev[storyId]?.status === 'loaded') return prev
+      return { ...prev, [storyId]: { content: null, status: 'loading' } }
+    })
+    fetch(`/api/atlas/stories/${storyId}/content`)
+      .then((r) => r.json())
+      .then((d) => {
+        const content = d?.data?.content_clean ?? null
+        setContentCache((prev) => ({
+          ...prev,
+          [storyId]: { content, status: 'loaded' },
+        }))
+      })
+      .catch(() => {
+        setContentCache((prev) => ({
+          ...prev,
+          [storyId]: { content: null, status: 'error' },
+        }))
+      })
+  }, [])
+
+  useEffect(() => {
+    const storyId =
+      drawerStoryId ??
+      (expandedStoryKey?.includes('--') ? expandedStoryKey.split('--')[1] : null)
+    if (storyId) fetchStoryContent(storyId)
+  }, [drawerStoryId, expandedStoryKey, fetchStoryContent])
+
   return (
     <>
       <CollapsibleSection collapsed={!!spotlightSourceId}>
@@ -729,8 +623,13 @@ function SourcesPanel({
                               <span className="min-w-0 flex-1 font-medium text-foreground">
                                 {story.title ?? 'Untitled'}
                               </span>
-                              {(story.content_clean || story.story_claims.length > 0) && (
-                                <Drawer>
+                              {story.story_claims.length > 0 && (
+                                <Drawer
+                                  open={drawerStoryId === story.story_id}
+                                  onOpenChange={(open) =>
+                                    setDrawerStoryId(open ? story.story_id : null)
+                                  }
+                                >
                                   <DrawerTrigger asChild>
                                     <button
                                       type="button"
@@ -766,21 +665,36 @@ function SourcesPanel({
                                             </li>
                                           ))}
                                         </ul>
-                                        {story.content_clean && (
+                                        {contentCache[story.story_id]?.status === 'loading' && (
+                                          <p className="text-sm text-muted-foreground">
+                                            Loading content…
+                                          </p>
+                                        )}
+                                        {contentCache[story.story_id]?.status === 'loaded' && (
                                           <>
                                             <Separator className="my-2" />
                                             {story.published_at && (
                                               <div className="mb-1.5 leading-none font-medium text-foreground">
                                                 {new Date(story.published_at).toLocaleDateString(
                                                   undefined,
-                                                  { year: 'numeric', month: 'long', day: 'numeric' }
+                                                  {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric',
+                                                  }
                                                 )}
                                               </div>
                                             )}
                                             <div className="whitespace-pre-wrap text-foreground">
-                                              {story.content_clean}
+                                              {contentCache[story.story_id]?.content ??
+                                                'Content not available.'}
                                             </div>
                                           </>
+                                        )}
+                                        {contentCache[story.story_id]?.status === 'error' && (
+                                          <p className="text-sm text-muted-foreground">
+                                            Content not available.
+                                          </p>
                                         )}
                                       </div>
                                     </div>
@@ -810,21 +724,36 @@ function SourcesPanel({
                                     </li>
                                   ))}
                                 </ul>
-                                {story.content_clean && (
+                                {contentCache[story.story_id]?.status === 'loading' && (
+                                  <p className="text-sm text-muted-foreground">
+                                    Loading content…
+                                  </p>
+                                )}
+                                {contentCache[story.story_id]?.status === 'loaded' && (
                                   <>
                                     <Separator className="my-2" />
                                     {story.published_at && (
                                       <div className="mb-1.5 leading-none font-medium text-foreground">
                                         {new Date(story.published_at).toLocaleDateString(
                                           undefined,
-                                          { year: 'numeric', month: 'long', day: 'numeric' }
+                                          {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric',
+                                          }
                                         )}
                                       </div>
                                     )}
                                     <div className="whitespace-pre-wrap text-foreground">
-                                      {story.content_clean}
+                                      {contentCache[story.story_id]?.content ??
+                                        'Content not available.'}
                                     </div>
                                   </>
+                                )}
+                                {contentCache[story.story_id]?.status === 'error' && (
+                                  <p className="text-sm text-muted-foreground">
+                                    Content not available.
+                                  </p>
                                 )}
                               </div>
                             </div>

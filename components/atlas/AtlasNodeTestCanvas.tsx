@@ -79,9 +79,9 @@ const JITTER_ALPHA_LOW = 0.001
 // ---- Node / edge / background colors ----
 // Each entry is [dark mode, light mode]
 const COLORS = {
-  // Center node (viewpoint / controversy)
+  // Center node (viewpoint / controversy) - main fill colors
   centerPositive:  ['#2dd4bf', '#0d9488'] as [string, string],
-  centerNegative:  ['#dc2626', '#dc2626'] as [string, string],
+  centerNegative:  ['#f87171', '#dc2626'] as [string, string],
   centerNeutral:   ['#22d3ee', '#0f766e'] as [string, string],
   // Claim / source node (tan brown, matches Doxa palette)
   claimPositive:   ['#9a8a7a', '#a68b6d'] as [string, string],
@@ -91,9 +91,20 @@ const COLORS = {
   edge:            ['rgba(176,176,176,0.35)', 'rgba(74,69,57,0.35)'] as [string, string],
   // Canvas background
   background:      ['#1a1a1a', '#e8e5e1'] as [string, string],
-  // Node borders (dark complements to fill colors)
+  // Surface colors for gradient center and border blend
+  surfaceSoft:     ['#2a2a2a', '#e8e5e1'] as [string, string],
+  surfaceSection:  ['#252525', '#dad6d1'] as [string, string],
+  // Node borders (blended with surface - kept for fallback)
   claimBorder:     ['#5a4a3a', '#7a6a52'] as [string, string],
   centerBorder:    ['#0a6b5e', '#065f54'] as [string, string],
+}
+
+/** Blend two hex colors: result = c1 * weight + c2 * (1 - weight) */
+function blendHex(hex1: string, hex2: string, weight: number): string {
+  const [r1, g1, b1] = hexToRgb(hex1)
+  const [r2, g2, b2] = hexToRgb(hex2)
+  const w = Math.max(0, Math.min(1, weight))
+  return `rgb(${Math.round(r1 * w + r2 * (1 - w))},${Math.round(g1 * w + g2 * (1 - w))},${Math.round(b1 * w + b2 * (1 - w))})`
 }
 
 // ---- Helpers ----
@@ -130,6 +141,30 @@ function pick(pair: [string, string]): string {
   return isDark ? pair[0] : pair[1]
 }
 
+function LegendSwatch({ mainColor, label }: { mainColor: string; label: string }) {
+  const surfaceColor = pick(COLORS.surfaceSoft)
+  const surfaceSection = pick(COLORS.surfaceSection)
+  const borderColor = blendHex(mainColor, surfaceSection, 0.45)
+  const midColor = blendHex(mainColor, surfaceColor, 0.42)
+  const edgeColor = blendHex(mainColor, surfaceColor, 0.55)
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <span
+        className="shrink-0 rounded-full border-2"
+        style={{
+          width: 12,
+          height: 12,
+          background: `radial-gradient(circle at 35% 25%, ${surfaceColor} 0%, ${midColor} 40%, ${edgeColor} 100%)`,
+          borderColor,
+          boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.25)' : '0 4px 12px rgba(0,0,0,0.12)',
+        }}
+      />
+      <span className="whitespace-nowrap">{label}</span>
+    </div>
+  )
+}
+
 function getBaseColor(node: VizNode): string {
   const score = node.polarity_score
   // Center-style: topic, viewpoint, controversy, agreement, position (including outer nodes of same type)
@@ -142,6 +177,22 @@ function getBaseColor(node: VizNode): string {
   if (score != null && score > 0) return pick(COLORS.claimPositive)
   if (score != null && score < 0) return pick(COLORS.claimNegative)
   return pick(COLORS.claimNeutral)
+}
+
+/** Returns gradient fill colors and border for the circle aesthetic (gradient + blended border) */
+function getNodeStyle(node: VizNode): { mainColor: string; borderRgb: [number, number, number]; surfaceColor: string } {
+  const mainColor = getBaseColor(node)
+  const surfaceSoft = pick(COLORS.surfaceSoft)
+  const surfaceSection = pick(COLORS.surfaceSection)
+  const borderColor = blendHex(mainColor, surfaceSection, 0.45)
+  const borderRgb = parseRgb(borderColor)
+  return { mainColor, borderRgb, surfaceColor: surfaceSoft }
+}
+
+function parseRgb(rgbStr: string): [number, number, number] {
+  const m = rgbStr.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
+  if (m) return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]
+  return [0, 0, 0]
 }
 
 function getEdgeColor(): string {
@@ -409,7 +460,7 @@ export default function AtlasNodeTestCanvas({
       }
     }
 
-    // Draw each node
+    // Draw each node (circle aesthetic: gradient fill, blended border, subtle shadow)
     for (const dn of all) {
       const pos = posMap.get(dn.id)
       if (!pos) continue
@@ -419,10 +470,13 @@ export default function AtlasNodeTestCanvas({
       ctx.globalAlpha = a.transitionOpacity
       const baseRadius = a.morphRadius ?? dn.radius
       const radius = baseRadius * a.scale
-      const baseRgb = hexToRgb(getBaseColor(dn.vizNode))
+      const { mainColor, borderRgb, surfaceColor } = getNodeStyle(dn.vizNode)
+      const baseRgb = hexToRgb(mainColor)
+      const litRgb = brighten(baseRgb, a.brightness)
+      const litHex = `#${litRgb[0].toString(16).padStart(2, '0')}${litRgb[1].toString(16).padStart(2, '0')}${litRgb[2].toString(16).padStart(2, '0')}`
       const { x, y } = pos
 
-      // Glow ring
+      // Glow ring (on hover)
       if (a.glowOpacity > 0.01) {
         ctx.beginPath()
         ctx.arc(x, y, radius + GLOW_SPREAD, 0, 2 * Math.PI)
@@ -432,23 +486,29 @@ export default function AtlasNodeTestCanvas({
         ctx.fill()
       }
 
-      // Node circle
-      const litRgb = brighten(baseRgb, a.brightness)
+      // Radial gradient fill (circle aesthetic: light center -> main color)
+      const gradX0 = x - radius * 0.35
+      const gradY0 = y - radius * 0.25
+      const gradient = ctx.createRadialGradient(gradX0, gradY0, 0, x, y, radius)
+      gradient.addColorStop(0, surfaceColor)
+      gradient.addColorStop(0.4, blendHex(litHex, surfaceColor, 0.42))
+      gradient.addColorStop(1, blendHex(litHex, surfaceColor, 0.55))
+
+      // Shadow then fill (canvas shadow applies to next draw)
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 4
+      ctx.shadowBlur = 18
+      ctx.shadowColor = isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.14)'
       ctx.beginPath()
       ctx.arc(x, y, radius, 0, 2 * Math.PI)
-      ctx.fillStyle = rgbStr(litRgb)
+      ctx.fillStyle = gradient
       ctx.fill()
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetY = 0
 
-      // Border (node-type specific; fades out on hover)
-      const isCenterStyle =
-        dn.vizNode.entity_type === 'topic' ||
-        dn.vizNode.entity_type === 'viewpoint' ||
-        dn.vizNode.entity_type === 'controversy' ||
-        dn.vizNode.entity_type === 'agreement' ||
-        dn.vizNode.entity_type === 'position'
-      const borderHex = isCenterStyle ? pick(COLORS.centerBorder) : pick(COLORS.claimBorder)
-      const borderRgb = hexToRgb(borderHex)
-      const borderAlpha = a.borderAlpha // 1 when idle, 0 when hovered
+      // Border (blended with fill; fades out on hover)
+      const borderAlpha = a.borderAlpha
       ctx.strokeStyle = `rgba(${borderRgb[0]},${borderRgb[1]},${borderRgb[2]},${borderAlpha.toFixed(2)})`
       ctx.lineWidth = a.borderWidth
       if (a.borderWidth > 0.1) ctx.stroke()
@@ -1131,54 +1191,10 @@ export default function AtlasNodeTestCanvas({
         <span className="text-xs font-medium text-foreground shrink-0">Legend</span>
         <div className="flex flex-row flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
           <span className="shrink-0 whitespace-nowrap">Center / Viewpoints:</span>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className="shrink-0 rounded-full border"
-              style={{
-                width: 12,
-                height: 12,
-                backgroundColor: pick(COLORS.centerPositive),
-                borderColor: pick(COLORS.centerBorder),
-              }}
-            />
-            <span className="whitespace-nowrap">Positive</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className="shrink-0 rounded-full border"
-              style={{
-                width: 12,
-                height: 12,
-                backgroundColor: pick(COLORS.centerNegative),
-                borderColor: pick(COLORS.centerBorder),
-              }}
-            />
-            <span className="whitespace-nowrap">Negative</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className="shrink-0 rounded-full border"
-              style={{
-                width: 12,
-                height: 12,
-                backgroundColor: pick(COLORS.centerNeutral),
-                borderColor: pick(COLORS.centerBorder),
-              }}
-            />
-            <span className="whitespace-nowrap">Neutral</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className="shrink-0 rounded-full border"
-              style={{
-                width: 12,
-                height: 12,
-                backgroundColor: pick(COLORS.claimNeutral),
-                borderColor: pick(COLORS.claimBorder),
-              }}
-            />
-            <span className="whitespace-nowrap">Sources</span>
-          </div>
+          <LegendSwatch mainColor={pick(COLORS.centerPositive)} label="Positive" />
+          <LegendSwatch mainColor={pick(COLORS.centerNegative)} label="Negative" />
+          <LegendSwatch mainColor={pick(COLORS.centerNeutral)} label="Neutral" />
+          <LegendSwatch mainColor={pick(COLORS.claimNeutral)} label="Sources" />
         </div>
       </div>
     </div>

@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('viewpoints')
-      .select('*')
+      .select('viewpoint_id, topic_id, title, summary, archetype_id, created_at')
       .order('title', { ascending: true })
 
     if (topicId) {

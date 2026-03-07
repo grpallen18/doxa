@@ -64,7 +64,16 @@ export default async function Home() {
           </Panel>
           </div>
 
-          <div aria-hidden="true" />
+          <div aria-hidden="true" className="flex min-h-[200px] items-center justify-center">
+            <div
+              className="h-40 w-40 rounded-full"
+              style={{
+                background: 'radial-gradient(circle at 35% 25%, var(--surface-soft) 0%, color-mix(in srgb, var(--accent-primary) 42%, transparent) 40%, color-mix(in srgb, var(--accent-secondary) 55%, transparent) 100%)',
+                border: '2px solid color-mix(in srgb, var(--accent-secondary) 45%, var(--surface-section))',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.08)',
+              }}
+            />
+          </div>
 
           <div className="space-y-4">
             <div>

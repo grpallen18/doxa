@@ -36,7 +36,6 @@ export interface StoryInSource {
   title: string | null
   url: string | null
   published_at: string | null
-  content_clean: string | null
   story_claims: StoryClaimInStory[]
 }
 

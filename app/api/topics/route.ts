@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('topics')
-      .select('*')
+      .select('topic_id, slug, title, summary, status, metadata, created_at, updated_at, topic_description')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 

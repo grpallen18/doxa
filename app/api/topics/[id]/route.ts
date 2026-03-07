@@ -13,7 +13,7 @@ export async function GET(
 
     const { data: topic, error: topicError } = await supabase
       .from('topics')
-      .select('*')
+      .select('topic_id, slug, title, summary, status, metadata, created_at, updated_at, topic_description')
       .eq('topic_id', topicId)
       .single()
 

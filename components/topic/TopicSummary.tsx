@@ -40,7 +40,7 @@ export default function TopicSummary({ summary, topicId }: TopicSummaryProps) {
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection()
     const text = sel?.toString().trim()
-    if (text && containerRef.current?.contains(sel?.anchorNode ?? null)) {
+    if (text && sel && containerRef.current?.contains(sel.anchorNode ?? null)) {
       setSelection(text)
       const range = sel.getRangeAt(0)
       const rect = range.getBoundingClientRect()

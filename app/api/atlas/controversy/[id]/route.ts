@@ -71,7 +71,6 @@ export async function GET(
         title: string | null
         url: string | null
         published_at: string | null
-        content_clean: string | null
         story_claims: Array<{
           story_claim_id: string
           raw_text: string | null
@@ -164,16 +163,6 @@ export async function GET(
 
       const allStoryIds = storiesArray.flatMap((sd) => sd.stories.map((s) => s.story_id))
       const uniqueStoryIds = [...new Set(allStoryIds)]
-      const contentCleanMap = new Map<string, string | null>()
-      if (uniqueStoryIds.length > 0) {
-        const { data: bodies } = await supabase
-          .from('story_bodies')
-          .select('story_id, content_clean')
-          .in('story_id', uniqueStoryIds)
-        for (const row of bodies ?? []) {
-          contentCleanMap.set(row.story_id as string, (row.content_clean as string) ?? null)
-        }
-      }
 
       const allStoryClaimsByStory = new Map<
         string,
@@ -213,7 +202,6 @@ export async function GET(
           return {
             ...s,
             published_at: s.published_at ?? null,
-            content_clean: contentCleanMap.get(s.story_id) ?? null,
             story_claims: sortedClaims,
           }
         }),

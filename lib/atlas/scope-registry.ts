@@ -1,11 +1,11 @@
 import type { ScopeResponse } from './types'
 
-export type ScopeType = 'topic' | 'controversy' | 'viewpoint' | 'source' | 'agreement' | 'position'
+export type ScopeType = 'source' | 'agreement' | 'position'
 
 export interface ScopeLayer {
   scopeType: ScopeType
   fetchScope: (id: string) => Promise<ScopeResponse>
-  outerEntityType: 'viewpoint' | 'source' | 'controversy' | 'claim' | 'position'
+  outerEntityType: 'source' | 'claim' | 'position'
   isDrillable: boolean
   parentScopeType?: ScopeType
 }
@@ -20,27 +20,6 @@ async function fetchScopeFromApi(type: string, id: string): Promise<ScopeRespons
 }
 
 export const SCOPE_LAYERS: Record<ScopeType, ScopeLayer> = {
-  topic: {
-    scopeType: 'topic',
-    fetchScope: (id) => fetchScopeFromApi('topic', id),
-    outerEntityType: 'controversy',
-    isDrillable: true,
-    parentScopeType: undefined,
-  },
-  controversy: {
-    scopeType: 'controversy',
-    fetchScope: (id) => fetchScopeFromApi('controversy', id),
-    outerEntityType: 'viewpoint',
-    isDrillable: true,
-    parentScopeType: 'topic',
-  },
-  viewpoint: {
-    scopeType: 'viewpoint',
-    fetchScope: (id) => fetchScopeFromApi('viewpoint', id),
-    outerEntityType: 'source',
-    isDrillable: true,
-    parentScopeType: 'controversy',
-  },
   source: {
     scopeType: 'source',
     fetchScope: async () => {
@@ -48,7 +27,7 @@ export const SCOPE_LAYERS: Record<ScopeType, ScopeLayer> = {
     },
     outerEntityType: 'source',
     isDrillable: false,
-    parentScopeType: 'viewpoint',
+    parentScopeType: undefined,
   },
   agreement: {
     scopeType: 'agreement',

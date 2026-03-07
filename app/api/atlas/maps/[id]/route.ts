@@ -13,7 +13,7 @@ export async function GET(
 
     const { data: mapData, error: mapError } = await supabase
       .from('viz_maps')
-      .select('*')
+      .select('id, name, scope_type, scope_id, time_window_days, created_at')
       .eq('id', mapId)
       .single()
 
@@ -26,7 +26,7 @@ export async function GET(
 
     let nodesQuery = supabase
       .from('viz_nodes')
-      .select('*')
+      .select('map_id, entity_type, entity_id, x, y, layer, size, polarity_score, source_count, story_count, velocity_7d, drift_seed')
       .eq('map_id', mapId)
       .order('layer', { ascending: true })
 
@@ -87,7 +87,7 @@ export async function GET(
 
     const { data: edges, error: edgesError } = await supabase
       .from('viz_edges')
-      .select('*')
+      .select('id, map_id, source_type, source_id, target_type, target_id, edge_type, weight, similarity_score')
       .eq('map_id', mapId)
 
     if (edgesError) {
@@ -133,12 +133,11 @@ export async function GET(
         title: string | null
         url: string | null
         published_at: string | null
-        content_clean: string | null
         story_claims: Array<{
-        story_claim_id: string
-        raw_text: string | null
-        linked_to_viewpoint: boolean
-      }>
+          story_claim_id: string
+          raw_text: string | null
+          linked_to_viewpoint: boolean
+        }>
       }>
     }> = []
 
@@ -220,19 +219,8 @@ export async function GET(
         }))
         .sort((a, b) => b.story_count - a.story_count)
 
-      // Fetch content_clean from story_bodies for all stories
       const allStoryIds = storiesArray.flatMap((sd) => sd.stories.map((s) => s.story_id))
       const uniqueStoryIds = [...new Set(allStoryIds)]
-      const contentCleanMap = new Map<string, string | null>()
-      if (uniqueStoryIds.length > 0) {
-        const { data: bodies } = await supabase
-          .from('story_bodies')
-          .select('story_id, content_clean')
-          .in('story_id', uniqueStoryIds)
-        for (const row of bodies ?? []) {
-          contentCleanMap.set(row.story_id as string, (row.content_clean as string) ?? null)
-        }
-      }
 
       // Fetch ALL story_claims for each story (not just linked ones), mark and sort
       const allStoryClaimsByStory = new Map<string, Array<{ story_claim_id: string; raw_text: string | null; claim_id: string }>>()
@@ -270,7 +258,6 @@ export async function GET(
           return {
             ...s,
             published_at: s.published_at ?? null,
-            content_clean: contentCleanMap.get(s.story_id) ?? null,
             story_claims: sortedClaims,
           }
         }),
