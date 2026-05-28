@@ -1,0 +1,32 @@
+name: Agents catalog
+
+on:
+  pull_request:
+    paths:
+      - 'doxa-agents/**'
+      - 'supabase/functions/**'
+      - 'scripts/agents-*.ts'
+      - 'scripts/agents-lib.ts'
+      - 'app/api/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'doxa-agents/**'
+      - 'supabase/functions/**'
+      - 'scripts/agents-*.ts'
+      - 'app/api/**'
+
+jobs:
+  validate-and-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run agents:sync:check
+      - run: npm run agents:docs:check
+      - run: npm run agents:validate

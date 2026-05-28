@@ -1,0 +1,13 @@
+# Manual pipeline activation — steps listed here show status: active in the generated catalog.
+# This does NOT schedule pg_cron jobs; run each step's schedule.sql in Supabase when ready.
+#
+# You remain responsible for:
+#   1. Secret values (Supabase / Cloudflare dashboards)
+#   2. Running schedule.sql in Supabase SQL Editor
+#   3. supabase functions deploy
+#   4. supabase/migrations
+#   5. This file (which workflows are "live" in docs)
+#
+# Everything else (manifest.yaml, docs/generated/*) is auto-synced from code.
+
+active: []

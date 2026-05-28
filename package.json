@@ -7,7 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "node supabase/run-seed.js"
+    "seed": "node supabase/run-seed.js",
+    "agents:validate": "tsx scripts/agents-validate.ts",
+    "agents:sync": "tsx scripts/agents-sync.ts",
+    "agents:sync:check": "tsx scripts/agents-sync.ts --check",
+    "agents:docs": "tsx scripts/agents-docs.ts",
+    "agents:docs:check": "tsx scripts/agents-docs.ts --check",
+    "agents:refresh": "npm run agents:sync && npm run agents:docs && npm run agents:validate",
+    "agents:migrate-functions": "tsx scripts/migrate-functions-to-doxa-agents.ts",
+    "agents:migrate-crons": "tsx scripts/migrate-crons-to-doxa-agents.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -60,6 +68,8 @@
     "postcss": "^8.4.0",
     "shadcn": "^3.8.5",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.3.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.3.0",
+    "yaml": "^2.6.0"
   }
 }

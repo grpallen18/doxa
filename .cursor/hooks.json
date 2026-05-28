@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/librarian-queue.sh"
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/librarian-stop.sh"
+      }
+    ]
+  }
+}

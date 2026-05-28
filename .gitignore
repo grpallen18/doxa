@@ -38,3 +38,6 @@ workers/.wrangler
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cursor librarian hook queue (local only)
+.cursor/librarian-queue.json
