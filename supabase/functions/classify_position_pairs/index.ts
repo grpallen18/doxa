@@ -39,11 +39,85 @@ function parseEmbedding(v: unknown): string | null {
 }
 
 type StoryContext = { title: string; published_at: string | null };
+type EventContext = { blocking_key: string; label: string };
+
+async function loadPrimaryEventsForPositions(
+  supabase: ReturnType<typeof createClient>,
+  positionIds: string[]
+): Promise<Map<string, EventContext>> {
+  const out = new Map<string, EventContext>();
+  if (positionIds.length === 0) return out;
+
+  const { data: spRows } = await supabase
+    .from("story_positions")
+    .select(
+      `canonical_position_id, extraction_confidence,
+       story_event_positions (
+         story_events (
+           extraction_confidence,
+           event_id,
+           events ( blocking_key, canonical_text, event_date )
+         )
+       )`
+    )
+    .in("canonical_position_id", positionIds)
+    .not("canonical_position_id", "is", null);
+
+  type EventRow = {
+    extraction_confidence?: number;
+    event_id?: string | null;
+    events?: { blocking_key?: string; canonical_text?: string; event_date?: string | null } | null;
+  };
+  type SpRow = {
+    canonical_position_id: string;
+    extraction_confidence?: number;
+    story_event_positions?: Array<{ story_events?: EventRow | null } | null>;
+  };
+
+  for (const row of (Array.isArray(spRows) ? spRows : []) as SpRow[]) {
+    const pid = row.canonical_position_id;
+    let best: { score: number; ctx: EventContext } | null = null;
+
+    for (const sep of row.story_event_positions ?? []) {
+      const se = sep?.story_events;
+      const ev = se?.events;
+      if (!se?.event_id || !ev?.blocking_key) continue;
+      const score = (se.extraction_confidence ?? 0) + (row.extraction_confidence ?? 0) * 0.1;
+      const date = ev.event_date ? String(ev.event_date).slice(0, 10) : "date unknown";
+      const label = `${(ev.canonical_text ?? "").trim().slice(0, 120)} (${date})`;
+      if (!best || score > best.score) {
+        best = { score, ctx: { blocking_key: ev.blocking_key, label } };
+      }
+    }
+
+    if (best) out.set(pid, best.ctx);
+  }
+
+  return out;
+}
+
+function shouldSkipPairDueToEvents(
+  eventByPosition: Map<string, EventContext>,
+  a: string,
+  b: string
+): boolean {
+  const evA = eventByPosition.get(a);
+  const evB = eventByPosition.get(b);
+  if (!evA?.blocking_key || !evB?.blocking_key) return false;
+  return evA.blocking_key !== evB.blocking_key;
+}
 
 async function classifyBatch(
   apiKey: string,
   model: string,
-  pairs: Array<{ textA: string; textB: string; contextA?: StoryContext; contextB?: StoryContext }>
+  pairs: Array<{
+    textA: string;
+    textB: string;
+    contextA?: StoryContext;
+    contextB?: StoryContext;
+    eventA?: string;
+    eventB?: string;
+  }>
 ): Promise<Array<{ relation: Relation; alignment: Alignment; reasoning?: string }>> {
   if (pairs.length === 0) return [];
 
@@ -53,10 +127,12 @@ async function classifyBatch(
     return ` (Source: "${ctx.title}", ${date})`;
   };
 
+  const fmtEvent = (ev?: string) => (ev ? `\nEvent: ${ev}` : "");
+
   const blocks = pairs
     .map(
       (p, i) =>
-        `Pair ${i + 1}:\nPosition A: ${p.textA}${fmtContext(p.contextA)}\nPosition B: ${p.textB}${fmtContext(p.contextB)}`
+        `Pair ${i + 1}:\nPosition A: ${p.textA}${fmtContext(p.contextA)}${fmtEvent(p.eventA)}\nPosition B: ${p.textB}${fmtContext(p.contextB)}${fmtEvent(p.eventB)}`
     )
     .join("\n\n");
 
@@ -182,9 +258,13 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, positions_processed: 0, pairs_classified: 0, message: "No positions with topic", dry_run: dryRun });
   }
 
+  const allPositionIds = posList.map((p) => p.canonical_position_id);
+  const eventByPosition = await loadPrimaryEventsForPositions(supabase, allPositionIds);
+
   type PendingPair = { a: string; b: string; textA: string; textB: string };
   const pairKeys = new Set<string>();
   const pendingPairs: PendingPair[] = [];
+  let pairsSkippedEvents = 0;
 
   for (const pos of posList) {
     const embStr = parseEmbedding(pos.embedding);
@@ -218,6 +298,10 @@ Deno.serve(async (req: Request) => {
         .eq("position_b_id", b)
         .maybeSingle();
       if (existing) continue;
+      if (shouldSkipPairDueToEvents(eventByPosition, a, b)) {
+        pairsSkippedEvents += 1;
+        continue;
+      }
 
       const textForPos = (pos.canonical_text ?? "").trim().slice(0, 400);
       let textA: string;
@@ -258,6 +342,10 @@ Deno.serve(async (req: Request) => {
           .eq("position_b_id", b)
           .maybeSingle();
         if (ex) continue;
+        if (shouldSkipPairDueToEvents(eventByPosition, a, b)) {
+          pairsSkippedEvents += 1;
+          continue;
+        }
 
         const textA = ((a === pos.canonical_position_id ? pos.canonical_text : other.canonical_text) ?? "").trim().slice(0, 400);
         const textB = ((b === pos.canonical_position_id ? pos.canonical_text : other.canonical_text) ?? "").trim().slice(0, 400);
@@ -313,6 +401,8 @@ Deno.serve(async (req: Request) => {
             textB: p.textB,
             contextA: contextByPosition.get(p.a),
             contextB: contextByPosition.get(p.b),
+            eventA: eventByPosition.get(p.a)?.label,
+            eventB: eventByPosition.get(p.b)?.label,
           }))
         );
         for (let j = 0; j < batch.length; j++) {
@@ -361,6 +451,7 @@ Deno.serve(async (req: Request) => {
     ok: true,
     positions_processed: posList.length,
     pairs_to_classify: pendingPairs.length,
+    pairs_skipped_events: pairsSkippedEvents,
     pairs_classified: pairsClassified,
     dry_run: dryRun,
   };

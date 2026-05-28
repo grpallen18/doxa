@@ -1,4 +1,4 @@
-// Supabase Edge Function: extract claims, evidence, and links from story chunks (LLM).
+// Supabase Edge Function: extract claims, evidence, links, positions, and events from story chunks (LLM).
 // Writes extraction_json to story_chunks. Pipeline: chunk_story_bodies -> extract_chunk_claims -> merge_story_claims.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_chunks?: number }.
@@ -27,6 +27,7 @@ function clampInt(n: unknown, min: number, max: number, fallback: number) {
 }
 
 const POSITION_CONFIDENCE_THRESHOLD = 0.6;
+const EVENT_CONFIDENCE_THRESHOLD = 0.6;
 
 async function callOpenAIChunk(
   apiKey: string,
@@ -35,8 +36,17 @@ async function callOpenAIChunk(
   chunkIndex: number,
   content: string,
   requestId: string
-): Promise<{ claims: unknown[]; evidence: unknown[]; links: unknown[]; positions: unknown[]; position_claim_links: unknown[]; position_evidence_links: unknown[] }> {
-  const system = `You extract claims, evidence, links, and positions from a news story segment for DOXA.
+): Promise<{
+  claims: unknown[];
+  evidence: unknown[];
+  links: unknown[];
+  positions: unknown[];
+  position_claim_links: unknown[];
+  position_evidence_links: unknown[];
+  events: unknown[];
+  event_evidence_links: unknown[];
+}> {
+  const system = `You extract claims, evidence, links, positions, and events from a news story segment for DOXA.
 You are given one segment of a longer story. Do not browse the web.
 
 CRITICAL GOAL: Only output claims that are usable out of context (self-contained). If you cannot make a claim self-contained from this segment WITHOUT inventing missing details, OMIT the claim.
@@ -71,6 +81,16 @@ A position is an explicit argument statement the segment advances (e.g. "Immigra
 - If extraction_confidence is below 0.6, OMIT the position (do not include it).
 - position_claim_links: { position_index, claim_index } — which claims support this position (0-based).
 - position_evidence_links: { position_index, evidence_index } — which evidence supports this position (0-based).
+
+EVENT RULES (factual occurrences only):
+An event is a concrete real-world occurrence described in the segment: a ruling, announcement, vote, meeting, incident, statement, policy action, or development.
+- Each event MUST include event_summary: self-contained (who did what, to whom/what, when if stated).
+- Include primary_actor, action, object (target of action), event_date (YYYY-MM-DD if stated), event_timeframe_start/end for ranges, location, event_type (free text, e.g. public_statement, ruling, vote).
+- Do NOT extract vague themes as events. Bad: "Immigration is controversial." Good: "The Biden administration announced a new border policy in June 2024."
+- EVENT vs CLAIM: extract the occurrence as an event; extract assertions, evaluations, denials, or predictions ABOUT the occurrence as claims, not events.
+- If extraction_confidence is below 0.6, OMIT the event.
+- event_evidence_links: { event_index, evidence_index } — evidence that grounds the event in this segment (required; no orphan events).
+- Do NOT output an event unless it has at least one event_evidence_link to evidence in this response.
 
 STANCE (for each claim):
 polarity (asserts/denies/uncertain) = linguistic form of the claim.
@@ -202,8 +222,60 @@ Return JSON only in the required schema. If there are no valid anchored claims O
                   additionalProperties: false,
                 },
               },
+              events: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    event_summary: { type: "string" },
+                    primary_actor: { type: ["string", "null"] },
+                    action: { type: ["string", "null"] },
+                    object: { type: ["string", "null"] },
+                    event_date: { type: ["string", "null"] },
+                    event_timeframe_start: { type: ["string", "null"] },
+                    event_timeframe_end: { type: ["string", "null"] },
+                    location: { type: ["string", "null"] },
+                    event_type: { type: ["string", "null"] },
+                    extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
+                  },
+                  required: [
+                    "event_summary",
+                    "primary_actor",
+                    "action",
+                    "object",
+                    "event_date",
+                    "event_timeframe_start",
+                    "event_timeframe_end",
+                    "location",
+                    "event_type",
+                    "extraction_confidence",
+                  ],
+                  additionalProperties: false,
+                },
+              },
+              event_evidence_links: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    event_index: { type: "integer", minimum: 0 },
+                    evidence_index: { type: "integer", minimum: 0 },
+                  },
+                  required: ["event_index", "evidence_index"],
+                  additionalProperties: false,
+                },
+              },
             },
-            required: ["claims", "evidence", "links", "positions", "position_claim_links", "position_evidence_links"],
+            required: [
+              "claims",
+              "evidence",
+              "links",
+              "positions",
+              "position_claim_links",
+              "position_evidence_links",
+              "events",
+              "event_evidence_links",
+            ],
             additionalProperties: false,
           },
         },
@@ -229,7 +301,39 @@ Return JSON only in the required schema. If there are no valid anchored claims O
     positions?: Array<{ extraction_confidence?: number } & Record<string, unknown>>;
     position_claim_links?: unknown[];
     position_evidence_links?: unknown[];
+    events?: Array<{ extraction_confidence?: number } & Record<string, unknown>>;
+    event_evidence_links?: unknown[];
   };
+  const eventsRaw = Array.isArray(parsed?.events) ? parsed.events : [];
+  const eventsWithLinks = new Set(
+    (Array.isArray(parsed?.event_evidence_links) ? parsed.event_evidence_links : []).map(
+      (l: { event_index?: number }) => l?.event_index ?? -1
+    )
+  );
+  const events = eventsRaw.filter(
+    (e, i) =>
+      typeof e?.extraction_confidence === "number" &&
+      e.extraction_confidence >= EVENT_CONFIDENCE_THRESHOLD &&
+      eventsWithLinks.has(i)
+  );
+  const eventIndexMap = new Map<number, number>();
+  let eventNewIdx = 0;
+  for (let i = 0; i < eventsRaw.length; i++) {
+    if (
+      typeof eventsRaw[i]?.extraction_confidence === "number" &&
+      eventsRaw[i].extraction_confidence >= EVENT_CONFIDENCE_THRESHOLD &&
+      eventsWithLinks.has(i)
+    ) {
+      eventIndexMap.set(i, eventNewIdx++);
+    }
+  }
+  const event_evidence_links = (Array.isArray(parsed?.event_evidence_links) ? parsed.event_evidence_links : [])
+    .filter((l: { event_index?: number }) => eventIndexMap.has(l?.event_index ?? -1))
+    .map((l: { event_index?: number; evidence_index?: number }) => ({
+      event_index: eventIndexMap.get(l.event_index ?? -1)!,
+      evidence_index: l.evidence_index ?? 0,
+    }));
+
   const positionsRaw = Array.isArray(parsed?.positions) ? parsed.positions : [];
   const positions = positionsRaw.filter(
     (p) => typeof p?.extraction_confidence === "number" && p.extraction_confidence >= POSITION_CONFIDENCE_THRESHOLD
@@ -260,6 +364,8 @@ Return JSON only in the required schema. If there are no valid anchored claims O
     positions,
     position_claim_links,
     position_evidence_links,
+    events,
+    event_evidence_links,
   };
 }
 
@@ -354,6 +460,8 @@ Deno.serve(async (req: Request) => {
           positions: result.positions,
           position_claim_links: result.position_claim_links,
           position_evidence_links: result.position_evidence_links,
+          events: result.events,
+          event_evidence_links: result.event_evidence_links,
         };
         const now = new Date().toISOString();
 

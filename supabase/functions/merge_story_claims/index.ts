@@ -1,4 +1,4 @@
-// Supabase Edge Function: merge chunk extraction_json into story_claims, story_evidence, story_claim_evidence_links.
+// Supabase Edge Function: merge chunk extraction_json into story_claims, story_evidence, story_positions, story_events, and links.
 // Runs after all chunks for a story have extraction_json. Deduplicates, normalizes, consolidates. No orphan evidence.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_stories?: number, dry_run?: boolean }.
@@ -68,6 +68,30 @@ type MergePosition = {
 type MergePositionClaimLink = { position_index: number; claim_index: number };
 type MergePositionEvidenceLink = { position_index: number; evidence_index: number };
 
+type MergeEvent = {
+  event_summary: string;
+  primary_actor?: string | null;
+  action?: string | null;
+  object?: string | null;
+  event_date?: string | null;
+  event_timeframe_start?: string | null;
+  event_timeframe_end?: string | null;
+  location?: string | null;
+  event_type?: string | null;
+  extraction_confidence: number;
+};
+
+type MergeEventEvidenceLink = { event_index: number; evidence_index: number };
+type MergeEventClaimLink = { event_index: number; claim_index: number; relation_type: string };
+type MergeEventPositionLink = { event_index: number; position_index: number; relation_type: string };
+
+function parseDateOnly(v: string | null | undefined): string | null {
+  if (!v || typeof v !== "string") return null;
+  const trimmed = v.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
 async function callMergeLLM(
   apiKey: string,
   model: string,
@@ -81,13 +105,17 @@ async function callMergeLLM(
   positions: MergePosition[];
   position_claim_links: MergePositionClaimLink[];
   position_evidence_links: MergePositionEvidenceLink[];
+  events: MergeEvent[];
+  event_evidence_links: MergeEventEvidenceLink[];
+  event_claim_links: MergeEventClaimLink[];
+  event_position_links: MergeEventPositionLink[];
 }> {
-  const system = `You merge chunk-level extractions into a single story-level set of claims, evidence, links, and positions for DOXA.
+  const system = `You merge chunk-level extractions into a single story-level set of claims, evidence, links, positions, and events for DOXA.
 
-Given multiple chunk extraction blobs (each has claims, evidence, links, positions, position_claim_links, position_evidence_links), your job is to:
+Given multiple chunk extraction blobs (each has claims, evidence, links, positions, position_claim_links, position_evidence_links, events, event_evidence_links), your job is to:
 1) Deduplicate overlapping claims; normalize wording; keep the most specific, best-anchored version.
 2) Consolidate evidence; merge duplicates; keep the most direct sourcing.
-3) Produce explicit relationships: evidence must only be output if it clearly links to at least one output claim. Do NOT output orphan evidence. Do NOT force links.
+3) Produce explicit relationships: evidence must link to at least one output claim OR at least one output event. Do NOT output orphan evidence. Do NOT force links.
 
 CLAIM RULES (same standard as chunk extraction; fail-closed):
 A merged claim must be self-contained and anchored:
@@ -106,7 +134,7 @@ NORMALIZATION RULES:
 EVIDENCE RULES:
 - Merge duplicates (same quote/stat/doc ref) across chunks.
 - Keep evidence atomic.
-- Omit any evidence that cannot be clearly linked to at least one remaining claim.
+- Omit any evidence that cannot be clearly linked to at least one remaining claim or event.
 
 LINK RULES:
 - Create links only when the evidence clearly supports/contradicts/contextualizes.
@@ -119,6 +147,16 @@ POSITION MERGE RULES:
 - speaker_type: narrator | quoted | critics | supporters | null.
 - Reindex positions after merge; position_claim_links and position_evidence_links use 0-based indices into output arrays.
 
+EVENT MERGE RULES:
+- Deduplicate overlapping events across chunks; prefer the most specific date, actor, and action.
+- Each event needs event_summary (self-contained), primary_actor, action, object, dates/timeframes, location, event_type as available.
+- EVENT vs CLAIM: keep occurrences as events; keep assertions/evaluations/denials about them as claims.
+- If extraction_confidence < 0.6 or no event_evidence_links, OMIT the event.
+- event_evidence_links: { event_index, evidence_index } required for each output event.
+- event_claim_links: { event_index, claim_index, relation_type } with relation_type: about | describes | disputes | causes.
+- event_position_links: { event_index, position_index, relation_type } with relation_type: about | interprets | responds_to | context_for.
+- Reindex events after merge; all event_*_links use 0-based indices into output arrays.
+
 STANCE MERGE RULES (when merging claims across chunks):
 - If any chunk has stance=oppose with extraction_confidence >= 0.7, output oppose (do not average it away).
 - If any chunk has stance=support with extraction_confidence >= 0.7 and no oppose signal, output support.
@@ -127,8 +165,8 @@ STANCE MERGE RULES (when merging claims across chunks):
 - Otherwise, use the dominant stance weighted by extraction_confidence.
 
 OUTPUT:
-Output six arrays: claims, evidence, links, positions, position_claim_links, position_evidence_links. Use 0-based indices. claim_index and evidence_index refer to positions in the output arrays. position_index refers to positions array.
-polarity: asserts | denies | uncertain. stance: support | oppose | neutral. evidence_type: quote | statistic | document_ref | dataset_ref | other. relation_type: supports | contradicts | contextual. speaker_type: narrator | quoted | critics | supporters | null.
+Output ten arrays: claims, evidence, links, positions, position_claim_links, position_evidence_links, events, event_evidence_links, event_claim_links, event_position_links. Use 0-based indices.
+polarity: asserts | denies | uncertain. stance: support | oppose | neutral. evidence_type: quote | statistic | document_ref | dataset_ref | other. relation_type (claim-evidence): supports | contradicts | contextual. speaker_type: narrator | quoted | critics | supporters | null.
 
 ROLE-MODEL CLAIMS (style examples; do not copy unless supported by merged content):
 - "As of February 2026, there is no clear Democratic frontrunner in the North Carolina governor's race."
@@ -246,8 +284,88 @@ Return JSON only. Do not add any additional top-level keys.`;
                   additionalProperties: false,
                 },
               },
+              events: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    event_summary: { type: "string" },
+                    primary_actor: { type: ["string", "null"] },
+                    action: { type: ["string", "null"] },
+                    object: { type: ["string", "null"] },
+                    event_date: { type: ["string", "null"] },
+                    event_timeframe_start: { type: ["string", "null"] },
+                    event_timeframe_end: { type: ["string", "null"] },
+                    location: { type: ["string", "null"] },
+                    event_type: { type: ["string", "null"] },
+                    extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
+                  },
+                  required: [
+                    "event_summary",
+                    "primary_actor",
+                    "action",
+                    "object",
+                    "event_date",
+                    "event_timeframe_start",
+                    "event_timeframe_end",
+                    "location",
+                    "event_type",
+                    "extraction_confidence",
+                  ],
+                  additionalProperties: false,
+                },
+              },
+              event_evidence_links: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    event_index: { type: "integer", minimum: 0 },
+                    evidence_index: { type: "integer", minimum: 0 },
+                  },
+                  required: ["event_index", "evidence_index"],
+                  additionalProperties: false,
+                },
+              },
+              event_claim_links: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    event_index: { type: "integer", minimum: 0 },
+                    claim_index: { type: "integer", minimum: 0 },
+                    relation_type: { type: "string", enum: ["about", "describes", "disputes", "causes"] },
+                  },
+                  required: ["event_index", "claim_index", "relation_type"],
+                  additionalProperties: false,
+                },
+              },
+              event_position_links: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    event_index: { type: "integer", minimum: 0 },
+                    position_index: { type: "integer", minimum: 0 },
+                    relation_type: { type: "string", enum: ["about", "interprets", "responds_to", "context_for"] },
+                  },
+                  required: ["event_index", "position_index", "relation_type"],
+                  additionalProperties: false,
+                },
+              },
             },
-            required: ["claims", "evidence", "links", "positions", "position_claim_links", "position_evidence_links"],
+            required: [
+              "claims",
+              "evidence",
+              "links",
+              "positions",
+              "position_claim_links",
+              "position_evidence_links",
+              "events",
+              "event_evidence_links",
+              "event_claim_links",
+              "event_position_links",
+            ],
             additionalProperties: false,
           },
         },
@@ -273,6 +391,10 @@ Return JSON only. Do not add any additional top-level keys.`;
     positions?: MergePosition[];
     position_claim_links?: MergePositionClaimLink[];
     position_evidence_links?: MergePositionEvidenceLink[];
+    events?: MergeEvent[];
+    event_evidence_links?: MergeEventEvidenceLink[];
+    event_claim_links?: MergeEventClaimLink[];
+    event_position_links?: MergeEventPositionLink[];
   };
 
   const claims = (Array.isArray(parsed?.claims) ? parsed.claims : []) as MergeClaim[];
@@ -306,7 +428,51 @@ Return JSON only. Do not add any additional top-level keys.`;
       evidence_index: l!.evidence_index ?? 0,
     }));
 
-  return { claims, evidence, links, positions, position_claim_links, position_evidence_links };
+  const eventsRaw = (Array.isArray(parsed?.events) ? parsed.events : []) as MergeEvent[];
+  const eventEvidenceRaw = Array.isArray(parsed?.event_evidence_links) ? parsed.event_evidence_links : [];
+  const eventsWithEvidence = new Set(eventEvidenceRaw.map((l) => l?.event_index ?? -1));
+  const eventIndexMap = new Map<number, number>();
+  let eventNewIdx = 0;
+  for (let i = 0; i < eventsRaw.length; i++) {
+    const e = eventsRaw[i];
+    if (e?.extraction_confidence >= 0.6 && eventsWithEvidence.has(i)) {
+      eventIndexMap.set(i, eventNewIdx++);
+    }
+  }
+  const events = eventsRaw.filter((_, i) => eventIndexMap.has(i));
+  const event_evidence_links = eventEvidenceRaw
+    .filter((l) => eventIndexMap.has(l?.event_index ?? -1))
+    .map((l) => ({
+      event_index: eventIndexMap.get(l!.event_index)!,
+      evidence_index: l!.evidence_index ?? 0,
+    }));
+  const event_claim_links = (Array.isArray(parsed?.event_claim_links) ? parsed.event_claim_links : [])
+    .filter((l) => eventIndexMap.has(l?.event_index ?? -1))
+    .map((l) => ({
+      event_index: eventIndexMap.get(l!.event_index)!,
+      claim_index: l!.claim_index ?? 0,
+      relation_type: l!.relation_type ?? "about",
+    }));
+  const event_position_links = (Array.isArray(parsed?.event_position_links) ? parsed.event_position_links : [])
+    .filter((l) => eventIndexMap.has(l?.event_index ?? -1) && posIndexMap.has(l?.position_index ?? -1))
+    .map((l) => ({
+      event_index: eventIndexMap.get(l!.event_index)!,
+      position_index: posIndexMap.get(l!.position_index)!,
+      relation_type: l!.relation_type ?? "about",
+    }));
+
+  return {
+    claims,
+    evidence,
+    links,
+    positions,
+    position_claim_links,
+    position_evidence_links,
+    events,
+    event_evidence_links,
+    event_claim_links,
+    event_position_links,
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -357,6 +523,7 @@ Deno.serve(async (req: Request) => {
       story_evidence: 0,
       story_claim_evidence_links: 0,
       story_positions: 0,
+      story_events: 0,
       message: "No stories ready to merge",
       dry_run: dryRun,
     });
@@ -388,6 +555,7 @@ Deno.serve(async (req: Request) => {
   let totalEvidence = 0;
   let totalLinks = 0;
   let totalPositions = 0;
+  let totalEvents = 0;
 
   for (const storyId of toProcess) {
     const { data: chunks } = await supabase
@@ -409,6 +577,10 @@ Deno.serve(async (req: Request) => {
       positions: MergePosition[];
       position_claim_links: MergePositionClaimLink[];
       position_evidence_links: MergePositionEvidenceLink[];
+      events: MergeEvent[];
+      event_evidence_links: MergeEventEvidenceLink[];
+      event_claim_links: MergeEventClaimLink[];
+      event_position_links: MergeEventPositionLink[];
     };
     try {
       mergeResult = await callMergeLLM(OPENAI_API_KEY, MODEL, storyId, blobs, `${requestId}-${storyId}`);
@@ -431,9 +603,16 @@ Deno.serve(async (req: Request) => {
       positions: mergePositions,
       position_claim_links: mergePositionClaimLinks,
       position_evidence_links: mergePositionEvidenceLinks,
+      events: mergeEvents,
+      event_evidence_links: mergeEventEvidenceLinks,
+      event_claim_links: mergeEventClaimLinks,
+      event_position_links: mergeEventPositionLinks,
     } = mergeResult;
 
-    const evidenceWithLinks = new Set(mergeLinks.map((l) => l.evidence_index));
+    const evidenceWithLinks = new Set([
+      ...mergeLinks.map((l) => l.evidence_index),
+      ...mergeEventEvidenceLinks.map((l) => l.evidence_index),
+    ]);
     const evidenceToKeep = mergeEvidence.filter((_, i) => evidenceWithLinks.has(i));
     const claimIndices = new Set(mergeClaims.map((_, i) => i));
     const validLinks = mergeLinks.filter(
@@ -448,6 +627,7 @@ Deno.serve(async (req: Request) => {
       totalEvidence += evidenceToKeep.length;
       totalLinks += validLinks.length;
       totalPositions += mergePositions.length;
+      totalEvents += mergeEvents.length;
       processed += 1;
       continue;
     }
@@ -563,12 +743,82 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const eventIds: string[] = [];
+    for (const ev of mergeEvents) {
+      const conf = clampNum(ev.extraction_confidence, 0, 1, 0.5);
+      const { data: evIns } = await supabase
+        .from("story_events")
+        .insert({
+          story_id: storyId,
+          event_summary: (ev.event_summary ?? "").trim() || "Unspecified",
+          extraction_confidence: conf,
+          primary_actor: ev.primary_actor ?? null,
+          action: ev.action ?? null,
+          object: ev.object ?? null,
+          event_date: parseDateOnly(ev.event_date),
+          event_timeframe_start: parseDateOnly(ev.event_timeframe_start),
+          event_timeframe_end: parseDateOnly(ev.event_timeframe_end),
+          location: ev.location ?? null,
+          event_type: ev.event_type ?? null,
+          run_id: runId,
+        })
+        .select("story_event_id")
+        .single();
+      if (evIns?.story_event_id) eventIds.push(evIns.story_event_id);
+    }
+
+    for (const l of mergeEventEvidenceLinks) {
+      if (l.event_index >= eventIds.length) continue;
+      const newEvIdx = evidenceIndexMap.get(l.evidence_index);
+      if (newEvIdx === undefined || newEvIdx >= evidenceIds.length) continue;
+      const seId = eventIds[l.event_index];
+      const evId = evidenceIds[newEvIdx];
+      if (!seId || !evId) continue;
+      await supabase.from("story_event_evidence").insert({
+        story_event_id: seId,
+        evidence_id: evId,
+      });
+    }
+
+    const validEventClaimRels = ["about", "describes", "disputes", "causes"] as const;
+    for (const l of mergeEventClaimLinks) {
+      if (l.event_index >= eventIds.length || l.claim_index >= claimIds.length) continue;
+      const rel = validEventClaimRels.includes(l.relation_type as (typeof validEventClaimRels)[number])
+        ? l.relation_type
+        : "about";
+      const seId = eventIds[l.event_index];
+      const scId = claimIds[l.claim_index];
+      if (!seId || !scId) continue;
+      await supabase.from("story_event_claims").insert({
+        story_event_id: seId,
+        story_claim_id: scId,
+        relation_type: rel,
+      });
+    }
+
+    const validEventPositionRels = ["about", "interprets", "responds_to", "context_for"] as const;
+    for (const l of mergeEventPositionLinks) {
+      if (l.event_index >= eventIds.length || l.position_index >= positionIds.length) continue;
+      const rel = validEventPositionRels.includes(l.relation_type as (typeof validEventPositionRels)[number])
+        ? l.relation_type
+        : "about";
+      const seId = eventIds[l.event_index];
+      const spId = positionIds[l.position_index];
+      if (!seId || !spId) continue;
+      await supabase.from("story_event_positions").insert({
+        story_event_id: seId,
+        story_position_id: spId,
+        relation_type: rel,
+      });
+    }
+
     totalClaims += claimIds.length;
     totalEvidence += evidenceIds.length;
     totalLinks += linksInserted;
     totalPositions += positionIds.length;
+    totalEvents += eventIds.length;
 
-    const isEmpty = claimIds.length === 0 && evidenceIds.length === 0;
+    const isEmpty = claimIds.length === 0 && evidenceIds.length === 0 && eventIds.length === 0;
     const now = new Date().toISOString();
     await supabase
       .from("stories")
@@ -609,6 +859,22 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  if (!dryRun && processed > 0 && totalEvents > 0) {
+    try {
+      const fnUrl = `${SUPABASE_URL}/functions/v1/link_canonical_events`;
+      await fetch(fnUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SERVICE_ROLE}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+    } catch (e) {
+      console.warn("[merge_story_claims] link_canonical_events invoke failed:", e);
+    }
+  }
+
   return json({
     ok: true,
     processed,
@@ -616,6 +882,7 @@ Deno.serve(async (req: Request) => {
     story_evidence: totalEvidence,
     story_claim_evidence_links: totalLinks,
     story_positions: totalPositions,
+    story_events: totalEvents,
     model: MODEL,
     run_id: runId,
     dry_run: dryRun,

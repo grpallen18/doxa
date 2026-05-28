@@ -21,7 +21,9 @@ interface HealthRow {
   merges_completed: number;
   story_claims_created: number;
   story_evidence_created: number;
+  story_events_created: number;
   claims_created: number;
+  events_created: number;
   awaiting_scrape: number;
   awaiting_cleaning: number;
   awaiting_merge: number;
@@ -222,6 +224,8 @@ function buildEmbeds(row: HealthRow, scrapeBySource: ScrapeBySourceRow[]): Recor
     fields: [
       { name: "New Story Claims", value: formatNum(row.story_claims_created), inline: true },
       { name: "New Evidence", value: formatNum(row.story_evidence_created), inline: true },
+      { name: "New Story Events", value: formatNum(row.story_events_created), inline: true },
+      { name: "New Canonical Events", value: formatNum(row.events_created), inline: true },
       { name: "New Canonical Claims", value: formatNum(row.claims_created), inline: true },
       { name: "New Position Pairs", value: formatNum(row.position_relationships_24h), inline: true },
     ],

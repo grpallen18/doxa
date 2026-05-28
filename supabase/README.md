@@ -714,7 +714,7 @@ Chunks unchunked story_bodies into story_chunks (3500 chars per chunk, 500 overl
 
 ### extract_chunk_claims
 
-Extracts claims, evidence, and links from story chunks via LLM. Writes `extraction_json` to story_chunks. Run after chunk_story_bodies.
+Extracts claims, evidence, links, positions, and events from story chunks via LLM. Writes `extraction_json` to story_chunks. Run after chunk_story_bodies. Events must be concrete occurrences grounded in evidence (not vague themes).
 
 **Request body (optional):** `max_chunks` (1–20, default 5). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
@@ -722,7 +722,7 @@ Extracts claims, evidence, and links from story chunks via LLM. Writes `extracti
 
 ### merge_story_claims
 
-Merges all chunk `extraction_json` for a story into story_claims, story_evidence, story_claim_evidence_links. Deduplicates, normalizes; no orphan evidence. Run after all chunks for a story have extraction_json.
+Merges all chunk `extraction_json` for a story into story_claims, story_evidence, story_claim_evidence_links, story_positions, story_events, and bridge tables (including story_event_evidence, story_event_claims, story_event_positions). Deduplicates, normalizes; no orphan evidence or events. Run after all chunks for a story have extraction_json. Invokes link_canonical_positions and link_canonical_events when new rows are created.
 
 **Request body (optional):** `max_stories` (1–5, default 1). **Secrets:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 
@@ -735,6 +735,23 @@ Links story_claims to canonical claims via embedding similarity. Creates new cla
 **Request body (optional):** `max_claims` (1–50, default 10). **Secrets:** `OPENAI_API_KEY`; optional `SIMILARITY_THRESHOLD` (0–1, default 0.9).
 
 **Cron (pg_cron):** [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) — every 2 minutes.
+
+### link_canonical_events
+
+Links story_events to canonical events via blocking key + embedding similarity within the block. Creates new `events` rows when no match above threshold.
+
+**Blocking key:** `normalize(primary_actor)|normalize(action)|YYYY-MM|topic_id_from_topic_stories` (unknown when missing).
+
+**Request body (optional):** `max_events` (1–50, default 10), `dry_run` (boolean). **Secrets:** `OPENAI_API_KEY`; optional `EVENT_SIMILARITY_THRESHOLD` (0–1, default 0.85).
+
+**Cron (pg_cron):** [cron_link_canonical_events.sql](cron_link_canonical_events.sql) — every 2 minutes.
+
+### Events schema (story + canonical)
+
+- **story_events** — extracted occurrences per story; `event_id` FK when canonicalized.
+- **events** — canonical occurrences with `blocking_key`, `canonical_text`, embedding.
+- **story_event_evidence**, **story_event_claims**, **story_event_positions** — typed story-level bridges.
+- **classify_position_pairs** skips pairs when both positions have canonical events with different blocking keys; enriches LLM context with event summaries.
 
 ### update_stances
 
@@ -814,6 +831,7 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
 | extract-chunk-claims-every-2min | extract_chunk_claims | Every 2 min | [cron_extract_chunk_claims.sql](cron_extract_chunk_claims.sql) |
 | merge-story-claims-every-2min | merge_story_claims | Every 2 min | [cron_merge_story_claims.sql](cron_merge_story_claims.sql) |
 | link-canonical-claims-every-2min | link_canonical_claims | Every 2 min | [cron_link_canonical_claims.sql](cron_link_canonical_claims.sql) |
+| link-canonical-events-every-2min | link_canonical_events | Every 2 min | [cron_link_canonical_events.sql](cron_link_canonical_events.sql) |
 | update-stance-every-20min | update_stances | Every 20 min | [cron_update_stance.sql](cron_update_stance.sql) |
 | refresh-claim-eligibility-daily | refresh_claim_eligibility | Daily 3am UTC (no LLM, 500/run) | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
 | classify-claim-pairs-every-15min | classify_claim_pairs | Every 15 min (LLM, 25/run) | [cron_clustering_pipeline.sql](cron_clustering_pipeline.sql) |
@@ -837,7 +855,7 @@ Re-reviews stories with **relevance_status = PENDING** that have `content_clean`
   - Optional: `OPENAI_MODEL` (default `gpt-4o-mini`)
   - **scrape_story_content:** `WORKER_SCRAPE_URL` (e.g. `https://doxa.grpallen.workers.dev`), `SCRAPE_SECRET`
   - **receive_scraped_content:** `SCRAPE_SECRET` (same value as Worker)
-- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `update_stances`, `refresh_claim_eligibility`, `classify_claim_pairs`, `build_position_clusters`, `aggregate_position_pair_scores`, `build_controversy_clusters`, `generate_position_summaries`, `generate_viewpoints`, `clustering_pipeline`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`. **Clustering sub-functions** must be deployed with `--no-verify-jwt` so clustering_pipeline can invoke them (config.toml alone may not apply on updates). Redeploy with:
+- **Deploy:** `supabase functions deploy ingest-newsapi` (and `relevance_gate`, `scrape_story_content`, `receive_scraped_content`, `clean_scraped_content`, `review_pending_stories`, `chunk_story_bodies`, `extract_chunk_claims`, `merge_story_claims`, `link_canonical_claims`, `link_canonical_events`, `update_stances`, `refresh_claim_eligibility`, `classify_claim_pairs`, `build_position_clusters`, `aggregate_position_pair_scores`, `build_controversy_clusters`, `generate_position_summaries`, `generate_viewpoints`, `clustering_pipeline`, `process_topic`). For receive_scraped_content, use `--no-verify-jwt`. **Clustering sub-functions** must be deployed with `--no-verify-jwt` so clustering_pipeline can invoke them (config.toml alone may not apply on updates). Redeploy with:
 ```
 supabase functions deploy classify_claim_pairs --no-verify-jwt
 supabase functions deploy build_position_clusters --no-verify-jwt

@@ -67,6 +67,7 @@ Edge Functions use secrets set in **Supabase** (not in `.env.local`): Dashboard 
 - **extract_chunk_claims:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 - **merge_story_claims:** `OPENAI_API_KEY`; optional `OPENAI_MODEL`.
 - **link_canonical_claims:** `OPENAI_API_KEY`; optional `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`); optional `SIMILARITY_THRESHOLD` (0–1, default 0.9).
+- **link_canonical_events:** `OPENAI_API_KEY`; optional `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`); optional `EVENT_SIMILARITY_THRESHOLD` (0–1, default 0.85).
 - **update_stances:** `OPENAI_API_KEY`; optional `OPENAI_MODEL` (default `gpt-4o-mini`). Backfills stance on story_claims with null stance.
 - **refresh_claim_eligibility:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` only (no OpenAI). Reevaluates stale claims via vector search; 500/run.
 - **clustering_pipeline** (and sub-functions classify_claim_pairs, build_controversy_clusters, generate_position_summaries, generate_viewpoints): `OPENAI_API_KEY`; optional `OPENAI_MODEL`. Optional `DRIFT_THRESHOLD` (0–1, default 0.75): similarity of LLM output to centroid; below = skip persist. Optional `TOPIC_SIMILARITY_THRESHOLD` (0–1, default 0.75; 0.7 allows looser grouping): when grouping positions into controversies, include positions whose centroid similarity to the debate centroid is at least this. Position-controversy clustering; replaces claim_cluster_nightly. refresh_claim_eligibility runs daily; classify_claim_pairs runs every 15 min; full rebuild (skip_classify) on 1st and 15th.
