@@ -1,4 +1,14 @@
-# 02-processing-engine
+# 02 Processing engine
+
+Turns cleaned article bodies into structured **story-level** knowledge.
+
+## Workflows
+
+1. **[01-document-processing](01-document-processing/)** — `chunk-story-bodies`
+2. **[02-story-extraction](02-story-extraction/)** — `extract-story-entities` (claims, evidence, positions, events)
+3. **[03-story-synthesis](03-story-synthesis/)** — `merge-story-claims` → `story_*` tables
+
+Then canonicalization: [03-semantic-intelligence-engine/01-canonical-knowledge](../03-semantic-intelligence-engine/01-canonical-knowledge/).
 
 <!-- AGENTS:BEGIN -->
 
@@ -7,7 +17,7 @@
 | Step | Deploy | Status |
 |------|--------|--------|
 | chunk-story-bodies | chunk_story_bodies | inactive |
-| extract-chunk-claims | extract_chunk_claims | inactive |
+| extract-story-entities | extract_chunk_claims | inactive |
 | merge-story-claims | merge_story_claims | inactive |
 
 <!-- AGENTS:END -->

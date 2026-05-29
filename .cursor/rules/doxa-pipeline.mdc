@@ -1,0 +1,37 @@
+---
+description: Doxa agent pipeline conventions — handlers, sync, deploy reminders
+globs: doxa-agents/**,supabase/functions/**,workers/**
+alwaysApply: true
+---
+
+# Doxa pipeline agent
+
+Read [doxa-agents/AGENTS.md](doxa-agents/AGENTS.md) when changing ingestion, processing, canonicalization, or clustering code.
+
+## After code changes
+
+1. Edit `doxa-agents/divisions/**/handler.ts` (real logic). Update `schedule.sql` only if cron schedule or job changes.
+2. Update `supabase/functions/<deploy_name>/index.ts` stub only when adding a new function or changing handler path.
+3. Run `npm run agents:refresh` from repo root before finishing.
+4. **Never hand-edit** `doxa-agents/manifest.yaml` or `doxa-agents/docs/generated/*`.
+
+## Processing vs canonicalization
+
+- **02-story-extraction** (`extract-story-entities`): LLM extracts claims, evidence, positions, and events from chunk text.
+- **03-story-synthesis** (`merge-story-claims`): merges to `story_*` tables.
+- **01-canonical-knowledge** (`link-canonical-claims`, `link-canonical-events`, `link-canonical-positions`): dedupe to global entities. Positions are not created here—they are linked like claims.
+- **02-position-intelligence**: relationships between canonical positions only—not text extraction.
+
+## Engine data purge
+
+When adding or removing pipeline output tables, edit `doxa-agents/ops/purge-engine-tables.yaml` and run `npm run agents:refresh` (regenerates `supabase/routines/purge_engine_data.sql`). Re-apply that routine in SQL Editor on deployed DBs; new installs get migration `121_purge_engine_data.sql`.
+
+## User-owned ops (remind in final message when relevant)
+
+- **Secret values** in Supabase / Cloudflare (names are in `docs/generated/secrets.md`)
+- **`doxa-agents/activation.yaml`** — add step id when user wants workflow marked active (does not schedule crons)
+- **Run `schedule.sql`** in Supabase SQL Editor to enable pg_cron
+- **`supabase functions deploy <name>`** when handler or stub changed
+- **`supabase/migrations/`** for schema changes
+
+Do not update `activation.yaml` unless the user asks to enable a workflow.

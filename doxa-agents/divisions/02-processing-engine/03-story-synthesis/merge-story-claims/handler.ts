@@ -1,4 +1,5 @@
-// Supabase Edge Function: merge chunk extraction_json into story_claims, story_evidence, story_positions, story_events, and links.
+// Supabase Edge Function: merge chunk extraction_json into story_claims, story_evidence, story_positions, story_events, and bridge tables.
+// Positions and events are extracted in 02-story-extraction; this step merges them to story-level rows, then invokes canonical linkers.
 // Runs after all chunks for a story have extraction_json. Deduplicates, normalizes, consolidates. No orphan evidence.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_stories?: number, dry_run?: boolean }.

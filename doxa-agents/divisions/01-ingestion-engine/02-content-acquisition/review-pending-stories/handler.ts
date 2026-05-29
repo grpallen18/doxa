@@ -211,17 +211,7 @@ export const handler = async (req: Request) => {
   const sinceIso = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: rowsRaw, error: rpcErr } = await supabase.rpc("get_pending_stories_with_body", {
-    p_since: sinceIso,
-    p_limit: maxStories,
-  });
-
-  if (rpcErr) {
-    console.error("[review_pending_stories] get_pending_stories_with_body error:", rpcErr.message);
-    return json({ error: rpcErr.message }, 500);
-  }
-
-  const rows = (Array.isArray(rowsRaw) ? rowsRaw : []) as Array<{
+  type ClaimedRow = {
     story_id: string;
     title: string | null;
     content_snippet: string | null;
@@ -230,7 +220,31 @@ export const handler = async (req: Request) => {
     created_at: string | null;
     source_name: string | null;
     body_content: string | null;
-  }>;
+  };
+
+  let rows: ClaimedRow[] = [];
+
+  if (dryRun) {
+    const { data: rowsRaw, error: rpcErr } = await supabase.rpc("get_pending_stories_with_body", {
+      p_since: sinceIso,
+      p_limit: maxStories,
+    });
+    if (rpcErr) {
+      console.error("[review_pending_stories] get_pending_stories_with_body error:", rpcErr.message);
+      return json({ error: rpcErr.message }, 500);
+    }
+    rows = (Array.isArray(rowsRaw) ? rowsRaw : []) as ClaimedRow[];
+  } else {
+    const { data: rowsRaw, error: rpcErr } = await supabase.rpc("claim_pending_stories_for_review", {
+      p_since: sinceIso,
+      p_limit: maxStories,
+    });
+    if (rpcErr) {
+      console.error("[review_pending_stories] claim_pending_stories_for_review error:", rpcErr.message);
+      return json({ error: rpcErr.message }, 500);
+    }
+    rows = (Array.isArray(rowsRaw) ? rowsRaw : []) as ClaimedRow[];
+  }
 
   const stories: StoryRow[] = rows
     .filter((r) => typeof r.story_id === "string")
@@ -247,14 +261,6 @@ export const handler = async (req: Request) => {
 
   if (stories.length === 0) {
     return json({ ok: true, processed: 0, message: "No PENDING stories with content_clean to review" });
-  }
-
-  const storyIds = stories.map((s) => s.story_id);
-
-  const { error: lockErr } = await supabase.from("stories").update({ being_processed: true }).in("story_id", storyIds);
-  if (lockErr) {
-    console.error("[review_pending_stories] Lock error:", lockErr.message);
-    return json({ error: lockErr.message }, 500);
   }
 
   const counts = { KEEP: 0, DROP: 0, dropped_unclear: 0 };
@@ -284,6 +290,7 @@ export const handler = async (req: Request) => {
               relevance_tags: r.tags,
               relevance_model: MODEL,
               relevance_ran_at: now,
+              review_claimed_at: null,
             })
             .eq("story_id", s.story_id);
         }
@@ -299,6 +306,7 @@ export const handler = async (req: Request) => {
               relevance_tags: ["unclear_after_review"],
               relevance_model: MODEL,
               relevance_ran_at: now,
+              review_claimed_at: null,
             })
             .eq("story_id", s.story_id);
         }
@@ -317,12 +325,10 @@ export const handler = async (req: Request) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[review_pending_stories] Error:", msg);
+    if (!dryRun) {
+      const storyIds = stories.map((s) => s.story_id);
+      await supabase.from("stories").update({ review_claimed_at: null }).in("story_id", storyIds);
+    }
     return json({ error: msg }, 500);
-  } finally {
-    const { error: unlockErr } = await supabase
-      .from("stories")
-      .update({ being_processed: false })
-      .in("story_id", storyIds);
-    if (unlockErr) console.error("[review_pending_stories] Unlock error:", unlockErr.message);
   }
 };

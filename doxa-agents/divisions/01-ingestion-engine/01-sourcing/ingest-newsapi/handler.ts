@@ -1,5 +1,6 @@
 // Supabase Edge Function: fetch NewsAPI everything (last 48h, en), upsert sources and stories (by URL).
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Cron runs daily.
+// One NewsAPI request per whitelist source, capped at MAX_ARTICLES_PER_SOURCE per source.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Cron runs twice daily.
 // Secrets: NEWSAPI_API_KEY (set in Dashboard or supabase secrets set).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -49,8 +50,7 @@ const NEWSAPI_SOURCES_WHITELIST = [
   "usa-today",
 ];
 
-const SOURCES_BATCH_SIZE = 4;
-const PAGE_SIZE = 100;
+const MAX_ARTICLES_PER_SOURCE = 10;
 const EXISTING_URLS_CHUNK_SIZE = 100;
 
 function normalizeStoryUrl(url: string): string {
@@ -123,48 +123,52 @@ export const handler = async (req: Request) => {
     const toIso = now.toISOString();
     const fromIso = fromDate.toISOString();
 
-    const batches: string[][] = [];
-    for (let i = 0; i < NEWSAPI_SOURCES_WHITELIST.length; i += SOURCES_BATCH_SIZE) {
-      batches.push(NEWSAPI_SOURCES_WHITELIST.slice(i, i + SOURCES_BATCH_SIZE));
-    }
-
     const allArticles: NewsAPIArticle[] = [];
     const seenUrls = new Set<string>();
+    const sourceErrors: Array<{ source: string; message: string; code?: string }> = [];
 
-    for (const batch of batches) {
-      const sourcesParam = batch.join(",");
+    for (const sourceId of NEWSAPI_SOURCES_WHITELIST) {
       const params = new URLSearchParams({
-        sources: sourcesParam,
+        sources: sourceId,
         language: "en",
-        pageSize: String(PAGE_SIZE),
+        pageSize: String(MAX_ARTICLES_PER_SOURCE),
         page: "1",
         from: fromIso,
         to: toIso,
         apiKey: apiKey,
       });
-      const url = `https://newsapi.org/v2/everything?${params.toString()}`;
-      const res = await fetch(url);
+      const apiUrl = `https://newsapi.org/v2/everything?${params.toString()}`;
+      const res = await fetch(apiUrl);
       const data: NewsAPIResponse = await res.json();
 
       if (data.status !== "ok") {
         const message = data.message ?? "NewsAPI request failed";
-        if (!dryRun && runId) {
-          await supabase
-            .from("pipeline_runs")
-            .update({ status: "failed", ended_at: new Date().toISOString(), error: message })
-            .eq("run_id", runId);
-        }
-        return jsonResponse({ error: message, code: data.code }, 502);
+        console.error(`[ingest-newsapi] ${sourceId}:`, message);
+        sourceErrors.push({ source: sourceId, message, code: data.code });
+        continue;
       }
 
-      const pageArticles = data.articles ?? [];
+      const pageArticles = (data.articles ?? []).slice(0, MAX_ARTICLES_PER_SOURCE);
       for (const a of pageArticles) {
-        const u = (a.url ?? "").trim();
-        if (u && u.startsWith("http") && !seenUrls.has(u)) {
+        const raw = (a.url ?? "").trim();
+        if (!raw || !raw.startsWith("http")) continue;
+        const u = normalizeStoryUrl(raw);
+        if (!seenUrls.has(u)) {
           seenUrls.add(u);
           allArticles.push(a);
         }
       }
+    }
+
+    if (allArticles.length === 0 && sourceErrors.length === NEWSAPI_SOURCES_WHITELIST.length) {
+      const message = sourceErrors[0]?.message ?? "All NewsAPI source requests failed";
+      if (!dryRun && runId) {
+        await supabase
+          .from("pipeline_runs")
+          .update({ status: "failed", ended_at: new Date().toISOString(), error: message })
+          .eq("run_id", runId);
+      }
+      return jsonResponse({ error: message, source_errors: sourceErrors }, 502);
     }
 
     const articles = allArticles;
@@ -286,7 +290,13 @@ export const handler = async (req: Request) => {
         .update({
           status: "success",
           ended_at: new Date().toISOString(),
-          counts: { sources_inserted: sourcesInserted, stories_inserted: storiesInserted },
+          counts: {
+            sources_inserted: sourcesInserted,
+            stories_inserted: storiesInserted,
+            sources_queried: NEWSAPI_SOURCES_WHITELIST.length,
+            max_per_source: MAX_ARTICLES_PER_SOURCE,
+            source_errors: sourceErrors.length,
+          },
         })
         .eq("run_id", runId);
     }
@@ -295,6 +305,9 @@ export const handler = async (req: Request) => {
       stories_from_api: storiesFromApi,
       inserted_sources: sourcesInserted,
       inserted_stories: storiesInserted,
+      sources_queried: NEWSAPI_SOURCES_WHITELIST.length,
+      max_per_source: MAX_ARTICLES_PER_SOURCE,
+      source_errors: sourceErrors.length > 0 ? sourceErrors : undefined,
       pipeline_run_id: runId ?? undefined,
       dry_run: dryRun,
     });

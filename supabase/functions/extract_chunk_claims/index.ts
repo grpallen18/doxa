@@ -1,3 +1,3 @@
 // AUTO-GENERATED deploy stub — implementation in doxa-agents
-import { handler } from "../../../doxa-agents/divisions/02-processing-engine/02-knowledge-extraction/extract-chunk-claims/handler.ts";
+import { handler } from '../../../doxa-agents/divisions/02-processing-engine/02-story-extraction/extract-story-entities/handler.ts';
 Deno.serve(handler);

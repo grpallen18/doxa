@@ -14,7 +14,7 @@ const CRON_MAP: Record<string, string> = {
   'cron_chunk_story_bodies.sql':
     'doxa-agents/divisions/02-processing-engine/01-document-processing/chunk-story-bodies/schedule.sql',
   'cron_extract_chunk_claims.sql':
-    'doxa-agents/divisions/02-processing-engine/02-knowledge-extraction/extract-chunk-claims/schedule.sql',
+    'doxa-agents/divisions/02-processing-engine/02-story-extraction/extract-story-entities/schedule.sql',
   'cron_merge_story_claims.sql':
     'doxa-agents/divisions/02-processing-engine/03-story-synthesis/merge-story-claims/schedule.sql',
   'cron_link_canonical_claims.sql':

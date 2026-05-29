@@ -7,6 +7,8 @@ This document describes the Doxa database schema, data dictionary, table purpose
 1. Run migrations in order (SQL Editor): `001_initial_schema.sql` through the latest migration.
 2. Seed the database: run [seed_new_schema.sql](seed_new_schema.sql) in the Supabase SQL Editor (paste the file contents and run). See **Seeding** below for details.
 
+**Reset pipeline data (keeps sources, throttle, pipeline_runs):** after migration `121_purge_engine_data.sql`, run `SELECT public.purge_engine_data();` — table list in [doxa-agents/ops/purge-engine-tables.yaml](../doxa-agents/ops/purge-engine-tables.yaml), routine in [routines/purge_engine_data.sql](routines/purge_engine_data.sql).
+
 **Note:** The data dictionary below describes the **target schema** for the pipeline/ingestion model. Migrations 010 and 011 refactor topics and add the new tables; seed_new_schema.sql populates them.
 
 ---
@@ -81,14 +83,14 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### story_chunks
 
-**Purpose:** Text chunks from story_bodies for downstream processing (e.g. extraction, embeddings). 3500 chars per chunk, 500 overlap. Written by **chunk_story_bodies**. **extract_chunk_claims** fills `extraction_json` with chunk-level claims/evidence/links.
+**Purpose:** Text chunks from story_bodies for downstream processing (e.g. extraction, embeddings). 3500 chars per chunk, 500 overlap. Written by **chunk_story_bodies**. **extract_chunk_claims** (step `extract-story-entities`) fills `extraction_json` with chunk-level claims, evidence, positions, events, and links.
 
 | Column | Type | Purpose |
 |--------|------|---------|
 | `story_id` | uuid (FK → stories.story_id) | Which story. |
 | `chunk_index` | smallint | 0-based order of chunk within the story. |
 | `content` | text | Chunk text. |
-| `extraction_json` | jsonb (nullable) | `{ claims, evidence, links }` from chunk extraction. |
+| `extraction_json` | jsonb (nullable) | Chunk extraction: claims, evidence, links, positions, position_*_links, events, event_*_links. See `doxa-agents/AGENTS.md`. |
 | `created_at` | timestamptz | When the chunk was created. |
 
 **Keys:** PK `(story_id, chunk_index)`.

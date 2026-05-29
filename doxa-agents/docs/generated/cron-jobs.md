@@ -4,13 +4,13 @@
 
 | Job | Step | Deploy | Schedule (UTC) | Status | SQL |
 |-----|------|--------|----------------|--------|-----|
-| ingest-newsapi-6am-6pm-cst | ingest-newsapi | ingest-newsapi | `0 0,12 * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/ingest-newsapi/schedule.sql) |
+| ingest-newsapi-6am-6pm-cst | ingest-newsapi | ingest-newsapi | `0 0,12 * * *` | active | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/ingest-newsapi/schedule.sql) |
 | relevance-gate-every-2min | relevance-gate | relevance_gate | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/relevance-gate/schedule.sql) |
 | clean-scraped-content-every-5min | clean-scraped-content | clean_scraped_content | `*/5 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/clean-scraped-content/schedule.sql) |
 | review-pending-stories-every-hour | review-pending-stories | review_pending_stories | `0 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/review-pending-stories/schedule.sql) |
 | scrape-story-content-every-2min | scrape-story-content | scrape_story_content | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/scrape-story-content/schedule.sql) |
 | chunk-story-bodies-every-2min | chunk-story-bodies | chunk_story_bodies | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/01-document-processing/chunk-story-bodies/schedule.sql) |
-| extract-chunk-claims-every-2min | extract-chunk-claims | extract_chunk_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/02-knowledge-extraction/extract-chunk-claims/schedule.sql) |
+| extract-chunk-claims-every-2min | extract-story-entities | extract_chunk_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/02-story-extraction/extract-story-entities/schedule.sql) |
 | merge-story-claims-every-2min | merge-story-claims | merge_story_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/03-story-synthesis/merge-story-claims/schedule.sql) |
 | link-canonical-claims-every-2min | link-canonical-claims | link_canonical_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/link-canonical-claims/schedule.sql) |
 | link-canonical-events-every-2min | link-canonical-events | link_canonical_events | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/link-canonical-events/schedule.sql) |

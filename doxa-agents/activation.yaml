@@ -10,4 +10,5 @@
 #
 # Everything else (manifest.yaml, docs/generated/*) is auto-synced from code.
 
-active: []
+active: 
+  - ingest-newsapi

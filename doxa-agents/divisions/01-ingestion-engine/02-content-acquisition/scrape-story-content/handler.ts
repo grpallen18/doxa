@@ -1,5 +1,5 @@
-// Supabase Edge Function: dispatch one KEEP story per run to Cloudflare Worker for scraping.
-// Worker scrapes and calls receive_scraped_content; this function only selects, locks, records domain throttle, and POSTs to Worker.
+// Supabase Edge Function: atomically claim one story and dispatch to Cloudflare Worker.
+// Completion is via receive_scraped_content (callback). Stale dispatches are released in claim_stories_for_scrape.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WORKER_SCRAPE_URL, SCRAPE_SECRET.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -9,7 +9,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const WORKER_TIMEOUT_MS = 60_000;
+/** Wait only for worker HTTP acceptance; scrape+callback may continue asynchronously. */
+const WORKER_ACCEPT_TIMEOUT_MS = 15_000;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -55,8 +56,10 @@ export const handler = async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: storiesRaw, error: rpcErr } = await supabase
-    .rpc("get_stories_ready_for_scrape", { p_limit: 1 });
+  const { data: storiesRaw, error: rpcErr } = await supabase.rpc("claim_stories_for_scrape", {
+    p_limit: 1,
+    p_dry_run: dryRun,
+  });
 
   if (rpcErr) {
     console.error("[scrape_story_content] RPC error:", rpcErr.message);
@@ -81,16 +84,6 @@ export const handler = async (req: Request) => {
   }
 
   if (!dryRun) {
-    const { error: lockErr } = await supabase
-      .from("stories")
-      .update({ being_processed: true })
-      .eq("story_id", story.story_id);
-
-    if (lockErr) {
-      console.error("[scrape_story_content] Lock error:", lockErr.message);
-      return json({ error: lockErr.message }, 500);
-    }
-
     const now = new Date();
     await supabase.from("domain_throttle").upsert(
       { domain, last_dispatched_at: now.toISOString() },
@@ -99,7 +92,7 @@ export const handler = async (req: Request) => {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), WORKER_ACCEPT_TIMEOUT_MS);
 
   try {
     const res = await fetch(`${WORKER_SCRAPE_URL}/scrape`, {
@@ -112,35 +105,34 @@ export const handler = async (req: Request) => {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
+
     if (!res.ok) {
-      console.error("[scrape_story_content] Worker response:", res.status);
-      if (!dryRun) {
-        const { error: incErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
-          p_story_id: story.story_id,
-        });
-        if (incErr) console.error("[scrape_story_content] RPC error:", incErr.message);
-      }
-      return json({ error: `Worker returned ${res.status}`, story_id: story.story_id }, 502);
+      const errText = await res.text().catch(() => "");
+      console.error("[scrape_story_content] Worker response:", res.status, errText.slice(0, 300));
+      // Receive may still run on the worker; stale release handles abandoned dispatches.
+      return json({
+        ok: true,
+        dispatched: 1,
+        story_id: story.story_id,
+        worker_status: res.status,
+        dry_run: dryRun,
+        note: "Worker returned non-OK; dispatch left in-flight until receive or stale release",
+      });
     }
+
     return json({ ok: true, dispatched: 1, story_id: story.story_id, dry_run: dryRun });
   } catch (e) {
     clearTimeout(timeoutId);
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[scrape_story_content] Worker request error:", msg);
-    if (!dryRun) {
-      const { error: logErr } = await supabase.from("scrape_log").insert({
-        story_id: story.story_id,
-        outcome: "failure",
-        error: msg.slice(0, 500),
-        url: url || null,
-        domain: domain || null,
-      });
-      if (logErr) console.error("[scrape_story_content] scrape_log insert error:", logErr.message);
-      const { error: incErr } = await supabase.rpc("increment_scrape_fail_and_maybe_skip", {
-        p_story_id: story.story_id,
-      });
-      if (incErr) console.error("[scrape_story_content] RPC error:", incErr.message);
-    }
-    return json({ error: msg, story_id: story.story_id }, 502);
+    const isAbort = e instanceof Error && e.name === "AbortError";
+    console.warn("[scrape_story_content] Worker request:", isAbort ? "timeout" : msg);
+    return json({
+      ok: true,
+      dispatched: 1,
+      story_id: story.story_id,
+      dry_run: dryRun,
+      worker_timeout: isAbort,
+      note: "Dispatch remains in-flight; receive or stale release will reconcile",
+    });
   }
 };

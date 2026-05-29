@@ -13,7 +13,7 @@ Do not commit secret values to git.
 | receive-scraped-content | receive_scraped_content | `SCRAPE_SECRET` |
 | review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
-| extract-chunk-claims | extract_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| extract-story-entities | extract_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | link-canonical-claims | link_canonical_claims | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
 | link-canonical-events | link_canonical_events | `EVENT_SIMILARITY_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |

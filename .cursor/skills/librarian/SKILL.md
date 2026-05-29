@@ -9,7 +9,7 @@ Keep the agent catalog and generated docs in sync with the codebase. Do not modi
 
 ## Steps
 
-1. Run `npm run agents:refresh` from the repo root (sync manifest + docs + validate).
+1. Run `npm run agents:refresh` from the repo root (sync manifest + docs + purge-engine SQL + validate).
 2. If validate fails, fix handlers, stubs, or schedule SQL — **never edit manifest.yaml by hand**.
 3. Commit generated files (`manifest.yaml`, `docs/generated/*`, division README blocks) if changed.
 4. Do not edit `handler.ts` unless the user asked for a code change.

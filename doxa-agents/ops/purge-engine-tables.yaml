@@ -1,0 +1,56 @@
+# Tables cleared by public.purge_engine_data().
+# Edit this file when engine tables are added or removed; run npm run agents:refresh.
+#
+# Preserved (never truncated): sources, domain_throttle, pipeline_runs, users, topics (rows).
+
+version: 1
+
+preserve_tables:
+  - sources
+  - domain_throttle
+  - pipeline_runs
+  - users
+  - topics
+
+# Truncate together (shared FKs); skipped if the first table is missing.
+truncate_groups:
+  - name: viz
+    tables:
+      - viz_maps
+      - viz_nodes
+      - viz_edges
+
+# Truncated individually with CASCADE when the table exists.
+truncate_tables:
+  - controversy_viewpoints
+  - topic_controversies
+  - controversy_cluster_agreements
+  - controversy_clusters
+  - agreement_cluster_positions
+  - agreement_cluster_claims
+  - agreement_clusters
+  - agreement_summary_cache
+  - agreement_cluster_migrations
+  - position_relationships
+  - position_pending_subtopics
+  - pending_subtopics
+  - canonical_positions
+  - events
+  - claim_relationships
+  - claims
+  - stories
+  - topic_relationships
+
+# Legacy / optional schema; truncated only if present.
+optional_truncate_tables:
+  - narrative_viewpoint_links
+  - narratives
+  - viewpoint_theses
+  - viewpoints
+  - claim_archetypes
+  - archetypes
+
+topics_clear_columns:
+  - summary
+  - topic_description
+  - topic_embedding

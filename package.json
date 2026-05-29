@@ -13,7 +13,9 @@
     "agents:sync:check": "tsx scripts/agents-sync.ts --check",
     "agents:docs": "tsx scripts/agents-docs.ts",
     "agents:docs:check": "tsx scripts/agents-docs.ts --check",
-    "agents:refresh": "npm run agents:sync && npm run agents:docs && npm run agents:validate",
+    "agents:purge-engine": "tsx scripts/generate-purge-engine.ts",
+    "agents:purge-engine:check": "tsx scripts/generate-purge-engine.ts --check",
+    "agents:refresh": "npm run agents:sync && npm run agents:docs && npm run agents:purge-engine && npm run agents:validate",
     "agents:migrate-functions": "tsx scripts/migrate-functions-to-doxa-agents.ts",
     "agents:migrate-crons": "tsx scripts/migrate-crons-to-doxa-agents.ts"
   },

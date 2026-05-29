@@ -1,5 +1,6 @@
 // Supabase Edge Function: extract claims, evidence, links, positions, and events from story chunks (LLM).
-// Writes extraction_json to story_chunks. Pipeline: chunk_story_bodies -> extract_chunk_claims -> merge_story_claims.
+// Writes extraction_json to story_chunks (claims, evidence, positions, events, links).
+// Pipeline: chunk_story_bodies -> extract_story_entities (deploy: extract_chunk_claims) -> merge_story_claims.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_chunks?: number }.
 

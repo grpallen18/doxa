@@ -2,6 +2,7 @@
 // Env vars required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY
 // Optional: OPENAI_MODEL (default: gpt-5-nano-2025-08-07)
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Optional body: { "story_id": "<uuid>" } — classify only that story (ignores lookback/max_stories).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -44,6 +45,17 @@ function clampInt(n: unknown, min: number, max: number, fallback: number) {
 function truncate(s: string, maxLen: number) {
   if (s.length <= maxLen) return s;
   return s.slice(0, maxLen) + "…";
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseOptionalStoryId(body: Record<string, unknown>): string | null {
+  const raw = body.story_id ?? body.storyId;
+  if (typeof raw !== "string") return null;
+  const id = raw.trim();
+  if (!id) return null;
+  return UUID_RE.test(id) ? id : null;
 }
 
 function getSourceName(sources: unknown): string {
@@ -250,6 +262,15 @@ export const handler = async (req: Request) => {
     console.warn("[relevance_gate] Request body parse failed, using defaults");
   }
 
+  const storyIdParam =
+    typeof body.story_id === "string" || typeof body.storyId === "string"
+      ? body.story_id ?? body.storyId
+      : undefined;
+  const singleStoryId = parseOptionalStoryId(body);
+  if (storyIdParam !== undefined && storyIdParam !== null && String(storyIdParam).trim() && !singleStoryId) {
+    return json({ error: "Invalid story_id; expected a UUID" }, 400);
+  }
+
   const lookbackDays = clampInt(body.lookback_days, 1, 14, 7);
   const maxStories = clampInt(body.max_stories, 1, 2000, 10);
   const contentMaxChars = clampInt(body.content_max_chars, 0, 6000, 2500);
@@ -259,97 +280,186 @@ export const handler = async (req: Request) => {
     Date.now() - lookbackDays * 24 * 60 * 60 * 1000
   ).toISOString();
 
+  let claimedStoryIds: string[] = [];
+
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
       auth: { persistSession: false },
     });
 
-    const { data: storiesRaw, error } = await supabase
-      .from("stories")
-      .select("story_id, title, content_snippet, content_full, url, created_at, sources(name)")
-      .is("relevance_status", null)
-      .eq("being_processed", false)
-      .gte("created_at", sinceIso)
-      .order("created_at", { ascending: true })
-      .limit(maxStories);
-
-    if (error) {
-      console.error("[relevance_gate] Supabase query error:", error.message);
-      return json({ error: error.message }, 500);
+    let noUrlDropped = 0;
+    if (!dryRun && !singleStoryId) {
+      const { data: noUrlCount, error: noUrlErr } = await supabase.rpc("mark_no_url_stories_unclassified", {
+        p_since: sinceIso,
+      });
+      if (noUrlErr) {
+        console.error("[relevance_gate] mark_no_url error:", noUrlErr.message);
+        return json({ error: noUrlErr.message }, 500);
+      }
+      noUrlDropped = typeof noUrlCount === "number" ? noUrlCount : 0;
+      if (noUrlDropped > 0) {
+        console.log(`[relevance_gate] Marked ${noUrlDropped} no-URL stories as DROP`);
+      }
     }
 
-    const allStories = (Array.isArray(storiesRaw) ? storiesRaw : []).filter(
-      (s): s is StoryRow => typeof s === "object" && s !== null && typeof (s as StoryRow).story_id === "string"
-    );
+    type ClaimedRow = {
+      story_id: string;
+      title: string | null;
+      content_snippet: string | null;
+      content_full: string | null;
+      url: string | null;
+      created_at: string | null;
+      source_name: string | null;
+    };
 
-    if (allStories.length === 0) {
-      return json({ ok: true, processed: 0, message: "No stories to classify" });
-    }
+    const storySelect =
+      "story_id, title, content_snippet, content_full, url, created_at, sources(name)";
 
-    if (allStories.length !== (storiesRaw?.length ?? 0)) {
-      console.warn(`[relevance_gate] Dropped ${(storiesRaw?.length ?? 0) - allStories.length} rows without story_id`);
-    }
-
-    // Stories with no URL: mark as DROP immediately (cannot scrape).
-    const noUrlStories = allStories.filter((s) => !s.url || (typeof s.url === "string" && s.url.trim() === ""));
-    const stories = allStories.filter((s) => s.url && typeof s.url === "string" && s.url.trim() !== "");
-
-    if (noUrlStories.length > 0) {
-      const now = new Date().toISOString();
-      const noUrlFields = {
-        relevance_score: 0,
-        relevance_confidence: 100,
-        relevance_reason: "No URL; cannot scrape.",
-        relevance_tags: ["no_url"],
-        relevance_model: MODEL,
-        relevance_ran_at: now,
-        scrape_skipped: true,
-        scrape_skipped_at: now,
+    function rowToClaimed(r: StoryRow & { sources?: { name: string } | null }): ClaimedRow {
+      return {
+        story_id: r.story_id,
+        title: r.title,
+        content_snippet: r.content_snippet,
+        content_full: r.content_full,
+        url: r.url,
+        created_at: r.created_at,
+        source_name: getSourceName(r.sources),
       };
-      if (!dryRun) {
-        for (const s of noUrlStories) {
+    }
+
+    let claimedRaw: ClaimedRow[] | null = null;
+
+    if (singleStoryId) {
+      const { data: row, error: fetchErr } = await supabase
+        .from("stories")
+        .select(storySelect)
+        .eq("story_id", singleStoryId)
+        .maybeSingle();
+      if (fetchErr) {
+        console.error("[relevance_gate] Supabase query error:", fetchErr.message);
+        return json({ error: fetchErr.message }, 500);
+      }
+      if (!row) {
+        return json({ error: "Story not found", story_id: singleStoryId }, 404);
+      }
+
+      const storyRow = row as StoryRow & { sources?: { name: string } | null };
+      const url = (storyRow.url ?? "").trim();
+      if (!url) {
+        const now = new Date().toISOString();
+        const noUrlUpdate = {
+          relevance_score: 0,
+          relevance_confidence: 100,
+          relevance_reason: "No URL; cannot scrape.",
+          relevance_tags: ["no_url"],
+          relevance_model: "system",
+          relevance_ran_at: now,
+          relevance_claimed_at: null,
+          scrape_skipped: true,
+          scrape_skipped_at: now,
+        };
+        if (!dryRun) {
           const { error: upErr } = await supabase
             .from("stories")
-            .update(noUrlFields)
-            .eq("story_id", s.story_id);
+            .update(noUrlUpdate)
+            .eq("story_id", singleStoryId);
           if (upErr) {
-            console.error("[relevance_gate] No-URL update error:", upErr.message);
+            console.error("[relevance_gate] Update error:", upErr.message);
             return json({ error: upErr.message }, 500);
           }
         }
-      }
-      console.log(`[relevance_gate] Marked ${noUrlStories.length} no-URL stories as DROP`);
-      if (stories.length === 0) {
         return json({
           ok: true,
-          processed: noUrlStories.length,
+          processed: 1,
+          story_id: singleStoryId,
+          single_story: true,
           dry_run: dryRun,
-          counts: { KEEP: 0, DROP: noUrlStories.length, PENDING: 0 },
-          no_url_dropped: noUrlStories.length,
-          model: MODEL,
-          lookback_days: lookbackDays,
-          max_stories: maxStories,
-          content_max_chars: contentMaxChars,
+          counts: { KEEP: 0, DROP: 1, PENDING: 0 },
+          no_url_dropped: 1,
+          message: "Story has no URL; marked DROP",
         });
       }
+
+      if (dryRun) {
+        claimedRaw = [rowToClaimed(storyRow)];
+      } else {
+        const { data: claimed, error: claimErr } = await supabase
+          .from("stories")
+          .update({ relevance_claimed_at: new Date().toISOString() })
+          .eq("story_id", singleStoryId)
+          .select(storySelect)
+          .maybeSingle();
+        if (claimErr) {
+          console.error("[relevance_gate] claim story error:", claimErr.message);
+          return json({ error: claimErr.message }, 500);
+        }
+        if (!claimed) {
+          return json({ error: "Story not found", story_id: singleStoryId }, 404);
+        }
+        claimedRaw = [rowToClaimed(claimed as StoryRow & { sources?: { name: string } | null })];
+      }
+    } else if (dryRun) {
+      const { data, error } = await supabase
+        .from("stories")
+        .select(storySelect)
+        .is("relevance_status", null)
+        .is("relevance_claimed_at", null)
+        .gte("created_at", sinceIso)
+        .not("url", "is", null)
+        .neq("url", "")
+        .order("created_at", { ascending: true })
+        .limit(maxStories);
+      if (error) {
+        console.error("[relevance_gate] Supabase query error:", error.message);
+        return json({ error: error.message }, 500);
+      }
+      claimedRaw = (Array.isArray(data) ? data : []).map((row) =>
+        rowToClaimed(row as StoryRow & { sources?: { name: string } | null })
+      );
+    } else {
+      const { data, error } = await supabase.rpc("claim_stories_for_relevance", {
+        p_since: sinceIso,
+        p_limit: maxStories,
+      });
+      if (error) {
+        console.error("[relevance_gate] claim_stories_for_relevance error:", error.message);
+        return json({ error: error.message }, 500);
+      }
+      claimedRaw = Array.isArray(data) ? (data as ClaimedRow[]) : [];
     }
 
-    const storyIds = stories.map((s) => s.story_id);
+    const stories: StoryRow[] = (claimedRaw ?? [])
+      .filter((r) => typeof r.story_id === "string")
+      .map((r) => ({
+        story_id: r.story_id,
+        title: r.title,
+        content_snippet: r.content_snippet,
+        content_full: r.content_full,
+        url: r.url,
+        created_at: r.created_at,
+        sources: r.source_name ? { name: r.source_name } : null,
+      }));
 
-    const { error: lockErr } = await supabase
-      .from("stories")
-      .update({ being_processed: true })
-      .in("story_id", storyIds);
-
-    if (lockErr) {
-      console.error("[relevance_gate] Lock (being_processed) error:", lockErr.message);
-      return json({ error: lockErr.message }, 500);
+    if (stories.length === 0) {
+      return json({
+        ok: true,
+        processed: noUrlDropped,
+        message: "No stories to classify",
+        no_url_dropped: noUrlDropped,
+        dry_run: dryRun,
+        single_story: Boolean(singleStoryId),
+        story_id: singleStoryId ?? undefined,
+      });
     }
 
-    console.log(`[relevance_gate] Locked ${stories.length} stories (lookback=${lookbackDays}d, max=${maxStories})`);
+    claimedStoryIds = stories.map((s) => s.story_id);
+    if (singleStoryId) {
+      console.log(`[relevance_gate] Classifying single story ${singleStoryId}`);
+    } else {
+      console.log(`[relevance_gate] Claimed ${stories.length} stories (lookback=${lookbackDays}d, max=${maxStories})`);
+    }
 
-    try {
-      const counts: Record<string, number> = { KEEP: 0, DROP: 0, PENDING: 0 };
+    const counts: Record<string, number> = { KEEP: 0, DROP: 0, PENDING: 0 };
       const now = new Date().toISOString();
       const requestId = `run-${Date.now()}`;
 
@@ -370,6 +480,7 @@ export const handler = async (req: Request) => {
           relevance_tags: ["llm_error"],
           relevance_model: MODEL,
           relevance_ran_at: now,
+          relevance_claimed_at: null,
         }));
 
         if (!dryRun) {
@@ -388,14 +499,16 @@ export const handler = async (req: Request) => {
 
         return json({
           ok: true,
-          processed: fallback.length + noUrlStories.length,
+          processed: fallback.length + noUrlDropped,
           dry_run: dryRun,
-          counts: { KEEP: 0, DROP: noUrlStories.length, PENDING: fallback.length },
-          no_url_dropped: noUrlStories.length,
+          counts: { KEEP: 0, DROP: noUrlDropped, PENDING: fallback.length },
+          no_url_dropped: noUrlDropped,
           model: MODEL,
           lookback_days: lookbackDays,
           max_stories: maxStories,
           content_max_chars: contentMaxChars,
+          single_story: Boolean(singleStoryId),
+          story_id: singleStoryId ?? undefined,
         });
       }
 
@@ -414,6 +527,7 @@ export const handler = async (req: Request) => {
             relevance_tags: ["missing_result"],
             relevance_model: MODEL,
             relevance_ran_at: now,
+            relevance_claimed_at: null,
           };
         }
 
@@ -435,6 +549,7 @@ export const handler = async (req: Request) => {
           relevance_tags: r.tags,
           relevance_model: MODEL,
           relevance_ran_at: now,
+          relevance_claimed_at: null,
         };
       });
 
@@ -454,10 +569,10 @@ export const handler = async (req: Request) => {
         }
       }
 
-      const totalProcessed = updates.length + noUrlStories.length;
+      const totalProcessed = updates.length + noUrlDropped;
       const finalCounts = {
         ...counts,
-        DROP: counts.DROP + noUrlStories.length,
+        DROP: counts.DROP + noUrlDropped,
       };
 
       return json({
@@ -465,24 +580,21 @@ export const handler = async (req: Request) => {
         processed: totalProcessed,
         dry_run: dryRun,
         counts: finalCounts,
-        no_url_dropped: noUrlStories.length,
+        no_url_dropped: noUrlDropped,
         model: MODEL,
         lookback_days: lookbackDays,
         max_stories: maxStories,
         content_max_chars: contentMaxChars,
+        single_story: Boolean(singleStoryId),
+        story_id: singleStoryId ?? undefined,
       });
-    } finally {
-      const { error: unlockErr } = await supabase
-        .from("stories")
-        .update({ being_processed: false })
-        .in("story_id", storyIds);
-      if (unlockErr) {
-        console.error("[relevance_gate] Unlock (being_processed) error:", unlockErr.message);
-      }
-    }
   } catch (e) {
     const errorMsg = (e instanceof Error ? e.message : String(e ?? "Unknown error")) || "Unknown error";
     console.error("[relevance_gate] Uncaught error:", errorMsg, e);
+    if (!dryRun && claimedStoryIds.length > 0) {
+      const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+      await supabase.from("stories").update({ relevance_claimed_at: null }).in("story_id", claimedStoryIds);
+    }
     return json({ error: errorMsg }, 500);
   }
 };

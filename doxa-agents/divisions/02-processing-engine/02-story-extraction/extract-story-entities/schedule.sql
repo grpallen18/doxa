@@ -1,4 +1,4 @@
--- One-time setup: schedule extract_chunk_claims via pg_cron.
+-- One-time setup: schedule extract_story_entities (deploy name extract_chunk_claims) via pg_cron.
 -- Extracts claims/evidence/links from story chunks (LLM). Every 2 minutes.
 --
 -- Prerequisites:

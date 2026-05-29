@@ -13,7 +13,7 @@ steps:
     division: 01-ingestion-engine
     workflow: 01-sourcing
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/divisions/01-ingestion-engine/01-sourcing/ingest-newsapi
     deploy_name: ingest-newsapi
     secrets:
@@ -108,12 +108,12 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/divisions/02-processing-engine/01-document-processing/chunk-story-bodies/schedule.sql
       body: "{}"
-  - id: extract-chunk-claims
+  - id: extract-story-entities
     division: 02-processing-engine
-    workflow: 02-knowledge-extraction
+    workflow: 02-story-extraction
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/02-processing-engine/02-knowledge-extraction/extract-chunk-claims
+    source: doxa-agents/divisions/02-processing-engine/02-story-extraction/extract-story-entities
     deploy_name: extract_chunk_claims
     secrets:
       - OPENAI_API_KEY
@@ -121,7 +121,7 @@ steps:
     cron:
       job_name: extract-chunk-claims-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/02-processing-engine/02-knowledge-extraction/extract-chunk-claims/schedule.sql
+      sql: doxa-agents/divisions/02-processing-engine/02-story-extraction/extract-story-entities/schedule.sql
       body: "{}"
   - id: merge-story-claims
     division: 02-processing-engine

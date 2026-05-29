@@ -13,7 +13,14 @@ function getBearerSecret(request: Request): string | null {
   return auth.slice(7).trim() || null
 }
 
-/** Returns { ok: true } or { ok: false, status, body } so caller can log and return 502 if callback failed. */
+const CALLBACK_MAX_ATTEMPTS = 3
+const CALLBACK_RETRY_DELAY_MS = 500
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Returns { ok: true } or { ok: false, status, body } after retries. */
 async function notifyReceiveScrapedContent(
   receiveUrl: string,
   secret: string,
@@ -25,30 +32,48 @@ async function notifyReceiveScrapedContent(
   const body = result.ok
     ? { story_id: storyId, url: targetUrl, title: result.title, content: result.content, scrape_method: result.scrape_method ?? null, dry_run: dryRun }
     : { story_id: storyId, url: targetUrl, error: result.error, dry_run: dryRun }
-  try {
-    const res = await fetch(receiveUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify(body),
-    })
-    const resBody = await res.text()
-    if (!res.ok) {
+
+  let lastStatus = 0
+  let lastBody = ""
+
+  for (let attempt = 1; attempt <= CALLBACK_MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(receiveUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${secret}`,
+        },
+        body: JSON.stringify(body),
+      })
+      const resBody = await res.text()
+      if (res.ok) {
+        return { ok: true }
+      }
+      lastStatus = res.status
+      lastBody = resBody
       console.error("[doxa] receive_scraped_content failed", {
         story_id: storyId,
+        attempt,
         status: res.status,
         body: resBody.slice(0, 500),
       })
-      return { ok: false, status: res.status, body: resBody }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      lastStatus = 0
+      lastBody = msg
+      console.error("[doxa] receive_scraped_content request error", {
+        story_id: storyId,
+        attempt,
+        error: msg,
+      })
     }
-    return { ok: true }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.error("[doxa] receive_scraped_content request error", { story_id: storyId, error: msg })
-    return { ok: false, status: 0, body: msg }
+    if (attempt < CALLBACK_MAX_ATTEMPTS) {
+      await sleep(CALLBACK_RETRY_DELAY_MS * attempt)
+    }
   }
+
+  return { ok: false, status: lastStatus, body: lastBody }
 }
 
 export default {

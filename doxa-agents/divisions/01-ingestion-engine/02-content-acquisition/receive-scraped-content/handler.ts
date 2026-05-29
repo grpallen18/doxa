@@ -97,7 +97,7 @@ export const handler = async (req: Request) => {
       const { error: updateErr } = await supabase
         .from("stories")
         .update({
-          being_processed: false,
+          scrape_dispatched_at: null,
           scrape_skipped: false,
           scrape_fail_count: 0,
           scraped_at: new Date().toISOString(),
@@ -123,7 +123,7 @@ export const handler = async (req: Request) => {
     const { error: updateErr } = await supabase
       .from("stories")
       .update({
-        being_processed: false,
+        scrape_dispatched_at: null,
         scrape_skipped: true,
         scrape_skipped_at: new Date().toISOString(),
       })
