@@ -1,3 +1,2 @@
-// AUTO-GENERATED deploy stub — implementation in doxa-agents
-import { handler } from "../../../doxa-agents/divisions/03-semantic-intelligence-engine/03-governance-manual/02-assign-ranked-subtopics/handler.ts";
+import { handler } from "../../../doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/01-assign-ranked-subtopics/handler.ts";
 Deno.serve(handler);

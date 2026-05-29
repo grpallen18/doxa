@@ -73,6 +73,17 @@ export interface ControversyDetail {
   summary: string | null
 }
 
+/** Traceability from controversy → agreement side → positions → claims */
+export interface AgreementSideTrace {
+  agreement_cluster_id: string
+  stance_label: string | null
+  label: string | null
+  summary: string | null
+  position_ids: string[]
+  claim_ids: string[]
+  story_ids: string[]
+}
+
 /** Viewpoint detail for the side panel (controversy scope) */
 export interface ViewpointDetail {
   viewpoint_id: string

@@ -1,6 +1,6 @@
 # Architecture roadmap
 
-Planned divisions not yet implemented as runnable automation:
+Planned departments not yet implemented as runnable automation:
 
 ## 04 Quality assurance
 
@@ -22,4 +22,4 @@ Planned divisions not yet implemented as runnable automation:
 - Historical context management
 - Relevance decay monitoring
 
-When each area gains edge functions or crons, add a division folder under `doxa-agents/divisions/` and register steps in `manifest.yaml`.
+When each area gains edge functions or crons, add a department folder under `doxa-agents/departments/` and register steps in `manifest.yaml`.

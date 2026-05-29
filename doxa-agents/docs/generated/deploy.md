@@ -3,40 +3,54 @@
 # Deploy edge functions
 
 ```bash
-supabase functions deploy ingest-newsapi
-supabase functions deploy relevance_gate
-supabase functions deploy scrape_story_content
-supabase functions deploy receive_scraped_content
 supabase functions deploy clean_scraped_content
+supabase functions deploy ingest-newsapi
+supabase functions deploy receive_scraped_content
+supabase functions deploy relevance_gate
 supabase functions deploy review_pending_stories
+supabase functions deploy scrape_story_content
 supabase functions deploy chunk_story_bodies
 supabase functions deploy extract_story_entities
+supabase functions deploy review_chunk_extraction
+supabase functions deploy refine_chunk_extraction
+supabase functions deploy validate_chunk_extraction
+supabase functions deploy review_merged_extraction
+supabase functions deploy refine_merged_extraction
+supabase functions deploy validate_merged_extraction
 supabase functions deploy merge_story_entities
 supabase functions deploy link_canonical_claims
 supabase functions deploy link_canonical_events
 supabase functions deploy link_canonical_positions
 supabase functions deploy update_stances
-supabase functions deploy classify_position_pairs
-supabase functions deploy refresh_claim_eligibility
-supabase functions deploy build_debate_topology
-supabase functions deploy clustering_pipeline
+supabase functions deploy assign_ranked_subtopics
+supabase functions deploy generate_position_pair_candidates
+supabase functions deploy classify_position_relationships
+supabase functions deploy build_agreement_clusters
+supabase functions deploy generate_agreement_cluster_candidates
+supabase functions deploy classify_agreement_cluster_relationships
+supabase functions deploy build_controversy_clusters
+supabase functions deploy topology_pipeline
 supabase functions deploy generate_agreement_summaries
 supabase functions deploy generate_viewpoints
+supabase functions deploy refresh_topology_candidates
 supabase functions deploy seed_subtopic_embeddings
-supabase functions deploy assign_ranked_subtopics
 supabase functions deploy process_topic
 supabase functions deploy review_link_suggestion
-supabase functions deploy generate_atlas_map
 supabase functions deploy discord_daily_health
+supabase functions deploy generate_atlas_map
 ```
 
 JWT exceptions:
 
 ```bash
 supabase functions deploy receive_scraped_content --no-verify-jwt
+supabase functions deploy build_agreement_clusters --no-verify-jwt
+supabase functions deploy generate_agreement_cluster_candidates --no-verify-jwt
+supabase functions deploy classify_agreement_cluster_relationships --no-verify-jwt
+supabase functions deploy build_controversy_clusters --no-verify-jwt
+supabase functions deploy topology_pipeline --no-verify-jwt
 supabase functions deploy generate_viewpoints --no-verify-jwt
 supabase functions deploy aggregate_position_pair_scores --no-verify-jwt
-supabase functions deploy build_controversy_clusters --no-verify-jwt
 supabase functions deploy build_position_clusters --no-verify-jwt
 supabase functions deploy classify_claim_pairs --no-verify-jwt
 supabase functions deploy generate_position_summaries --no-verify-jwt

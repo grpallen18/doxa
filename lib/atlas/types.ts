@@ -6,9 +6,17 @@ import type {
   ControversyDetail,
   PositionDetail,
   ClaimDetail,
+  AgreementSideTrace,
 } from '@/components/atlas/types'
 
-export type { OuterNode, ViewpointDetail, ControversyDetail, PositionDetail, ClaimDetail } from '@/components/atlas/types'
+export type {
+  OuterNode,
+  ViewpointDetail,
+  ControversyDetail,
+  PositionDetail,
+  ClaimDetail,
+  AgreementSideTrace,
+} from '@/components/atlas/types'
 
 /** Unified scope API response shape */
 export interface ScopeResponse {
@@ -20,4 +28,6 @@ export interface ScopeResponse {
   controversyDetails?: ControversyDetail[]
   positionDetails?: PositionDetail[]
   claimDetails?: ClaimDetail[]
+  agreementSides?: AgreementSideTrace[]
+  lineage_relationship_ids?: string[]
 }

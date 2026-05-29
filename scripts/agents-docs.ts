@@ -114,28 +114,28 @@ function secretsMd(steps: ManifestStep[]): string {
   return lines.join('\n');
 }
 
-function divisionBlock(division: string, steps: ManifestStep[]): string {
-  const divSteps = steps
-    .filter((s) => s.division === division)
+function departmentBlock(department: string, steps: ManifestStep[]): string {
+  const deptSteps = steps
+    .filter((s) => s.department === department)
     .sort((a, b) => (a.source ?? a.id).localeCompare(b.source ?? b.id));
   const lines = [
     AGENTS_BEGIN,
     '',
-    `### ${division} (generated)`,
+    `### ${department} (generated)`,
     '',
     '| Step | Deploy | Status |',
     '|------|--------|--------|',
   ];
-  for (const s of divSteps) {
+  for (const s of deptSteps) {
     lines.push(`| ${s.id} | ${s.deploy_name ?? '—'} | ${s.status} |`);
   }
   lines.push('', AGENTS_END);
   return lines.join('\n');
 }
 
-function upsertDivisionReadme(divisionPath: string, division: string, steps: ManifestStep[]) {
-  const readmePath = path.join(REPO_ROOT, divisionPath, 'README.md');
-  const block = divisionBlock(division, steps);
+function upsertDepartmentReadme(departmentPath: string, department: string, steps: ManifestStep[]) {
+  const readmePath = path.join(REPO_ROOT, departmentPath, 'README.md');
+  const block = departmentBlock(department, steps);
   let content: string;
   if (fs.existsSync(readmePath)) {
     content = fs.readFileSync(readmePath, 'utf8');
@@ -147,7 +147,7 @@ function upsertDivisionReadme(divisionPath: string, division: string, steps: Man
       content = content.trimEnd() + '\n\n' + block + '\n';
     }
   } else {
-    content = `# ${division}\n\n${block}\n`;
+    content = `# ${department}\n\n${block}\n`;
   }
   writeIfChanged(path.relative(REPO_ROOT, readmePath), content);
 }
@@ -163,11 +163,11 @@ function main() {
   if (writeIfChanged('doxa-agents/docs/generated/deploy.md', deployMd(manifest.steps))) changed = true;
   if (writeIfChanged('doxa-agents/docs/generated/secrets.md', secretsMd(manifest.steps))) changed = true;
 
-  const divisions = [...new Set(manifest.steps.map((s) => s.division))];
-  for (const d of divisions) {
-    const rel = `doxa-agents/divisions/${d}`;
+  const departments = [...new Set(manifest.steps.map((s) => s.department))];
+  for (const d of departments) {
+    const rel = `doxa-agents/departments/${d}`;
     if (fs.existsSync(path.join(REPO_ROOT, rel))) {
-      if (upsertDivisionReadme(rel, d, manifest.steps)) changed = true;
+      if (upsertDepartmentReadme(rel, d, manifest.steps)) changed = true;
     }
   }
 

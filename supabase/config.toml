@@ -320,14 +320,22 @@ allow_dynamic_registration = false
 [functions.receive_scraped_content]
 verify_jwt = false
 
-# Clustering sub-functions: called by clustering_pipeline via HTTP with service role key.
+# Topology sub-functions: called by topology_pipeline via HTTP with service role key.
+[functions.topology_pipeline]
+verify_jwt = false
+[functions.build_agreement_clusters]
+verify_jwt = false
+[functions.generate_agreement_cluster_candidates]
+verify_jwt = false
+[functions.classify_agreement_cluster_relationships]
+verify_jwt = false
+[functions.build_controversy_clusters]
+verify_jwt = false
 [functions.classify_claim_pairs]
 verify_jwt = false
 [functions.build_position_clusters]
 verify_jwt = false
 [functions.aggregate_position_pair_scores]
-verify_jwt = false
-[functions.build_controversy_clusters]
 verify_jwt = false
 [functions.generate_position_summaries]
 verify_jwt = false

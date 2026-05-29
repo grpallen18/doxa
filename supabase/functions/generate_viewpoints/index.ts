@@ -1,3 +1,2 @@
-// AUTO-GENERATED deploy stub — implementation in doxa-agents
-import { handler } from "../../../doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/06-generate-viewpoints/handler.ts";
+import { handler } from "../../../doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/10-generate-viewpoints/handler.ts";
 Deno.serve(handler);

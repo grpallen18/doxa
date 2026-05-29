@@ -5,6 +5,8 @@ import yaml from 'yaml';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(__dirname, '..');
+export const DEPARTMENTS_ROOT = path.join(REPO_ROOT, 'doxa-agents', 'departments');
+export const DEPARTMENTS_SOURCE_PREFIX = 'doxa-agents/departments/';
 
 export type StepStatus = 'active' | 'inactive' | 'deprecated';
 export type StepKind = 'edge_function' | 'worker' | 'rpc' | 'manual' | 'maintenance_script';
@@ -19,7 +21,7 @@ export interface CronConfig {
 export interface ManifestStep {
   id: string;
   deploy_name?: string;
-  division: string;
+  department: string;
   workflow: string;
   kind: StepKind;
   status: StepStatus;
@@ -175,6 +177,45 @@ export function jobNameToStepId(jobName: string): string {
 /** Step folder order prefix (e.g. 01-scrape-story-content → scrape-story-content). */
 export function stepFolderToId(folderName: string): string {
   return folderName.replace(/^\d{2}-/, '');
+}
+
+export interface StepLocation {
+  department: string;
+  workflow?: string;
+  stepFolder: string;
+  source: string;
+  isFlat: boolean;
+}
+
+/** Parse a manifest step `source` path into department / workflow / step folder. */
+export function parseStepSource(source: string): StepLocation {
+  const rel = source.replace(/^doxa-agents\/departments\//, '');
+  const parts = rel.split('/');
+  const stepFolder = parts[parts.length - 1];
+  if (parts.length === 2) {
+    return { department: parts[0], stepFolder, source, isFlat: true };
+  }
+  return {
+    department: parts.slice(0, -2).join('/'),
+    workflow: parts[parts.length - 2],
+    stepFolder,
+    source,
+    isFlat: false,
+  };
+}
+
+/** README required for a step: flat agents use step README; nested agents use workflow README. */
+export function readmePathForStep(source: string): string {
+  const rel = source.replace(/^doxa-agents\/departments\//, '');
+  const parts = rel.split('/');
+  if (parts.length === 1) {
+    return path.join(DEPARTMENTS_ROOT, parts[0], 'README.md');
+  }
+  const loc = parseStepSource(source);
+  if (loc.isFlat) {
+    return path.join(REPO_ROOT, loc.source, 'README.md');
+  }
+  return path.join(DEPARTMENTS_ROOT, loc.department, loc.workflow!, 'README.md');
 }
 
 export const GENERATED_BANNER =

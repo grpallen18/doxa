@@ -5,12 +5,7 @@
 ```mermaid
 flowchart LR
   scrape_worker --> receive_scraped_content
-  merge_story_entities --> link_canonical_events
-  merge_story_entities --> link_canonical_positions
   link_canonical_positions --> assign_ranked_subtopics
-  clustering_pipeline --> build_debate_topology
-  clustering_pipeline --> generate_agreement_summaries
-  clustering_pipeline --> generate_viewpoints
 ```
 
 _Generated from manifest invokes._

@@ -1,3 +1,3 @@
 // AUTO-GENERATED deploy stub — implementation in doxa-agents
-import { handler } from "../../../doxa-agents/divisions/01-ingestion-engine/01-sourcing/01-ingest-newsapi/handler.ts";
+import { handler } from "../../../doxa-agents/departments/01-ingestion-engine/01-ingest-newsapi/handler.ts";
 Deno.serve(handler);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-/** Returns graph data for a controversy: center node + sourceDetails from claims in its positions. */
+/** Returns graph data for a controversy: center node + sourceDetails from agreement-side claims. */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,13 +24,14 @@ export async function GET(
       )
     }
 
-    const { data: positionLinks } = await supabase
-      .from('controversy_cluster_positions')
-      .select('position_cluster_id')
+    const { data: sideLinks } = await supabase
+      .from('controversy_cluster_agreements')
+      .select('agreement_cluster_id')
       .eq('controversy_cluster_id', controversyId)
 
-    const positionIds = (positionLinks ?? []).map((r) => r.position_cluster_id as string)
-    if (positionIds.length === 0) {
+    const agreementIds = (sideLinks ?? []).map((r) => r.agreement_cluster_id as string)
+
+    if (agreementIds.length === 0) {
       return NextResponse.json({
         data: {
           nodes: [
@@ -52,9 +53,9 @@ export async function GET(
     }
 
     const { data: pccRows } = await supabase
-      .from('position_cluster_claims')
+      .from('agreement_cluster_claims')
       .select('claim_id')
-      .in('position_cluster_id', positionIds)
+      .in('agreement_cluster_id', agreementIds)
 
     const claimIds = [...new Set((pccRows ?? []).map((r) => r.claim_id as string))]
     const top20ClaimIds = claimIds.slice(0, 20)
@@ -145,7 +146,7 @@ export async function GET(
         })
       }
 
-      const storiesArray = Array.from(sourceGroups.entries())
+      sourceDetails = Array.from(sourceGroups.entries())
         .map(([source_id, g]) => ({
           source_id,
           source_name: g.source_name,
@@ -156,56 +157,15 @@ export async function GET(
             title: s.title,
             url: s.url,
             published_at: s.published_at ?? null,
-            story_claims: s.story_claims,
+            story_claims: s.story_claims.map((sc) => ({
+              ...sc,
+              linked_to_viewpoint: top20Set.has(
+                (storyClaimsData ?? []).find((x) => x.story_claim_id === sc.story_claim_id)?.claim_id as string
+              ),
+            })),
           })),
         }))
         .sort((a, b) => b.story_count - a.story_count)
-
-      const allStoryIds = storiesArray.flatMap((sd) => sd.stories.map((s) => s.story_id))
-      const uniqueStoryIds = [...new Set(allStoryIds)]
-
-      const allStoryClaimsByStory = new Map<
-        string,
-        Array<{ story_claim_id: string; raw_text: string | null; claim_id: string }>
-      >()
-      if (uniqueStoryIds.length > 0) {
-        const { data: allClaims } = await supabase
-          .from('story_claims')
-          .select('story_claim_id, claim_id, raw_text, story_id')
-          .in('story_id', uniqueStoryIds)
-        for (const row of allClaims ?? []) {
-          const sid = row.story_id as string
-          let list = allStoryClaimsByStory.get(sid)
-          if (!list) {
-            list = []
-            allStoryClaimsByStory.set(sid, list)
-          }
-          list.push({
-            story_claim_id: row.story_claim_id as string,
-            raw_text: (row.raw_text as string) ?? null,
-            claim_id: row.claim_id as string,
-          })
-        }
-      }
-
-      sourceDetails = storiesArray.map((sd) => ({
-        ...sd,
-        stories: sd.stories.map((s) => {
-          const allClaims = allStoryClaimsByStory.get(s.story_id) ?? []
-          const sortedClaims = allClaims
-            .map((sc) => ({
-              story_claim_id: sc.story_claim_id,
-              raw_text: sc.raw_text,
-              linked_to_viewpoint: top20Set.has(sc.claim_id),
-            }))
-            .sort((a, b) => (b.linked_to_viewpoint ? 1 : 0) - (a.linked_to_viewpoint ? 1 : 0))
-          return {
-            ...s,
-            published_at: s.published_at ?? null,
-            story_claims: sortedClaims,
-          }
-        }),
-      }))
     }
 
     const centerText = (controversy.question || controversy.summary) ?? null

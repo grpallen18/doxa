@@ -3,6 +3,8 @@ import path from 'path';
 import yaml from 'yaml';
 import {
   REPO_ROOT,
+  DEPARTMENTS_ROOT,
+  DEPARTMENTS_SOURCE_PREFIX,
   MANIFEST_BANNER,
   extractInvokedDeployNames,
   extractSecrets,
@@ -24,7 +26,7 @@ const checkOnly = process.argv.includes('--check');
 
 interface HandlerInfo {
   id: string;
-  division: string;
+  department: string;
   workflow: string;
   source: string;
   handlerPath: string;
@@ -42,15 +44,25 @@ function walkFiles(dir: string, pattern: RegExp, out: string[] = []): string[] {
 }
 
 function parseHandlerPath(handlerFile: string): HandlerInfo | null {
-  const rel = path.relative(path.join(REPO_ROOT, 'doxa-agents', 'divisions'), handlerFile).replace(/\\/g, '/');
+  const rel = path.relative(DEPARTMENTS_ROOT, handlerFile).replace(/\\/g, '/');
   const parts = rel.split('/');
-  if (parts.length < 4 || parts[parts.length - 1] !== 'handler.ts') return null;
+  if (parts.length < 3 || parts[parts.length - 1] !== 'handler.ts') return null;
   const folderName = parts[parts.length - 2];
   const id = stepFolderToId(folderName);
+  if (parts.length === 3) {
+    const department = parts[0];
+    return {
+      id,
+      department,
+      workflow: id,
+      source: `${DEPARTMENTS_SOURCE_PREFIX}${department}/${folderName}`,
+      handlerPath: handlerFile,
+    };
+  }
   const workflow = parts[parts.length - 3];
-  const division = parts.slice(0, parts.length - 3).join('/');
-  const source = `doxa-agents/divisions/${division}/${workflow}/${folderName}`;
-  return { id, division, workflow, source, handlerPath: handlerFile };
+  const department = parts.slice(0, parts.length - 3).join('/');
+  const source = `${DEPARTMENTS_SOURCE_PREFIX}${department}/${workflow}/${folderName}`;
+  return { id, department, workflow, source, handlerPath: handlerFile };
 }
 
 function buildStubMap(): Map<string, string> {
@@ -70,8 +82,8 @@ function buildStubMap(): Map<string, string> {
   return map;
 }
 
-function resolveStatus(id: string, division: string, active: Set<string>): StepStatus {
-  if (division.startsWith('legacy/') || division === 'legacy') return 'deprecated';
+function resolveStatus(id: string, department: string, active: Set<string>): StepStatus {
+  if (department.startsWith('legacy/') || department === 'legacy') return 'deprecated';
   if (active.has(id)) return 'active';
   return 'inactive';
 }
@@ -122,12 +134,20 @@ function findCronForHandler(
   return undefined;
 }
 
-function parseSqlLocation(sqlRel: string): { division: string; workflow: string } {
-  const parts = sqlRel.replace(/^doxa-agents\/divisions\//, '').split('/');
-  if (parts.length >= 2) {
-    return { division: parts[0], workflow: parts[1] };
+function parseSqlLocation(sqlRel: string): { department: string; workflow: string } {
+  const parts = sqlRel.replace(/^doxa-agents\/departments\//, '').split('/');
+  const fileName = parts[parts.length - 1];
+  if (parts.length === 2 && fileName.endsWith('.sql')) {
+    return { department: parts[0], workflow: stepFolderToId(parts[0]) };
   }
-  return { division: '06-business-operations', workflow: 'maintenance' };
+  const stepFolder = parts[parts.length - 2];
+  if (parts.length === 2) {
+    return { department: parts[0], workflow: stepFolderToId(stepFolder) };
+  }
+  if (parts.length >= 3) {
+    return { department: parts.slice(0, -2).join('/'), workflow: parts[parts.length - 2] };
+  }
+  return { department: '06-business-operations', workflow: 'maintenance' };
 }
 
 function buildManifest(): Manifest {
@@ -140,7 +160,7 @@ function buildManifest(): Manifest {
   const appInvokes = scanAppApiInvokes();
 
   const sqlFiles = new Map<string, { rel: string; content: string; jobs: ReturnType<typeof parseCronSql> }>();
-  for (const sqlFile of walkFiles(path.join(REPO_ROOT, 'doxa-agents', 'divisions'), /schedule(s)?\.sql$/)) {
+  for (const sqlFile of walkFiles(DEPARTMENTS_ROOT, /schedule(s)?\.sql$/)) {
     const rel = path.relative(REPO_ROOT, sqlFile).replace(/\\/g, '/');
     const content = fs.readFileSync(sqlFile, 'utf8');
     sqlFiles.set(rel, { rel, content, jobs: parseCronSql(content) });
@@ -149,7 +169,7 @@ function buildManifest(): Manifest {
   const stepsById = new Map<string, ManifestStep>();
   const deployToId = new Map<string, string>();
 
-  for (const handlerFile of walkFiles(path.join(REPO_ROOT, 'doxa-agents', 'divisions'), /^handler\.ts$/)) {
+  for (const handlerFile of walkFiles(DEPARTMENTS_ROOT, /^handler\.ts$/)) {
     const info = parseHandlerPath(handlerFile);
     if (!info) continue;
 
@@ -163,10 +183,10 @@ function buildManifest(): Manifest {
 
     const step: ManifestStep = {
       id: info.id,
-      division: info.division,
+      department: info.department,
       workflow: info.workflow,
       kind: 'edge_function',
-      status: resolveStatus(info.id, info.division, activeSet),
+      status: resolveStatus(info.id, info.department, activeSet),
       source: info.source,
     };
     if (deployName) step.deploy_name = deployName;
@@ -188,10 +208,10 @@ function buildManifest(): Manifest {
       if (!stepsById.has(id)) {
         stepsById.set(id, {
           id,
-          division: loc.division,
+          department: loc.department,
           workflow: loc.workflow,
           kind: 'maintenance_script',
-          status: resolveStatus(id, loc.division, activeSet),
+          status: resolveStatus(id, loc.department, activeSet),
           source: path.dirname(sqlRel).replace(/\\/g, '/'),
           description: 'One-time unschedule of deprecated crons',
         });
@@ -229,10 +249,10 @@ function buildManifest(): Manifest {
       };
       stepsById.set(id, {
         id,
-        division: loc.division,
+        department: loc.department,
         workflow: loc.workflow,
         kind: 'rpc',
-        status: resolveStatus(id, loc.division, activeSet),
+        status: resolveStatus(id, loc.department, activeSet),
         source: path.dirname(sqlRel).replace(/\\/g, '/'),
         cron,
       });
@@ -266,7 +286,7 @@ function buildManifest(): Manifest {
   }
 
   steps.sort((a, b) => {
-    const d = a.division.localeCompare(b.division);
+    const d = a.department.localeCompare(b.department);
     if (d !== 0) return d;
     const w = a.workflow.localeCompare(b.workflow);
     if (w !== 0) return w;

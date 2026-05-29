@@ -83,14 +83,14 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### story_chunks
 
-**Purpose:** Text chunks from story_bodies for downstream processing (e.g. extraction, embeddings). 3500 chars per chunk, 500 overlap. Written by **chunk_story_bodies**. **extract_story_entities** (step `extract-story-entities`) fills `extraction_json` with chunk-level claims, evidence, positions, events, and links.
+**Purpose:** Text chunks from story_bodies for downstream processing (e.g. extraction, embeddings). 3500 chars per chunk, 500 overlap. Written by **chunk_story_bodies**. **extract_story_entities** (step `extract-story-entities`) fills `extraction_json` with chunk-level claims, evidence, positions, events, and link arrays.
 
 | Column | Type | Purpose |
 |--------|------|---------|
 | `story_id` | uuid (FK → stories.story_id) | Which story. |
 | `chunk_index` | smallint | 0-based order of chunk within the story. |
 | `content` | text | Chunk text. |
-| `extraction_json` | jsonb (nullable) | Chunk extraction: claims, evidence, links, positions, position_*_links, events, event_*_links. See `doxa-agents/AGENTS.md`. |
+| `extraction_json` | jsonb (nullable) | Chunk extraction: claims, evidence, claim_evidence_links, positions, position_*_links, events, event_*_links. See `doxa-agents/AGENTS.md`. |
 | `created_at` | timestamptz | When the chunk was created. |
 
 **Keys:** PK `(story_id, chunk_index)`.
@@ -681,7 +681,7 @@ Pipeline agents, crons, and deploy commands are documented in **[doxa-agents/AGE
 - [docs/generated/deploy.md](../doxa-agents/docs/generated/deploy.md) — deploy commands (auto-generated)
 - [docs/generated/pipeline-graph.md](../doxa-agents/docs/generated/pipeline-graph.md) — dependency graph
 
-Handler source lives under `doxa-agents/divisions/`; thin deploy stubs live under `supabase/functions/<deploy_name>/index.ts`. Schedule SQL lives next to each step under `doxa-agents/divisions/**/schedule.sql` (or `schedules.sql` for grouped jobs).
+Handler source lives under `doxa-agents/departments/`; thin deploy stubs live under `supabase/functions/<deploy_name>/index.ts`. Schedule SQL lives next to each step under `doxa-agents/departments/**/schedule.sql` (or `schedules.sql` for grouped jobs).
 
 After changing handlers or crons, run `npm run agents:validate` and `npm run agents:docs`. The Cursor **librarian** skill (`.cursor/skills/librarian/SKILL.md`) keeps docs in sync.
 
@@ -689,7 +689,9 @@ After changing handlers or crons, run `npm run agents:validate` and `npm run age
 
 - **story_events** — extracted occurrences per story; `event_id` FK when canonicalized.
 - **events** — canonical occurrences with `blocking_key`, `canonical_text`, embedding.
-- **story_event_evidence**, **story_event_claims**, **story_event_positions** — typed story-level bridges.
+- **story_event_evidence_links**, **story_event_claim_links** — story-level event links.
+- **story_position_claim_links**, **story_position_evidence_links** — position support links.
+- **story_position_event_context** (view) — derived position→event paths via claims or evidence (not a persisted extracted edge).
 
 ---
 

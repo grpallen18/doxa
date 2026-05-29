@@ -10,25 +10,25 @@ Read [doxa-agents/AGENTS.md](doxa-agents/AGENTS.md) when changing ingestion, pro
 
 ## After code changes
 
-1. Edit `doxa-agents/divisions/**/handler.ts` (real logic). Update `schedule.sql` only if cron schedule or job changes.
+1. Edit `doxa-agents/departments/**/handler.ts` (real logic). Update `schedule.sql` only if cron schedule or job changes.
 2. Update `supabase/functions/<deploy_name>/index.ts` stub only when adding a new function or changing handler path.
 3. Run `npm run agents:refresh` from repo root before finishing.
 4. **Never hand-edit** `doxa-agents/manifest.yaml` or `doxa-agents/docs/generated/*`.
 
-## Processing vs canonicalization
+## Processing vs canonicalization vs topology
 
-- **02-story-extraction** (`extract-story-entities`): LLM extracts claims, evidence, positions, and events from chunk text.
-- **03-story-synthesis** (`merge-story-entities`): merges to `story_*` tables.
-- **01-canonical-knowledge** (`link-canonical-claims`, `link-canonical-events`, `link-canonical-positions`): dedupe to global entities. Positions are not created here—they are linked like claims.
-- **02-position-intelligence**: relationships between canonical positions only—not text extraction.
+- **02-extract-story-entities** (`extract-story-entities`): LLM extracts claims, evidence, positions, and events from chunk text.
+- **03-merge-story-entities** (`merge-story-entities`): merges to `story_*` tables.
+- **01-canonical-knowledge** (`link-canonical-*`, `update-stances`): dedupe story entities to global canonical rows.
+- **02-debate-topology** onward: candidate queues, relationship classification, agreement/controversy clusters—not text extraction. See [doxa-agents/docs/topology-pipeline.md](doxa-agents/docs/topology-pipeline.md).
 
 ## Step folder naming
 
-Pipeline steps live under `divisions/<division>/<workflow>/<NN>-<step-id>/`. Two-digit prefixes (`01-`, `02-`, …) sort folders in run order; `npm run agents:sync` strips the prefix for catalog step ids and `activation.yaml` entries.
+Pipeline steps live under `departments/<department>/<NN>-<step-id>/` (flat agent) or `departments/<department>/<workflow>/<NN>-<step-id>/` (multi-step workflow). Two-digit prefixes (`01-`, `02-`, …) sort folders in run order; `npm run agents:sync` strips the prefix for catalog step ids and `activation.yaml` entries.
 
 ## Directory layout and READMEs
 
-Follow [doxa-agents/docs/directory-layout.md](doxa-agents/docs/directory-layout.md). Every **division** and **workflow** folder needs a `README.md` (keeps the file tree navigable and passes `agents:validate`). Step folders are documented in the workflow README—not separate README files.
+Follow [doxa-agents/docs/directory-layout.md](doxa-agents/docs/directory-layout.md). Every **department**, **flat agent**, and **workflow** folder needs a `README.md` (passes `agents:validate`). Nested step folders are documented in the workflow README. Catalog sync lives in [doxa-agents/librarian](doxa-agents/librarian/) — not under `departments/`.
 
 ## Engine data purge
 
@@ -52,9 +52,13 @@ When a handler or stub under `supabase/functions/` changed, remind the user to d
 | Deploy name | Why |
 |-------------|-----|
 | `receive_scraped_content` | Cloudflare Worker callback (`Bearer SCRAPE_SECRET`) |
-| `generate_viewpoints` | Invoked by `clustering_pipeline` |
+| `generate_viewpoints` | Invoked by `topology_pipeline` |
+| `topology_pipeline` | Internal orchestrator (service-role chain) |
+| `build_agreement_clusters` | Invoked by `topology_pipeline` |
+| `generate_agreement_cluster_candidates` | Invoked by `topology_pipeline` |
+| `classify_agreement_cluster_relationships` | Invoked by `topology_pipeline` |
+| `build_controversy_clusters` | Invoked by `topology_pipeline` |
 | `aggregate_position_pair_scores` | Legacy internal invoke |
-| `build_controversy_clusters` | Legacy internal invoke |
 | `build_position_clusters` | Legacy internal invoke |
 | `classify_claim_pairs` | Legacy internal invoke |
 | `generate_position_summaries` | Legacy internal invoke |

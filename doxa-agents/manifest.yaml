@@ -9,68 +9,12 @@ workers:
     invokes:
       - receive-scraped-content
 steps:
-  - id: ingest-newsapi
-    division: 01-ingestion-engine
-    workflow: 01-sourcing
-    kind: edge_function
-    status: active
-    source: doxa-agents/divisions/01-ingestion-engine/01-sourcing/01-ingest-newsapi
-    deploy_name: ingest-newsapi
-    secrets:
-      - NEWSAPI_API_KEY
-    cron:
-      job_name: ingest-newsapi-6am-6pm-cst
-      schedule: 0 0,12 * * *
-      sql: doxa-agents/divisions/01-ingestion-engine/01-sourcing/01-ingest-newsapi/schedule.sql
-      body: "{}"
-  - id: relevance-gate
-    division: 01-ingestion-engine
-    workflow: 01-sourcing
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/divisions/01-ingestion-engine/01-sourcing/02-relevance-gate
-    deploy_name: relevance_gate
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    cron:
-      job_name: relevance-gate-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/01-ingestion-engine/01-sourcing/02-relevance-gate/schedule.sql
-      body: "{}"
-  - id: scrape-story-content
-    division: 01-ingestion-engine
-    workflow: 02-content-acquisition
-    kind: edge_function
-    status: active
-    source: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/01-scrape-story-content
-    deploy_name: scrape_story_content
-    secrets:
-      - SCRAPE_SECRET
-      - WORKER_SCRAPE_URL
-    cron:
-      job_name: scrape-story-content-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/01-scrape-story-content/schedule.sql
-      body: "{}"
-  - id: receive-scraped-content
-    division: 01-ingestion-engine
-    workflow: 02-content-acquisition
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/02-receive-scraped-content
-    deploy_name: receive_scraped_content
-    secrets:
-      - SCRAPE_SECRET
-    verify_jwt: false
-    invoked_by:
-      - cloudflare-worker
   - id: clean-scraped-content
-    division: 01-ingestion-engine
-    workflow: 02-content-acquisition
+    department: 01-ingestion-engine
+    workflow: clean-scraped-content
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/03-clean-scraped-content
+    source: doxa-agents/departments/01-ingestion-engine/05-clean-scraped-content
     deploy_name: clean_scraped_content
     secrets:
       - OPENAI_API_KEY
@@ -79,14 +23,55 @@ steps:
     cron:
       job_name: clean-scraped-content-every-5min
       schedule: "*/5 * * * *"
-      sql: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/03-clean-scraped-content/schedule.sql
+      sql: doxa-agents/departments/01-ingestion-engine/05-clean-scraped-content/schedule.sql
       body: "{}"
-  - id: review-pending-stories
-    division: 01-ingestion-engine
-    workflow: 02-content-acquisition
+  - id: ingest-newsapi
+    department: 01-ingestion-engine
+    workflow: ingest-newsapi
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/01-ingestion-engine/01-ingest-newsapi
+    deploy_name: ingest-newsapi
+    secrets:
+      - NEWSAPI_API_KEY
+    cron:
+      job_name: ingest-newsapi-6am-6pm-cst
+      schedule: 0 0,12 * * *
+      sql: doxa-agents/departments/01-ingestion-engine/01-ingest-newsapi/schedule.sql
+      body: "{}"
+  - id: receive-scraped-content
+    department: 01-ingestion-engine
+    workflow: receive-scraped-content
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/04-review-pending-stories
+    source: doxa-agents/departments/01-ingestion-engine/04-receive-scraped-content
+    deploy_name: receive_scraped_content
+    secrets:
+      - SCRAPE_SECRET
+    verify_jwt: false
+    invoked_by:
+      - cloudflare-worker
+  - id: relevance-gate
+    department: 01-ingestion-engine
+    workflow: relevance-gate
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/01-ingestion-engine/02-relevance-gate
+    deploy_name: relevance_gate
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: relevance-gate-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/01-ingestion-engine/02-relevance-gate/schedule.sql
+      body: "{}"
+  - id: review-pending-stories
+    department: 01-ingestion-engine
+    workflow: review-pending-stories
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/01-ingestion-engine/06-review-pending-stories
     deploy_name: review_pending_stories
     secrets:
       - OPENAI_API_KEY
@@ -94,26 +79,41 @@ steps:
     cron:
       job_name: review-pending-stories-every-hour
       schedule: 0 * * * *
-      sql: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/04-review-pending-stories/schedule.sql
+      sql: doxa-agents/departments/01-ingestion-engine/06-review-pending-stories/schedule.sql
+      body: "{}"
+  - id: scrape-story-content
+    department: 01-ingestion-engine
+    workflow: scrape-story-content
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/01-ingestion-engine/03-scrape-story-content
+    deploy_name: scrape_story_content
+    secrets:
+      - SCRAPE_SECRET
+      - WORKER_SCRAPE_URL
+    cron:
+      job_name: scrape-story-content-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/01-ingestion-engine/03-scrape-story-content/schedule.sql
       body: "{}"
   - id: chunk-story-bodies
-    division: 02-processing-engine
-    workflow: 01-document-processing
+    department: 02-processing-engine
+    workflow: chunk-story-bodies
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/02-processing-engine/01-document-processing/01-chunk-story-bodies
+    source: doxa-agents/departments/02-processing-engine/01-chunk-story-bodies
     deploy_name: chunk_story_bodies
     cron:
       job_name: chunk-story-bodies-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/02-processing-engine/01-document-processing/01-chunk-story-bodies/schedule.sql
+      sql: doxa-agents/departments/02-processing-engine/01-chunk-story-bodies/schedule.sql
       body: "{}"
   - id: extract-story-entities
-    division: 02-processing-engine
-    workflow: 02-story-extraction
+    department: 02-processing-engine
+    workflow: extract-story-entities
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/02-processing-engine/02-story-extraction/01-extract-story-entities
+    source: doxa-agents/departments/02-processing-engine/02-extract-story-entities
     deploy_name: extract_story_entities
     secrets:
       - OPENAI_API_KEY
@@ -121,14 +121,104 @@ steps:
     cron:
       job_name: extract-story-entities-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/02-processing-engine/02-story-extraction/01-extract-story-entities/schedule.sql
+      sql: doxa-agents/departments/02-processing-engine/02-extract-story-entities/schedule.sql
       body: "{}"
-  - id: merge-story-entities
-    division: 02-processing-engine
-    workflow: 03-story-synthesis
+  - id: review-chunk-extraction
+    department: 02-processing-engine
+    workflow: extraction-qa
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-entities
+    source: doxa-agents/departments/02-processing-engine/extraction-qa/01-review-chunk-extraction
+    deploy_name: review_chunk_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: review-chunk-extraction-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/02-processing-engine/extraction-qa/01-review-chunk-extraction/schedule.sql
+      body: "{}"
+  - id: refine-chunk-extraction
+    department: 02-processing-engine
+    workflow: extraction-qa
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-processing-engine/extraction-qa/02-refine-chunk-extraction
+    deploy_name: refine_chunk_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: refine-chunk-extraction-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/02-processing-engine/extraction-qa/02-refine-chunk-extraction/schedule.sql
+      body: "{}"
+  - id: validate-chunk-extraction
+    department: 02-processing-engine
+    workflow: extraction-qa
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-processing-engine/extraction-qa/03-validate-chunk-extraction
+    deploy_name: validate_chunk_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: validate-chunk-extraction-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/02-processing-engine/extraction-qa/03-validate-chunk-extraction/schedule.sql
+      body: "{}"
+  - id: review-merged-extraction
+    department: 02-processing-engine
+    workflow: extraction-qa
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-processing-engine/extraction-qa/04-review-merged-extraction
+    deploy_name: review_merged_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: review-merged-extraction-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/02-processing-engine/extraction-qa/04-review-merged-extraction/schedule.sql
+      body: "{}"
+  - id: refine-merged-extraction
+    department: 02-processing-engine
+    workflow: extraction-qa
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-processing-engine/extraction-qa/05-refine-merged-extraction
+    deploy_name: refine_merged_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: refine-merged-extraction-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/02-processing-engine/extraction-qa/05-refine-merged-extraction/schedule.sql
+      body: "{}"
+  - id: validate-merged-extraction
+    department: 02-processing-engine
+    workflow: extraction-qa
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-processing-engine/extraction-qa/06-validate-merged-extraction
+    deploy_name: validate_merged_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: validate-merged-extraction-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/02-processing-engine/extraction-qa/06-validate-merged-extraction/schedule.sql
+      body: "{}"
+  - id: merge-story-entities
+    department: 02-processing-engine
+    workflow: merge-story-entities
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-processing-engine/03-merge-story-entities
     deploy_name: merge_story_entities
     secrets:
       - OPENAI_API_KEY
@@ -136,17 +226,14 @@ steps:
     cron:
       job_name: merge-story-entities-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-entities/schedule.sql
+      sql: doxa-agents/departments/02-processing-engine/03-merge-story-entities/schedule.sql
       body: "{}"
-    invokes:
-      - link-canonical-events
-      - link-canonical-positions
   - id: link-canonical-claims
-    division: 03-semantic-intelligence-engine
+    department: 03-semantic-intelligence-engine
     workflow: 01-canonical-knowledge
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims
+    source: doxa-agents/departments/03-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims
     deploy_name: link_canonical_claims
     secrets:
       - OPENAI_API_KEY
@@ -156,14 +243,14 @@ steps:
     cron:
       job_name: link-canonical-claims-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims/schedule.sql
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims/schedule.sql
       body: "{}"
   - id: link-canonical-events
-    division: 03-semantic-intelligence-engine
+    department: 03-semantic-intelligence-engine
     workflow: 01-canonical-knowledge
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events
+    source: doxa-agents/departments/03-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events
     deploy_name: link_canonical_events
     secrets:
       - EVENT_SIMILARITY_THRESHOLD
@@ -173,16 +260,14 @@ steps:
     cron:
       job_name: link-canonical-events-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events/schedule.sql
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events/schedule.sql
       body: "{}"
-    invoked_by:
-      - merge-story-entities
   - id: link-canonical-positions
-    division: 03-semantic-intelligence-engine
+    department: 03-semantic-intelligence-engine
     workflow: 01-canonical-knowledge
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/03-link-canonical-positions
+    source: doxa-agents/departments/03-semantic-intelligence-engine/01-canonical-knowledge/03-link-canonical-positions
     deploy_name: link_canonical_positions
     secrets:
       - OPENAI_API_KEY
@@ -192,18 +277,16 @@ steps:
     cron:
       job_name: link-canonical-positions-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
       body: "{}"
     invokes:
       - assign-ranked-subtopics
-    invoked_by:
-      - merge-story-entities
   - id: update-stances
-    division: 03-semantic-intelligence-engine
+    department: 03-semantic-intelligence-engine
     workflow: 01-canonical-knowledge
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances
+    source: doxa-agents/departments/03-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances
     deploy_name: update_stances
     secrets:
       - OPENAI_API_KEY
@@ -211,78 +294,106 @@ steps:
     cron:
       job_name: update-stance-every-20min
       schedule: "*/20 * * * *"
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances/schedule.sql
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances/schedule.sql
       body: "{}"
-  - id: orphan-cleanup-weekly
-    division: 03-semantic-intelligence-engine
-    workflow: 02-position-intelligence
-    kind: rpc
-    status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence
-    cron:
-      job_name: orphan-cleanup-weekly
-      schedule: 0 4 * * 0
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql
-  - id: classify-position-pairs
-    division: 03-semantic-intelligence-engine
-    workflow: 02-position-intelligence
+  - id: assign-ranked-subtopics
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/01-classify-position-pairs
-    deploy_name: classify_position_pairs
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    cron:
-      job_name: classify-position-pairs-every-15min
-      schedule: "*/15 * * * *"
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql
-      body: "{}"
-  - id: refresh-claim-eligibility
-    division: 03-semantic-intelligence-engine
-    workflow: 02-position-intelligence
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/02-refresh-claim-eligibility
-    deploy_name: refresh_claim_eligibility
-    cron:
-      job_name: refresh-claim-eligibility-daily
-      schedule: 0 3 * * *
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql
-      body: "{}"
-  - id: build-debate-topology
-    division: 03-semantic-intelligence-engine
-    workflow: 02-position-intelligence
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/03-build-debate-topology
-    deploy_name: build_debate_topology
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/01-assign-ranked-subtopics
+    deploy_name: assign_ranked_subtopics
     secrets:
       - OPENAI_API_KEY
       - OPENAI_EMBEDDING_MODEL
       - OPENAI_MODEL
-  - id: clustering-pipeline
-    division: 03-semantic-intelligence-engine
-    workflow: 02-position-intelligence
+    invoked_by:
+      - link-canonical-positions
+  - id: generate-position-pair-candidates
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/04-clustering-pipeline
-    deploy_name: clustering_pipeline
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/02-generate-position-pair-candidates
+    deploy_name: generate_position_pair_candidates
     cron:
-      job_name: clustering-upsert-periodic
-      schedule: 0 2 1,15 * *
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql
-      body: '{"skip_summaries_viewpoints": true}'
-    invokes:
-      - build-debate-topology
-      - generate-agreement-summaries
-      - generate-viewpoints
-  - id: generate-agreement-summaries
-    division: 03-semantic-intelligence-engine
-    workflow: 02-position-intelligence
+      job_name: generate-position-pair-candidates-every-10min
+      schedule: "*/10 * * * *"
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
+      body: "{}"
+  - id: classify-position-relationships
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/05-generate-agreement-summaries
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/03-classify-position-relationships
+    deploy_name: classify_position_relationships
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: classify-position-relationships-every-15min
+      schedule: "*/15 * * * *"
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
+      body: "{}"
+  - id: build-agreement-clusters
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/04-build-agreement-clusters
+    deploy_name: build_agreement_clusters
+    verify_jwt: false
+  - id: generate-agreement-cluster-candidates
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/05-generate-agreement-cluster-candidates
+    deploy_name: generate_agreement_cluster_candidates
+    verify_jwt: false
+  - id: classify-agreement-cluster-relationships
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/06-classify-agreement-cluster-relationships
+    deploy_name: classify_agreement_cluster_relationships
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: build-controversy-clusters
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/07-build-controversy-clusters
+    deploy_name: build_controversy_clusters
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: topology-pipeline
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/08-topology-pipeline
+    deploy_name: topology_pipeline
+    verify_jwt: false
+    cron:
+      job_name: topology-pipeline-periodic
+      schedule: 0 2 1,15 * *
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
+      body: '{"skip_summaries_viewpoints": true}'
+  - id: generate-agreement-summaries
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/09-generate-agreement-summaries
     deploy_name: generate_agreement_summaries
     secrets:
       - DRIFT_THRESHOLD
@@ -292,16 +403,14 @@ steps:
     cron:
       job_name: generate-agreement-summaries-every-6h
       schedule: 0 */6 * * *
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
       body: "{}"
-    invoked_by:
-      - clustering-pipeline
   - id: generate-viewpoints
-    division: 03-semantic-intelligence-engine
-    workflow: 02-position-intelligence
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/06-generate-viewpoints
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/10-generate-viewpoints
     deploy_name: generate_viewpoints
     secrets:
       - DRIFT_THRESHOLD
@@ -312,40 +421,37 @@ steps:
     cron:
       job_name: generate-viewpoints-every-6h
       schedule: 30 */6 * * *
-      sql: doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
       body: "{}"
-    invoked_by:
-      - clustering-pipeline
-  - id: seed-subtopic-embeddings
-    division: 03-semantic-intelligence-engine
-    workflow: 03-governance-manual
+  - id: refresh-topology-candidates
+    department: 03-semantic-intelligence-engine
+    workflow: 02-debate-topology
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/03-governance-manual/01-seed-subtopic-embeddings
+    source: doxa-agents/departments/03-semantic-intelligence-engine/02-debate-topology/11-refresh-topology-candidates
+    deploy_name: refresh_topology_candidates
+    cron:
+      job_name: refresh-topology-candidates-daily
+      schedule: 0 3 * * *
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
+      body: "{}"
+  - id: seed-subtopic-embeddings
+    department: 03-semantic-intelligence-engine
+    workflow: 03-governance
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-semantic-intelligence-engine/03-governance/01-seed-subtopic-embeddings
     deploy_name: seed_subtopic_embeddings
     secrets:
       - OPENAI_API_KEY
       - OPENAI_EMBEDDING_MODEL
       - OPENAI_MODEL
-  - id: assign-ranked-subtopics
-    division: 03-semantic-intelligence-engine
-    workflow: 03-governance-manual
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/03-governance-manual/02-assign-ranked-subtopics
-    deploy_name: assign_ranked_subtopics
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-    invoked_by:
-      - link-canonical-positions
   - id: process-topic
-    division: 03-semantic-intelligence-engine
-    workflow: 03-governance-manual
+    department: 03-semantic-intelligence-engine
+    workflow: 03-governance
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/03-governance-manual/03-process-topic
+    source: doxa-agents/departments/03-semantic-intelligence-engine/03-governance/02-process-topic
     deploy_name: process_topic
     secrets:
       - OPENAI_API_KEY
@@ -354,72 +460,33 @@ steps:
     invoked_by:
       - app
   - id: review-link-suggestion
-    division: 03-semantic-intelligence-engine
-    workflow: 03-governance-manual
+    department: 03-semantic-intelligence-engine
+    workflow: 03-governance
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/03-semantic-intelligence-engine/03-governance-manual/04-review-link-suggestion
+    source: doxa-agents/departments/03-semantic-intelligence-engine/03-governance/03-review-link-suggestion
     deploy_name: review_link_suggestion
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     invoked_by:
       - app
-  - id: generate-atlas-map
-    division: 06-business-operations
-    workflow: atlas
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/divisions/06-business-operations/atlas/01-generate-atlas-map
-    deploy_name: generate_atlas_map
-    cron:
-      job_name: generate-atlas-map-weekly
-      schedule: 0 3 * * 0
-      sql: doxa-agents/divisions/06-business-operations/atlas/01-generate-atlas-map/schedule.sql
-      body: "{}"
-  - id: purge-drop-stories-monthly
-    division: 06-business-operations
-    workflow: maintenance
+  - id: orphan-cleanup-weekly
+    department: 03-semantic-intelligence-engine
+    workflow: semantic-intelligence-engine
     kind: rpc
     status: inactive
-    source: doxa-agents/divisions/06-business-operations/maintenance/01-purge-drop-stories
+    source: doxa-agents/departments/03-semantic-intelligence-engine
     cron:
-      job_name: purge-drop-stories-monthly
-      schedule: 0 4 1 * *
-      sql: doxa-agents/divisions/06-business-operations/maintenance/01-purge-drop-stories/schedule.sql
-  - id: cleanup-cron-job-run-details-daily
-    division: 06-business-operations
-    workflow: maintenance
-    kind: rpc
-    status: inactive
-    source: doxa-agents/divisions/06-business-operations/maintenance/02-cleanup-logs
-    cron:
-      job_name: cleanup-cron-job-run-details-daily
-      schedule: 30 4 * * *
-      sql: doxa-agents/divisions/06-business-operations/maintenance/02-cleanup-logs/schedule.sql
-  - id: cleanup-http-responses-hourly
-    division: 06-business-operations
-    workflow: maintenance
-    kind: rpc
-    status: inactive
-    source: doxa-agents/divisions/06-business-operations/maintenance/02-cleanup-logs
-    cron:
-      job_name: cleanup-http-responses-hourly
-      schedule: 0 * * * *
-      sql: doxa-agents/divisions/06-business-operations/maintenance/02-cleanup-logs/schedule.sql
-  - id: clustering-cleanup-unschedule
-    division: 06-business-operations
-    workflow: maintenance
-    kind: maintenance_script
-    status: inactive
-    source: doxa-agents/divisions/06-business-operations/maintenance/03-clustering-cleanup-unschedule
-    description: One-time unschedule of deprecated crons
+      job_name: orphan-cleanup-weekly
+      schedule: 0 4 * * 0
+      sql: doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql
   - id: discord-daily-health
-    division: 06-business-operations
-    workflow: pipeline-health-monitoring
+    department: 06-business-operations
+    workflow: discord-daily-health
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/06-business-operations/pipeline-health-monitoring/01-discord-daily-health
+    source: doxa-agents/departments/06-business-operations/02-discord-daily-health
     deploy_name: discord_daily_health
     secrets:
       - DISCORD_THREAD_NAME
@@ -427,55 +494,90 @@ steps:
     cron:
       job_name: discord-daily-health-report
       schedule: 0 18 * * *
-      sql: doxa-agents/divisions/06-business-operations/pipeline-health-monitoring/01-discord-daily-health/schedule.sql
+      sql: doxa-agents/departments/06-business-operations/02-discord-daily-health/schedule.sql
       body: "{}"
+  - id: generate-atlas-map
+    department: 06-business-operations
+    workflow: generate-atlas-map
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-business-operations/01-generate-atlas-map
+    deploy_name: generate_atlas_map
+    cron:
+      job_name: generate-atlas-map-weekly
+      schedule: 0 3 * * 0
+      sql: doxa-agents/departments/06-business-operations/01-generate-atlas-map/schedule.sql
+      body: "{}"
+  - id: purge-drop-stories-monthly
+    department: 06-business-operations/maintenance
+    workflow: 01-purge-drop-stories
+    kind: rpc
+    status: inactive
+    source: doxa-agents/departments/06-business-operations/maintenance/01-purge-drop-stories
+    cron:
+      job_name: purge-drop-stories-monthly
+      schedule: 0 4 1 * *
+      sql: doxa-agents/departments/06-business-operations/maintenance/01-purge-drop-stories/schedule.sql
+  - id: cleanup-cron-job-run-details-daily
+    department: 06-business-operations/maintenance
+    workflow: 02-cleanup-logs
+    kind: rpc
+    status: inactive
+    source: doxa-agents/departments/06-business-operations/maintenance/02-cleanup-logs
+    cron:
+      job_name: cleanup-cron-job-run-details-daily
+      schedule: 30 4 * * *
+      sql: doxa-agents/departments/06-business-operations/maintenance/02-cleanup-logs/schedule.sql
+  - id: cleanup-http-responses-hourly
+    department: 06-business-operations/maintenance
+    workflow: 02-cleanup-logs
+    kind: rpc
+    status: inactive
+    source: doxa-agents/departments/06-business-operations/maintenance/02-cleanup-logs
+    cron:
+      job_name: cleanup-http-responses-hourly
+      schedule: 0 * * * *
+      sql: doxa-agents/departments/06-business-operations/maintenance/02-cleanup-logs/schedule.sql
+  - id: clustering-cleanup-unschedule
+    department: 06-business-operations/maintenance
+    workflow: 03-clustering-cleanup-unschedule
+    kind: maintenance_script
+    status: inactive
+    source: doxa-agents/departments/06-business-operations/maintenance/03-clustering-cleanup-unschedule
+    description: One-time unschedule of deprecated crons
   - id: aggregate-position-pair-scores
-    division: legacy
-    workflow: claim-cluster-engine
+    department: legacy
+    workflow: aggregate-position-pair-scores
     kind: edge_function
     status: deprecated
-    source: doxa-agents/divisions/legacy/claim-cluster-engine/01-aggregate-position-pair-scores
+    source: doxa-agents/departments/legacy/01-aggregate-position-pair-scores
     deploy_name: aggregate_position_pair_scores
     verify_jwt: false
-  - id: build-controversy-clusters
-    division: legacy
-    workflow: claim-cluster-engine
-    kind: edge_function
-    status: deprecated
-    source: doxa-agents/divisions/legacy/claim-cluster-engine/02-build-controversy-clusters
-    deploy_name: build_controversy_clusters
-    secrets:
-      - DRIFT_THRESHOLD
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-      - TOPIC_SIMILARITY_THRESHOLD
-    verify_jwt: false
   - id: build-position-clusters
-    division: legacy
-    workflow: claim-cluster-engine
+    department: legacy
+    workflow: build-position-clusters
     kind: edge_function
     status: deprecated
-    source: doxa-agents/divisions/legacy/claim-cluster-engine/03-build-position-clusters
+    source: doxa-agents/departments/legacy/03-build-position-clusters
     deploy_name: build_position_clusters
     verify_jwt: false
   - id: classify-claim-pairs
-    division: legacy
-    workflow: claim-cluster-engine
+    department: legacy
+    workflow: classify-claim-pairs
     kind: edge_function
     status: deprecated
-    source: doxa-agents/divisions/legacy/claim-cluster-engine/04-classify-claim-pairs
+    source: doxa-agents/departments/legacy/04-classify-claim-pairs
     deploy_name: classify_claim_pairs
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     verify_jwt: false
   - id: generate-position-summaries
-    division: legacy
-    workflow: claim-cluster-engine
+    department: legacy
+    workflow: generate-position-summaries
     kind: edge_function
     status: deprecated
-    source: doxa-agents/divisions/legacy/claim-cluster-engine/05-generate-position-summaries
+    source: doxa-agents/departments/legacy/05-generate-position-summaries
     deploy_name: generate_position_summaries
     secrets:
       - DRIFT_THRESHOLD
@@ -484,9 +586,9 @@ steps:
       - OPENAI_MODEL
     verify_jwt: false
   - id: label-thesis
-    division: legacy
-    workflow: claim-cluster-engine
+    department: legacy
+    workflow: label-thesis
     kind: edge_function
     status: deprecated
-    source: doxa-agents/divisions/legacy/claim-cluster-engine/06-label-thesis
+    source: doxa-agents/departments/legacy/06-label-thesis
     deploy_name: label_thesis

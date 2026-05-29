@@ -1,0 +1,90 @@
+import type { ExtractionJson, RefinementPatchOp } from "./types.ts";
+
+const ENTITY_KEYS: Record<string, keyof ExtractionJson> = {
+  claim: "claims",
+  claims: "claims",
+  evidence: "evidence",
+  position: "positions",
+  positions: "positions",
+  event: "events",
+  events: "events",
+};
+
+function arr(extraction: ExtractionJson, key: keyof ExtractionJson): unknown[] {
+  const v = extraction[key];
+  return Array.isArray(v) ? [...v] : [];
+}
+
+function setArr(extraction: ExtractionJson, key: keyof ExtractionJson, value: unknown[]) {
+  (extraction as Record<string, unknown>)[key] = value;
+}
+
+function remapLinks(extraction: ExtractionJson, entityType: string, removedIndex: number) {
+  const linkMaps: Array<{ key: keyof ExtractionJson; indexField: string }> = [
+    { key: "claim_evidence_links", indexField: "claim_index" },
+    { key: "position_claim_links", indexField: "position_index" },
+    { key: "position_claim_links", indexField: "claim_index" },
+    { key: "position_evidence_links", indexField: "position_index" },
+    { key: "position_evidence_links", indexField: "evidence_index" },
+    { key: "event_claim_links", indexField: "event_index" },
+    { key: "event_claim_links", indexField: "claim_index" },
+    { key: "event_evidence_links", indexField: "event_index" },
+    { key: "event_evidence_links", indexField: "evidence_index" },
+  ];
+
+  const entityIndexFields: Record<string, string[]> = {
+    claims: ["claim_index"],
+    evidence: ["evidence_index"],
+    positions: ["position_index"],
+    events: ["event_index"],
+  };
+
+  const fields = entityIndexFields[entityType] ?? [];
+  if (fields.length === 0) return;
+
+  for (const { key, indexField } of linkMaps) {
+    if (!fields.includes(indexField)) continue;
+    const links = arr(extraction, key);
+    const next = links
+      .filter((l) => {
+        if (l === null || typeof l !== "object") return false;
+        const idx = (l as Record<string, number>)[indexField];
+        return idx !== removedIndex;
+      })
+      .map((l) => {
+        const copy = { ...(l as Record<string, unknown>) };
+        const idx = copy[indexField] as number;
+        if (idx > removedIndex) copy[indexField] = idx - 1;
+        return copy;
+      });
+    setArr(extraction, key, next);
+  }
+}
+
+export function applyPatches(extraction: ExtractionJson, patches: RefinementPatchOp[]): ExtractionJson {
+  const out: ExtractionJson = JSON.parse(JSON.stringify(extraction));
+
+  for (const patch of patches) {
+    const key = ENTITY_KEYS[patch.entity_type];
+    if (!key) continue;
+
+    if (patch.op === "add") {
+      const list = arr(out, key);
+      list.push(patch.value);
+      setArr(out, key, list);
+    } else if (patch.op === "remove") {
+      const list = arr(out, key);
+      if (patch.entity_index < 0 || patch.entity_index >= list.length) continue;
+      list.splice(patch.entity_index, 1);
+      setArr(out, key, list);
+      remapLinks(out, key, patch.entity_index);
+    } else if (patch.op === "update") {
+      const list = arr(out, key);
+      if (patch.entity_index < 0 || patch.entity_index >= list.length) continue;
+      list[patch.entity_index] = { ...(list[patch.entity_index] as object), ...patch.value };
+      setArr(out, key, list);
+    }
+  }
+
+  return out;
+}

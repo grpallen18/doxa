@@ -24,6 +24,14 @@ BEGIN
     v_skipped := v_skipped || ARRAY['viz'];
   END IF;
 
+  -- required: story_extraction_qa_artifacts
+  IF 'public.story_extraction_qa_artifacts'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.story_extraction_qa_artifacts RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'story_extraction_qa_artifacts');
+  ELSE
+    v_skipped := array_append(v_skipped, 'story_extraction_qa_artifacts');
+  END IF;
+
   -- required: controversy_viewpoints
   IF 'public.controversy_viewpoints'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.controversy_viewpoints RESTART IDENTITY CASCADE';
@@ -40,6 +48,14 @@ BEGIN
     v_skipped := array_append(v_skipped, 'topic_controversies');
   END IF;
 
+  -- required: controversy_cluster_lineage
+  IF 'public.controversy_cluster_lineage'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.controversy_cluster_lineage RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'controversy_cluster_lineage');
+  ELSE
+    v_skipped := array_append(v_skipped, 'controversy_cluster_lineage');
+  END IF;
+
   -- required: controversy_cluster_agreements
   IF 'public.controversy_cluster_agreements'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.controversy_cluster_agreements RESTART IDENTITY CASCADE';
@@ -54,6 +70,22 @@ BEGIN
     v_truncated := array_append(v_truncated, 'controversy_clusters');
   ELSE
     v_skipped := array_append(v_skipped, 'controversy_clusters');
+  END IF;
+
+  -- required: agreement_cluster_relationships
+  IF 'public.agreement_cluster_relationships'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.agreement_cluster_relationships RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'agreement_cluster_relationships');
+  ELSE
+    v_skipped := array_append(v_skipped, 'agreement_cluster_relationships');
+  END IF;
+
+  -- required: agreement_cluster_pair_candidates
+  IF 'public.agreement_cluster_pair_candidates'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.agreement_cluster_pair_candidates RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'agreement_cluster_pair_candidates');
+  ELSE
+    v_skipped := array_append(v_skipped, 'agreement_cluster_pair_candidates');
   END IF;
 
   -- required: agreement_cluster_positions
@@ -102,6 +134,14 @@ BEGIN
     v_truncated := array_append(v_truncated, 'position_relationships');
   ELSE
     v_skipped := array_append(v_skipped, 'position_relationships');
+  END IF;
+
+  -- required: position_pair_candidates
+  IF 'public.position_pair_candidates'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.position_pair_candidates RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'position_pair_candidates');
+  ELSE
+    v_skipped := array_append(v_skipped, 'position_pair_candidates');
   END IF;
 
   -- required: position_pending_subtopics

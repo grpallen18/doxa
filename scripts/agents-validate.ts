@@ -8,6 +8,7 @@ import {
   loadActivation,
   loadManifest,
   parseCronSql,
+  readmePathForStep,
   stepByDeployName,
   stubPath,
   supabaseFunctionsDir,
@@ -141,22 +142,21 @@ function main() {
     }
   }
 
-  const divisions = new Set<string>();
-  const workflows = new Set<string>();
+  const departments = new Set<string>();
+  const requiredReadmes = new Set<string>();
   for (const step of manifest.steps) {
-    divisions.add(step.division);
-    workflows.add(`${step.division}/${step.workflow}`);
+    departments.add(step.department);
+    if (step.source) requiredReadmes.add(readmePathForStep(step.source));
   }
-  for (const division of divisions) {
-    const readme = path.join(REPO_ROOT, 'doxa-agents', 'divisions', division, 'README.md');
+  for (const department of departments) {
+    const readme = path.join(REPO_ROOT, 'doxa-agents', 'departments', department, 'README.md');
     if (!fs.existsSync(readme)) {
-      err(`Missing division README: doxa-agents/divisions/${division}/README.md`);
+      err(`Missing department README: doxa-agents/departments/${department}/README.md`);
     }
   }
-  for (const workflow of workflows) {
-    const readme = path.join(REPO_ROOT, 'doxa-agents', 'divisions', workflow, 'README.md');
+  for (const readme of requiredReadmes) {
     if (!fs.existsSync(readme)) {
-      err(`Missing workflow README: doxa-agents/divisions/${workflow}/README.md`);
+      err(`Missing README: ${path.relative(REPO_ROOT, readme).replace(/\\/g, '/')}`);
     }
   }
 

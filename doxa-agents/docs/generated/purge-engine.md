@@ -28,16 +28,21 @@ Initial install: migration `121_purge_engine_data.sql`.
 
 ## Truncate tables
 
+- `story_extraction_qa_artifacts`
 - `controversy_viewpoints`
 - `topic_controversies`
+- `controversy_cluster_lineage`
 - `controversy_cluster_agreements`
 - `controversy_clusters`
+- `agreement_cluster_relationships`
+- `agreement_cluster_pair_candidates`
 - `agreement_cluster_positions`
 - `agreement_cluster_claims`
 - `agreement_clusters`
 - `agreement_summary_cache`
 - `agreement_cluster_migrations`
 - `position_relationships`
+- `position_pair_candidates`
 - `position_pending_subtopics`
 - `pending_subtopics`
 - `canonical_positions`
