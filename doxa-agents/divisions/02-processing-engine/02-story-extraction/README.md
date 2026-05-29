@@ -4,8 +4,8 @@ Per-chunk LLM extraction of **claims**, **evidence**, **positions**, and **event
 
 | Step | Deploy name | Output |
 |------|-------------|--------|
-| [extract-story-entities](extract-story-entities/) | `extract_chunk_claims` | `story_chunks.extraction_json` |
+| [extract-story-entities](01-extract-story-entities/) | `extract_story_entities` | `story_chunks.extraction_json` |
 
 `extraction_json` shape: `claims`, `evidence`, `links`, `positions`, `position_claim_links`, `position_evidence_links`, `events`, `event_evidence_links`.
 
-Next: [03-story-synthesis/merge-story-claims](../03-story-synthesis/merge-story-claims/) merges chunks into `story_*` tables, then canonicalization runs under `03-semantic-intelligence-engine/01-canonical-knowledge/`.
+Next: [03-story-synthesis/merge-story-entities](../03-story-synthesis/01-merge-story-entities/) merges chunks into `story_*` tables, then canonicalization runs under `03-semantic-intelligence-engine/01-canonical-knowledge/`.

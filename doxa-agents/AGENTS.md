@@ -61,9 +61,9 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 |----------|--------|
 | [01-document-processing](divisions/02-processing-engine/01-document-processing/) | `chunk-story-bodies` |
 | [02-story-extraction](divisions/02-processing-engine/02-story-extraction/) | `extract-story-entities` — claims, evidence, **positions**, events |
-| [03-story-synthesis](divisions/02-processing-engine/03-story-synthesis/) | `merge-story-claims` — story-level tables + trigger canonical linkers |
+| [03-story-synthesis](divisions/02-processing-engine/03-story-synthesis/) | `merge-story-entities` — merges chunk extractions to `story_*` tables + triggers canonical linkers |
 
-Deploy name for extract step remains `extract_chunk_claims` (historical); step id is `extract-story-entities`.
+Step ids and deploy names align: `extract-story-entities` → `extract_story_entities`, `merge-story-entities` → `merge_story_entities`.
 
 ## Canonicalization
 
@@ -76,7 +76,7 @@ Runs after merge, under `03-semantic-intelligence-engine/01-canonical-knowledge/
 | `link-canonical-positions` | `story_positions` | `positions` |
 | `update-stances` | `story_claims` (stance backfill) | — |
 
-`merge-story-claims` invokes `link_canonical_positions` and `link_canonical_events` when it inserts new story rows. `link-canonical-claims` runs on its own cron.
+`merge-story-entities` invokes `link_canonical_positions` and `link_canonical_events` when it inserts new story rows. `link-canonical-claims` runs on its own cron.
 
 Positions follow the same pattern as claims: **extract at story level → canonicalize by embedding similarity**—not deferred to position-intelligence.
 
@@ -88,8 +88,11 @@ Positions follow the same pattern as claims: **extract at story level → canoni
 
 1. Create `divisions/<division>/<workflow>/<NN>-<step-id>/handler.ts` (+ optional `schedule.sql`). Use a two-digit prefix (`01-`, `02-`, …) so steps sort in pipeline order; the catalog step id omits the prefix (e.g. folder `01-scrape-story-content` → id `scrape-story-content`).
 2. Add stub `supabase/functions/<deploy_name>/index.ts`.
-3. Run `npm run agents:refresh`.
-4. Go live: add step id to [activation.yaml](activation.yaml), deploy, run SQL in Supabase.
+3. Update the workflow `README.md` step table.
+4. Run `npm run agents:refresh`.
+5. Go live: add step id to [activation.yaml](activation.yaml), deploy, run SQL in Supabase.
+
+See [docs/directory-layout.md](docs/directory-layout.md) for the full folder and README conventions.
 
 ## Incremental cron rollout
 
@@ -105,7 +108,17 @@ After pipeline or catalog edits, Cursor hooks run `npm run agents:refresh` autom
 
 ## Layout
 
+Full conventions: **[docs/directory-layout.md](docs/directory-layout.md)** (division / workflow / step folders, README requirements, naming).
+
+| Layer | Path pattern | README |
+|-------|--------------|--------|
+| Division | `divisions/<NN-division>/` | Required |
+| Workflow | `divisions/<division>/<workflow>/` | Required |
+| Step | `…/<NN-step-id>/handler.ts` | Documented in workflow README |
+
 - **Source:** `doxa-agents/divisions/**/handler.ts`
 - **Deploy stub:** `supabase/functions/<deploy_name>/index.ts`
-- **Shared:** `doxa-agents/shared/utilities/`
+- **Shared:** `doxa-agents/shared/utilities/`, `doxa-agents/lib/`
 - **Schema:** `supabase/migrations/`
+
+`npm run agents:validate` fails if a division or workflow in the catalog is missing `README.md`.

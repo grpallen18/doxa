@@ -1,5 +1,13 @@
 # 06-business-operations
 
+Health reporting, atlas generation, and database maintenance.
+
+## Workflows
+
+- [pipeline-health-monitoring](pipeline-health-monitoring/) — Discord daily health
+- [atlas](atlas/) — weekly atlas map
+- [maintenance](maintenance/) — purges, log cleanup, deprecated cron unschedule
+
 <!-- AGENTS:BEGIN -->
 
 ### 06-business-operations (generated)

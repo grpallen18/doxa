@@ -10,8 +10,8 @@ supabase functions deploy receive_scraped_content
 supabase functions deploy clean_scraped_content
 supabase functions deploy review_pending_stories
 supabase functions deploy chunk_story_bodies
-supabase functions deploy extract_chunk_claims
-supabase functions deploy merge_story_claims
+supabase functions deploy extract_story_entities
+supabase functions deploy merge_story_entities
 supabase functions deploy link_canonical_claims
 supabase functions deploy link_canonical_events
 supabase functions deploy link_canonical_positions

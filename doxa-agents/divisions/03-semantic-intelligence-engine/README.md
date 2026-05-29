@@ -1,5 +1,13 @@
 # 03-semantic-intelligence-engine
 
+Canonicalize story-level entities and build position/controversy intelligence on global graphs.
+
+## Workflows
+
+- [01-canonical-knowledge](01-canonical-knowledge/) — link `story_*` → global claims, events, positions
+- [02-position-intelligence](02-position-intelligence/) — pairs, clustering, topology, viewpoints
+- [03-governance-manual](03-governance-manual/) — app-triggered and manual governance
+
 <!-- AGENTS:BEGIN -->
 
 ### 03-semantic-intelligence-engine (generated)

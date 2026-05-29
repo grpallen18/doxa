@@ -1,5 +1,11 @@
 # legacy
 
+Deprecated agents kept for reference. Do not add to `activation.yaml`.
+
+## Workflows
+
+- [claim-cluster-engine](claim-cluster-engine/) — replaced by position-intelligence clustering
+
 <!-- AGENTS:BEGIN -->
 
 ### legacy (generated)

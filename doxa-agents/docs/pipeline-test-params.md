@@ -25,8 +25,8 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. |
 | review-pending-stories | `review_pending_stories` | `story_id` | Only runs if story is `PENDING` and has `content_clean`. |
 | chunk-story-bodies | `chunk_story_bodies` | `story_id` | Chunks one story if `content_clean` exists and no `story_chunks` yet. |
-| extract-story-entities | `extract_chunk_claims` | `story_id`, optional `chunk_index` | All unextracted chunks for story, or one chunk index. |
-| merge-story-claims | `merge_story_claims` | `story_id` | Merge extraction JSON → `story_*` tables for one story. |
+| extract-story-entities | `extract_story_entities` | `story_id`, optional `chunk_index` | All unextracted chunks for story, or one chunk index. |
+| merge-story-entities | `merge_story_entities` | `story_id` | Merge extraction JSON → `story_*` tables for one story. |
 
 ### Example (service role)
 
@@ -70,8 +70,8 @@ Future (not implemented yet): `canonical_claim_id`, `canonical_position_id` for 
 1. `relevance_gate` → `scrape_story_content` → confirm `story_bodies` / `stories.scraped_at`
 2. `clean_scraped_content`
 3. `chunk_story_bodies`
-4. `extract_chunk_claims` (repeat until all chunks have `extraction_json`)
-5. `merge_story_claims`
+4. `extract_story_entities` (repeat until all chunks have `extraction_json`)
+5. `merge_story_entities`
 6. `link_canonical_claims` / `link_canonical_events` / `link_canonical_positions`
 7. `update_stances` (per claim or whole story)
 

@@ -1,5 +1,5 @@
 # Librarian checklist
 
-- [ ] `npm run agents:refresh` passes
+- [ ] `npm run agents:refresh` passes (includes README checks for divisions/workflows)
 - [ ] Generated manifest and docs committed if changed
 - [ ] Did not hand-edit `manifest.yaml` or `docs/generated/*`

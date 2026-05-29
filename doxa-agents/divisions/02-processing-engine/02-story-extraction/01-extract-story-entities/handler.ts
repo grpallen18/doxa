@@ -1,6 +1,6 @@
 // Supabase Edge Function: extract claims, evidence, links, positions, and events from story chunks (LLM).
 // Writes extraction_json to story_chunks (claims, evidence, positions, events, links).
-// Pipeline: chunk_story_bodies -> extract_story_entities (deploy: extract_chunk_claims) -> merge_story_claims.
+// Pipeline: chunk_story_bodies -> extract_story_entities -> merge_story_entities.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
 // Body: { max_chunks?, dry_run?, story_id?, chunk_index? } — story_id isolates one story's chunks.
@@ -139,7 +139,7 @@ Return JSON only in the required schema. If there are no valid anchored claims O
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "doxa_extract_chunk_claims",
+          name: "doxa_extract_story_entities",
           strict: true,
           schema: {
             type: "object",
@@ -292,7 +292,7 @@ Return JSON only in the required schema. If there are no valid anchored claims O
 
   if (!resp.ok) {
     const text = await resp.text();
-    console.error(`[extract_chunk_claims] OpenAI ${resp.status}:`, text.slice(0, 500));
+    console.error(`[extract_story_entities] OpenAI ${resp.status}:`, text.slice(0, 500));
     throw new Error(`OpenAI ${resp.status}: ${text.slice(0, 500)}`);
   }
 
@@ -422,7 +422,7 @@ export const handler = async (req: Request) => {
     .limit(singleStoryId ? 100 : maxChunks);
 
   if (fetchErr) {
-    console.error("[extract_chunk_claims] Fetch error:", fetchErr.message);
+    console.error("[extract_story_entities] Fetch error:", fetchErr.message);
     return json({ error: fetchErr.message }, 500);
   }
 
@@ -447,7 +447,7 @@ export const handler = async (req: Request) => {
       const { data: runData } = await supabase
         .from("pipeline_runs")
         .insert({
-          pipeline_name: "chunk_extraction",
+          pipeline_name: "extract_story_entities",
           status: "running",
           started_at: new Date().toISOString(),
           model_provider: "openai",
@@ -495,7 +495,7 @@ export const handler = async (req: Request) => {
           .eq("chunk_index", chunk.chunk_index);
 
         if (updateErr) {
-          console.error("[extract_chunk_claims] Update error:", updateErr.message);
+          console.error("[extract_story_entities] Update error:", updateErr.message);
           return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
         }
       }
@@ -503,7 +503,7 @@ export const handler = async (req: Request) => {
       processed += 1;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error("[extract_chunk_claims] Error for chunk:", chunk.story_id, chunk.chunk_index, msg);
+      console.error("[extract_story_entities] Error for chunk:", chunk.story_id, chunk.chunk_index, msg);
       if (!dryRun && runId) {
         await supabase
           .from("pipeline_runs")

@@ -18,13 +18,17 @@ Read [doxa-agents/AGENTS.md](doxa-agents/AGENTS.md) when changing ingestion, pro
 ## Processing vs canonicalization
 
 - **02-story-extraction** (`extract-story-entities`): LLM extracts claims, evidence, positions, and events from chunk text.
-- **03-story-synthesis** (`merge-story-claims`): merges to `story_*` tables.
+- **03-story-synthesis** (`merge-story-entities`): merges to `story_*` tables.
 - **01-canonical-knowledge** (`link-canonical-claims`, `link-canonical-events`, `link-canonical-positions`): dedupe to global entities. Positions are not created here—they are linked like claims.
 - **02-position-intelligence**: relationships between canonical positions only—not text extraction.
 
 ## Step folder naming
 
 Pipeline steps live under `divisions/<division>/<workflow>/<NN>-<step-id>/`. Two-digit prefixes (`01-`, `02-`, …) sort folders in run order; `npm run agents:sync` strips the prefix for catalog step ids and `activation.yaml` entries.
+
+## Directory layout and READMEs
+
+Follow [doxa-agents/docs/directory-layout.md](doxa-agents/docs/directory-layout.md). Every **division** and **workflow** folder needs a `README.md` (keeps the file tree navigable and passes `agents:validate`). Step folders are documented in the workflow README—not separate README files.
 
 ## Engine data purge
 

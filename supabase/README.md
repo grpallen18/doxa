@@ -83,7 +83,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### story_chunks
 
-**Purpose:** Text chunks from story_bodies for downstream processing (e.g. extraction, embeddings). 3500 chars per chunk, 500 overlap. Written by **chunk_story_bodies**. **extract_chunk_claims** (step `extract-story-entities`) fills `extraction_json` with chunk-level claims, evidence, positions, events, and links.
+**Purpose:** Text chunks from story_bodies for downstream processing (e.g. extraction, embeddings). 3500 chars per chunk, 500 overlap. Written by **chunk_story_bodies**. **extract_story_entities** (step `extract-story-entities`) fills `extraction_json` with chunk-level claims, evidence, positions, events, and links.
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -658,7 +658,7 @@ pipeline_runs (run_id) ── referenced by topic_stories, story_claims, story_e
 | `058_sync_position_summaries_from_cache_rpc.sql` | RPC sync_position_summaries_from_cache: bulk-update position_clusters from cache (no LLM). |
 | `066_drop_claim_evidence_links.sql` | Drop claim_evidence_links (Phase 2 canonical evidence layer never implemented). |
 
-After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_chunk_claims, merge_story_claims, and link_canonical_claims. Run 050 for the position-controversy clustering engine (replaces 047–049). Run 051 for split refresh/classify scaling. Run 052–058 for iterative upsert (zero-downtime rebuilds).
+After running 010–011, seed the database with **seed_new_schema.sql** (see **Seeding** below). Run 012–021 before scrape, chunk_story_bodies, extract_story_entities, merge_story_entities, and link_canonical_claims. Run 050 for the position-controversy clustering engine (replaces 047–049). Run 051 for split refresh/classify scaling. Run 052–058 for iterative upsert (zero-downtime rebuilds).
 
 ---
 

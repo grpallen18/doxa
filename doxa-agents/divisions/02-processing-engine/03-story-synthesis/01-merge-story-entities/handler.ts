@@ -200,7 +200,7 @@ Return JSON only. Do not add any additional top-level keys.`;
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "doxa_merge_story_claims",
+          name: "doxa_merge_story_entities",
           strict: true,
           schema: {
             type: "object",
@@ -381,7 +381,7 @@ Return JSON only. Do not add any additional top-level keys.`;
 
   if (!resp.ok) {
     const text = await resp.text();
-    console.error(`[merge_story_claims] OpenAI ${resp.status}:`, text.slice(0, 500));
+    console.error(`[merge_story_entities] OpenAI ${resp.status}:`, text.slice(0, 500));
     throw new Error(`OpenAI ${resp.status}: ${text.slice(0, 500)}`);
   }
 
@@ -520,7 +520,7 @@ export const handler = async (req: Request) => {
       .eq("story_id", singleStoryId)
       .maybeSingle();
     if (storyErr) {
-      console.error("[merge_story_claims] story fetch error:", storyErr.message);
+      console.error("[merge_story_entities] story fetch error:", storyErr.message);
       return json({ error: storyErr.message }, 500);
     }
     if (!storyRow) {
@@ -533,7 +533,7 @@ export const handler = async (req: Request) => {
     });
 
     if (rpcErr) {
-      console.error("[merge_story_claims] get_stories_ready_to_merge error:", rpcErr.message);
+      console.error("[merge_story_entities] get_stories_ready_to_merge error:", rpcErr.message);
       return json({ error: rpcErr.message }, 500);
     }
 
@@ -564,7 +564,7 @@ export const handler = async (req: Request) => {
       const { data: runData } = await supabase
         .from("pipeline_runs")
         .insert({
-          pipeline_name: "story_merge",
+          pipeline_name: "merge_story_entities",
           status: "running",
           started_at: new Date().toISOString(),
           model_provider: "openai",
@@ -614,7 +614,7 @@ export const handler = async (req: Request) => {
       mergeResult = await callMergeLLM(OPENAI_API_KEY, MODEL, storyId, blobs, `${requestId}-${storyId}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error("[merge_story_claims] LLM error:", msg);
+      console.error("[merge_story_entities] LLM error:", msg);
       if (!dryRun && runId) {
         await supabase
           .from("pipeline_runs")
@@ -846,7 +846,11 @@ export const handler = async (req: Request) => {
     totalPositions += positionIds.length;
     totalEvents += eventIds.length;
 
-    const isEmpty = claimIds.length === 0 && evidenceIds.length === 0 && eventIds.length === 0;
+    const isEmpty =
+      claimIds.length === 0 &&
+      evidenceIds.length === 0 &&
+      positionIds.length === 0 &&
+      eventIds.length === 0;
     const now = new Date().toISOString();
     await supabase
       .from("stories")
@@ -883,7 +887,7 @@ export const handler = async (req: Request) => {
         body: JSON.stringify({}),
       });
     } catch (e) {
-      console.warn("[merge_story_claims] link_canonical_positions invoke failed:", e);
+      console.warn("[merge_story_entities] link_canonical_positions invoke failed:", e);
     }
   }
 
@@ -899,7 +903,7 @@ export const handler = async (req: Request) => {
         body: JSON.stringify({}),
       });
     } catch (e) {
-      console.warn("[merge_story_claims] link_canonical_events invoke failed:", e);
+      console.warn("[merge_story_entities] link_canonical_events invoke failed:", e);
     }
   }
 

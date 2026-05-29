@@ -114,29 +114,29 @@ steps:
     kind: edge_function
     status: inactive
     source: doxa-agents/divisions/02-processing-engine/02-story-extraction/01-extract-story-entities
-    deploy_name: extract_chunk_claims
+    deploy_name: extract_story_entities
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     cron:
-      job_name: extract-chunk-claims-every-2min
+      job_name: extract-story-entities-every-2min
       schedule: "*/2 * * * *"
       sql: doxa-agents/divisions/02-processing-engine/02-story-extraction/01-extract-story-entities/schedule.sql
       body: "{}"
-  - id: merge-story-claims
+  - id: merge-story-entities
     division: 02-processing-engine
     workflow: 03-story-synthesis
     kind: edge_function
     status: inactive
-    source: doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-claims
-    deploy_name: merge_story_claims
+    source: doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-entities
+    deploy_name: merge_story_entities
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     cron:
-      job_name: merge-story-claims-every-2min
+      job_name: merge-story-entities-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-claims/schedule.sql
+      sql: doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-entities/schedule.sql
       body: "{}"
     invokes:
       - link-canonical-events
@@ -176,7 +176,7 @@ steps:
       sql: doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events/schedule.sql
       body: "{}"
     invoked_by:
-      - merge-story-claims
+      - merge-story-entities
   - id: link-canonical-positions
     division: 03-semantic-intelligence-engine
     workflow: 01-canonical-knowledge
@@ -197,7 +197,7 @@ steps:
     invokes:
       - assign-ranked-subtopics
     invoked_by:
-      - merge-story-claims
+      - merge-story-entities
   - id: update-stances
     division: 03-semantic-intelligence-engine
     workflow: 01-canonical-knowledge

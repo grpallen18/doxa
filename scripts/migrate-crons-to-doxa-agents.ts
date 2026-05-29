@@ -13,10 +13,10 @@ const CRON_MAP: Record<string, string> = {
     'doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/04-review-pending-stories/schedule.sql',
   'cron_chunk_story_bodies.sql':
     'doxa-agents/divisions/02-processing-engine/01-document-processing/01-chunk-story-bodies/schedule.sql',
-  'cron_extract_chunk_claims.sql':
+  'cron_extract_story_entities.sql':
     'doxa-agents/divisions/02-processing-engine/02-story-extraction/01-extract-story-entities/schedule.sql',
-  'cron_merge_story_claims.sql':
-    'doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-claims/schedule.sql',
+  'cron_merge_story_entities.sql':
+    'doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-entities/schedule.sql',
   'cron_link_canonical_claims.sql':
     'doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims/schedule.sql',
   'cron_link_canonical_events.sql':

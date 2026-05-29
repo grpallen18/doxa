@@ -141,6 +141,25 @@ function main() {
     }
   }
 
+  const divisions = new Set<string>();
+  const workflows = new Set<string>();
+  for (const step of manifest.steps) {
+    divisions.add(step.division);
+    workflows.add(`${step.division}/${step.workflow}`);
+  }
+  for (const division of divisions) {
+    const readme = path.join(REPO_ROOT, 'doxa-agents', 'divisions', division, 'README.md');
+    if (!fs.existsSync(readme)) {
+      err(`Missing division README: doxa-agents/divisions/${division}/README.md`);
+    }
+  }
+  for (const workflow of workflows) {
+    const readme = path.join(REPO_ROOT, 'doxa-agents', 'divisions', workflow, 'README.md');
+    if (!fs.existsSync(readme)) {
+      err(`Missing workflow README: doxa-agents/divisions/${workflow}/README.md`);
+    }
+  }
+
   if (warnings.length) {
     console.warn('agents:validate warnings:\n' + warnings.map((w) => `  - ${w}`).join('\n'));
   }

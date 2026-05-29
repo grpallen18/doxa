@@ -19,7 +19,8 @@ It executes `npm run agents:refresh` directly — no follow-up prompt on success
 ## When refresh fails
 
 1. Fix handlers, stubs, or schedule SQL — **never edit manifest.yaml by hand**.
-2. Re-run `npm run agents:refresh`.
+2. Ensure every division and workflow folder has `README.md` ([directory-layout.md](../../../doxa-agents/docs/directory-layout.md)).
+3. Re-run `npm run agents:refresh`.
 3. Commit generated files (`manifest.yaml`, `docs/generated/*`, division README blocks) if changed.
 4. Do not edit `handler.ts` unless the user asked for a code change.
 

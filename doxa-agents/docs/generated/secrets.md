@@ -13,8 +13,8 @@ Do not commit secret values to git.
 | receive-scraped-content | receive_scraped_content | `SCRAPE_SECRET` |
 | clean-scraped-content | clean_scraped_content | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_LARGE` |
 | review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| extract-story-entities | extract_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| merge-story-entities | merge_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | link-canonical-claims | link_canonical_claims | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
 | link-canonical-events | link_canonical_events | `EVENT_SIMILARITY_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | link-canonical-positions | link_canonical_positions | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
