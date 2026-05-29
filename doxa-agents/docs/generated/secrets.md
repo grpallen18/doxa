@@ -9,24 +9,24 @@ Do not commit secret values to git.
 |------|--------|--------------|
 | ingest-newsapi | ingest-newsapi | `NEWSAPI_API_KEY` |
 | relevance-gate | relevance_gate | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| clean-scraped-content | clean_scraped_content | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_LARGE` |
-| receive-scraped-content | receive_scraped_content | `SCRAPE_SECRET` |
-| review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
+| receive-scraped-content | receive_scraped_content | `SCRAPE_SECRET` |
+| clean-scraped-content | clean_scraped_content | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_LARGE` |
+| review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | extract-story-entities | extract_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | link-canonical-claims | link_canonical_claims | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
 | link-canonical-events | link_canonical_events | `EVENT_SIMILARITY_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | link-canonical-positions | link_canonical_positions | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
 | update-stances | update_stances | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| build-debate-topology | build_debate_topology | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | classify-position-pairs | classify_position_pairs | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| build-debate-topology | build_debate_topology | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | generate-agreement-summaries | generate_agreement_summaries | `DRIFT_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | generate-viewpoints | generate_viewpoints | `DRIFT_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
+| seed-subtopic-embeddings | seed_subtopic_embeddings | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | assign-ranked-subtopics | assign_ranked_subtopics | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | process-topic | process_topic | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | review-link-suggestion | review_link_suggestion | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| seed-subtopic-embeddings | seed_subtopic_embeddings | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | discord-daily-health | discord_daily_health | `DISCORD_THREAD_NAME`, `DISCORD_WEBHOOK` |
 | build-controversy-clusters | build_controversy_clusters | `DRIFT_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `TOPIC_SIMILARITY_THRESHOLD` |
 | classify-claim-pairs | classify_claim_pairs | `OPENAI_API_KEY`, `OPENAI_MODEL` |

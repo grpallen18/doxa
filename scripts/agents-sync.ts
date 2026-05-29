@@ -13,6 +13,7 @@ import {
   parseVerifyJwtDisabled,
   scanAppApiInvokes,
   jobNameToStepId,
+  stepFolderToId,
   type Manifest,
   type ManifestStep,
   type StepKind,
@@ -44,10 +45,11 @@ function parseHandlerPath(handlerFile: string): HandlerInfo | null {
   const rel = path.relative(path.join(REPO_ROOT, 'doxa-agents', 'divisions'), handlerFile).replace(/\\/g, '/');
   const parts = rel.split('/');
   if (parts.length < 4 || parts[parts.length - 1] !== 'handler.ts') return null;
-  const id = parts[parts.length - 2];
+  const folderName = parts[parts.length - 2];
+  const id = stepFolderToId(folderName);
   const workflow = parts[parts.length - 3];
   const division = parts.slice(0, parts.length - 3).join('/');
-  const source = `doxa-agents/divisions/${division}/${workflow}/${id}`;
+  const source = `doxa-agents/divisions/${division}/${workflow}/${folderName}`;
   return { id, division, workflow, source, handlerPath: handlerFile };
 }
 
@@ -182,7 +184,7 @@ function buildManifest(): Manifest {
     if (isMaintenanceOnlySql(entry.content)) {
       const loc = parseSqlLocation(sqlRel);
       const folderName = path.basename(path.dirname(sqlRel));
-      const id = folderName;
+      const id = stepFolderToId(folderName);
       if (!stepsById.has(id)) {
         stepsById.set(id, {
           id,
@@ -268,7 +270,7 @@ function buildManifest(): Manifest {
     if (d !== 0) return d;
     const w = a.workflow.localeCompare(b.workflow);
     if (w !== 0) return w;
-    return a.id.localeCompare(b.id);
+    return (a.source ?? a.id).localeCompare(b.source ?? b.id);
   });
 
   return {

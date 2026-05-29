@@ -5,10 +5,10 @@
 ```bash
 supabase functions deploy ingest-newsapi
 supabase functions deploy relevance_gate
-supabase functions deploy clean_scraped_content
-supabase functions deploy receive_scraped_content
-supabase functions deploy review_pending_stories
 supabase functions deploy scrape_story_content
+supabase functions deploy receive_scraped_content
+supabase functions deploy clean_scraped_content
+supabase functions deploy review_pending_stories
 supabase functions deploy chunk_story_bodies
 supabase functions deploy extract_chunk_claims
 supabase functions deploy merge_story_claims
@@ -16,16 +16,16 @@ supabase functions deploy link_canonical_claims
 supabase functions deploy link_canonical_events
 supabase functions deploy link_canonical_positions
 supabase functions deploy update_stances
-supabase functions deploy build_debate_topology
 supabase functions deploy classify_position_pairs
+supabase functions deploy refresh_claim_eligibility
+supabase functions deploy build_debate_topology
 supabase functions deploy clustering_pipeline
 supabase functions deploy generate_agreement_summaries
 supabase functions deploy generate_viewpoints
-supabase functions deploy refresh_claim_eligibility
+supabase functions deploy seed_subtopic_embeddings
 supabase functions deploy assign_ranked_subtopics
 supabase functions deploy process_topic
 supabase functions deploy review_link_suggestion
-supabase functions deploy seed_subtopic_embeddings
 supabase functions deploy generate_atlas_map
 supabase functions deploy discord_daily_health
 ```

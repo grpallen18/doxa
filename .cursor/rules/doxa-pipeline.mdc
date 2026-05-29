@@ -22,6 +22,10 @@ Read [doxa-agents/AGENTS.md](doxa-agents/AGENTS.md) when changing ingestion, pro
 - **01-canonical-knowledge** (`link-canonical-claims`, `link-canonical-events`, `link-canonical-positions`): dedupe to global entities. Positions are not created here—they are linked like claims.
 - **02-position-intelligence**: relationships between canonical positions only—not text extraction.
 
+## Step folder naming
+
+Pipeline steps live under `divisions/<division>/<workflow>/<NN>-<step-id>/`. Two-digit prefixes (`01-`, `02-`, …) sort folders in run order; `npm run agents:sync` strips the prefix for catalog step ids and `activation.yaml` entries.
+
 ## Engine data purge
 
 When adding or removing pipeline output tables, edit `doxa-agents/ops/purge-engine-tables.yaml` and run `npm run agents:refresh` (regenerates `supabase/routines/purge_engine_data.sql`). Re-apply that routine in SQL Editor on deployed DBs; new installs get migration `121_purge_engine_data.sql`.

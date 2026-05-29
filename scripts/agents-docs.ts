@@ -115,7 +115,9 @@ function secretsMd(steps: ManifestStep[]): string {
 }
 
 function divisionBlock(division: string, steps: ManifestStep[]): string {
-  const divSteps = steps.filter((s) => s.division === division);
+  const divSteps = steps
+    .filter((s) => s.division === division)
+    .sort((a, b) => (a.source ?? a.id).localeCompare(b.source ?? b.id));
   const lines = [
     AGENTS_BEGIN,
     '',

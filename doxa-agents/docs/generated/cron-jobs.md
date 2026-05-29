@@ -4,28 +4,28 @@
 
 | Job | Step | Deploy | Schedule (UTC) | Status | SQL |
 |-----|------|--------|----------------|--------|-----|
-| ingest-newsapi-6am-6pm-cst | ingest-newsapi | ingest-newsapi | `0 0,12 * * *` | active | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/ingest-newsapi/schedule.sql) |
-| relevance-gate-every-2min | relevance-gate | relevance_gate | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/relevance-gate/schedule.sql) |
-| clean-scraped-content-every-5min | clean-scraped-content | clean_scraped_content | `*/5 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/clean-scraped-content/schedule.sql) |
-| review-pending-stories-every-hour | review-pending-stories | review_pending_stories | `0 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/review-pending-stories/schedule.sql) |
-| scrape-story-content-every-2min | scrape-story-content | scrape_story_content | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/scrape-story-content/schedule.sql) |
-| chunk-story-bodies-every-2min | chunk-story-bodies | chunk_story_bodies | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/01-document-processing/chunk-story-bodies/schedule.sql) |
-| extract-chunk-claims-every-2min | extract-story-entities | extract_chunk_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/02-story-extraction/extract-story-entities/schedule.sql) |
-| merge-story-claims-every-2min | merge-story-claims | merge_story_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/03-story-synthesis/merge-story-claims/schedule.sql) |
-| link-canonical-claims-every-2min | link-canonical-claims | link_canonical_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/link-canonical-claims/schedule.sql) |
-| link-canonical-events-every-2min | link-canonical-events | link_canonical_events | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/link-canonical-events/schedule.sql) |
+| ingest-newsapi-6am-6pm-cst | ingest-newsapi | ingest-newsapi | `0 0,12 * * *` | active | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/01-ingest-newsapi/schedule.sql) |
+| relevance-gate-every-2min | relevance-gate | relevance_gate | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/02-relevance-gate/schedule.sql) |
+| scrape-story-content-every-2min | scrape-story-content | scrape_story_content | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/01-scrape-story-content/schedule.sql) |
+| clean-scraped-content-every-5min | clean-scraped-content | clean_scraped_content | `*/5 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/03-clean-scraped-content/schedule.sql) |
+| review-pending-stories-every-hour | review-pending-stories | review_pending_stories | `0 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/04-review-pending-stories/schedule.sql) |
+| chunk-story-bodies-every-2min | chunk-story-bodies | chunk_story_bodies | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/01-document-processing/01-chunk-story-bodies/schedule.sql) |
+| extract-chunk-claims-every-2min | extract-story-entities | extract_chunk_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/02-story-extraction/01-extract-story-entities/schedule.sql) |
+| merge-story-claims-every-2min | merge-story-claims | merge_story_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/03-story-synthesis/01-merge-story-claims/schedule.sql) |
+| link-canonical-claims-every-2min | link-canonical-claims | link_canonical_claims | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims/schedule.sql) |
+| link-canonical-events-every-2min | link-canonical-events | link_canonical_events | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events/schedule.sql) |
 | link-canonical-positions-every-2min | link-canonical-positions | link_canonical_positions | `*/2 * * * *` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
-| update-stance-every-20min | update-stances | update_stances | `*/20 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/update-stances/schedule.sql) |
+| update-stance-every-20min | update-stances | update_stances | `*/20 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/03-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances/schedule.sql) |
+| orphan-cleanup-weekly | orphan-cleanup-weekly | — | `0 4 * * 0` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
 | classify-position-pairs-every-15min | classify-position-pairs | classify_position_pairs | `*/15 * * * *` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
+| refresh-claim-eligibility-daily | refresh-claim-eligibility | refresh_claim_eligibility | `0 3 * * *` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
 | clustering-upsert-periodic | clustering-pipeline | clustering_pipeline | `0 2 1,15 * *` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
 | generate-agreement-summaries-every-6h | generate-agreement-summaries | generate_agreement_summaries | `0 */6 * * *` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
 | generate-viewpoints-every-6h | generate-viewpoints | generate_viewpoints | `30 */6 * * *` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
-| orphan-cleanup-weekly | orphan-cleanup-weekly | — | `0 4 * * 0` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
-| refresh-claim-eligibility-daily | refresh-claim-eligibility | refresh_claim_eligibility | `0 3 * * *` | inactive | [schedules.sql](doxa-agents/divisions/03-semantic-intelligence-engine/02-position-intelligence/schedules.sql) |
-| generate-atlas-map-weekly | generate-atlas-map | generate_atlas_map | `0 3 * * 0` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/atlas/generate-atlas-map/schedule.sql) |
-| cleanup-cron-job-run-details-daily | cleanup-cron-job-run-details-daily | — | `30 4 * * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/maintenance/cleanup-logs/schedule.sql) |
-| cleanup-http-responses-hourly | cleanup-http-responses-hourly | — | `0 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/maintenance/cleanup-logs/schedule.sql) |
-| purge-drop-stories-monthly | purge-drop-stories-monthly | — | `0 4 1 * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/maintenance/purge-drop-stories/schedule.sql) |
-| discord-daily-health-report | discord-daily-health | discord_daily_health | `0 18 * * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/pipeline-health-monitoring/discord-daily-health/schedule.sql) |
+| generate-atlas-map-weekly | generate-atlas-map | generate_atlas_map | `0 3 * * 0` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/atlas/01-generate-atlas-map/schedule.sql) |
+| purge-drop-stories-monthly | purge-drop-stories-monthly | — | `0 4 1 * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/maintenance/01-purge-drop-stories/schedule.sql) |
+| cleanup-cron-job-run-details-daily | cleanup-cron-job-run-details-daily | — | `30 4 * * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/maintenance/02-cleanup-logs/schedule.sql) |
+| cleanup-http-responses-hourly | cleanup-http-responses-hourly | — | `0 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/maintenance/02-cleanup-logs/schedule.sql) |
+| discord-daily-health-report | discord-daily-health | discord_daily_health | `0 18 * * *` | inactive | [schedule.sql](doxa-agents/divisions/06-business-operations/pipeline-health-monitoring/01-discord-daily-health/schedule.sql) |
 
 _Generated from manifest.yaml._

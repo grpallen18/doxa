@@ -84,7 +84,7 @@ Positions follow the same pattern as claims: **extract at story level → canoni
 
 ## Adding a new step
 
-1. Create `divisions/<division>/<workflow>/<step-id>/handler.ts` (+ optional `schedule.sql`).
+1. Create `divisions/<division>/<workflow>/<NN>-<step-id>/handler.ts` (+ optional `schedule.sql`). Use a two-digit prefix (`01-`, `02-`, …) so steps sort in pipeline order; the catalog step id omits the prefix (e.g. folder `01-scrape-story-content` → id `scrape-story-content`).
 2. Add stub `supabase/functions/<deploy_name>/index.ts`.
 3. Run `npm run agents:refresh`.
 4. Go live: add step id to [activation.yaml](activation.yaml), deploy, run SQL in Supabase.
