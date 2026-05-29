@@ -15,7 +15,7 @@ Post-canonicalization debate intelligence in explicit layers.
 
 ## Orchestration
 
-- **Crons** (see [schedules.sql](../departments/03-semantic-intelligence-engine/schedules.sql)): candidates + classify run incrementally; `topology_pipeline` rebuilds clusters periodically.
+- **Crons** (see [schedules.sql](../departments/04-semantic-intelligence-engine/schedules.sql)): candidates + classify run incrementally; `topology_pipeline` rebuilds clusters periodically.
 - **`topology_pipeline`** chains steps 4–7; summaries/viewpoints on separate crons or when `skip_summaries_viewpoints` is false.
 
 ## Traceability

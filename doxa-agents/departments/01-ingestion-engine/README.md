@@ -11,7 +11,7 @@ Discover stories, gate relevance, scrape bodies, and produce `content_clean` for
 5. **[05-clean-scraped-content](05-clean-scraped-content/)** — raw HTML → `content_clean`
 6. **[06-review-pending-stories](06-review-pending-stories/)** — re-review pending stories
 
-Downstream: [02-processing-engine](../02-processing-engine/).
+Downstream: [02-chunking-engine](../02-chunking-engine/).
 
 <!-- AGENTS:BEGIN -->
 

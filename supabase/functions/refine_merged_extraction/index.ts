@@ -1,3 +1,3 @@
 ﻿// AUTO-GENERATED deploy stub — implementation in doxa-agents
-import { handler } from '../../../doxa-agents/departments/02-processing-engine/extraction-qa/05-refine-merged-extraction/handler.ts';
+import { handler } from '../../../doxa-agents/departments/03-merging-engine/03-refine-merged-extraction/handler.ts';
 Deno.serve(handler);

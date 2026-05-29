@@ -12,29 +12,29 @@ const CRON_MAP: Record<string, string> = {
   'cron_review_pending_stories.sql':
     'doxa-agents/departments/01-ingestion-engine/06-review-pending-stories/schedule.sql',
   'cron_chunk_story_bodies.sql':
-    'doxa-agents/departments/02-processing-engine/01-chunk-story-bodies/schedule.sql',
+    'doxa-agents/departments/02-chunking-engine/01-chunk-story-bodies/schedule.sql',
   'cron_extract_story_entities.sql':
-    'doxa-agents/departments/02-processing-engine/02-extract-story-entities/schedule.sql',
+    'doxa-agents/departments/02-chunking-engine/02-extract-story-entities/schedule.sql',
   'cron_merge_story_entities.sql':
-    'doxa-agents/departments/02-processing-engine/03-merge-story-entities/schedule.sql',
+    'doxa-agents/departments/03-merging-engine/01-merge-story-entities/schedule.sql',
   'cron_link_canonical_claims.sql':
-    'doxa-agents/departments/03-semantic-intelligence-engine/01-link-canonical-claims/schedule.sql',
+    'doxa-agents/departments/04-semantic-intelligence-engine/01-link-canonical-claims/schedule.sql',
   'cron_link_canonical_events.sql':
-    'doxa-agents/departments/03-semantic-intelligence-engine/02-link-canonical-events/schedule.sql',
+    'doxa-agents/departments/04-semantic-intelligence-engine/02-link-canonical-events/schedule.sql',
   'cron_update_stance.sql':
-    'doxa-agents/departments/03-semantic-intelligence-engine/04-update-stances/schedule.sql',
+    'doxa-agents/departments/04-semantic-intelligence-engine/04-update-stances/schedule.sql',
   'cron_clustering_pipeline.sql':
-    'doxa-agents/departments/03-semantic-intelligence-engine/schedules.sql',
+    'doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql',
   'cron_discord_daily_health.sql':
-    'doxa-agents/departments/06-business-operations/02-discord-daily-health/schedule.sql',
+    'doxa-agents/departments/05-business-operations/02-discord-daily-health/schedule.sql',
   'cron_generate_atlas_map.sql':
-    'doxa-agents/departments/06-business-operations/01-generate-atlas-map/schedule.sql',
+    'doxa-agents/departments/05-business-operations/01-generate-atlas-map/schedule.sql',
   'cron_cleanup_logs.sql':
-    'doxa-agents/departments/06-business-operations/maintenance/02-cleanup-logs/schedule.sql',
+    'doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql',
   'cron_purge_drop_stories.sql':
-    'doxa-agents/departments/06-business-operations/maintenance/01-purge-drop-stories/schedule.sql',
+    'doxa-agents/departments/05-business-operations/maintenance/01-purge-drop-stories/schedule.sql',
   'cron_clustering_cleanup.sql':
-    'doxa-agents/departments/06-business-operations/maintenance/03-clustering-cleanup-unschedule/schedule.sql',
+    'doxa-agents/departments/05-business-operations/maintenance/03-clustering-cleanup-unschedule/schedule.sql',
 };
 
 function main() {

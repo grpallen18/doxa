@@ -14,13 +14,13 @@ Do not commit secret values to git.
 | review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
 | extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| review-chunk-extraction | review_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| review-chunk-extraction | review_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| refine-merged-extraction | refine_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| validate-merged-extraction | validate_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | merge-story-entities | merge_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| refine-merged-extraction | refine_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| validate-merged-extraction | validate_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | link-canonical-claims | link_canonical_claims | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
 | link-canonical-events | link_canonical_events | `EVENT_SIMILARITY_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
 | link-canonical-positions | link_canonical_positions | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |

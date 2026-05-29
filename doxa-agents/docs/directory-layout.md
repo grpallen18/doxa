@@ -28,13 +28,13 @@ doxa-agents/
     └── generated/            # AUTO-GENERATED
 ```
 
-Use **flat agents** when a workflow folder would only wrap a single step (e.g. `02-processing-engine/01-chunk-story-bodies`). Use a **workflow folder** when several related steps share a pipeline stage and benefit from a shared README (e.g. `06-business-operations/maintenance/` with purge/cleanup scripts).
+Use **flat agents** when a workflow folder would only wrap a single step (e.g. `02-chunking-engine/01-chunk-story-bodies`). Use a **workflow folder** when several related steps share a pipeline stage and benefit from a shared README (e.g. `05-business-operations/maintenance/` with purge/cleanup scripts).
 
 ## Naming rules
 
 | Level | Folder pattern | Catalog id | Example |
 |-------|----------------|------------|---------|
-| Department | `NN-name` | — | `02-processing-engine` |
+| Department | `NN-name` | — | `02-chunking-engine` |
 | Flat agent | `NN-step-id` | `step-id` (prefix stripped) | `01-chunk-story-bodies` → `chunk-story-bodies` |
 | Workflow | `NN-name` or short name | — | `maintenance` |
 | Step (nested) | `NN-step-id` | `step-id` (prefix stripped) | `01-purge-drop-stories` → `purge-drop-stories` |

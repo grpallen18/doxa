@@ -2,7 +2,7 @@
 
 Deprecated agents kept for reference. Do not add to `activation.yaml`.
 
-Replaced by [03-semantic-intelligence-engine](../03-semantic-intelligence-engine/) position-controversy clustering (agents `05`–`10`).
+Replaced by [04-semantic-intelligence-engine](../04-semantic-intelligence-engine/) position-controversy clustering (agents `05`–`10`).
 
 ## Agents (deprecated)
 

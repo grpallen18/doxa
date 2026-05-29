@@ -147,7 +147,7 @@ function parseSqlLocation(sqlRel: string): { department: string; workflow: strin
   if (parts.length >= 3) {
     return { department: parts.slice(0, -2).join('/'), workflow: parts[parts.length - 2] };
   }
-  return { department: '06-business-operations', workflow: 'maintenance' };
+  return { department: '05-business-operations', workflow: 'maintenance' };
 }
 
 function buildManifest(): Manifest {
