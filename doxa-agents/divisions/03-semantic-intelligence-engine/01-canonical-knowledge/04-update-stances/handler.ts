@@ -2,9 +2,16 @@
 // For each claim, sends raw_text + article content to LLM; LLM returns support/oppose/neutral.
 // Processes one claim at a time by default so the LLM can focus on accurate output.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_claims?: number, dry_run?: boolean }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { max_claims?, dry_run?, story_id?, story_claim_id? } — isolate one story or story_claim.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parseClaimIdFromBody,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -137,26 +144,70 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+  const { id: singleClaimId, invalid: invalidClaimId } = parseClaimIdFromBody(body);
+  if (invalidClaimId) return json({ error: invalidUuidMessage("story_claim_id") }, 400);
+
   const maxClaims = clampInt(body.max_claims, 1, 10, DEFAULT_MAX_CLAIMS);
   const dryRun = Boolean(body.dry_run ?? false);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: rowsRaw, error: rpcErr } = await supabase.rpc("get_story_claims_needing_stance", {
-    p_limit: maxClaims,
-  });
-
-  if (rpcErr) {
-    console.error("[update_stances] get_story_claims_needing_stance error:", rpcErr.message);
-    return json({ error: rpcErr.message }, 500);
-  }
-
-  const rows = (Array.isArray(rowsRaw) ? rowsRaw : []) as Array<{
+  let rows: Array<{
     story_claim_id: string;
     story_id: string;
     raw_text: string | null;
     content_clean: string | null;
-  }>;
+  }> = [];
+
+  if (singleClaimId || singleStoryId) {
+    let claimQuery = supabase
+      .from("story_claims")
+      .select("story_claim_id, story_id, raw_text")
+      .is("stance", null);
+    if (singleClaimId) claimQuery = claimQuery.eq("story_claim_id", singleClaimId);
+    else if (singleStoryId) claimQuery = claimQuery.eq("story_id", singleStoryId);
+    const { data: claimRows, error: claimErr } = await claimQuery.limit(singleClaimId ? 1 : maxClaims);
+    if (claimErr) {
+      console.error("[update_stances] fetch error:", claimErr.message);
+      return json({ error: claimErr.message }, 500);
+    }
+    const bodyByStory = new Map<string, string>();
+    for (const r of Array.isArray(claimRows) ? claimRows : []) {
+      const sid = (r as { story_id?: string }).story_id;
+      if (typeof sid === "string" && !bodyByStory.has(sid)) {
+        const { data: bodyRow } = await supabase
+          .from("story_bodies")
+          .select("content_clean")
+          .eq("story_id", sid)
+          .maybeSingle();
+        bodyByStory.set(sid, (bodyRow?.content_clean ?? "").trim());
+      }
+    }
+    rows = (Array.isArray(claimRows) ? claimRows : []).map((r) => ({
+      story_claim_id: (r as { story_claim_id: string }).story_claim_id,
+      story_id: (r as { story_id: string }).story_id,
+      raw_text: (r as { raw_text: string | null }).raw_text,
+      content_clean: bodyByStory.get((r as { story_id: string }).story_id) ?? null,
+    }));
+  } else {
+    const { data: rowsRaw, error: rpcErr } = await supabase.rpc("get_story_claims_needing_stance", {
+      p_limit: maxClaims,
+    });
+
+    if (rpcErr) {
+      console.error("[update_stances] get_story_claims_needing_stance error:", rpcErr.message);
+      return json({ error: rpcErr.message }, 500);
+    }
+
+    rows = (Array.isArray(rowsRaw) ? rowsRaw : []) as Array<{
+      story_claim_id: string;
+      story_id: string;
+      raw_text: string | null;
+      content_clean: string | null;
+    }>;
+  }
 
   const toProcess = rows.filter(
     (r) =>
@@ -174,6 +225,7 @@ export const handler = async (req: Request) => {
       processed: 0,
       message: "No story_claims needing stance",
       dry_run: dryRun,
+      ...testScopeFields({ storyId: singleStoryId, claimId: singleClaimId }),
     });
   }
 
@@ -223,5 +275,6 @@ export const handler = async (req: Request) => {
     processed,
     model: MODEL,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId, claimId: singleClaimId }),
   });
 };

@@ -1,9 +1,16 @@
 // Supabase Edge Function: link story_positions to canonical_positions via embedding similarity.
 // Creates new canonical_positions when no match above threshold. Required for every new story_position.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL, SIMILARITY_THRESHOLD.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_positions?: number, dry_run?: boolean }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { max_positions?, dry_run?, story_id?, story_position_id? } — isolate one story or row.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parsePositionIdFromBody,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -133,6 +140,11 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+  const { id: singlePositionId, invalid: invalidPositionId } = parsePositionIdFromBody(body);
+  if (invalidPositionId) return json({ error: invalidUuidMessage("story_position_id") }, 400);
+
   const maxPositions = clampInt(body.max_positions, 1, 50, DEFAULT_MAX_POSITIONS);
   const dryRun = Boolean(body.dry_run ?? false);
 
@@ -140,12 +152,15 @@ export const handler = async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: rows, error: fetchErr } = await supabase
+  let fetchQuery = supabase
     .from("story_positions")
     .select("story_position_id, raw_text")
-    .is("canonical_position_id", null)
+    .is("canonical_position_id", null);
+  if (singlePositionId) fetchQuery = fetchQuery.eq("story_position_id", singlePositionId);
+  else if (singleStoryId) fetchQuery = fetchQuery.eq("story_id", singleStoryId);
+  const { data: rows, error: fetchErr } = await fetchQuery
     .order("created_at", { ascending: true })
-    .limit(maxPositions);
+    .limit(singlePositionId || singleStoryId ? 500 : maxPositions);
 
   if (fetchErr) {
     console.error("[link_canonical_positions] Fetch error:", fetchErr.message);
@@ -159,7 +174,15 @@ export const handler = async (req: Request) => {
 
   if (storyPositions.length === 0) {
     await maybeInvokeAssignRankedSubtopics(supabase, SUPABASE_URL, SERVICE_ROLE, dryRun);
-    return json({ ok: true, processed: 0, linked: 0, created: 0, message: "No story_positions to link", dry_run: dryRun });
+    return json({
+      ok: true,
+      processed: 0,
+      linked: 0,
+      created: 0,
+      message: "No story_positions to link",
+      dry_run: dryRun,
+      ...testScopeFields({ storyId: singleStoryId, positionId: singlePositionId }),
+    });
   }
 
   let linked = 0;
@@ -261,5 +284,6 @@ export const handler = async (req: Request) => {
     created,
     similarity_threshold: similarityThreshold,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId, positionId: singlePositionId }),
   });
 };

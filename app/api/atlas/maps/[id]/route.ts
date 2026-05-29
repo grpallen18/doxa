@@ -3,11 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
   try {
-    const mapId = params.id
+    const { id: mapId } = await params
     const searchParams = request.nextUrl.searchParams
     const layer = searchParams.get('layer') // optional: filter by zoom layer (1, 2, 3)
 

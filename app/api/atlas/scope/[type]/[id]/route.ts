@@ -5,10 +5,9 @@ import type { PositionDetail, ClaimDetail } from '@/components/atlas/types'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { type: string; id: string } }
+  { params }: { params: Promise<{ type: string; id: string }> }
 ) {
-  const scopeType = params.type
-  const scopeId = params.id
+  const { type: scopeType, id: scopeId } = await params
 
   if (!scopeType || !scopeId) {
     return NextResponse.json(

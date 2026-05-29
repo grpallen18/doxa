@@ -42,7 +42,7 @@ steps:
     division: 01-ingestion-engine
     workflow: 02-content-acquisition
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/01-scrape-story-content
     deploy_name: scrape_story_content
     secrets:

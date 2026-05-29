@@ -4,12 +4,12 @@ import { requireAdmin } from '@/lib/auth'
 /** Invokes process_topic Edge Function for the given topic_id. Admin only. */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
-  const topicId = params.id
+  const { id: topicId } = await params
   if (!topicId) {
     return NextResponse.json(
       { data: null, error: { message: 'Topic ID required' } },

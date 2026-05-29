@@ -8,7 +8,7 @@
 |------|--------|--------|
 | ingest-newsapi | ingest-newsapi | active |
 | relevance-gate | relevance_gate | inactive |
-| scrape-story-content | scrape_story_content | inactive |
+| scrape-story-content | scrape_story_content | active |
 | receive-scraped-content | receive_scraped_content | inactive |
 | clean-scraped-content | clean_scraped_content | inactive |
 | review-pending-stories | review_pending_stories | inactive |

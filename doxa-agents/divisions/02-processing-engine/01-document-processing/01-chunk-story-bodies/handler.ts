@@ -1,9 +1,15 @@
 // Supabase Edge Function: chunk story_bodies into story_chunks for downstream processing.
 // Selects unchunked stories, splits content (3500 chars, 500 overlap), inserts into story_chunks.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Optional body: { max_stories: number }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { max_stories?, dry_run?, story_id? } — story_id isolates one row.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,27 +66,81 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+
   const maxStories = clampInt(body.max_stories, 1, 50, DEFAULT_MAX_STORIES);
   const dryRun = Boolean(body.dry_run ?? false);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: unchunkedRaw, error: rpcErr } = await supabase.rpc("get_unchunked_story_bodies", {
-    p_limit: maxStories,
-  });
+  let unchunked: { story_id: string; content_clean: string }[] = [];
 
-  if (rpcErr) {
-    console.error("[chunk_story_bodies] get_unchunked_story_bodies error:", rpcErr.message);
-    return json({ error: rpcErr.message }, 500);
+  if (singleStoryId) {
+    const { count, error: countErr } = await supabase
+      .from("story_chunks")
+      .select("story_id", { count: "exact", head: true })
+      .eq("story_id", singleStoryId);
+    if (countErr) {
+      console.error("[chunk_story_bodies] chunk count error:", countErr.message);
+      return json({ error: countErr.message }, 500);
+    }
+    if ((count ?? 0) > 0) {
+      return json({
+        ok: true,
+        processed: 0,
+        chunks_created: 0,
+        message: "Story already has story_chunks",
+        ...testScopeFields({ storyId: singleStoryId }),
+      });
+    }
+    const { data: bodyRow, error: bodyErr } = await supabase
+      .from("story_bodies")
+      .select("story_id, content_clean")
+      .eq("story_id", singleStoryId)
+      .maybeSingle();
+    if (bodyErr) {
+      console.error("[chunk_story_bodies] story_bodies fetch error:", bodyErr.message);
+      return json({ error: bodyErr.message }, 500);
+    }
+    if (!bodyRow) {
+      return json({ error: "Story not found", story_id: singleStoryId }, 404);
+    }
+    const contentClean = (bodyRow.content_clean ?? "").trim();
+    if (!contentClean) {
+      return json({
+        ok: true,
+        processed: 0,
+        chunks_created: 0,
+        message: "No content_clean; run clean_scraped_content first",
+        ...testScopeFields({ storyId: singleStoryId }),
+      });
+    }
+    unchunked = [{ story_id: bodyRow.story_id, content_clean: contentClean }];
+  } else {
+    const { data: unchunkedRaw, error: rpcErr } = await supabase.rpc("get_unchunked_story_bodies", {
+      p_limit: maxStories,
+    });
+
+    if (rpcErr) {
+      console.error("[chunk_story_bodies] get_unchunked_story_bodies error:", rpcErr.message);
+      return json({ error: rpcErr.message }, 500);
+    }
+
+    unchunked = (Array.isArray(unchunkedRaw) ? unchunkedRaw : []).filter(
+      (b): b is { story_id: string; content_clean: string } =>
+        typeof b === "object" && b !== null && typeof (b as { story_id: unknown }).story_id === "string"
+    );
   }
 
-  const unchunked = (Array.isArray(unchunkedRaw) ? unchunkedRaw : []).filter(
-    (b): b is { story_id: string; content_clean: string } =>
-      typeof b === "object" && b !== null && typeof (b as { story_id: unknown }).story_id === "string"
-  );
-
   if (unchunked.length === 0) {
-    return json({ ok: true, processed: 0, chunks_created: 0, message: "No unchunked stories" });
+    return json({
+      ok: true,
+      processed: 0,
+      chunks_created: 0,
+      message: "No unchunked stories",
+      ...testScopeFields({ storyId: singleStoryId }),
+    });
   }
 
   let totalChunks = 0;
@@ -114,5 +174,6 @@ export const handler = async (req: Request) => {
     processed: unchunked.length,
     chunks_created: totalChunks,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId }),
   });
 };

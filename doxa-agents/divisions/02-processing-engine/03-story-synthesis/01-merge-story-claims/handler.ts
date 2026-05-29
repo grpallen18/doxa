@@ -5,6 +5,11 @@
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_stories?: number, dry_run?: boolean }.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -498,23 +503,44 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+
   const maxStories = clampInt(body.max_stories, 1, 5, DEFAULT_MAX_STORIES);
   const dryRun = Boolean(body.dry_run ?? false);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: readyRaw, error: rpcErr } = await supabase.rpc("get_stories_ready_to_merge", {
-    p_limit: maxStories,
-  });
+  let toProcess: string[] = [];
 
-  if (rpcErr) {
-    console.error("[merge_story_claims] get_stories_ready_to_merge error:", rpcErr.message);
-    return json({ error: rpcErr.message }, 500);
+  if (singleStoryId) {
+    const { data: storyRow, error: storyErr } = await supabase
+      .from("stories")
+      .select("story_id")
+      .eq("story_id", singleStoryId)
+      .maybeSingle();
+    if (storyErr) {
+      console.error("[merge_story_claims] story fetch error:", storyErr.message);
+      return json({ error: storyErr.message }, 500);
+    }
+    if (!storyRow) {
+      return json({ error: "Story not found", story_id: singleStoryId }, 404);
+    }
+    toProcess = [singleStoryId];
+  } else {
+    const { data: readyRaw, error: rpcErr } = await supabase.rpc("get_stories_ready_to_merge", {
+      p_limit: maxStories,
+    });
+
+    if (rpcErr) {
+      console.error("[merge_story_claims] get_stories_ready_to_merge error:", rpcErr.message);
+      return json({ error: rpcErr.message }, 500);
+    }
+
+    toProcess = (Array.isArray(readyRaw) ? readyRaw : [])
+      .map((r: { story_id?: string }) => r?.story_id)
+      .filter((id): id is string => typeof id === "string");
   }
-
-  const toProcess = (Array.isArray(readyRaw) ? readyRaw : [])
-    .map((r: { story_id?: string }) => r?.story_id)
-    .filter((id): id is string => typeof id === "string");
 
   if (toProcess.length === 0) {
     return json({
@@ -527,6 +553,7 @@ export const handler = async (req: Request) => {
       story_events: 0,
       message: "No stories ready to merge",
       dry_run: dryRun,
+      ...testScopeFields({ storyId: singleStoryId }),
     });
   }
   const requestId = `merge-${Date.now()}`;
@@ -887,5 +914,6 @@ export const handler = async (req: Request) => {
     model: MODEL,
     run_id: runId,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId }),
   });
 };

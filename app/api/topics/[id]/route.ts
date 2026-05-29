@@ -5,11 +5,11 @@ import { requireAdmin } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
   try {
-    const topicId = params.id
+    const { id: topicId } = await params
 
     const { data: topic, error: topicError } = await supabase
       .from('topics')
@@ -99,12 +99,12 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
-  const topicId = params.id
+  const { id: topicId } = await params
   if (!topicId) {
     return NextResponse.json(
       { data: null, error: { message: 'Topic ID required' } },

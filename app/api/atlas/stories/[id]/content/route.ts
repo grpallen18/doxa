@@ -4,11 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 /** Returns content_clean for a single story. Load only when user explicitly opens a story. */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
   try {
-    const storyId = params.id
+    const { id: storyId } = await params
 
     if (!storyId) {
       return NextResponse.json(

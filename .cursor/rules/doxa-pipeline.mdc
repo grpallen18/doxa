@@ -32,10 +32,39 @@ When adding or removing pipeline output tables, edit `doxa-agents/ops/purge-engi
 
 ## User-owned ops (remind in final message when relevant)
 
-- **Secret values** in Supabase / Cloudflare (names are in `docs/generated/secrets.md`)
+- **Secret values** in Supabase / Cloudflare (names are in [doxa-agents/docs/generated/secrets.md](doxa-agents/docs/generated/secrets.md))
 - **`doxa-agents/activation.yaml`** — add step id when user wants workflow marked active (does not schedule crons)
 - **Run `schedule.sql`** in Supabase SQL Editor to enable pg_cron
-- **`supabase functions deploy <name>`** when handler or stub changed
 - **`supabase/migrations/`** for schema changes
+
+### Edge function deploy
+
+When a handler or stub under `supabase/functions/` changed, remind the user to deploy. Use [doxa-agents/docs/generated/deploy.md](doxa-agents/docs/generated/deploy.md) for the full list.
+
+**Default:** `supabase functions deploy <deploy_name>`
+
+**JWT disabled (must pass flag on every CLI deploy):** These functions use a shared secret or service-role caller instead of a user JWT. Deploying without `--no-verify-jwt` causes **401 Invalid JWT** for the Cloudflare worker callback or internal invokes.
+
+| Deploy name | Why |
+|-------------|-----|
+| `receive_scraped_content` | Cloudflare Worker callback (`Bearer SCRAPE_SECRET`) |
+| `generate_viewpoints` | Invoked by `clustering_pipeline` |
+| `aggregate_position_pair_scores` | Legacy internal invoke |
+| `build_controversy_clusters` | Legacy internal invoke |
+| `build_position_clusters` | Legacy internal invoke |
+| `classify_claim_pairs` | Legacy internal invoke |
+| `generate_position_summaries` | Legacy internal invoke |
+
+```bash
+supabase functions deploy <deploy_name> --no-verify-jwt
+```
+
+In the final message: if the user changed **any** step in the JWT table (or you touched its handler/stub), give the **exact** deploy command including `--no-verify-jwt` for that `deploy_name` only—do not omit the flag. For other functions, a normal deploy line is enough.
+
+Also mirror new JWT-off functions in `supabase/config.toml` as `[functions.<deploy_name>]` with `verify_jwt = false` (local + documentation).
+
+### Isolated pipeline testing
+
+When the user is walking one article through the pipeline, remind them of [doxa-agents/docs/pipeline-test-params.md](doxa-agents/docs/pipeline-test-params.md): which POST fields isolate a row (`story_id`, `story_claim_id`, etc.) per deploy name. Shared helpers live in `doxa-agents/lib/pipeline-test-params.ts`.
 
 Do not update `activation.yaml` unless the user asks to enable a workflow.

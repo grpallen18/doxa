@@ -315,8 +315,12 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Functions called without a user JWT (shared secret or service-role / internal HTTP).
+# verify_jwt = false avoids 401 on deploy; CLI must use: supabase functions deploy <name> --no-verify-jwt
+[functions.receive_scraped_content]
+verify_jwt = false
+
 # Clustering sub-functions: called by clustering_pipeline via HTTP with service role key.
-# verify_jwt = false avoids 401 when invoked from another function or cron.
 [functions.classify_claim_pairs]
 verify_jwt = false
 [functions.build_position_clusters]

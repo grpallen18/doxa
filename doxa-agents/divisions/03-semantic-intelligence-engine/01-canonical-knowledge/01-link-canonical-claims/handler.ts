@@ -1,9 +1,16 @@
 // Supabase Edge Function: link story_claims to canonical claims via embedding similarity.
 // Creates new claims when no match above threshold. Required for every new story_claim.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL, SIMILARITY_THRESHOLD.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_claims?: number, dry_run?: boolean }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { max_claims?, dry_run?, story_id?, story_claim_id? } — isolate one story or one story_claim.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parseClaimIdFromBody,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +98,11 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+  const { id: singleClaimId, invalid: invalidClaimId } = parseClaimIdFromBody(body);
+  if (invalidClaimId) return json({ error: invalidUuidMessage("story_claim_id") }, 400);
+
   const maxClaims = clampInt(body.max_claims, 1, 50, DEFAULT_MAX_CLAIMS);
   const dryRun = Boolean(body.dry_run ?? false);
 
@@ -98,12 +110,15 @@ export const handler = async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: rows, error: fetchErr } = await supabase
+  let fetchQuery = supabase
     .from("story_claims")
     .select("story_claim_id, raw_text")
-    .is("claim_id", null)
+    .is("claim_id", null);
+  if (singleClaimId) fetchQuery = fetchQuery.eq("story_claim_id", singleClaimId);
+  else if (singleStoryId) fetchQuery = fetchQuery.eq("story_id", singleStoryId);
+  const { data: rows, error: fetchErr } = await fetchQuery
     .order("created_at", { ascending: true })
-    .limit(maxClaims);
+    .limit(singleClaimId || singleStoryId ? 500 : maxClaims);
 
   if (fetchErr) {
     console.error("[link_canonical_claims] Fetch error:", fetchErr.message);
@@ -116,7 +131,15 @@ export const handler = async (req: Request) => {
   );
 
   if (storyClaims.length === 0) {
-    return json({ ok: true, processed: 0, linked: 0, created: 0, message: "No story_claims to link", dry_run: dryRun });
+    return json({
+      ok: true,
+      processed: 0,
+      linked: 0,
+      created: 0,
+      message: "No story_claims to link",
+      dry_run: dryRun,
+      ...testScopeFields({ storyId: singleStoryId, claimId: singleClaimId }),
+    });
   }
 
   let linked = 0;
@@ -217,5 +240,6 @@ export const handler = async (req: Request) => {
     created,
     similarity_threshold: similarityThreshold,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId, claimId: singleClaimId }),
   });
 };

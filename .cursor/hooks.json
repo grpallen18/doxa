@@ -3,12 +3,13 @@
   "hooks": {
     "afterFileEdit": [
       {
-        "command": ".cursor/hooks/librarian-queue.sh"
+        "command": "node .cursor/hooks/librarian-queue.mjs"
       }
     ],
     "stop": [
       {
-        "command": ".cursor/hooks/librarian-stop.sh"
+        "command": "node .cursor/hooks/librarian-stop.mjs",
+        "timeout": 120
       }
     ]
   }

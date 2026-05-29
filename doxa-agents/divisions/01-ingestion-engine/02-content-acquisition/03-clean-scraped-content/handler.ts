@@ -1,9 +1,15 @@
 // Supabase Edge Function: clean raw article text with LLM (remove site chrome).
 // Selects story_bodies where content_clean IS NULL, sends content_raw to OpenAI, writes content_clean.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY, OPENAI_MODEL. Optional: OPENAI_MODEL_LARGE.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_stories?: number, dry_run?: boolean }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { max_stories?: number, dry_run?: boolean, story_id?: string } — story_id isolates one row.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const LARGE_CONTENT_THRESHOLD = 12_000;
 const VERY_LONG_CONTENT_THRESHOLD = 30_000;
@@ -159,19 +165,24 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+
   const maxStories = clampInt(body.max_stories, 1, 1, 1);
   const dryRun = Boolean(body.dry_run ?? false);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const requestId = `clean-scraped-${Date.now()}`;
 
-  const { data: rows, error: fetchErr } = await supabase
+  let fetchQuery = supabase
     .from("story_bodies")
     .select("story_id, content_raw, content_length_raw")
     .is("content_clean", null)
-    .not("content_raw", "is", null)
+    .not("content_raw", "is", null);
+  if (singleStoryId) fetchQuery = fetchQuery.eq("story_id", singleStoryId);
+  const { data: rows, error: fetchErr } = await fetchQuery
     .order("scraped_at", { ascending: true })
-    .limit(maxStories);
+    .limit(singleStoryId ? 1 : maxStories);
 
   if (fetchErr) {
     console.error("[clean_scraped_content] story_bodies fetch error:", fetchErr.message);
@@ -184,7 +195,12 @@ export const handler = async (req: Request) => {
   );
 
   if (candidates.length === 0) {
-    return json({ ok: true, processed: 0, message: "No story_bodies to clean" });
+    return json({
+      ok: true,
+      processed: 0,
+      message: "No story_bodies to clean",
+      ...testScopeFields({ storyId: singleStoryId }),
+    });
   }
 
   const row = candidates[0];
@@ -240,5 +256,6 @@ export const handler = async (req: Request) => {
     content_length_clean: contentClean.length,
     model,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId }),
   });
 };

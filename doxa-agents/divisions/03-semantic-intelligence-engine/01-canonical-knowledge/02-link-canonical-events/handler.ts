@@ -1,9 +1,15 @@
 // Supabase Edge Function: link story_events to canonical events via blocking_key + embedding similarity.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_EMBEDDING_MODEL, EVENT_SIMILARITY_THRESHOLD.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_events?: number, dry_run?: boolean }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { max_events?, dry_run?, story_id? } — story_id isolates one story's events.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildBlockingKey } from "../../../../shared/utilities/event-blocking.ts";
+import {
+  invalidUuidMessage,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,20 +110,25 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+
   const maxEvents = clampInt(body.max_events, 1, 50, DEFAULT_MAX_EVENTS);
   const dryRun = Boolean(body.dry_run ?? false);
   const maxDistance = 1 - similarityThreshold;
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: rows, error: fetchErr } = await supabase
+  let fetchQuery = supabase
     .from("story_events")
     .select(
       "story_event_id, story_id, event_summary, primary_actor, action, object, event_date, event_timeframe_start, event_timeframe_end, location, event_type"
     )
-    .is("event_id", null)
+    .is("event_id", null);
+  if (singleStoryId) fetchQuery = fetchQuery.eq("story_id", singleStoryId);
+  const { data: rows, error: fetchErr } = await fetchQuery
     .order("created_at", { ascending: true })
-    .limit(maxEvents);
+    .limit(singleStoryId ? 500 : maxEvents);
 
   if (fetchErr) {
     console.error("[link_canonical_events] Fetch error:", fetchErr.message);
@@ -141,7 +152,15 @@ export const handler = async (req: Request) => {
   );
 
   if (storyEvents.length === 0) {
-    return json({ ok: true, processed: 0, linked: 0, created: 0, message: "No story_events to link", dry_run: dryRun });
+    return json({
+      ok: true,
+      processed: 0,
+      linked: 0,
+      created: 0,
+      message: "No story_events to link",
+      dry_run: dryRun,
+      ...testScopeFields({ storyId: singleStoryId }),
+    });
   }
 
   const topicCache = new Map<string, string>();
@@ -270,5 +289,6 @@ export const handler = async (req: Request) => {
     created,
     similarity_threshold: similarityThreshold,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId }),
   });
 };

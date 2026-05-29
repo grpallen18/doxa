@@ -21,12 +21,12 @@ function applyLinkToSummary(summary: string, phrase: string, targetTopicId: stri
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
-  const topicId = params.id
+  const { id: topicId } = await params
   if (!topicId) {
     return NextResponse.json(
       { ok: false, error: 'Topic ID required' },

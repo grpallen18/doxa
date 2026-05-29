@@ -6,7 +6,7 @@
 |-----|------|--------|----------------|--------|-----|
 | ingest-newsapi-6am-6pm-cst | ingest-newsapi | ingest-newsapi | `0 0,12 * * *` | active | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/01-ingest-newsapi/schedule.sql) |
 | relevance-gate-every-2min | relevance-gate | relevance_gate | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/01-sourcing/02-relevance-gate/schedule.sql) |
-| scrape-story-content-every-2min | scrape-story-content | scrape_story_content | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/01-scrape-story-content/schedule.sql) |
+| scrape-story-content-every-2min | scrape-story-content | scrape_story_content | `*/2 * * * *` | active | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/01-scrape-story-content/schedule.sql) |
 | clean-scraped-content-every-5min | clean-scraped-content | clean_scraped_content | `*/5 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/03-clean-scraped-content/schedule.sql) |
 | review-pending-stories-every-hour | review-pending-stories | review_pending_stories | `0 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/01-ingestion-engine/02-content-acquisition/04-review-pending-stories/schedule.sql) |
 | chunk-story-bodies-every-2min | chunk-story-bodies | chunk_story_bodies | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/divisions/02-processing-engine/01-document-processing/01-chunk-story-bodies/schedule.sql) |

@@ -43,6 +43,8 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 
 **Engine reset:** `SELECT public.purge_engine_data();` — see purge-engine doc. Edit `ops/purge-engine-tables.yaml` when adding pipeline tables; refresh regenerates `supabase/routines/purge_engine_data.sql`.
 
+**Single-record testing:** [docs/pipeline-test-params.md](docs/pipeline-test-params.md) — optional `story_id` / `story_claim_id` / `story_position_id` POST body fields per step (fixture story documented there).
+
 ## Divisions
 
 | Division | Path | Purpose |
@@ -99,7 +101,7 @@ Order: ingestion → processing → canonicalization → position intelligence �
 
 ## Librarian
 
-After pipeline edits, Cursor runs `npm run agents:refresh`. See [.cursor/skills/librarian/SKILL.md](../.cursor/skills/librarian/SKILL.md).
+After pipeline or catalog edits, Cursor hooks run `npm run agents:refresh` automatically on agent turn end (see [.cursor/skills/librarian/SKILL.md](../.cursor/skills/librarian/SKILL.md)). Commit generated files when they change.
 
 ## Layout
 

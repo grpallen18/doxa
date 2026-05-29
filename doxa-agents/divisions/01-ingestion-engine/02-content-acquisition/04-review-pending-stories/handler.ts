@@ -1,9 +1,15 @@
 // Supabase Edge Function: re-review PENDING stories using full body content from story_bodies.
 // Sends first 3000 chars of body to LLM. If confidence >= 60 writes LLM result; else writes template DROP.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { lookback_days?, max_stories?, dry_run? }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { lookback_days?, max_stories?, dry_run?, story_id? } — story_id isolates one row.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const BODY_CONTENT_MAX_CHARS = 3000;
 
@@ -204,6 +210,9 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+
   const lookbackDays = clampInt(body.lookback_days, 1, 14, 7);
   const maxStories = clampInt(body.max_stories, 1, 50, 10);
   const dryRun = Boolean(body.dry_run ?? false);
@@ -224,7 +233,49 @@ export const handler = async (req: Request) => {
 
   let rows: ClaimedRow[] = [];
 
-  if (dryRun) {
+  if (singleStoryId) {
+    const { data: storyRow, error: storyErr } = await supabase
+      .from("stories")
+      .select("story_id, title, content_snippet, content_full, url, created_at, sources(name), story_bodies(content_clean)")
+      .eq("story_id", singleStoryId)
+      .maybeSingle();
+    if (storyErr) {
+      console.error("[review_pending_stories] story fetch error:", storyErr.message);
+      return json({ error: storyErr.message }, 500);
+    }
+    if (!storyRow) {
+      return json({ error: "Story not found", story_id: singleStoryId }, 404);
+    }
+    const sb = (storyRow as { story_bodies?: { content_clean: string | null } | { content_clean: string | null }[] | null })
+      .story_bodies;
+    const bodyRow = Array.isArray(sb) ? sb[0] : sb;
+    const bodyClean = (bodyRow?.content_clean ?? "").trim();
+    if (!bodyClean) {
+      return json({
+        ok: true,
+        processed: 0,
+        message: "Story has no content_clean; run clean_scraped_content first",
+        ...testScopeFields({ storyId: singleStoryId }),
+      });
+    }
+    if (!dryRun) {
+      await supabase
+        .from("stories")
+        .update({ review_claimed_at: new Date().toISOString() })
+        .eq("story_id", singleStoryId);
+    }
+    const r = storyRow as StoryRow & { sources?: { name: string } | null };
+    rows = [{
+      story_id: r.story_id,
+      title: r.title,
+      content_snippet: r.content_snippet,
+      content_full: r.content_full,
+      url: r.url,
+      created_at: r.created_at,
+      source_name: getSourceName(r.sources),
+      body_content: bodyClean,
+    }];
+  } else if (dryRun) {
     const { data: rowsRaw, error: rpcErr } = await supabase.rpc("get_pending_stories_with_body", {
       p_since: sinceIso,
       p_limit: maxStories,
@@ -260,7 +311,12 @@ export const handler = async (req: Request) => {
     }));
 
   if (stories.length === 0) {
-    return json({ ok: true, processed: 0, message: "No PENDING stories with content_clean to review" });
+    return json({
+      ok: true,
+      processed: 0,
+      message: "No PENDING stories with content_clean to review",
+      ...testScopeFields({ storyId: singleStoryId }),
+    });
   }
 
   const counts = { KEEP: 0, DROP: 0, dropped_unclear: 0 };
@@ -321,6 +377,7 @@ export const handler = async (req: Request) => {
       model: MODEL,
       lookback_days: lookbackDays,
       max_stories: maxStories,
+      ...testScopeFields({ storyId: singleStoryId }),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

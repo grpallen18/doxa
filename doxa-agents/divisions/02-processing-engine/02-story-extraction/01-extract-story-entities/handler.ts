@@ -2,9 +2,15 @@
 // Writes extraction_json to story_chunks (claims, evidence, positions, events, links).
 // Pipeline: chunk_story_bodies -> extract_story_entities (deploy: extract_chunk_claims) -> merge_story_claims.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY. Body: { max_chunks?: number }.
+// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
+// Body: { max_chunks?, dry_run?, story_id?, chunk_index? } — story_id isolates one story's chunks.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  invalidUuidMessage,
+  parseStoryIdFromBody,
+  testScopeFields,
+} from "../../../../lib/pipeline-test-params.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -392,18 +398,28 @@ export const handler = async (req: Request) => {
   } catch {
     // use defaults
   }
+  const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
+  if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
+
   const maxChunks = clampInt(body.max_chunks, 1, 20, DEFAULT_MAX_CHUNKS);
   const dryRun = Boolean(body.dry_run ?? false);
+  const chunkIndexParam =
+    body.chunk_index !== undefined && body.chunk_index !== null
+      ? clampInt(body.chunk_index, 0, 10_000, -1)
+      : -1;
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const { data: chunksRaw, error: fetchErr } = await supabase
+  let fetchQuery = supabase
     .from("story_chunks")
     .select("story_id, chunk_index, content")
-    .is("extraction_json", null)
+    .is("extraction_json", null);
+  if (singleStoryId) fetchQuery = fetchQuery.eq("story_id", singleStoryId);
+  if (chunkIndexParam >= 0) fetchQuery = fetchQuery.eq("chunk_index", chunkIndexParam);
+  const { data: chunksRaw, error: fetchErr } = await fetchQuery
     .order("story_id", { ascending: true })
     .order("chunk_index", { ascending: true })
-    .limit(maxChunks);
+    .limit(singleStoryId ? 100 : maxChunks);
 
   if (fetchErr) {
     console.error("[extract_chunk_claims] Fetch error:", fetchErr.message);
@@ -416,7 +432,13 @@ export const handler = async (req: Request) => {
   );
 
   if (chunks.length === 0) {
-    return json({ ok: true, processed: 0, message: "No chunks to extract" });
+    return json({
+      ok: true,
+      processed: 0,
+      message: "No chunks to extract",
+      ...testScopeFields({ storyId: singleStoryId }),
+      chunk_index: chunkIndexParam >= 0 ? chunkIndexParam : undefined,
+    });
   }
 
   let runId: string | null = null;
@@ -509,5 +531,7 @@ export const handler = async (req: Request) => {
     model: MODEL,
     run_id: runId,
     dry_run: dryRun,
+    ...testScopeFields({ storyId: singleStoryId }),
+    chunk_index: chunkIndexParam >= 0 ? chunkIndexParam : undefined,
   });
 };

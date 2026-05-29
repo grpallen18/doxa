@@ -7,10 +7,19 @@ description: Sync Doxa agent catalog and docs from code. Run after pipeline, cro
 
 Keep the agent catalog and generated docs in sync with the codebase. Do not modify application logic or migrations.
 
-## Steps
+## Automatic sync (Cursor hooks)
 
-1. Run `npm run agents:refresh` from the repo root (sync manifest + docs + purge-engine SQL + validate).
-2. If validate fails, fix handlers, stubs, or schedule SQL — **never edit manifest.yaml by hand**.
+On every agent turn end, `.cursor/hooks/librarian-stop.mjs` runs when either:
+
+- A watched pipeline file was edited this turn (`doxa-agents/**`, `supabase/functions/**`, etc.), or
+- `manifest.yaml` / `docs/generated/*` are stale vs source (e.g. after manual `activation.yaml` edits)
+
+It executes `npm run agents:refresh` directly — no follow-up prompt on success.
+
+## When refresh fails
+
+1. Fix handlers, stubs, or schedule SQL — **never edit manifest.yaml by hand**.
+2. Re-run `npm run agents:refresh`.
 3. Commit generated files (`manifest.yaml`, `docs/generated/*`, division README blocks) if changed.
 4. Do not edit `handler.ts` unless the user asked for a code change.
 

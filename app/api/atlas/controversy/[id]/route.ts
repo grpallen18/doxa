@@ -4,10 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 /** Returns graph data for a controversy: center node + sourceDetails from claims in its positions. */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const controversyId = params.id
+  const { id: controversyId } = await params
 
   try {
     const { data: controversy, error: ccErr } = await supabase
