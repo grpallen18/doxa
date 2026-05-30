@@ -1,11 +1,65 @@
 export type ExtractionQaStatus =
   | "pending"
   | "reviewed"
+  | "standardized"
   | "needs_refinement"
   | "refined"
   | "atoms_passed"
   | "passed"
   | "needs_human_review";
+
+export const MAX_VALIDATION_ATTEMPTS = 3;
+export const MAX_REFINEMENT_ATTEMPTS = 3;
+
+export type StandardizationReportEntry = {
+  entity_type?: string | null;
+  entity_index?: number | null;
+  description?: string;
+  reason?: string;
+};
+
+export type StandardizationReport = {
+  kept: StandardizationReportEntry[];
+  merged: StandardizationReportEntry[];
+  reclassified: StandardizationReportEntry[];
+  discarded: StandardizationReportEntry[];
+  notes: string[];
+};
+
+export type ValidationBlockingIssue = {
+  issue_type: string;
+  entity_type: string | null;
+  entity_index: number | null;
+  description: string;
+  acceptance_criteria: string;
+};
+
+export function normalizeBlockingIssues(
+  issues: Array<string | ValidationBlockingIssue> | undefined
+): ValidationBlockingIssue[] {
+  return (issues ?? []).map((issue) => {
+    if (typeof issue === "string") {
+      return {
+        issue_type: "other",
+        entity_type: null,
+        entity_index: null,
+        description: issue,
+        acceptance_criteria: issue,
+      };
+    }
+    return issue;
+  });
+}
+
+
+export function resolveValidationFailureStatus(
+  attemptCount: number,
+  recommendedStatus: "passed" | "needs_refinement" | "needs_human_review" | "promote" | "reject" | "atoms_passed"
+): ExtractionQaStatus {
+  if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
+  if (recommendedStatus === "needs_refinement") return "needs_refinement";
+  return "needs_human_review";
+}
 
 export type IssueType =
   | "missing_claim"
@@ -111,6 +165,8 @@ export type ValidationScores = {
   temporal_accuracy: number;
   position_capture?: number;
   schema_validity?: number;
+  taxonomy_quality?: number;
+  materiality?: number;
   merge_fidelity?: number;
   link_quality?: number;
 };
@@ -118,12 +174,15 @@ export type ValidationScores = {
 export type ValidationReport = {
   passes: boolean;
   scores: ValidationScores;
-  blocking_issues: string[];
+  blocking_issues: Array<string | ValidationBlockingIssue>;
   recommended_status: "passed" | "needs_refinement" | "needs_human_review" | "promote" | "reject" | "atoms_passed";
+  recommended_next_agent?: "refiner" | "human_review";
+  attempt_number?: number;
   deterministic_issues?: string[];
   summary?: string;
   major_issues?: string[];
   minor_warnings?: string[];
+  materiality_warnings?: string[];
   deterministic_checks?: DeterministicChecksDetail;
   promotion_gate?: {
     eligible_for_promotion: boolean;

@@ -2,7 +2,10 @@
 
 import type { ReactNode } from 'react'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
-import type { PipelineStepId } from '@/lib/admin/story-pipeline-checklist'
+import {
+  getStepNotRequiredMessage,
+  type PipelineStepId,
+} from '@/lib/admin/story-pipeline-checklist'
 import {
   chunkEntityCounts,
   flattenExtractionJson,
@@ -69,13 +72,62 @@ function RefinePatches({ report }: { report: unknown }) {
   )
 }
 
+function StandardizationSummary({ report }: { report: unknown }) {
+  if (!report || typeof report !== 'object') return <EmptyDetail message="No standardization report." />
+  const r = report as {
+    kept?: unknown[]
+    merged?: unknown[]
+    reclassified?: unknown[]
+    discarded?: unknown[]
+    notes?: string[]
+  }
+  const sections = [
+    { label: 'Kept', items: r.kept ?? [] },
+    { label: 'Merged', items: r.merged ?? [] },
+    { label: 'Reclassified', items: r.reclassified ?? [] },
+    { label: 'Discarded', items: r.discarded ?? [] },
+  ].filter((s) => s.items.length > 0)
+
+  return (
+    <div className="space-y-2 text-xs">
+      {sections.map((section) => (
+        <div key={section.label}>
+          <p className="font-medium text-muted">{section.label}</p>
+          <ul className="mt-1 space-y-1">
+            {section.items.map((item, i) => (
+              <li key={i} className="rounded bg-muted/20 px-2 py-1.5">
+                {typeof item === 'object' && item !== null && 'description' in item
+                  ? String((item as { description?: string }).description ?? JSON.stringify(item))
+                  : JSON.stringify(item)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {(r.notes?.length ?? 0) > 0 && (
+        <ul className="space-y-1">
+          {r.notes!.map((note, i) => (
+            <li key={i} className="rounded bg-muted/20 px-2 py-1.5 text-muted">
+              {note}
+            </li>
+          ))}
+        </ul>
+      )}
+      {sections.length === 0 && (r.notes?.length ?? 0) === 0 && (
+        <EmptyDetail message="No standardization changes recorded." />
+      )}
+    </div>
+  )
+}
+
 function ValidationSummary({ report }: { report: unknown }) {
   if (!report || typeof report !== 'object') return null
   const r = report as {
     passes?: boolean
     recommended_status?: string
-    blocking_issues?: string[]
+    blocking_issues?: Array<string | { description?: string; acceptance_criteria?: string }>
     scores?: Record<string, number>
+    attempt_number?: number
   }
   return (
     <div className="space-y-2 text-xs">
@@ -83,6 +135,7 @@ function ValidationSummary({ report }: { report: unknown }) {
         <p>
           Passes: <span className="font-medium">{r.passes ? 'Yes' : 'No'}</span>
           {r.recommended_status ? ` · ${r.recommended_status.replace(/_/g, ' ')}` : ''}
+          {r.attempt_number ? ` · attempt ${r.attempt_number}` : ''}
         </p>
       )}
       {r.scores && (
@@ -97,7 +150,9 @@ function ValidationSummary({ report }: { report: unknown }) {
         <ul className="space-y-1">
           {r.blocking_issues!.map((issue, i) => (
             <li key={i} className="rounded bg-muted/20 px-2 py-1.5">
-              {issue}
+              {typeof issue === 'string'
+                ? issue
+                : issue.acceptance_criteria || issue.description || JSON.stringify(issue)}
             </li>
           ))}
         </ul>
@@ -177,23 +232,31 @@ function ChunkQaDetail({
   kind,
 }: {
   payload: StoryExtractionReviewPayload
-  kind: 'review' | 'refine' | 'validate'
+  kind: 'standardize' | 'refine' | 'validate'
 }) {
   const chunks = payload.chunks.filter((c) => c.extraction_json != null)
   if (chunks.length === 0) return <EmptyDetail message="No chunks to show." />
 
   const reportKey =
-    kind === 'validate' ? 'extraction_qa_validation_report' : 'extraction_qa_review_report'
+    kind === 'validate' ? 'extraction_qa_validation_report' : 'extraction_qa_standardization_report'
   const stage =
-    kind === 'review' ? 'chunk_review' : kind === 'refine' ? 'chunk_refine' : 'chunk_validate'
+    kind === 'standardize' ? 'chunk_standardize' : kind === 'refine' ? 'chunk_refine' : 'chunk_validate'
 
   const relevant = chunks.filter((c) => {
     if (kind === 'refine') return (c.extraction_qa_refinement_count ?? 0) > 0
     if (kind === 'validate') return c.extraction_qa_validation_report != null
-    return c.extraction_qa_review_report != null
+    return c.extraction_qa_standardization_report != null
   })
 
   if (relevant.length === 0) {
+    const stepId: PipelineStepId =
+      kind === 'standardize'
+        ? 'standardize-chunk-extraction'
+        : kind === 'refine'
+          ? 'refine-chunk-extraction'
+          : 'validate-chunk-extraction'
+    const notRequired = getStepNotRequiredMessage(stepId, payload)
+    if (notRequired) return <EmptyDetail message={notRequired} />
     return <EmptyDetail message={`No chunk ${kind} output yet.`} />
   }
 
@@ -233,7 +296,7 @@ function ChunkQaDetail({
               </div>
             ) : (
               <div className="mt-2">
-                <ReportFindings report={ch.extraction_qa_review_report} />
+                <StandardizationSummary report={ch.extraction_qa_standardization_report} />
               </div>
             )}
           </li>
@@ -387,6 +450,8 @@ function MergedQaDetail({
   }
 
   if (kind === 'refine') {
+    const notRequired = getStepNotRequiredMessage('refine-merged-extraction', payload)
+    if (notRequired) return <EmptyDetail message={notRequired} />
     if ((payload.story.extraction_qa_refinement_count ?? 0) === 0 && artifacts.length === 0) {
       return <EmptyDetail message="No merge refine output yet." />
     }
@@ -430,7 +495,10 @@ function CanonicalLinksDetail({
   }
 
   if (entity === 'claims') {
-    if (payload.claims.length === 0) return <EmptyDetail message="No claims." />
+    const notRequired = getStepNotRequiredMessage('link-canonical-claims', payload)
+    if (payload.claims.length === 0) {
+      return <EmptyDetail message={notRequired ?? 'No claims.'} />
+    }
     return (
       <ul className="space-y-1.5">
         {payload.claims.map((c) => (
@@ -446,7 +514,10 @@ function CanonicalLinksDetail({
   }
 
   if (entity === 'events') {
-    if (payload.events.length === 0) return <EmptyDetail message="No events." />
+    const notRequired = getStepNotRequiredMessage('link-canonical-events', payload)
+    if (payload.events.length === 0) {
+      return <EmptyDetail message={notRequired ?? 'No events.'} />
+    }
     return (
       <ul className="space-y-1.5">
         {payload.events.map((e) => (
@@ -459,7 +530,10 @@ function CanonicalLinksDetail({
     )
   }
 
-  if (payload.positions.length === 0) return <EmptyDetail message="No positions." />
+  const notRequired = getStepNotRequiredMessage('link-canonical-positions', payload)
+  if (payload.positions.length === 0) {
+    return <EmptyDetail message={notRequired ?? 'No positions.'} />
+  }
   return (
     <ul className="space-y-1.5">
       {payload.positions.map((p) => (
@@ -475,7 +549,10 @@ function CanonicalLinksDetail({
 }
 
 function StancesDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
-  if (payload.claims.length === 0) return <EmptyDetail message="No claims." />
+  const notRequired = getStepNotRequiredMessage('update-stances', payload)
+  if (payload.claims.length === 0) {
+    return <EmptyDetail message={notRequired ?? 'No claims.'} />
+  }
   return (
     <ul className="space-y-1.5">
       {payload.claims.map((c) => (
@@ -499,13 +576,16 @@ export function pipelineStepHasDetailContent(
       return payload.chunks.length > 0
     case 'extract-story-entities':
       return payload.chunks.some((c) => c.extraction_json != null)
-    case 'review-chunk-extraction':
+    case 'standardize-chunk-extraction':
       return payload.chunks.some(
-        (c) => c.extraction_json != null && c.extraction_qa_review_report != null
+        (c) => c.extraction_json != null && c.extraction_qa_standardization_report != null
       )
     case 'refine-chunk-extraction':
-      return payload.chunks.some(
-        (c) => c.extraction_json != null && (c.extraction_qa_refinement_count ?? 0) > 0
+      return (
+        getStepNotRequiredMessage('refine-chunk-extraction', payload) != null ||
+        payload.chunks.some(
+          (c) => c.extraction_json != null && (c.extraction_qa_refinement_count ?? 0) > 0
+        )
       )
     case 'validate-chunk-extraction':
       return payload.chunks.some(
@@ -520,20 +600,35 @@ export function pipelineStepHasDetailContent(
       return payload.story.merged_at != null && payload.story.extraction_qa_review_report != null
     case 'refine-merged-extraction':
       return (
-        payload.story.merged_at != null &&
-        ((payload.story.extraction_qa_refinement_count ?? 0) > 0 ||
-          payload.qa_artifacts.some((a) => a.stage === 'merge_refine'))
+        getStepNotRequiredMessage('refine-merged-extraction', payload) != null ||
+        (payload.story.merged_at != null &&
+          ((payload.story.extraction_qa_refinement_count ?? 0) > 0 ||
+            payload.qa_artifacts.some((a) => a.stage === 'merge_refine')))
       )
     case 'validate-merged-extraction':
       return payload.story.merged_at != null && payload.story.extraction_qa_validation_report != null
     case 'link-canonical-claims':
-      return payload.story.merged_at != null && payload.claims.length > 0
+      return (
+        payload.story.merged_at != null &&
+        (payload.claims.length > 0 ||
+          getStepNotRequiredMessage('link-canonical-claims', payload) != null)
+      )
     case 'link-canonical-events':
-      return payload.story.merged_at != null && payload.events.length > 0
+      return (
+        payload.story.merged_at != null &&
+        (payload.events.length > 0 ||
+          getStepNotRequiredMessage('link-canonical-events', payload) != null)
+      )
     case 'link-canonical-positions':
-      return payload.story.merged_at != null && payload.positions.length > 0
+      return (
+        payload.story.merged_at != null &&
+        (payload.positions.length > 0 ||
+          getStepNotRequiredMessage('link-canonical-positions', payload) != null)
+      )
     case 'update-stances':
-      return payload.claims.length > 0
+      return (
+        payload.claims.length > 0 || getStepNotRequiredMessage('update-stances', payload) != null
+      )
     default:
       return false
   }
@@ -576,8 +671,8 @@ export function PipelineStepDetail({
         )
       case 'extract-story-entities':
         return <ChunkExtractionsDetail payload={payload} />
-      case 'review-chunk-extraction':
-        return <ChunkQaDetail payload={payload} kind="review" />
+      case 'standardize-chunk-extraction':
+        return <ChunkQaDetail payload={payload} kind="standardize" />
       case 'refine-chunk-extraction':
         return <ChunkQaDetail payload={payload} kind="refine" />
       case 'validate-chunk-extraction':

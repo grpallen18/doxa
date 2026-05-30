@@ -272,7 +272,7 @@ export function StoryPipelinePanel({
                           <p className="text-xs text-muted">{step.progress}</p>
                         )}
                         {step.status === 'optional' && (
-                          <p className="text-xs text-muted">Optional (nothing to refine)</p>
+                          <p className="text-xs text-muted">Not required — nothing to refine</p>
                         )}
                       </div>
                     </div>

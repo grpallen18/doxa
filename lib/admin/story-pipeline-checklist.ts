@@ -3,7 +3,7 @@ import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-
 export type PipelineStepId =
   | 'chunk-story-bodies'
   | 'extract-story-entities'
-  | 'review-chunk-extraction'
+  | 'standardize-chunk-extraction'
   | 'refine-chunk-extraction'
   | 'validate-chunk-extraction'
   | 'link-chunk-entities'
@@ -36,7 +36,7 @@ export type PipelineChecklist = {
 export const PIPELINE_STEPS: Array<{ id: PipelineStepId; deployName: string; label: string }> = [
   { id: 'chunk-story-bodies', deployName: 'chunk_story_bodies', label: 'Chunk story bodies' },
   { id: 'extract-story-entities', deployName: 'extract_story_entities', label: 'Extract entities' },
-  { id: 'review-chunk-extraction', deployName: 'review_chunk_extraction', label: 'Review chunk extraction' },
+  { id: 'standardize-chunk-extraction', deployName: 'standardize_chunk_extraction', label: 'Standardize chunk extraction' },
   { id: 'refine-chunk-extraction', deployName: 'refine_chunk_extraction', label: 'Refine chunk extraction' },
   { id: 'validate-chunk-extraction', deployName: 'validate_chunk_extraction', label: 'Validate chunk extraction' },
   { id: 'link-chunk-entities', deployName: 'link_chunk_entities', label: 'Link chunk entities' },
@@ -54,7 +54,7 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set(PIPELINE_STEPS.map((s) => s.dep
 
 const BATCH_DEPLOYS = new Set([
   'extract_story_entities',
-  'review_chunk_extraction',
+  'standardize_chunk_extraction',
   'refine_chunk_extraction',
   'validate_chunk_extraction',
   'link_chunk_entities',
@@ -77,10 +77,10 @@ function chunkQaCounts(payload: StoryExtractionReviewPayload) {
   const total = chunks.length
   const extracted = chunks.filter((c) => c.extraction_json != null)
   const withJson = extracted.length
-  const pendingReview = extracted.filter(
+  const pendingStandardize = extracted.filter(
     (c) => c.extraction_qa_status === 'pending' || c.extraction_qa_status == null
   ).length
-  const reviewed = extracted.filter(
+  const postStandardize = extracted.filter(
     (c) => c.extraction_qa_status != null && c.extraction_qa_status !== 'pending'
   ).length
   const needsRefine = extracted.filter((c) => c.extraction_qa_status === 'needs_refinement').length
@@ -89,15 +89,15 @@ function chunkQaCounts(payload: StoryExtractionReviewPayload) {
   const needsHuman = extracted.filter((c) => c.extraction_qa_status === 'needs_human_review').length
   const awaitingValidate = extracted.filter(
     (c) =>
-      (c.extraction_qa_status === 'reviewed' || c.extraction_qa_status === 'refined') &&
+      (c.extraction_qa_status === 'standardized' || c.extraction_qa_status === 'refined') &&
       c.extraction_qa_validated_at == null
   ).length
   const awaitingLink = atomsPassed
   return {
     total,
     withJson,
-    pendingReview,
-    reviewed,
+    pendingStandardize,
+    postStandardize,
     needsRefine,
     atomsPassed,
     passed,
@@ -144,13 +144,14 @@ export function isStepComplete(stepId: PipelineStepId, payload: StoryExtractionR
       return counts.total > 0
     case 'extract-story-entities':
       return isExtractComplete(payload)
-    case 'review-chunk-extraction':
-      return isExtractComplete(payload) && counts.pendingReview === 0
+    case 'standardize-chunk-extraction':
+      return isExtractComplete(payload) && counts.pendingStandardize === 0
     case 'refine-chunk-extraction':
-      return isStepComplete('review-chunk-extraction', payload) && counts.needsRefine === 0
+      return isStepComplete('standardize-chunk-extraction', payload) && counts.needsRefine === 0
     case 'validate-chunk-extraction':
       return (
-        isStepComplete('refine-chunk-extraction', payload) &&
+        (isStepComplete('refine-chunk-extraction', payload) ||
+          isRefineOptional('refine-chunk-extraction', payload)) &&
         counts.withJson > 0 &&
         counts.atomsPassed + counts.passed === counts.withJson
       )
@@ -210,8 +211,8 @@ function stepProgress(stepId: PipelineStepId, payload: StoryExtractionReviewPayl
   switch (stepId) {
     case 'extract-story-entities':
       return c.total > 0 ? `${c.withJson}/${c.total} chunks extracted` : null
-    case 'review-chunk-extraction':
-      return c.withJson > 0 ? `${c.reviewed}/${c.withJson} chunks reviewed` : null
+    case 'standardize-chunk-extraction':
+      return c.withJson > 0 ? `${c.postStandardize}/${c.withJson} chunks standardized` : null
     case 'refine-chunk-extraction':
       return c.withJson > 0 && c.needsRefine > 0 ? `${c.needsRefine} chunk(s) need refinement` : null
     case 'validate-chunk-extraction':
@@ -245,10 +246,10 @@ function stepProgress(stepId: PipelineStepId, payload: StoryExtractionReviewPayl
   }
 }
 
-function isRefineOptional(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+export function isRefineOptional(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   if (stepId === 'refine-chunk-extraction') {
     const c = chunkQaCounts(payload)
-    return c.withJson > 0 && c.needsRefine === 0 && isStepComplete('review-chunk-extraction', payload)
+    return c.withJson > 0 && c.needsRefine === 0 && isStepComplete('standardize-chunk-extraction', payload)
   }
   if (stepId === 'refine-merged-extraction') {
     return (
@@ -257,6 +258,57 @@ function isRefineOptional(stepId: PipelineStepId, payload: StoryExtractionReview
     )
   }
   return false
+}
+
+/** When a step is complete without ever running (nothing to do). */
+export function getStepNotRequiredMessage(
+  stepId: PipelineStepId,
+  payload: StoryExtractionReviewPayload
+): string | null {
+  if (!isStepComplete(stepId, payload)) return null
+
+  switch (stepId) {
+    case 'refine-chunk-extraction': {
+      const hasRefineOutput = payload.chunks.some(
+        (c) => c.extraction_json != null && (c.extraction_qa_refinement_count ?? 0) > 0
+      )
+      if (!hasRefineOutput && isRefineOptional(stepId, payload)) {
+        return 'No refinement necessary — stage completed.'
+      }
+      return null
+    }
+    case 'refine-merged-extraction': {
+      const hasRefineOutput =
+        (payload.story.extraction_qa_refinement_count ?? 0) > 0 ||
+        payload.qa_artifacts.some((a) => a.stage === 'merge_refine')
+      if (!hasRefineOutput && isRefineOptional(stepId, payload)) {
+        return 'No merge refinement necessary — stage completed.'
+      }
+      return null
+    }
+    case 'link-canonical-claims':
+      if (isMergeValidated(payload) && payload.claims.length === 0) {
+        return 'No claims to link — stage completed.'
+      }
+      return null
+    case 'link-canonical-events':
+      if (isMergeValidated(payload) && payload.events.length === 0) {
+        return 'No events to link — stage completed.'
+      }
+      return null
+    case 'link-canonical-positions':
+      if (isMergeValidated(payload) && payload.positions.length === 0) {
+        return 'No positions to link — stage completed.'
+      }
+      return null
+    case 'update-stances':
+      if (isMergeValidated(payload) && payload.claims.length === 0) {
+        return 'No claims — stances stage completed.'
+      }
+      return null
+    default:
+      return null
+  }
 }
 
 function priorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
@@ -274,7 +326,7 @@ function canRunWhenBlocked(stepId: PipelineStepId): boolean {
   return (
     stepId === 'validate-chunk-extraction' ||
     stepId === 'validate-merged-extraction' ||
-    stepId === 'review-chunk-extraction' ||
+    stepId === 'standardize-chunk-extraction' ||
     stepId === 'review-merged-extraction' ||
     stepId === 'refine-chunk-extraction' ||
     stepId === 'refine-merged-extraction'
@@ -341,7 +393,7 @@ function snapshotForStep(stepId: PipelineStepId, payload: StoryExtractionReviewP
       chunk_index: ch.chunk_index,
       qa_status: ch.extraction_qa_status,
       refinement_count: ch.extraction_qa_refinement_count ?? 0,
-      has_review: ch.extraction_qa_review_report != null,
+      has_standardization: ch.extraction_qa_standardization_report != null,
       has_validation: ch.extraction_qa_validation_report != null,
     }))
   return {

@@ -227,6 +227,30 @@ export function getCompletenessIssues(extraction: ExtractionJson): string[] {
   return issues;
 }
 
+export function getMaterialityWarnings(sourceText: string, extraction: ExtractionJson): string[] {
+  const warnings: string[] = [];
+  const claims = Array.isArray(extraction.claims) ? extraction.claims : [];
+  const evidence = Array.isArray(extraction.evidence) ? extraction.evidence : [];
+  const positions = Array.isArray(extraction.positions) ? extraction.positions : [];
+  const events = Array.isArray(extraction.events) ? extraction.events : [];
+  const chunkLen = sourceText.trim().length;
+
+  if (chunkLen >= SUBSTANTIAL_CHUNK_MIN_CHARS && claims.length > 14) {
+    warnings.push(`materiality: ${claims.length} claims may be excessive for chunk length (target ~6–12)`);
+  }
+  if (chunkLen >= SUBSTANTIAL_CHUNK_MIN_CHARS && claims.length > 0 && evidence.length === 0) {
+    warnings.push("materiality: no evidence atoms despite substantial chunk");
+  }
+  if (positions.length > 3) {
+    warnings.push(`materiality: ${positions.length} positions — prefer 1–2 central stances`);
+  }
+  if (events.length === 0 && claims.length >= 6) {
+    warnings.push("materiality: many claims but no events — check for public statements or aggregate actions");
+  }
+
+  return warnings;
+}
+
 export function runStrictPreValidation(
   sourceText: string,
   extraction: ExtractionJson,

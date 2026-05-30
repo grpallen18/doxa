@@ -26,9 +26,9 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | review-pending-stories | `review_pending_stories` | `story_id` | Only runs if story is `PENDING` and has `content_clean`. |
 | chunk-story-bodies | `chunk_story_bodies` | `story_id` | Chunks one story if `content_clean` exists and no `story_chunks` yet. |
 | extract-story-entities | `extract_story_entities` | `story_id`, optional `chunk_index` | All unextracted chunks for story, or one chunk index. |
-| review-chunk-extraction | `review_chunk_extraction` | `story_id`, optional `chunk_index` | Chunk QA reviewer. |
-| refine-chunk-extraction | `refine_chunk_extraction` | `story_id`, optional `chunk_index` | Apply reviewer patches (max one cycle). |
-| validate-chunk-extraction | `validate_chunk_extraction` | `story_id`, optional `chunk_index` | Provenance judge; sets `atoms_passed`. |
+| standardize-chunk-extraction | `standardize_chunk_extraction` | `story_id`, optional `chunk_index` | Taxonomy/materiality standardizer (once per extract). |
+| refine-chunk-extraction | `refine_chunk_extraction` | `story_id`, optional `chunk_index` | Apply validator patches (max three cycles). |
+| validate-chunk-extraction | `validate_chunk_extraction` | `story_id`, optional `chunk_index` | Production judge; sets `atoms_passed` or refine loop. |
 | link-chunk-entities | `link_chunk_entities` | `story_id`, optional `chunk_index` | Adds semantic link arrays; sets `passed`. Required before merge. |
 | merge-story-entities | `merge_story_entities` | `story_id` | Merge extraction JSON → `story_*` tables for one story. |
 | review-merged-extraction | `review_merged_extraction` | `story_id` | Story-level merge QA reviewer. |
@@ -83,7 +83,7 @@ Future (not implemented yet): `canonical_claim_id`, `canonical_position_id` for 
 2. `clean_scraped_content`
 3. `chunk_story_bodies`
 4. `extract_story_entities` (repeat until all chunks have `extraction_json`)
-5. `review_chunk_extraction` → `refine_chunk_extraction` (if needed) → `validate_chunk_extraction` (repeat until all chunks `extraction_qa_status = passed`)
+5. `standardize_chunk_extraction` → `validate_chunk_extraction` → `refine_chunk_extraction` (loop, max 3 validation attempts) → `link_chunk_entities` (all chunks `extraction_qa_status = passed`)
 6. `merge_story_entities`
 7. `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
 8. `link_canonical_claims` / `link_canonical_events` / `link_canonical_positions`

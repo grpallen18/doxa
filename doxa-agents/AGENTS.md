@@ -63,9 +63,10 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 |-------|--------|--------|
 | [01-chunk-story-bodies](departments/02-chunking-engine/01-chunk-story-bodies/) | `chunk_story_bodies` | Split clean text into chunks |
 | [02-extract-story-entities](departments/02-chunking-engine/02-extract-story-entities/) | `extract_story_entities` | Claims, evidence, **positions**, events |
-| [03-review-chunk-extraction](departments/02-chunking-engine/03-review-chunk-extraction/) | `review_chunk_extraction` | Chunk QA reviewer |
-| [04-refine-chunk-extraction](departments/02-chunking-engine/04-refine-chunk-extraction/) | `refine_chunk_extraction` | Chunk QA patch (max 1 cycle) |
-| [05-validate-chunk-extraction](departments/02-chunking-engine/05-validate-chunk-extraction/) | `validate_chunk_extraction` | Chunk QA judge |
+| [03-standardize-chunk-extraction](departments/02-chunking-engine/03-standardize-chunk-extraction/) | `standardize_chunk_extraction` | Taxonomy, dedupe, materiality |
+| [04-refine-chunk-extraction](departments/02-chunking-engine/04-refine-chunk-extraction/) | `refine_chunk_extraction` | Chunk QA patch (max 3 cycles) |
+| [05-validate-chunk-extraction](departments/02-chunking-engine/05-validate-chunk-extraction/) | `validate_chunk_extraction` | Production judge → `atoms_passed` |
+| [06-link-chunk-entities](departments/02-chunking-engine/06-link-chunk-entities/) | `link_chunk_entities` | Semantic links after validation |
 
 ### 03 Merging (detail)
 

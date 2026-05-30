@@ -1,5 +1,6 @@
-// Validate chunk extraction: deterministic pre-validator + LLM judge; sets passed or needs_human_review.
+// Validate chunk extraction: deterministic pre-validator + LLM judge; sets atoms_passed or refine loop.
 // Body: { max_chunks?, dry_run?, story_id?, chunk_index? }
+// Optional env: OPENAI_MODEL_CHUNK_QA (falls back to OPENAI_MODEL_EXTRACT, OPENAI_MODEL).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
@@ -10,10 +11,12 @@ import {
 import {
   autoPassEmptyExtraction,
   buildDeterministicValidationReport,
-  checkBlockingFindingsUnresolved,
+  getMaterialityWarnings,
   runStrictPreValidation,
 } from "../../../lib/extraction-qa/deterministic-checks.ts";
+import { resolveChunkQaModel } from "../../../lib/extraction-qa/chunk-qa-model.ts";
 import { saveArtifact, validateChunk } from "../../../lib/extraction-qa/openai-qa.ts";
+import { applyProvenanceSpans } from "../../../lib/extraction-qa/span-compute.ts";
 import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   asExtractionJson,
@@ -21,10 +24,11 @@ import {
   corsHeaders,
   isEmptyExtraction,
   json,
-  type ReviewReport,
+  MAX_VALIDATION_ATTEMPTS,
+  resolveValidationFailureStatus,
+  type ValidationReport,
 } from "../../../lib/extraction-qa/types.ts";
 
-const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_MAX = 5;
 
 export const handler = async (req: Request) => {
@@ -34,7 +38,11 @@ export const handler = async (req: Request) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-  const MODEL = Deno.env.get("OPENAI_MODEL") ?? DEFAULT_MODEL;
+  const MODEL = resolveChunkQaModel({
+    OPENAI_MODEL_CHUNK_QA: Deno.env.get("OPENAI_MODEL_CHUNK_QA"),
+    OPENAI_MODEL_EXTRACT: Deno.env.get("OPENAI_MODEL_EXTRACT"),
+    OPENAI_MODEL: Deno.env.get("OPENAI_MODEL"),
+  });
 
   if (!SUPABASE_URL || !SERVICE_ROLE || !OPENAI_API_KEY) {
     return json({ error: "Missing env" }, 500);
@@ -87,83 +95,124 @@ export const handler = async (req: Request) => {
   const now = new Date().toISOString();
 
   for (const chunk of chunks) {
-    const extraction = asExtractionJson(chunk.extraction_json);
-    const sourceText = chunk.content ?? "";
-    const metadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
+    try {
+      const sourceText = chunk.content ?? "";
+      const extraction = applyProvenanceSpans(asExtractionJson(chunk.extraction_json), sourceText);
+      const metadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
 
-    const { data: chunkMeta } = await supabase
-      .from("story_chunks")
-      .select("extraction_qa_review_report, extraction_qa_refinement_count")
-      .eq("story_id", chunk.story_id)
-      .eq("chunk_index", chunk.chunk_index)
-      .single();
-
-    const reviewReport = (chunkMeta?.extraction_qa_review_report ?? null) as ReviewReport | null;
-
-    let validationReport;
-
-    if (isEmptyExtraction(extraction)) {
-      validationReport = autoPassEmptyExtraction(sourceText.length);
-    } else {
-      const strictPre = runStrictPreValidation(sourceText, extraction, {
-        enforceCompleteness: false,
-        atomsOnly: true,
-      });
-      const refinerUnresolved =
-        chunkMeta?.extraction_qa_refinement_count && chunkMeta.extraction_qa_refinement_count > 0
-          ? checkBlockingFindingsUnresolved(reviewReport, extraction, extraction, sourceText)
-          : [];
-
-      if (!strictPre.passes || refinerUnresolved.length > 0) {
-        validationReport = buildDeterministicValidationReport(strictPre, refinerUnresolved, false);
-      } else {
-        validationReport = await validateChunk(
-          OPENAI_API_KEY,
-          MODEL,
-          {
-            ...metadataPayload(metadata),
-            chunk_text: sourceText,
-            source_text: sourceText,
-            extraction_json: extraction,
-            refined_extraction_json: extraction,
-            review_report: reviewReport,
-            deterministic_issues: strictPre.issues,
-          },
-          `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
-        );
-        validationReport.deterministic_issues = strictPre.issues;
-        validationReport.deterministic_checks = strictPre.deterministic_checks;
-      }
-    }
-
-    const finalStatus = validationReport.passes
-      ? "atoms_passed"
-      : validationReport.recommended_status === "needs_refinement"
-        ? "needs_refinement"
-        : validationReport.recommended_status === "passed"
-          ? "atoms_passed"
-          : validationReport.recommended_status;
-
-    if (!dryRun) {
-      await supabase
+      const { data: chunkMeta } = await supabase
         .from("story_chunks")
-        .update({
-          extraction_qa_status: finalStatus,
-          extraction_qa_validation_report: validationReport,
-          extraction_qa_validated_at: now,
-        })
+        .select(
+          "extraction_qa_standardization_report, extraction_qa_validation_attempt_count, extraction_qa_refinement_count"
+        )
         .eq("story_id", chunk.story_id)
-        .eq("chunk_index", chunk.chunk_index);
+        .eq("chunk_index", chunk.chunk_index)
+        .single();
 
-      await saveArtifact(supabase, {
-        story_id: chunk.story_id,
-        chunk_index: chunk.chunk_index,
-        stage: "chunk_validate",
-        input_snapshot: extraction,
-        report: validationReport,
-      });
+      const priorAttempts = chunkMeta?.extraction_qa_validation_attempt_count ?? 0;
+      const attemptNumber = priorAttempts + 1;
+      const materialityWarnings = getMaterialityWarnings(sourceText, extraction);
+
+      let validationReport: ValidationReport;
+
+      if (isEmptyExtraction(extraction)) {
+        validationReport = autoPassEmptyExtraction(sourceText.length);
+      } else {
+        const strictPre = runStrictPreValidation(sourceText, extraction, {
+          enforceCompleteness: false,
+          atomsOnly: true,
+        });
+
+        if (!strictPre.passes) {
+          validationReport = buildDeterministicValidationReport(
+            strictPre,
+            [],
+            false,
+            attemptNumber >= MAX_VALIDATION_ATTEMPTS ? "needs_human_review" : "needs_refinement"
+          );
+        } else {
+          validationReport = await validateChunk(
+            OPENAI_API_KEY,
+            MODEL,
+            {
+              ...metadataPayload(metadata),
+              chunk_text: sourceText,
+              source_text: sourceText,
+              extraction_json: extraction,
+              standardization_report: chunkMeta?.extraction_qa_standardization_report ?? null,
+              deterministic_issues: strictPre.issues,
+              materiality_warnings: materialityWarnings,
+              attempt_number: attemptNumber,
+            },
+            `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
+          );
+          validationReport.deterministic_issues = strictPre.issues;
+          validationReport.deterministic_checks = strictPre.deterministic_checks;
+          validationReport.materiality_warnings = materialityWarnings;
+          validationReport.attempt_number = attemptNumber;
+        }
+      }
+
+      let finalStatus: string;
+      let nextAttemptCount = priorAttempts;
+      let validatedAt: string | null = null;
+
+      if (validationReport.passes || validationReport.recommended_status === "passed" || validationReport.recommended_status === "atoms_passed") {
+        finalStatus = "atoms_passed";
+        validatedAt = now;
+      } else {
+        nextAttemptCount = attemptNumber;
+        finalStatus = resolveValidationFailureStatus(nextAttemptCount, validationReport.recommended_status);
+        validationReport.recommended_status = finalStatus;
+        if (finalStatus === "needs_refinement") {
+          validationReport.recommended_next_agent = "refiner";
+        } else if (finalStatus === "needs_human_review") {
+          validationReport.recommended_next_agent = "human_review";
+          validatedAt = now;
+        }
+      }
+
+      if (!dryRun) {
+        const { error: updateErr } = await supabase
+          .from("story_chunks")
+          .update({
+            extraction_json: extraction,
+            extraction_qa_status: finalStatus,
+            extraction_qa_validation_report: validationReport,
+            extraction_qa_validation_attempt_count: nextAttemptCount,
+            extraction_qa_validated_at: validatedAt,
+          })
+          .eq("story_id", chunk.story_id)
+          .eq("chunk_index", chunk.chunk_index);
+
+        if (updateErr) {
+          console.error("[validate_chunk_extraction] Update error:", updateErr.message);
+          return json(
+            { error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index },
+            500
+          );
+        }
+
+        const { error: artifactErr } = await saveArtifact(supabase, {
+          story_id: chunk.story_id,
+          chunk_index: chunk.chunk_index,
+          stage: "chunk_validate",
+          input_snapshot: extraction,
+          report: validationReport,
+        });
+        if (artifactErr) {
+          return json(
+            { error: artifactErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index },
+            500
+          );
+        }
+      }
+      processed++;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[validate_chunk_extraction] Error:", chunk.story_id, chunk.chunk_index, msg);
+      return json({ error: msg, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
     }
-    processed++;
   }
 
   return json({ ok: true, processed, dry_run: dryRun, ...testScopeFields({ storyId: singleStoryId }) });

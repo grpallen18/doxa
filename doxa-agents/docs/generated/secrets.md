@@ -15,9 +15,9 @@ Do not commit secret values to git.
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
 | extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_EXTRACT` |
 | link-chunk-entities | link_chunk_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| review-chunk-extraction | review_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
+| standardize-chunk-extraction | standardize_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
+| validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | merge-story-entities | merge_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | refine-merged-extraction | refine_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |

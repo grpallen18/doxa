@@ -149,25 +149,29 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
     cron:
       job_name: refine-chunk-extraction-every-2min
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/04-refine-chunk-extraction/schedule.sql
       body: "{}"
-  - id: review-chunk-extraction
+  - id: standardize-chunk-extraction
     department: 02-chunking-engine
-    workflow: review-chunk-extraction
+    workflow: standardize-chunk-extraction
     kind: edge_function
     status: inactive
-    source: doxa-agents/departments/02-chunking-engine/03-review-chunk-extraction
-    deploy_name: review_chunk_extraction
+    source: doxa-agents/departments/02-chunking-engine/03-standardize-chunk-extraction
+    deploy_name: standardize_chunk_extraction
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
     cron:
-      job_name: review-chunk-extraction-every-2min
+      job_name: standardize-chunk-extraction-every-2min
       schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/02-chunking-engine/03-review-chunk-extraction/schedule.sql
+      sql: doxa-agents/departments/02-chunking-engine/03-standardize-chunk-extraction/schedule.sql
       body: "{}"
   - id: validate-chunk-extraction
     department: 02-chunking-engine
@@ -179,6 +183,8 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
     cron:
       job_name: validate-chunk-extraction-every-2min
       schedule: "*/2 * * * *"

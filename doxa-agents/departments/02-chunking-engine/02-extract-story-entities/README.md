@@ -8,6 +8,6 @@ Per-chunk LLM extraction of **claims**, **evidence**, **positions**, and **event
 
 **Model:** defaults to `gpt-5.4-nano-2026-03-17`. Override with `OPENAI_MODEL_EXTRACT` (or `OPENAI_MODEL` fallback).
 
-`extraction_json` phase A: `claims`, `evidence`, `positions`, `events` — each with `source_excerpt`, `span_start`, `span_end`, `extraction_confidence`, `source_story_id`, `source_chunk_index`.
+`extraction_json` phase A: `claims`, `evidence`, `positions`, `events` — each with `source_excerpt`, `span_start`, `span_end` (spans recomputed server-side from `source_excerpt`), `extraction_confidence`, `source_story_id`, `source_chunk_index`.
 
-Next: [03-review-chunk-extraction](../03-review-chunk-extraction/) → [06-link-chunk-entities](../06-link-chunk-entities/) → merge.
+Next: [03-standardize-chunk-extraction](../03-standardize-chunk-extraction/) → validate/refine loop → [06-link-chunk-entities](../06-link-chunk-entities/) → merge.

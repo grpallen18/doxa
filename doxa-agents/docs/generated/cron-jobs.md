@@ -13,7 +13,7 @@
 | extract-story-entities-every-2min | extract-story-entities | extract_story_entities | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/02-chunking-engine/02-extract-story-entities/schedule.sql) |
 | link-chunk-entities-every-2min | link-chunk-entities | link_chunk_entities | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/02-chunking-engine/06-link-chunk-entities/schedule.sql) |
 | refine-chunk-extraction-every-2min | refine-chunk-extraction | refine_chunk_extraction | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/02-chunking-engine/04-refine-chunk-extraction/schedule.sql) |
-| review-chunk-extraction-every-2min | review-chunk-extraction | review_chunk_extraction | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/02-chunking-engine/03-review-chunk-extraction/schedule.sql) |
+| standardize-chunk-extraction-every-2min | standardize-chunk-extraction | standardize_chunk_extraction | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/02-chunking-engine/03-standardize-chunk-extraction/schedule.sql) |
 | validate-chunk-extraction-every-2min | validate-chunk-extraction | validate_chunk_extraction | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/02-chunking-engine/05-validate-chunk-extraction/schedule.sql) |
 | merge-story-entities-every-2min | merge-story-entities | merge_story_entities | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/03-merging-engine/01-merge-story-entities/schedule.sql) |
 | refine-merged-extraction-every-2min | refine-merged-extraction | refine_merged_extraction | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/03-merging-engine/03-refine-merged-extraction/schedule.sql) |

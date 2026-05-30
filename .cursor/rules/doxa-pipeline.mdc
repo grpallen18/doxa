@@ -17,7 +17,7 @@ Read [doxa-agents/AGENTS.md](doxa-agents/AGENTS.md) when changing ingestion, pro
 
 ## Chunking, merging, canonicalization vs topology
 
-- **02-chunking-engine** — chunk bodies, extract entities, chunk QA (`extract-story-entities`, `review-chunk-extraction`, etc.).
+- **02-chunking-engine** — chunk bodies, extract entities, chunk QA (`extract-story-entities`, `standardize-chunk-extraction`, etc.).
 - **03-merging-engine** — merge to `story_*`, merge QA (`merge-story-entities`, `validate-merged-extraction`, etc.).
 - **01-canonical-knowledge** (`link-canonical-*`, `update-stances`): dedupe story entities to global canonical rows.
 - **02-debate-topology** onward: candidate queues, relationship classification, agreement/controversy clusters—not text extraction. See [doxa-agents/docs/topology-pipeline.md](doxa-agents/docs/topology-pipeline.md).

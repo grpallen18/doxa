@@ -1,5 +1,6 @@
-// Refine chunk extraction: apply reviewer patches (max one cycle).
+// Refine chunk extraction: apply validator patches (max three cycles).
 // Body: { max_chunks?, dry_run?, story_id?, chunk_index? }
+// Optional env: OPENAI_MODEL_CHUNK_QA (falls back to OPENAI_MODEL_EXTRACT, OPENAI_MODEL).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
@@ -8,10 +9,9 @@ import {
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
 import { applyPatches } from "../../../lib/extraction-qa/apply-patches.ts";
-import {
-  checkBlockingFindingsUnresolved,
-  runStrictPreValidation,
-} from "../../../lib/extraction-qa/deterministic-checks.ts";
+import { resolveChunkQaModel } from "../../../lib/extraction-qa/chunk-qa-model.ts";
+import { applyProvenanceSpans } from "../../../lib/extraction-qa/span-compute.ts";
+import { runStrictPreValidation } from "../../../lib/extraction-qa/deterministic-checks.ts";
 import { refineChunk, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
 import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
@@ -19,11 +19,11 @@ import {
   clampInt,
   corsHeaders,
   json,
+  MAX_REFINEMENT_ATTEMPTS,
   type RefinementPatchOp,
-  type ReviewReport,
+  type ValidationReport,
 } from "../../../lib/extraction-qa/types.ts";
 
-const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_MAX = 5;
 
 export const handler = async (req: Request) => {
@@ -34,7 +34,11 @@ export const handler = async (req: Request) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-    const MODEL = Deno.env.get("OPENAI_MODEL") ?? DEFAULT_MODEL;
+    const MODEL = resolveChunkQaModel({
+      OPENAI_MODEL_CHUNK_QA: Deno.env.get("OPENAI_MODEL_CHUNK_QA"),
+      OPENAI_MODEL_EXTRACT: Deno.env.get("OPENAI_MODEL_EXTRACT"),
+      OPENAI_MODEL: Deno.env.get("OPENAI_MODEL"),
+    });
 
     if (!SUPABASE_URL || !SERVICE_ROLE || !OPENAI_API_KEY) {
       return json({ error: "Missing env" }, 500);
@@ -88,13 +92,18 @@ export const handler = async (req: Request) => {
     for (const chunk of chunks) {
       const { data: meta } = await supabase
         .from("story_chunks")
-        .select("extraction_qa_review_report, extraction_qa_refinement_count")
+        .select("extraction_qa_validation_report, extraction_qa_refinement_count")
         .eq("story_id", chunk.story_id)
         .eq("chunk_index", chunk.chunk_index)
         .single();
 
+      const refinementCount = meta?.extraction_qa_refinement_count ?? 0;
+      if (refinementCount >= MAX_REFINEMENT_ATTEMPTS) {
+        continue;
+      }
+
       const extraction = asExtractionJson(chunk.extraction_json);
-      const reviewReport = (meta?.extraction_qa_review_report ?? {}) as ReviewReport;
+      const validationReport = (meta?.extraction_qa_validation_report ?? {}) as ValidationReport;
       const sourceText = chunk.content ?? "";
       const storyMetadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
 
@@ -107,7 +116,7 @@ export const handler = async (req: Request) => {
           source_text: sourceText,
           extraction_json: extraction,
           original_extraction_json: extraction,
-          review_report: reviewReport,
+          validation_report: validationReport,
         },
         `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
       );
@@ -127,23 +136,19 @@ export const handler = async (req: Request) => {
               : {}),
         })) as RefinementPatchOp[];
 
-      const patched = applyPatches(extraction, normalizedPatches);
+      const patched = applyProvenanceSpans(
+        applyPatches(extraction, normalizedPatches),
+        sourceText
+      );
       const postRefineGate = runStrictPreValidation(sourceText, patched, {
         enforceCompleteness: false,
         atomsOnly: true,
       });
-      const refinerUnresolved = checkBlockingFindingsUnresolved(
-        reviewReport,
-        extraction,
-        patched,
-        sourceText
-      );
-      const gateFailed = !postRefineGate.passes || refinerUnresolved.length > 0;
-      const refinementCount = (meta?.extraction_qa_refinement_count ?? 0) + 1;
+      const gateFailed = !postRefineGate.passes;
+      const nextRefinementCount = refinementCount + 1;
 
       const postRefineReport = {
         strict_pre_validation: postRefineGate,
-        refiner_unresolved: refinerUnresolved,
         gate_failed: gateFailed,
       };
 
@@ -153,7 +158,8 @@ export const handler = async (req: Request) => {
           .update({
             extraction_json: patched,
             extraction_qa_status: gateFailed ? "needs_human_review" : "refined",
-            extraction_qa_refinement_count: refinementCount,
+            extraction_qa_refinement_count: nextRefinementCount,
+            extraction_qa_validated_at: null,
           })
           .eq("story_id", chunk.story_id)
           .eq("chunk_index", chunk.chunk_index);

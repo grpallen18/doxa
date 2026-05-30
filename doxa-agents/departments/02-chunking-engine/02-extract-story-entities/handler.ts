@@ -8,7 +8,8 @@ import {
   EXTRACT_ATOMS_JSON_SCHEMA,
   normalizeAtomRow,
 } from "../../../lib/extraction-qa/atom-schema.ts";
-import { EXTRACT_SYSTEM_PROMPT } from "../../../lib/extraction-qa/openai-qa.ts";
+import { applyProvenanceSpans } from "../../../lib/extraction-qa/span-compute.ts";
+import { EXTRACT_SYSTEM_PROMPT, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
 import {
   loadStoryMetadataBatch,
   metadataPayload,
@@ -60,7 +61,7 @@ async function callOpenAIChunk(
 }> {
   const system = `${EXTRACT_SYSTEM_PROMPT}
 
-OUTPUT: claims, evidence, positions, events only. Each atom requires source_excerpt (verbatim chunk span), span_start, span_end, extraction_confidence.`;
+OUTPUT: claims, evidence, positions, events only. Each atom requires source_excerpt (verbatim chunk wording) and extraction_confidence. span_start/span_end are recomputed server-side from source_excerpt — set them to 0 when unsure.`;
 
   const userPayload = {
     ...metadataPayload(metadata),
@@ -135,12 +136,14 @@ OUTPUT: claims, evidence, positions, events only. Each atom requires source_exce
     return conf >= EVENT_CONFIDENCE_THRESHOLD;
   });
 
-  return {
+  const withProvenance = {
     claims: attachProvenance(claimsRaw, storyId, chunkIndex),
     evidence: attachProvenance(evidenceRaw, storyId, chunkIndex),
     positions: attachProvenance(positions, storyId, chunkIndex),
     events: attachProvenance(events, storyId, chunkIndex),
   };
+
+  return applyProvenanceSpans(withProvenance, content);
 }
 
 export const handler = async (req: Request) => {
@@ -269,8 +272,10 @@ export const handler = async (req: Request) => {
             extraction_completed_at: now,
             extraction_qa_status: "pending",
             extraction_qa_review_report: null,
+            extraction_qa_standardization_report: null,
             extraction_qa_validation_report: null,
             extraction_qa_refinement_count: 0,
+            extraction_qa_validation_attempt_count: 0,
             extraction_qa_validated_at: null,
           })
           .eq("story_id", chunk.story_id)
@@ -279,6 +284,16 @@ export const handler = async (req: Request) => {
         if (updateErr) {
           console.error("[extract_story_entities] Update error:", updateErr.message);
           return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+        }
+
+        const { error: artifactErr } = await saveArtifact(supabase, {
+          story_id: chunk.story_id,
+          chunk_index: chunk.chunk_index,
+          stage: "chunk_extract",
+          output_snapshot: extractionJson,
+        });
+        if (artifactErr) {
+          console.error("[extract_story_entities] Artifact error:", artifactErr.message);
         }
       }
 

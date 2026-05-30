@@ -172,6 +172,42 @@ export const EXTRACT_ATOMS_JSON_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const STANDARDIZATION_REPORT_ENTRY_SCHEMA = {
+  type: "object",
+  properties: {
+    entity_type: { type: ["string", "null"] },
+    entity_index: { type: ["integer", "null"] },
+    description: { type: "string" },
+    reason: { type: "string" },
+  },
+  required: ["entity_type", "entity_index", "description", "reason"],
+  additionalProperties: false,
+} as const;
+
+export const STANDARDIZE_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    claims: EXTRACT_ATOMS_JSON_SCHEMA.properties.claims,
+    evidence: EXTRACT_ATOMS_JSON_SCHEMA.properties.evidence,
+    positions: EXTRACT_ATOMS_JSON_SCHEMA.properties.positions,
+    events: EXTRACT_ATOMS_JSON_SCHEMA.properties.events,
+    standardization_report: {
+      type: "object",
+      properties: {
+        kept: { type: "array", items: STANDARDIZATION_REPORT_ENTRY_SCHEMA },
+        merged: { type: "array", items: STANDARDIZATION_REPORT_ENTRY_SCHEMA },
+        reclassified: { type: "array", items: STANDARDIZATION_REPORT_ENTRY_SCHEMA },
+        discarded: { type: "array", items: STANDARDIZATION_REPORT_ENTRY_SCHEMA },
+        notes: { type: "array", items: { type: "string" } },
+      },
+      required: ["kept", "merged", "reclassified", "discarded", "notes"],
+      additionalProperties: false,
+    },
+  },
+  required: ["claims", "evidence", "positions", "events", "standardization_report"],
+  additionalProperties: false,
+} as const;
+
 export function hasSemanticLinks(extraction: ExtractionJson): boolean {
   for (const key of LINK_ARRAY_KEYS) {
     const arr = extraction[key];

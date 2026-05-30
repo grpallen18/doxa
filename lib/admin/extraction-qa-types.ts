@@ -1,8 +1,10 @@
 export type ExtractionQaStatus =
   | 'pending'
   | 'reviewed'
+  | 'standardized'
   | 'needs_refinement'
   | 'refined'
+  | 'atoms_passed'
   | 'passed'
   | 'needs_human_review'
   | null
@@ -28,10 +30,14 @@ export function qaStatusLabel(status: ExtractionQaStatus): string {
       return 'QA pending'
     case 'reviewed':
       return 'Reviewed'
+    case 'standardized':
+      return 'Standardized'
     case 'needs_refinement':
       return 'Needs refinement'
     case 'refined':
       return 'Refined'
+    case 'atoms_passed':
+      return 'Atoms validated'
     case 'passed':
       return 'QA passed'
     case 'needs_human_review':

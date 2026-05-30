@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     } else if (qaStatus === 'passed') {
       query = query.eq('extraction_qa_status', 'passed')
     } else if (qaStatus === 'pending_qa') {
-      query = query.in('extraction_qa_status', ['pending', 'reviewed', 'needs_refinement', 'refined'])
+      query = query.in('extraction_qa_status', ['pending', 'standardized', 'needs_refinement', 'refined', 'reviewed'])
     }
 
     if (sort === 'relevant') {
