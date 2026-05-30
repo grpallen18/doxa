@@ -603,3 +603,23 @@ body {
       background-color var(--interactive-duration) ease;
   }
 }
+
+@keyframes step-detail-letter-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-step-detail-letter {
+  animation: step-detail-letter-fade-in 0.2s ease forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-detail-reveal span {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}

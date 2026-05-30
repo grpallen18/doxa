@@ -1,26 +1,19 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
+  buildExtractionReviewJson,
   buildExtractionReviewMarkdown,
   type StoryExtractionReviewPayload,
 } from '@/lib/admin/story-extraction-review'
 import { EXTRACTION_ISSUE_TYPES, qaStatusLabel } from '@/lib/admin/extraction-qa-types'
-
-type ReviewTab =
-  | 'claims'
-  | 'evidence'
-  | 'positions'
-  | 'events'
-  | 'links'
-  | 'chunks'
-  | 'qa'
-  | 'export'
+import { ExportSplitButton } from './export-split-button'
+import { StoryPipelinePanel } from './story-pipeline-panel'
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
@@ -124,52 +117,19 @@ function FeedbackButtons({
   )
 }
 
-function entityFeedbackRating(
-  feedback: StoryExtractionReviewPayload['feedback'],
-  entityType: string,
-  entityId: string
-): string | undefined {
-  const row = feedback.find((f) => f.entity_type === entityType && f.entity_id === entityId)
-  return row?.rating
-}
-
 export function StoryExtractionReviewView({
   payload,
   onRefresh,
 }: {
   payload: StoryExtractionReviewPayload
-  onRefresh: () => void
+  onRefresh: () => void | Promise<void>
 }) {
-  const [tab, setTab] = useState<ReviewTab>('claims')
   const [approving, setApproving] = useState(false)
   const { story } = payload
   const markdown = useMemo(() => buildExtractionReviewMarkdown(payload), [payload])
+  const json = useMemo(() => buildExtractionReviewJson(payload), [payload])
   const storyId = story.story_id
-
-  const copyMarkdown = useCallback(async () => {
-    await navigator.clipboard.writeText(markdown)
-  }, [markdown])
-
-  const downloadMarkdown = useCallback(() => {
-    const blob = new Blob([markdown], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `story-extraction-${storyId.slice(0, 8)}.md`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [markdown, storyId])
-
-  const tabs: { id: ReviewTab; label: string; count?: number }[] = [
-    { id: 'claims', label: 'Claims', count: payload.claims.length },
-    { id: 'evidence', label: 'Evidence', count: payload.evidence.length },
-    { id: 'positions', label: 'Positions', count: payload.positions.length },
-    { id: 'events', label: 'Events', count: payload.events.length },
-    { id: 'links', label: 'Links' },
-    { id: 'chunks', label: 'Chunks', count: payload.chunks.length },
-    { id: 'qa', label: 'QA' },
-    { id: 'export', label: 'Export' },
-  ]
+  const exportBasename = `story-extraction-${storyId.slice(0, 8)}`
 
   const approveQa = async () => {
     setApproving(true)
@@ -222,331 +182,45 @@ export function StoryExtractionReviewView({
       </Panel>
 
       <Panel variant="soft" interactive={false} className="flex min-h-[400px] flex-col overflow-hidden lg:min-h-0">
-        <div className="flex flex-wrap gap-1 border-b border-subtle px-2 pt-2">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`rounded-t px-3 py-2 text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? 'border-b-2 border-foreground text-foreground'
-                  : 'text-muted hover:text-foreground'
-              }`}
-            >
-              {t.label}
-              {t.count !== undefined ? ` (${t.count})` : ''}
-            </button>
-          ))}
-        </div>
-
         <ScrollArea className="flex-1 p-4">
-          {tab === 'claims' &&
-            (payload.claims.length === 0 ? (
-              <p className="text-sm text-muted">No claims extracted.</p>
-            ) : (
-              <ul className="space-y-4">
-                {payload.claims.map((c) => (
-                  <li key={c.story_claim_id} className="rounded-lg border border-subtle p-3 text-sm">
-                    <p className="font-medium">{c.raw_text}</p>
-                    <dl className="mt-2 grid gap-1 text-xs text-muted">
-                      <div>ID: {c.story_claim_id}</div>
-                      <div>Polarity: {c.polarity}</div>
-                      {c.stance && <div>Stance: {c.stance}</div>}
-                      <div>Confidence: {c.extraction_confidence}</div>
-                      {c.claim_id && <div>Canonical claim: {c.claim_id}</div>}
-                      <div>
-                        Links: {c.linked_evidence_count} evidence · {c.linked_position_count}{' '}
-                        positions · {c.linked_event_count} events
-                      </div>
-                    </dl>
-                    <FeedbackButtons
-                      storyId={storyId}
-                      entityType="claim"
-                      entityId={c.story_claim_id}
-                      existingRating={entityFeedbackRating(payload.feedback, 'claim', c.story_claim_id)}
-                      onSubmitted={onRefresh}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ))}
-
-          {tab === 'evidence' &&
-            (payload.evidence.length === 0 ? (
-              <p className="text-sm text-muted">No evidence extracted.</p>
-            ) : (
-              <ul className="space-y-4">
-                {payload.evidence.map((e) => (
-                  <li key={e.evidence_id} className="rounded-lg border border-subtle p-3 text-sm">
-                    <p>{e.excerpt}</p>
-                    <dl className="mt-2 grid gap-1 text-xs text-muted">
-                      <div>ID: {e.evidence_id}</div>
-                      <div>Type: {e.evidence_type}</div>
-                      {e.attribution && <div>Attribution: {e.attribution}</div>}
-                      <div>Confidence: {e.extraction_confidence}</div>
-                      <div>
-                        Links: {e.linked_claim_count} claims · {e.linked_event_count} events
-                      </div>
-                    </dl>
-                    <FeedbackButtons
-                      storyId={storyId}
-                      entityType="evidence"
-                      entityId={e.evidence_id}
-                      existingRating={entityFeedbackRating(payload.feedback, 'evidence', e.evidence_id)}
-                      onSubmitted={onRefresh}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ))}
-
-          {tab === 'positions' &&
-            (payload.positions.length === 0 ? (
-              <p className="text-sm text-muted">No positions extracted.</p>
-            ) : (
-              <ul className="space-y-4">
-                {payload.positions.map((p) => (
-                  <li key={p.story_position_id} className="rounded-lg border border-subtle p-3 text-sm">
-                    <p className="font-medium">{p.raw_text}</p>
-                    <dl className="mt-2 grid gap-1 text-xs text-muted">
-                      <div>ID: {p.story_position_id}</div>
-                      {p.speaker_type && <div>Speaker: {p.speaker_type}</div>}
-                      <div>Confidence: {p.extraction_confidence}</div>
-                      {p.canonical_position_id && (
-                        <div>Canonical position: {p.canonical_position_id}</div>
-                      )}
-                      <div>
-                        Links: {p.linked_claim_count} claims · {p.linked_evidence_count} evidence
-                      </div>
-                      {p.excerpt_text && <div className="italic">Excerpt: {p.excerpt_text}</div>}
-                    </dl>
-                    <FeedbackButtons
-                      storyId={storyId}
-                      entityType="position"
-                      entityId={p.story_position_id}
-                      existingRating={entityFeedbackRating(
-                        payload.feedback,
-                        'position',
-                        p.story_position_id
-                      )}
-                      onSubmitted={onRefresh}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ))}
-
-          {tab === 'events' &&
-            (payload.events.length === 0 ? (
-              <p className="text-sm text-muted">No events extracted.</p>
-            ) : (
-              <ul className="space-y-4">
-                {payload.events.map((ev) => (
-                  <li key={ev.story_event_id} className="rounded-lg border border-subtle p-3 text-sm">
-                    <p className="font-medium">{ev.event_summary}</p>
-                    <dl className="mt-2 grid gap-1 text-xs text-muted">
-                      <div>ID: {ev.story_event_id}</div>
-                      {ev.event_type && <div>Type: {ev.event_type}</div>}
-                      {ev.primary_actor && <div>Actor: {ev.primary_actor}</div>}
-                      {ev.location && <div>Location: {ev.location}</div>}
-                      {(ev.event_date || ev.event_timeframe_start) && (
-                        <div>
-                          Date: {[ev.event_date, ev.event_timeframe_start, ev.event_timeframe_end]
-                            .filter(Boolean)
-                            .join(' – ')}
-                        </div>
-                      )}
-                      <div>Confidence: {ev.extraction_confidence}</div>
-                      <div>
-                        Links: {ev.linked_claim_count} claims · {ev.linked_evidence_count} evidence
-                      </div>
-                    </dl>
-                    <FeedbackButtons
-                      storyId={storyId}
-                      entityType="event"
-                      entityId={ev.story_event_id}
-                      existingRating={entityFeedbackRating(payload.feedback, 'event', ev.story_event_id)}
-                      onSubmitted={onRefresh}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ))}
-
-          {tab === 'links' && (
-            <div className="space-y-6 text-sm">
-              <section>
-                <h3 className="font-medium">Claim → Evidence</h3>
-                {payload.links.claimEvidence.length === 0 ? (
-                  <p className="text-xs text-muted">None</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-xs text-muted">
-                    {payload.links.claimEvidence.map((l) => (
-                      <li key={`${l.story_claim_id}-${l.evidence_id}`}>
-                        {l.story_claim_id.slice(0, 8)}… → {l.evidence_id.slice(0, 8)}… ({l.relation_type})
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium">Claim → Position</h3>
-                {payload.links.claimPosition.length === 0 ? (
-                  <p className="text-xs text-muted">None</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-xs text-muted">
-                    {payload.links.claimPosition.map((l) => (
-                      <li key={`${l.story_claim_id}-${l.story_position_id}`}>
-                        claim {l.story_claim_id.slice(0, 8)}… ↔ position{' '}
-                        {l.story_position_id.slice(0, 8)}…
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium">Position → Evidence</h3>
-                {payload.links.positionEvidence.length === 0 ? (
-                  <p className="text-xs text-muted">None</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-xs text-muted">
-                    {payload.links.positionEvidence.map((l) => (
-                      <li key={`${l.story_position_id}-${l.evidence_id}`}>
-                        position {l.story_position_id.slice(0, 8)}… ↔ evidence{' '}
-                        {l.evidence_id.slice(0, 8)}…
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium">Event → Claim</h3>
-                {payload.links.eventClaim.length === 0 ? (
-                  <p className="text-xs text-muted">None</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-xs text-muted">
-                    {payload.links.eventClaim.map((l) => (
-                      <li key={`${l.story_event_id}-${l.story_claim_id}-${l.relation_type}`}>
-                        event {l.story_event_id.slice(0, 8)}… → claim {l.story_claim_id.slice(0, 8)}… (
-                        {l.relation_type})
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium">Event → Evidence</h3>
-                {payload.links.eventEvidence.length === 0 ? (
-                  <p className="text-xs text-muted">None</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-xs text-muted">
-                    {payload.links.eventEvidence.map((l) => (
-                      <li key={`${l.story_event_id}-${l.evidence_id}`}>
-                        event {l.story_event_id.slice(0, 8)}… → evidence {l.evidence_id.slice(0, 8)}…
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium">Derived position → event (view)</h3>
-                {payload.links.positionEventContext.length === 0 ? (
-                  <p className="text-xs text-muted">None</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-xs text-muted">
-                    {payload.links.positionEventContext.map((l) => (
-                      <li key={`${l.story_position_id}-${l.story_event_id}-${l.link_path}`}>
-                        position {l.story_position_id.slice(0, 8)}… ↔ event{' '}
-                        {l.story_event_id.slice(0, 8)}… ({l.link_path})
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </div>
-          )}
-
-          {tab === 'chunks' &&
-            (payload.chunks.length === 0 ? (
-              <p className="text-sm text-muted">No chunks (story may not be chunked yet).</p>
-            ) : (
-              <ul className="space-y-4">
-                {payload.chunks.map((ch) => (
-                  <li key={ch.chunk_index} className="rounded-lg border border-subtle p-3 text-sm">
-                    <p className="font-medium">Chunk {ch.chunk_index}</p>
-                    <p className="text-xs text-muted">QA: {qaStatusLabel(ch.extraction_qa_status)}</p>
-                    <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted/20 p-2 text-xs">
-                      {JSON.stringify(ch.extraction_json, null, 2)?.slice(0, 4000) ?? 'null'}
-                    </pre>
-                    {ch.extraction_qa_validation_report != null && (
-                      <pre className="mt-2 max-h-32 overflow-auto rounded bg-muted/20 p-2 text-xs">
-                        {JSON.stringify(ch.extraction_qa_validation_report, null, 2)}
-                      </pre>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ))}
-
-          {tab === 'qa' && (
-            <div className="space-y-4 text-sm">
-              <section>
-                <h3 className="font-medium">Story QA</h3>
-                <p className="text-xs text-muted">Status: {qaStatusLabel(story.extraction_qa_status)}</p>
-                {story.extraction_qa_validation_report != null && (
-                  <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted/20 p-2 text-xs">
-                    {JSON.stringify(story.extraction_qa_validation_report, null, 2)}
-                  </pre>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium">Review report</h3>
-                {story.extraction_qa_review_report != null ? (
-                  <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted/20 p-2 text-xs">
-                    {JSON.stringify(story.extraction_qa_review_report, null, 2)}
-                  </pre>
-                ) : (
-                  <p className="text-xs text-muted">None</p>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium">Artifacts ({payload.qa_artifacts.length})</h3>
-                {payload.qa_artifacts.length === 0 ? (
-                  <p className="text-xs text-muted">None</p>
-                ) : (
-                  <ul className="mt-1 space-y-2 text-xs">
-                    {payload.qa_artifacts.map((a) => (
-                      <li key={a.id} className="rounded border border-subtle p-2">
-                        <div>{a.stage}</div>
-                        <div className="text-muted">{formatDate(a.created_at)}</div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </div>
-          )}
-
-          {tab === 'export' && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted">
-                Export the full review packet for use in Cursor or another LLM.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={copyMarkdown}>
-                  Copy Markdown
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={downloadMarkdown}>
-                  Download .md
-                </Button>
-              </div>
-              <pre className="max-h-[360px] overflow-auto rounded-lg border border-subtle bg-muted/20 p-3 text-xs whitespace-pre-wrap">
-                {markdown.slice(0, 8000)}
-                {markdown.length > 8000 ? '\n\n… (truncated preview)' : ''}
-              </pre>
-            </div>
-          )}
+          <StoryPipelinePanel
+            payload={payload}
+            storyId={storyId}
+            onRefresh={async () => {
+              await onRefresh()
+            }}
+            onApproveQa={approveQa}
+            approvingQa={approving}
+            headerActions={
+              <>
+                <ExportSplitButton
+                  label="Markdown"
+                  copyLabel="Copy markdown"
+                  downloadLabel="Download markdown"
+                  content={markdown}
+                  downloadFilename={`${exportBasename}.md`}
+                  downloadMimeType="text/markdown"
+                />
+                <ExportSplitButton
+                  label="JSON"
+                  copyLabel="Copy JSON"
+                  downloadLabel="Download JSON"
+                  content={json}
+                  downloadFilename={`${exportBasename}.json`}
+                  downloadMimeType="application/json"
+                />
+              </>
+            }
+            renderFeedback={({ entityType, entityId, existingRating }) => (
+              <FeedbackButtons
+                storyId={storyId}
+                entityType={entityType}
+                entityId={entityId}
+                existingRating={existingRating}
+                onSubmitted={onRefresh}
+              />
+            )}
+          />
         </ScrollArea>
       </Panel>
     </div>

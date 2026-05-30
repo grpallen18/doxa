@@ -1,11 +1,19 @@
-// Supabase Edge Function: extract claims, evidence, links, positions, and events from story chunks (LLM).
-// Writes extraction_json to story_chunks (claims, evidence, positions, events, link arrays).
-// Pipeline: chunk_story_bodies -> extract_story_entities -> merge_story_entities.
-// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY. Optional: OPENAI_MODEL.
-// Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
-// Body: { max_chunks?, dry_run?, story_id?, chunk_index? } — story_id isolates one story's chunks.
+// Supabase Edge Function: extract atoms + provenance from story chunks (LLM).
+// Writes extraction_json to story_chunks (claims, evidence, positions, events only).
+// Pipeline: chunk_story_bodies -> extract_story_entities -> chunk QA -> link_chunk_entities -> merge.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  attachProvenance,
+  EXTRACT_ATOMS_JSON_SCHEMA,
+  normalizeAtomRow,
+} from "../../../lib/extraction-qa/atom-schema.ts";
+import { EXTRACT_SYSTEM_PROMPT } from "../../../lib/extraction-qa/openai-qa.ts";
+import {
+  loadStoryMetadataBatch,
+  metadataPayload,
+  type StoryAgentMetadata,
+} from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   invalidUuidMessage,
   parseStoryIdFromBody,
@@ -17,7 +25,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_EXTRACT_MODEL = "gpt-5.4-nano-2026-03-17";
 const DEFAULT_MAX_CHUNKS = 5;
 
 function json(body: unknown, status = 200) {
@@ -33,99 +41,30 @@ function clampInt(n: unknown, min: number, max: number, fallback: number) {
   return Math.max(min, Math.min(max, Math.round(x)));
 }
 
-const POSITION_CONFIDENCE_THRESHOLD = 0.6;
-const EVENT_CONFIDENCE_THRESHOLD = 0.6;
+const POSITION_CONFIDENCE_THRESHOLD = 0.5;
+const EVENT_CONFIDENCE_THRESHOLD = 0.45;
 
 async function callOpenAIChunk(
   apiKey: string,
   model: string,
+  metadata: StoryAgentMetadata,
+  content: string,
   storyId: string,
   chunkIndex: number,
-  content: string,
   requestId: string
 ): Promise<{
   claims: unknown[];
   evidence: unknown[];
-  claim_evidence_links: unknown[];
   positions: unknown[];
-  position_claim_links: unknown[];
-  position_evidence_links: unknown[];
   events: unknown[];
-  event_claim_links: unknown[];
-  event_evidence_links: unknown[];
 }> {
-  const system = `You extract claims, evidence, claim_evidence_links, positions, and events from a news story segment for DOXA.
-You are given one segment of a longer story. Do not browse the web.
+  const system = `${EXTRACT_SYSTEM_PROMPT}
 
-CRITICAL GOAL: Only output claims that are usable out of context (self-contained). If you cannot make a claim self-contained from this segment WITHOUT inventing missing details, OMIT the claim.
-
-CLAIM RULES (fail-closed):
-A claim must include:
-1) Scope/Entity anchor: name the primary subject explicitly (person/org/place/policy/office/jurisdiction). No vague referents ("the governor's race", "officials", "they", "the bill" without naming it).
-2) Time anchor: incorporate time in the claim text using one of:
-   - point-in-time: "As of <Month YYYY> …" (only if the segment provides a time cue; do not guess)
-   - period-bound: "During <election cycle / years / time period> …"
-   - ongoing evaluation: for value judgments/labels, rewrite as an attributed evaluation + basis from the segment:
-     "Critics/Supporters/<named actor> argue that <entity> is <label> based on <specific statements/actions described here>."
-     If the segment does not contain a basis, OMIT the claim.
-
-ATTRIBUTION:
-If the segment attributes a claim to a speaker/organization, reflect that in the claim text ("<Actor> said/claimed…"). Do not invent attribution.
-
-EVIDENCE RULES:
-Evidence must be atomic and sourceable (quote/stat/statute/report/etc.). Prefer direct quotes and concrete statistics.
-If evidence is a quote, include speaker if available in the excerpt.
-Do NOT output evidence unless it clearly links to at least one claim you output in this segment.
-
-CLAIM_EVIDENCE_LINK RULES:
-Only create claim_evidence_links when the evidence clearly supports/contradicts/contextualizes the claim. Do not force links.
-
-POSITION RULES (AP-style extraction):
-A position is an explicit argument statement the segment advances (e.g. "Immigration should be restricted", "The policy is harmful").
-- Each position MUST include excerpt_text: the exact cited span from the chunk that justifies the position.
-- Each position MUST include cue_phrases: array of phrases in the excerpt that justify the inferred position (e.g. "warned", "praised", "critics called", loaded adjectives like "reckless", "landmark").
-- speaker_type: narrator (article voice) | quoted (direct quote) | critics | supporters.
-- Allow "read-between-the-lines" ONLY when cue_phrases exist in the cited span; otherwise ABSTAIN (extract 0 positions for that chunk).
-- If extraction_confidence is below 0.6, OMIT the position (do not include it).
-- position_claim_links: { position_index, claim_index } — which claims support this position (0-based).
-- position_evidence_links: { position_index, evidence_index } — which evidence supports this position (0-based).
-
-EVENT RULES (factual occurrences only):
-An event is a concrete real-world occurrence described in the segment: a ruling, announcement, vote, meeting, incident, statement, policy action, or development.
-- Each event MUST include event_summary: self-contained (who did what, to whom/what, when if stated).
-- Include primary_actor, action, object (target of action), event_date (YYYY-MM-DD if stated), event_timeframe_start/end for ranges, location, event_type (free text, e.g. public_statement, ruling, vote).
-- Do NOT extract vague themes as events. Bad: "Immigration is controversial." Good: "The Biden administration announced a new border policy in June 2024."
-- EVENT vs CLAIM: extract the occurrence as an event; extract assertions, evaluations, denials, or predictions ABOUT the occurrence as claims, not events.
-- If extraction_confidence is below 0.6, OMIT the event.
-- event_evidence_links: { event_index, evidence_index } — evidence that grounds the event in this segment (required; no orphan events).
-- Do NOT output an event unless it has at least one event_evidence_link to evidence in this response.
-- event_claim_links: { event_index, claim_index, relation_type } — claims that describe or relate to an event in this segment.
-- Every claim that is ABOUT a specific event in this segment MUST have an event_claim_link. Do not link claims that merely share topic or timeframe.
-- relation_type: about | describes | disputes | causes. Use disputes for denials; causes only when causality is explicit in the text.
-- Do NOT output event_position_links.
-
-STANCE (for each claim):
-polarity (asserts/denies/uncertain) = linguistic form of the claim.
-stance (support/oppose/neutral) = how the article frames the proposition. support = article argues the claim is true/valid; oppose = article argues against or undermines it; neutral = unclear, mixed, or just reporting without taking a position. Stance is about the article's position on the claim as a proposition, not the linguistic form.
-
-OUTPUT SCHEMA:
-Claims: distinct factual or normative assertions. Use polarity: asserts | denies | uncertain. Use stance: support | oppose | neutral. raw_text is the exact or paraphrased claim. extraction_confidence 0-1.
-Evidence: quotes, statistics, document refs, dataset refs. Use evidence_type: quote | statistic | document_ref | dataset_ref | other. excerpt is the supporting text. attribution/source_ref if available.
-claim_evidence_links: which evidence supports/contradicts/contextualizes which claim. claim_index and evidence_index are 0-based into the claims and evidence arrays in THIS response. relation_type: supports | contradicts | contextual. confidence 0-1.
-
-ROLE-MODEL CLAIMS (style examples; do not copy unless supported by the segment):
-- "As of February 2026, there is no clear Democratic frontrunner in the North Carolina governor's race."
-- "During the 2026 election cycle, Republican fundraising in North Carolina's governor race has outpaced Democratic fundraising."
-- "In 2025, the U.S. unemployment rate increased from X% to Y%, according to <named source in text>."
-- "Critics argue that <policy> is harmful based on <specific outcomes/actions stated in the segment>."
-- "<Named official> denied that <event> occurred on <date/timeframe stated in the segment>."
-
-Return JSON only in the required schema. If there are no valid anchored claims OR no linkable evidence in this segment, return empty arrays (and therefore no claim_evidence_links).`;
+OUTPUT: claims, evidence, positions, events only. Each atom requires source_excerpt (verbatim chunk span), span_start, span_end, extraction_confidence.`;
 
   const userPayload = {
-    story_id: storyId,
-    chunk_index: chunkIndex,
-    content,
+    ...metadataPayload(metadata),
+    chunk_text: content,
   };
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -144,166 +83,9 @@ Return JSON only in the required schema. If there are no valid anchored claims O
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "doxa_extract_story_entities",
+          name: "doxa_extract_story_atoms",
           strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              claims: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    raw_text: { type: "string" },
-                    polarity: { type: "string", enum: ["asserts", "denies", "uncertain"] },
-                    stance: { type: "string", enum: ["support", "oppose", "neutral"] },
-                    extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
-                    span_start: { type: ["integer", "null"] },
-                    span_end: { type: ["integer", "null"] },
-                  },
-                  required: ["raw_text", "polarity", "stance", "extraction_confidence", "span_start", "span_end"],
-                  additionalProperties: false,
-                },
-              },
-              evidence: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    evidence_type: { type: "string", enum: ["quote", "statistic", "document_ref", "dataset_ref", "other"] },
-                    excerpt: { type: "string" },
-                    extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
-                    attribution: { type: ["string", "null"] },
-                    source_ref: { type: ["string", "null"] },
-                  },
-                  required: ["evidence_type", "excerpt", "extraction_confidence", "attribution", "source_ref"],
-                  additionalProperties: false,
-                },
-              },
-              claim_evidence_links: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    claim_index: { type: "integer", minimum: 0 },
-                    evidence_index: { type: "integer", minimum: 0 },
-                    relation_type: { type: "string", enum: ["supports", "contradicts", "contextual"] },
-                    confidence: { type: "number", minimum: 0, maximum: 1 },
-                    rationale: { type: ["string", "null"] },
-                  },
-                  required: ["claim_index", "evidence_index", "relation_type", "confidence", "rationale"],
-                  additionalProperties: false,
-                },
-              },
-              positions: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    raw_text: { type: "string" },
-                    extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
-                    excerpt_text: { type: "string" },
-                    cue_phrases: { type: "array", items: { type: "string" } },
-                    speaker_type: { type: ["string", "null"], enum: ["narrator", "quoted", "critics", "supporters", null] },
-                  },
-                  required: ["raw_text", "extraction_confidence", "excerpt_text", "cue_phrases", "speaker_type"],
-                  additionalProperties: false,
-                },
-              },
-              position_claim_links: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    position_index: { type: "integer", minimum: 0 },
-                    claim_index: { type: "integer", minimum: 0 },
-                  },
-                  required: ["position_index", "claim_index"],
-                  additionalProperties: false,
-                },
-              },
-              position_evidence_links: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    position_index: { type: "integer", minimum: 0 },
-                    evidence_index: { type: "integer", minimum: 0 },
-                  },
-                  required: ["position_index", "evidence_index"],
-                  additionalProperties: false,
-                },
-              },
-              events: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    event_summary: { type: "string" },
-                    primary_actor: { type: ["string", "null"] },
-                    action: { type: ["string", "null"] },
-                    object: { type: ["string", "null"] },
-                    event_date: { type: ["string", "null"] },
-                    event_timeframe_start: { type: ["string", "null"] },
-                    event_timeframe_end: { type: ["string", "null"] },
-                    location: { type: ["string", "null"] },
-                    event_type: { type: ["string", "null"] },
-                    extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
-                  },
-                  required: [
-                    "event_summary",
-                    "primary_actor",
-                    "action",
-                    "object",
-                    "event_date",
-                    "event_timeframe_start",
-                    "event_timeframe_end",
-                    "location",
-                    "event_type",
-                    "extraction_confidence",
-                  ],
-                  additionalProperties: false,
-                },
-              },
-              event_claim_links: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    event_index: { type: "integer", minimum: 0 },
-                    claim_index: { type: "integer", minimum: 0 },
-                    relation_type: { type: "string", enum: ["about", "describes", "disputes", "causes"] },
-                  },
-                  required: ["event_index", "claim_index", "relation_type"],
-                  additionalProperties: false,
-                },
-              },
-              event_evidence_links: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    event_index: { type: "integer", minimum: 0 },
-                    evidence_index: { type: "integer", minimum: 0 },
-                  },
-                  required: ["event_index", "evidence_index"],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: [
-              "claims",
-              "evidence",
-              "claim_evidence_links",
-              "positions",
-              "position_claim_links",
-              "position_evidence_links",
-              "events",
-              "event_claim_links",
-              "event_evidence_links",
-            ],
-            additionalProperties: false,
-          },
+          schema: EXTRACT_ATOMS_JSON_SCHEMA,
         },
       },
     }),
@@ -323,90 +105,41 @@ Return JSON only in the required schema. If there are no valid anchored claims O
   const parsed = JSON.parse(contentStr) as {
     claims?: unknown[];
     evidence?: unknown[];
-    claim_evidence_links?: unknown[];
-    links?: unknown[];
-    positions?: Array<{ extraction_confidence?: number } & Record<string, unknown>>;
-    position_claim_links?: unknown[];
-    position_evidence_links?: unknown[];
-    events?: Array<{ extraction_confidence?: number } & Record<string, unknown>>;
-    event_claim_links?: unknown[];
-    event_evidence_links?: unknown[];
+    positions?: unknown[];
+    events?: unknown[];
   };
-  const eventsRaw = Array.isArray(parsed?.events) ? parsed.events : [];
-  const eventsWithLinks = new Set(
-    (Array.isArray(parsed?.event_evidence_links) ? parsed.event_evidence_links : []).map(
-      (l: { event_index?: number }) => l?.event_index ?? -1
-    )
-  );
-  const events = eventsRaw.filter(
-    (e, i) =>
-      typeof e?.extraction_confidence === "number" &&
-      e.extraction_confidence >= EVENT_CONFIDENCE_THRESHOLD &&
-      eventsWithLinks.has(i)
-  );
-  const eventIndexMap = new Map<number, number>();
-  let eventNewIdx = 0;
-  for (let i = 0; i < eventsRaw.length; i++) {
-    if (
-      typeof eventsRaw[i]?.extraction_confidence === "number" &&
-      eventsRaw[i].extraction_confidence >= EVENT_CONFIDENCE_THRESHOLD &&
-      eventsWithLinks.has(i)
-    ) {
-      eventIndexMap.set(i, eventNewIdx++);
-    }
-  }
-  const event_evidence_links = (Array.isArray(parsed?.event_evidence_links) ? parsed.event_evidence_links : [])
-    .filter((l: { event_index?: number }) => eventIndexMap.has(l?.event_index ?? -1))
-    .map((l: { event_index?: number; evidence_index?: number }) => ({
-      event_index: eventIndexMap.get(l.event_index ?? -1)!,
-      evidence_index: l.evidence_index ?? 0,
-    }));
-  const event_claim_links = (Array.isArray(parsed?.event_claim_links) ? parsed.event_claim_links : [])
-    .filter((l: { event_index?: number }) => eventIndexMap.has(l?.event_index ?? -1))
-    .map((l: { event_index?: number; claim_index?: number; relation_type?: string }) => ({
-      event_index: eventIndexMap.get(l.event_index ?? -1)!,
-      claim_index: l.claim_index ?? 0,
-      relation_type: l.relation_type ?? "about",
-    }));
 
-  const positionsRaw = Array.isArray(parsed?.positions) ? parsed.positions : [];
-  const positions = positionsRaw.filter(
-    (p) => typeof p?.extraction_confidence === "number" && p.extraction_confidence >= POSITION_CONFIDENCE_THRESHOLD
+  const claimsRaw = (Array.isArray(parsed?.claims) ? parsed.claims : []).map((c) =>
+    normalizeAtomRow("claim", c as Record<string, unknown>)
   );
-  const posIndexMap = new Map<number, number>();
-  let newIdx = 0;
-  for (let i = 0; i < positionsRaw.length; i++) {
-    if (typeof positionsRaw[i]?.extraction_confidence === "number" && positionsRaw[i].extraction_confidence >= POSITION_CONFIDENCE_THRESHOLD) {
-      posIndexMap.set(i, newIdx++);
-    }
-  }
-  const position_claim_links = (Array.isArray(parsed?.position_claim_links) ? parsed.position_claim_links : [])
-    .filter((l: { position_index?: number }) => posIndexMap.has(l?.position_index ?? -1))
-    .map((l: { position_index?: number; claim_index?: number }) => ({
-      position_index: posIndexMap.get(l.position_index ?? -1)!,
-      claim_index: l.claim_index ?? 0,
-    }));
-  const position_evidence_links = (Array.isArray(parsed?.position_evidence_links) ? parsed.position_evidence_links : [])
-    .filter((l: { position_index?: number }) => posIndexMap.has(l?.position_index ?? -1))
-    .map((l: { position_index?: number; evidence_index?: number }) => ({
-      position_index: posIndexMap.get(l.position_index ?? -1)!,
-      evidence_index: l.evidence_index ?? 0,
-    }));
-  const claim_evidence_links = Array.isArray(parsed?.claim_evidence_links)
-    ? parsed.claim_evidence_links
-    : Array.isArray(parsed?.links)
-      ? parsed.links
-      : [];
+  const evidenceRaw = (Array.isArray(parsed?.evidence) ? parsed.evidence : []).map((e) =>
+    normalizeAtomRow("evidence", e as Record<string, unknown>)
+  );
+  const positionsRaw = (Array.isArray(parsed?.positions) ? parsed.positions : []).map((p) =>
+    normalizeAtomRow("position", p as Record<string, unknown>)
+  );
+  const eventsRaw = (Array.isArray(parsed?.events) ? parsed.events : []).map((e) =>
+    normalizeAtomRow("event", e as Record<string, unknown>)
+  );
+
+  const positions = positionsRaw.filter(
+    (p) =>
+      typeof (p as { extraction_confidence?: number }).extraction_confidence === "number" &&
+      (p as { extraction_confidence: number }).extraction_confidence >= POSITION_CONFIDENCE_THRESHOLD
+  );
+  const events = eventsRaw.filter((e) => {
+    const conf =
+      typeof (e as { extraction_confidence?: number }).extraction_confidence === "number"
+        ? (e as { extraction_confidence: number }).extraction_confidence
+        : 0.55;
+    return conf >= EVENT_CONFIDENCE_THRESHOLD;
+  });
+
   return {
-    claims: Array.isArray(parsed?.claims) ? parsed.claims : [],
-    evidence: Array.isArray(parsed?.evidence) ? parsed.evidence : [],
-    claim_evidence_links,
-    positions,
-    position_claim_links,
-    position_evidence_links,
-    events,
-    event_claim_links,
-    event_evidence_links,
+    claims: attachProvenance(claimsRaw, storyId, chunkIndex),
+    evidence: attachProvenance(evidenceRaw, storyId, chunkIndex),
+    positions: attachProvenance(positions, storyId, chunkIndex),
+    events: attachProvenance(events, storyId, chunkIndex),
   };
 }
 
@@ -417,7 +150,10 @@ export const handler = async (req: Request) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-  const MODEL = Deno.env.get("OPENAI_MODEL") ?? DEFAULT_MODEL;
+  const MODEL =
+    Deno.env.get("OPENAI_MODEL_EXTRACT") ??
+    Deno.env.get("OPENAI_MODEL") ??
+    DEFAULT_EXTRACT_MODEL;
 
   if (!SUPABASE_URL || !SERVICE_ROLE || !OPENAI_API_KEY) {
     return json({ error: "Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / OPENAI_API_KEY" }, 500);
@@ -430,7 +166,7 @@ export const handler = async (req: Request) => {
       body = rawBody as Record<string, unknown>;
     }
   } catch {
-    // use defaults
+    /* defaults */
   }
   const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
   if (invalidStoryId) return json({ error: invalidUuidMessage("story_id") }, 400);
@@ -491,21 +227,29 @@ export const handler = async (req: Request) => {
         .single();
       if (runData?.run_id) runId = runData.run_id;
     } catch (_) {
-      // continue without run_id
+      /* continue */
     }
   }
 
   const requestId = `extract-chunk-${Date.now()}`;
   let processed = 0;
 
+  const metadataByStory = await loadStoryMetadataBatch(
+    supabase,
+    chunks.map((c) => c.story_id)
+  );
+
   for (const chunk of chunks) {
     try {
+      const baseMeta = metadataByStory.get(chunk.story_id)!;
+      const metadata: StoryAgentMetadata = { ...baseMeta, chunk_index: chunk.chunk_index };
       const result = await callOpenAIChunk(
         OPENAI_API_KEY,
         MODEL,
+        metadata,
+        chunk.content ?? "",
         chunk.story_id,
         chunk.chunk_index,
-        chunk.content ?? "",
         `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
       );
 
@@ -513,13 +257,8 @@ export const handler = async (req: Request) => {
         const extractionJson = {
           claims: result.claims,
           evidence: result.evidence,
-          claim_evidence_links: result.claim_evidence_links,
           positions: result.positions,
-          position_claim_links: result.position_claim_links,
-          position_evidence_links: result.position_evidence_links,
           events: result.events,
-          event_claim_links: result.event_claim_links,
-          event_evidence_links: result.event_evidence_links,
         };
         const now = new Date().toISOString();
 

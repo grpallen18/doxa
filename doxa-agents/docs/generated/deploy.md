@@ -11,6 +11,7 @@ supabase functions deploy review_pending_stories
 supabase functions deploy scrape_story_content
 supabase functions deploy chunk_story_bodies
 supabase functions deploy extract_story_entities
+supabase functions deploy link_chunk_entities
 supabase functions deploy refine_chunk_extraction
 supabase functions deploy review_chunk_extraction
 supabase functions deploy validate_chunk_extraction

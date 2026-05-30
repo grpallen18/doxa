@@ -8,14 +8,20 @@ import {
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
 import { applyPatches } from "../../../lib/extraction-qa/apply-patches.ts";
+import {
+  checkBlockingFindingsUnresolved,
+  runStrictPreValidation,
+} from "../../../lib/extraction-qa/deterministic-checks.ts";
 import { loadMergedExtractionJson } from "../../../lib/extraction-qa/merge-payload.ts";
 import { persistMergedExtraction } from "../../../lib/extraction-qa/persist-merged-extraction.ts";
 import { refineMerged, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
+import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   clampInt,
   corsHeaders,
   json,
   type RefinementPatchOp,
+  type ReviewReport,
 } from "../../../lib/extraction-qa/types.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -75,30 +81,48 @@ export const handler = async (req: Request) => {
       .eq("story_id", storyId)
       .single();
 
-    const { patches } = await refineMerged(
+    const reviewReport = (meta?.extraction_qa_review_report ?? {}) as ReviewReport;
+    const metadata = await loadStoryMetadata(supabase, storyId);
+    const sourceText = articleText.slice(0, 12000);
+
+    const refineResult = await refineMerged(
       OPENAI_API_KEY,
       MODEL,
       {
-        story_id: storyId,
-        article_text: articleText.slice(0, 12000),
+        ...metadataPayload(metadata),
+        article_text: sourceText,
+        source_text: sourceText,
         extraction_json: extraction,
-        review_report: meta?.extraction_qa_review_report ?? {},
+        original_extraction_json: extraction,
+        review_report: reviewReport,
       },
       `${requestId}-${storyId}`
     );
 
+    const { patches, ignored_findings } = refineResult;
+
     const normalizedPatches: RefinementPatchOp[] = (patches ?? [])
       .filter((p) => p && p.op && p.entity_type)
       .map((p) => ({
-        op: p.op as "add" | "remove" | "update",
+        op: p.op as RefinementPatchOp["op"],
         entity_type: p.entity_type,
         entity_index: p.entity_index ?? 0,
-        ...(p.op === "add" || p.op === "update"
+        ...(p.op === "add" || p.op === "update" || p.op === "link"
           ? { value: (p.value ?? {}) as Record<string, unknown> }
-          : {}),
+          : p.op === "unlink" && p.value
+            ? { value: p.value as Record<string, unknown> }
+            : {}),
       })) as RefinementPatchOp[];
 
     const patched = applyPatches(extraction, normalizedPatches);
+    const postRefineGate = runStrictPreValidation(sourceText, patched, { enforceCompleteness: true });
+    const refinerUnresolved = checkBlockingFindingsUnresolved(
+      reviewReport,
+      extraction,
+      patched,
+      sourceText
+    );
+    const gateFailed = !postRefineGate.passes || refinerUnresolved.length > 0;
     const refinementCount = (meta?.extraction_qa_refinement_count ?? 0) + 1;
 
     if (!dryRun) {
@@ -106,7 +130,7 @@ export const handler = async (req: Request) => {
       await supabase
         .from("stories")
         .update({
-          extraction_qa_status: "refined",
+          extraction_qa_status: gateFailed ? "needs_human_review" : "refined",
           extraction_qa_refinement_count: refinementCount,
         })
         .eq("story_id", storyId);
@@ -116,7 +140,15 @@ export const handler = async (req: Request) => {
         stage: "merge_refine",
         input_snapshot: extraction,
         output_snapshot: patched,
-        report: { patches: normalizedPatches },
+        report: {
+          patches: normalizedPatches,
+          ignored_findings: ignored_findings ?? [],
+          post_refine_gate: {
+            strict_pre_validation: postRefineGate,
+            refiner_unresolved: refinerUnresolved,
+            gate_failed: gateFailed,
+          },
+        },
       });
     }
     processed++;

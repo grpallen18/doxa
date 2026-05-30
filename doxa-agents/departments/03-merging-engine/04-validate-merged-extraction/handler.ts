@@ -9,16 +9,19 @@ import {
 } from "../../../lib/pipeline-test-params.ts";
 import {
   autoPassEmptyExtraction,
-  deterministicToValidationReport,
-  runDeterministicChecks,
+  buildDeterministicValidationReport,
+  checkBlockingFindingsUnresolved,
+  runStrictPreValidation,
 } from "../../../lib/extraction-qa/deterministic-checks.ts";
 import { loadChunkBlobsUnion, loadMergedExtractionJson } from "../../../lib/extraction-qa/merge-payload.ts";
 import { saveArtifact, validateMerged } from "../../../lib/extraction-qa/openai-qa.ts";
+import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   clampInt,
   corsHeaders,
   isEmptyExtraction,
   json,
+  type ReviewReport,
 } from "../../../lib/extraction-qa/types.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -74,30 +77,48 @@ export const handler = async (req: Request) => {
   for (const { story_id: storyId } of stories) {
     const { articleText, extraction } = await loadMergedExtractionJson(supabase, storyId);
     const chunkUnion = await loadChunkBlobsUnion(supabase, storyId);
-    const det = runDeterministicChecks(articleText, extraction);
+    const sourceText = articleText.slice(0, 12000);
+    const metadata = await loadStoryMetadata(supabase, storyId);
+
+    const { data: storyMeta } = await supabase
+      .from("stories")
+      .select("extraction_qa_review_report, extraction_qa_refinement_count")
+      .eq("story_id", storyId)
+      .single();
+
+    const reviewReport = (storyMeta?.extraction_qa_review_report ?? null) as ReviewReport | null;
 
     let validationReport;
 
     if (isEmptyExtraction(extraction)) {
-      validationReport = autoPassEmptyExtraction();
+      validationReport = autoPassEmptyExtraction(sourceText.length);
     } else {
-      const detFail = deterministicToValidationReport(det, true);
-      if (detFail) {
-        validationReport = detFail;
+      const strictPre = runStrictPreValidation(sourceText, extraction, { enforceCompleteness: true });
+      const refinerUnresolved =
+        storyMeta?.extraction_qa_refinement_count && storyMeta.extraction_qa_refinement_count > 0
+          ? checkBlockingFindingsUnresolved(reviewReport, extraction, extraction, sourceText)
+          : [];
+
+      if (!strictPre.passes || refinerUnresolved.length > 0) {
+        validationReport = buildDeterministicValidationReport(strictPre, refinerUnresolved, true);
       } else {
         validationReport = await validateMerged(
           OPENAI_API_KEY,
           MODEL,
           {
-            story_id: storyId,
-            article_text: articleText.slice(0, 12000),
+            ...metadataPayload(metadata),
+            article_text: sourceText,
+            source_text: sourceText,
             merged_extraction: extraction,
+            extraction_json: extraction,
             chunk_union: chunkUnion,
-            deterministic_issues: det.issues,
+            review_report: reviewReport,
+            deterministic_issues: strictPre.issues,
           },
           `${requestId}-${storyId}`
         );
-        validationReport.deterministic_issues = det.issues;
+        validationReport.deterministic_issues = strictPre.issues;
+        validationReport.deterministic_checks = strictPre.deterministic_checks;
         if (validationReport.scores.merge_fidelity === undefined) {
           validationReport.scores.merge_fidelity = 0.8;
         }

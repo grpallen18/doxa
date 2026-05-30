@@ -7,13 +7,16 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
-import { runDeterministicChecks } from "../../../lib/extraction-qa/deterministic-checks.ts";
+import { runDeterministicChecks, getCompletenessIssues } from "../../../lib/extraction-qa/deterministic-checks.ts";
 import { loadChunkBlobsUnion, loadMergedExtractionJson } from "../../../lib/extraction-qa/merge-payload.ts";
 import { reviewMerged, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
+import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   clampInt,
   corsHeaders,
+  isBlockingSeverity,
   isEmptyExtraction,
+  isFixableSeverity,
   json,
 } from "../../../lib/extraction-qa/types.ts";
 
@@ -70,6 +73,8 @@ export const handler = async (req: Request) => {
     const { articleText, extraction } = await loadMergedExtractionJson(supabase, storyId);
     const chunkUnion = await loadChunkBlobsUnion(supabase, storyId);
     const det = runDeterministicChecks(articleText, extraction);
+    const completenessIssues = getCompletenessIssues(extraction);
+    const metadata = await loadStoryMetadata(supabase, storyId);
 
     if (isEmptyExtraction(extraction)) {
       if (!dryRun) {
@@ -89,24 +94,50 @@ export const handler = async (req: Request) => {
       OPENAI_API_KEY,
       MODEL,
       {
-        story_id: storyId,
+        ...metadataPayload(metadata),
         article_text: articleText.slice(0, 12000),
+        source_text: articleText.slice(0, 12000),
         merged_extraction: extraction,
+        extraction_json: extraction,
         chunk_union_summary: {
           claim_count: chunkUnion.claims?.length ?? 0,
           position_count: chunkUnion.positions?.length ?? 0,
         },
         deterministic_issues: det.issues,
+        completeness_issues: completenessIssues,
       },
       `${requestId}-${storyId}`
     );
 
-    const report = { ...llmReport, deterministic_issues: det.issues };
-    const blocking = report.findings.filter((f) => f.severity === "blocking");
+    const report = { ...llmReport, deterministic_issues: det.issues, completeness_issues: completenessIssues };
+
+    const programmaticFindings = completenessIssues.map((issue) => ({
+      type: issue.startsWith("insufficient_evidence")
+        ? "missing_evidence"
+        : issue.startsWith("orphan_claim")
+          ? "missing_link"
+          : issue.startsWith("missing_position")
+            ? "missing_position"
+            : issue.startsWith("missing_event")
+              ? "missing_event"
+              : "bad_link",
+      severity: "major" as const,
+      description: issue,
+      entity_type: null,
+      entity_index: null,
+      link_type: null,
+      unsupported_text: null,
+      source_excerpt: null,
+      recommended_patch: { op: "none" as const, entity_type: null, entity_index: null, replacement_text: null, new_entity: null, link: null },
+    }));
+
+    report.findings = [...programmaticFindings, ...(report.findings ?? [])];
+    const blocking = report.findings.filter((f) => isBlockingSeverity(f.severity));
+    const fixable = report.findings.filter((f) => isFixableSeverity(f.severity));
     let nextStatus: string;
     if (report.recommended_action === "human_review") {
       nextStatus = "needs_human_review";
-    } else if (blocking.length > 0 || report.recommended_action === "refine") {
+    } else if (blocking.length > 0 || fixable.length > 0 || report.recommended_action === "refine") {
       nextStatus = "needs_refinement";
     } else {
       nextStatus = "reviewed";

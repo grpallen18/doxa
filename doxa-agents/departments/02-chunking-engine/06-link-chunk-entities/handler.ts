@@ -1,20 +1,21 @@
-// Review chunk extraction: deterministic pre-check + LLM completeness reviewer.
+// Link chunk entities: add semantic relationship arrays after atoms_passed validation.
 // Body: { max_chunks?, dry_run?, story_id?, chunk_index? }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { hasSemanticLinks } from "../../../lib/extraction-qa/atom-schema.ts";
+import { runStrictPreValidation } from "../../../lib/extraction-qa/deterministic-checks.ts";
+import { linkChunk } from "../../../lib/extraction-qa/openai-qa.ts";
+import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   invalidUuidMessage,
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
-import { runDeterministicChecks } from "../../../lib/extraction-qa/deterministic-checks.ts";
-import { reviewChunk, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
 import {
   asExtractionJson,
   clampInt,
-  isEmptyExtraction,
-  json,
   corsHeaders,
+  json,
 } from "../../../lib/extraction-qa/types.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -54,7 +55,7 @@ export const handler = async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
   const { data: rows, error: rpcErr } = await supabase.rpc("get_chunks_ready_for_chunk_qa", {
-    p_stage: "review",
+    p_stage: "link",
     p_limit: maxChunks * 2,
   });
 
@@ -72,79 +73,86 @@ export const handler = async (req: Request) => {
   chunks = chunks.slice(0, maxChunks);
 
   if (chunks.length === 0) {
-    return json({ ok: true, processed: 0, message: "No chunks ready for review", ...testScopeFields({ storyId: singleStoryId }) });
+    return json({
+      ok: true,
+      processed: 0,
+      message: "No chunks ready for link",
+      ...testScopeFields({ storyId: singleStoryId }),
+    });
   }
 
   let processed = 0;
   const requestId = crypto.randomUUID();
 
   for (const chunk of chunks) {
-    const extraction = asExtractionJson(chunk.extraction_json);
-    const sourceText = chunk.content ?? "";
-    const det = runDeterministicChecks(sourceText, extraction);
+    try {
+      const extraction = asExtractionJson(chunk.extraction_json);
+      const sourceText = chunk.content ?? "";
 
-    if (isEmptyExtraction(extraction)) {
+      if (hasSemanticLinks(extraction)) {
+        if (!dryRun) {
+          await supabase
+            .from("story_chunks")
+            .update({ extraction_qa_status: "passed" })
+            .eq("story_id", chunk.story_id)
+            .eq("chunk_index", chunk.chunk_index);
+        }
+        processed++;
+        continue;
+      }
+
+      const metadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
+      const links = await linkChunk(
+        OPENAI_API_KEY,
+        MODEL,
+        {
+          ...metadataPayload(metadata),
+          chunk_text: sourceText,
+          extraction_json: extraction,
+        },
+        `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
+      );
+
+      const linked = {
+        ...extraction,
+        claim_evidence_links: links.claim_evidence_links ?? [],
+        position_claim_links: links.position_claim_links ?? [],
+        position_evidence_links: links.position_evidence_links ?? [],
+        event_claim_links: links.event_claim_links ?? [],
+        event_evidence_links: links.event_evidence_links ?? [],
+      };
+
+      const linkCheck = runStrictPreValidation(sourceText, linked, { atomsOnly: false });
+      if (!linkCheck.passes) {
+        return json({
+          error: "Link validation failed",
+          story_id: chunk.story_id,
+          chunk_index: chunk.chunk_index,
+          blocking_issues: linkCheck.blocking_issues,
+        }, 422);
+      }
+
       if (!dryRun) {
-        await supabase
+        const { error: updateErr } = await supabase
           .from("story_chunks")
           .update({
-            extraction_qa_status: "reviewed",
-            extraction_qa_review_report: { findings: [], recommended_action: "validate", deterministic_issues: det.issues },
+            extraction_json: linked,
+            extraction_qa_status: "passed",
           })
           .eq("story_id", chunk.story_id)
           .eq("chunk_index", chunk.chunk_index);
+
+        if (updateErr) {
+          return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+        }
       }
+
       processed++;
-      continue;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[link_chunk_entities] Error:", chunk.story_id, chunk.chunk_index, msg);
+      return json({ error: msg, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
     }
-
-    const llmReport = await reviewChunk(
-      OPENAI_API_KEY,
-      MODEL,
-      {
-        story_id: chunk.story_id,
-        chunk_index: chunk.chunk_index,
-        source_text: sourceText,
-        extraction_json: extraction,
-        deterministic_issues: det.issues,
-      },
-      `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
-    );
-
-    const report = {
-      ...llmReport,
-      deterministic_issues: det.issues,
-    };
-
-    const blocking = report.findings.filter((f) => f.severity === "blocking");
-    let nextStatus: string;
-    if (report.recommended_action === "human_review") {
-      nextStatus = "needs_human_review";
-    } else if (blocking.length > 0 || report.recommended_action === "refine") {
-      nextStatus = "needs_refinement";
-    } else {
-      nextStatus = "reviewed";
-    }
-
-    if (!dryRun) {
-      await supabase
-        .from("story_chunks")
-        .update({
-          extraction_qa_status: nextStatus,
-          extraction_qa_review_report: report,
-        })
-        .eq("story_id", chunk.story_id)
-        .eq("chunk_index", chunk.chunk_index);
-
-      await saveArtifact(supabase, {
-        story_id: chunk.story_id,
-        chunk_index: chunk.chunk_index,
-        stage: "chunk_review",
-        input_snapshot: extraction,
-        report,
-      });
-    }
-    processed++;
   }
 
   return json({

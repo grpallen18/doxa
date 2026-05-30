@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import { LogoutTransitionWrapper } from '@/components/LogoutTransitionWrapper'
 import { NavigationOverlayProvider, PageNavigationOverlay } from '@/components/NavigationOverlayContext'
 import { ThemeProvider } from '@/components/ThemeProvider'
+import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
   title: 'Doxa - Community-Calibrated Political Knowledge Graph',
@@ -47,6 +48,7 @@ export default function RootLayout({
           </LogoutTransitionWrapper>
             <PageNavigationOverlay />
           </NavigationOverlayProvider>
+          <Toaster position="bottom-center" richColors closeButton />
         </ThemeProvider>
       </body>
     </html>

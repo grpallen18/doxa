@@ -28,7 +28,8 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | extract-story-entities | `extract_story_entities` | `story_id`, optional `chunk_index` | All unextracted chunks for story, or one chunk index. |
 | review-chunk-extraction | `review_chunk_extraction` | `story_id`, optional `chunk_index` | Chunk QA reviewer. |
 | refine-chunk-extraction | `refine_chunk_extraction` | `story_id`, optional `chunk_index` | Apply reviewer patches (max one cycle). |
-| validate-chunk-extraction | `validate_chunk_extraction` | `story_id`, optional `chunk_index` | Chunk QA judge; must pass before merge. |
+| validate-chunk-extraction | `validate_chunk_extraction` | `story_id`, optional `chunk_index` | Provenance judge; sets `atoms_passed`. |
+| link-chunk-entities | `link_chunk_entities` | `story_id`, optional `chunk_index` | Adds semantic link arrays; sets `passed`. Required before merge. |
 | merge-story-entities | `merge_story_entities` | `story_id` | Merge extraction JSON → `story_*` tables for one story. |
 | review-merged-extraction | `review_merged_extraction` | `story_id` | Story-level merge QA reviewer. |
 | refine-merged-extraction | `refine_merged_extraction` | `story_id` | Patch merged entities (max one cycle). |

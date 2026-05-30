@@ -1,11 +1,13 @@
 # extract-story-entities
 
-Per-chunk LLM extraction of **claims**, **evidence**, **positions**, and **events** (plus links between them). Positions are read from the article text here—not invented later in position-intelligence.
+Per-chunk LLM extraction of **claims**, **evidence**, **positions**, and **events** with provenance (no semantic links).
 
 | Deploy name | Output |
 |-------------|--------|
 | `extract_story_entities` | `story_chunks.extraction_json` |
 
-`extraction_json` shape: `claims`, `evidence`, `claim_evidence_links`, `positions`, `position_claim_links`, `position_evidence_links`, `events`, `event_claim_links`, `event_evidence_links`.
+**Model:** defaults to `gpt-5.4-nano-2026-03-17`. Override with `OPENAI_MODEL_EXTRACT` (or `OPENAI_MODEL` fallback).
 
-Next: [03-review-chunk-extraction](../03-review-chunk-extraction/) → chunk QA → [03-merging-engine](../../03-merging-engine/) → canonicalization under [04-semantic-intelligence-engine](../../04-semantic-intelligence-engine/).
+`extraction_json` phase A: `claims`, `evidence`, `positions`, `events` — each with `source_excerpt`, `span_start`, `span_end`, `extraction_confidence`, `source_story_id`, `source_chunk_index`.
+
+Next: [03-review-chunk-extraction](../03-review-chunk-extraction/) → [06-link-chunk-entities](../06-link-chunk-entities/) → merge.

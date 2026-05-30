@@ -1,4 +1,4 @@
-// Validate chunk extraction: deterministic + LLM judge; sets passed or needs_human_review.
+// Validate chunk extraction: deterministic pre-validator + LLM judge; sets passed or needs_human_review.
 // Body: { max_chunks?, dry_run?, story_id?, chunk_index? }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -9,16 +9,19 @@ import {
 } from "../../../lib/pipeline-test-params.ts";
 import {
   autoPassEmptyExtraction,
-  deterministicToValidationReport,
-  runDeterministicChecks,
+  buildDeterministicValidationReport,
+  checkBlockingFindingsUnresolved,
+  runStrictPreValidation,
 } from "../../../lib/extraction-qa/deterministic-checks.ts";
 import { saveArtifact, validateChunk } from "../../../lib/extraction-qa/openai-qa.ts";
+import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   asExtractionJson,
   clampInt,
   corsHeaders,
   isEmptyExtraction,
   json,
+  type ReviewReport,
 } from "../../../lib/extraction-qa/types.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -86,38 +89,60 @@ export const handler = async (req: Request) => {
   for (const chunk of chunks) {
     const extraction = asExtractionJson(chunk.extraction_json);
     const sourceText = chunk.content ?? "";
-    const det = runDeterministicChecks(sourceText, extraction);
+    const metadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
+
+    const { data: chunkMeta } = await supabase
+      .from("story_chunks")
+      .select("extraction_qa_review_report, extraction_qa_refinement_count")
+      .eq("story_id", chunk.story_id)
+      .eq("chunk_index", chunk.chunk_index)
+      .single();
+
+    const reviewReport = (chunkMeta?.extraction_qa_review_report ?? null) as ReviewReport | null;
 
     let validationReport;
 
     if (isEmptyExtraction(extraction)) {
-      validationReport = autoPassEmptyExtraction();
+      validationReport = autoPassEmptyExtraction(sourceText.length);
     } else {
-      const detFail = deterministicToValidationReport(det, false);
-      if (detFail) {
-        validationReport = detFail;
+      const strictPre = runStrictPreValidation(sourceText, extraction, {
+        enforceCompleteness: false,
+        atomsOnly: true,
+      });
+      const refinerUnresolved =
+        chunkMeta?.extraction_qa_refinement_count && chunkMeta.extraction_qa_refinement_count > 0
+          ? checkBlockingFindingsUnresolved(reviewReport, extraction, extraction, sourceText)
+          : [];
+
+      if (!strictPre.passes || refinerUnresolved.length > 0) {
+        validationReport = buildDeterministicValidationReport(strictPre, refinerUnresolved, false);
       } else {
         validationReport = await validateChunk(
           OPENAI_API_KEY,
           MODEL,
           {
-            story_id: chunk.story_id,
-            chunk_index: chunk.chunk_index,
+            ...metadataPayload(metadata),
+            chunk_text: sourceText,
             source_text: sourceText,
             extraction_json: extraction,
-            deterministic_issues: det.issues,
+            refined_extraction_json: extraction,
+            review_report: reviewReport,
+            deterministic_issues: strictPre.issues,
           },
           `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
         );
-        validationReport.deterministic_issues = det.issues;
+        validationReport.deterministic_issues = strictPre.issues;
+        validationReport.deterministic_checks = strictPre.deterministic_checks;
       }
     }
 
     const finalStatus = validationReport.passes
-      ? "passed"
+      ? "atoms_passed"
       : validationReport.recommended_status === "needs_refinement"
-        ? "needs_human_review"
-        : validationReport.recommended_status;
+        ? "needs_refinement"
+        : validationReport.recommended_status === "passed"
+          ? "atoms_passed"
+          : validationReport.recommended_status;
 
     if (!dryRun) {
       await supabase

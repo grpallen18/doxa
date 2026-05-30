@@ -10,6 +10,19 @@ const ENTITY_KEYS: Record<string, keyof ExtractionJson> = {
   events: "events",
 };
 
+const LINK_KEYS: Record<string, keyof ExtractionJson> = {
+  claim_evidence_links: "claim_evidence_links",
+  claim_evidence_link: "claim_evidence_links",
+  position_claim_links: "position_claim_links",
+  position_claim_link: "position_claim_links",
+  position_evidence_links: "position_evidence_links",
+  position_evidence_link: "position_evidence_links",
+  event_claim_links: "event_claim_links",
+  event_claim_link: "event_claim_links",
+  event_evidence_links: "event_evidence_links",
+  event_evidence_link: "event_evidence_links",
+};
+
 function arr(extraction: ExtractionJson, key: keyof ExtractionJson): unknown[] {
   const v = extraction[key];
   return Array.isArray(v) ? [...v] : [];
@@ -61,10 +74,50 @@ function remapLinks(extraction: ExtractionJson, entityType: string, removedIndex
   }
 }
 
+function applyLinkPatch(extraction: ExtractionJson, patch: RefinementPatchOp) {
+  const linkKey = LINK_KEYS[patch.entity_type];
+  if (!linkKey || !patch.value) return;
+  const links = arr(extraction, linkKey);
+  links.push(patch.value);
+  setArr(extraction, linkKey, links);
+}
+
+function applyUnlinkPatch(extraction: ExtractionJson, patch: RefinementPatchOp) {
+  const linkKey = LINK_KEYS[patch.entity_type];
+  if (!linkKey) return;
+  const links = arr(extraction, linkKey);
+  const filterObj = patch.value ?? {};
+
+  if (typeof patch.entity_index === "number" && patch.entity_index >= 0 && patch.entity_index < links.length) {
+    links.splice(patch.entity_index, 1);
+    setArr(extraction, linkKey, links);
+    return;
+  }
+
+  const next = links.filter((l) => {
+    if (l === null || typeof l !== "object") return false;
+    const lo = l as Record<string, unknown>;
+    for (const [k, v] of Object.entries(filterObj)) {
+      if (lo[k] !== v) return true;
+    }
+    return false;
+  });
+  setArr(extraction, linkKey, next);
+}
+
 export function applyPatches(extraction: ExtractionJson, patches: RefinementPatchOp[]): ExtractionJson {
   const out: ExtractionJson = JSON.parse(JSON.stringify(extraction));
 
   for (const patch of patches) {
+    if (patch.op === "link") {
+      applyLinkPatch(out, patch);
+      continue;
+    }
+    if (patch.op === "unlink") {
+      applyUnlinkPatch(out, patch);
+      continue;
+    }
+
     const key = ENTITY_KEYS[patch.entity_type];
     if (!key) continue;
 

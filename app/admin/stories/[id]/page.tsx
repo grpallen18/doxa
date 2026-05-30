@@ -15,24 +15,32 @@ export default function AdminStoryExtractionReviewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!storyId) return
-    setLoading(true)
-    setError(null)
+    if (!silent) {
+      setLoading(true)
+      setError(null)
+    }
     try {
-      const res = await fetch(`/api/admin/stories/${storyId}/extraction-review`)
+      const res = await fetch(`/api/admin/stories/${storyId}/extraction-review`, {
+        cache: 'no-store',
+      })
       const json = await res.json()
       if (!res.ok) {
-        setError(json.error?.message ?? 'Failed to load review')
-        setPayload(null)
+        if (!silent) {
+          setError(json.error?.message ?? 'Failed to load review')
+          setPayload(null)
+        }
         return
       }
       setPayload(json.data)
     } catch {
-      setError('Failed to load review')
-      setPayload(null)
+      if (!silent) {
+        setError('Failed to load review')
+        setPayload(null)
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [storyId])
 
@@ -51,7 +59,7 @@ export default function AdminStoryExtractionReviewPage() {
         {loading && <p className="text-sm text-muted">Loading extraction review…</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
         {!loading && !error && payload && (
-          <StoryExtractionReviewView payload={payload} onRefresh={load} />
+          <StoryExtractionReviewView payload={payload} onRefresh={() => load(true)} />
         )}
       </div>
     </main>

@@ -7,12 +7,15 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
-import { runDeterministicChecks } from "../../../lib/extraction-qa/deterministic-checks.ts";
+import { runDeterministicChecks, getCompletenessIssues } from "../../../lib/extraction-qa/deterministic-checks.ts";
 import { reviewChunk, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
+import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
   asExtractionJson,
   clampInt,
   isEmptyExtraction,
+  isBlockingSeverity,
+  isFixableSeverity,
   json,
   corsHeaders,
 } from "../../../lib/extraction-qa/types.ts";
@@ -79,72 +82,111 @@ export const handler = async (req: Request) => {
   const requestId = crypto.randomUUID();
 
   for (const chunk of chunks) {
-    const extraction = asExtractionJson(chunk.extraction_json);
-    const sourceText = chunk.content ?? "";
-    const det = runDeterministicChecks(sourceText, extraction);
+    try {
+      const extraction = asExtractionJson(chunk.extraction_json);
+      const sourceText = chunk.content ?? "";
+      const det = runDeterministicChecks(sourceText, extraction, { atomsOnly: true });
+      const completenessIssues = getCompletenessIssues(extraction);
+      const metadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
 
-    if (isEmptyExtraction(extraction)) {
+      if (isEmptyExtraction(extraction)) {
+        if (!dryRun) {
+          const { error: updateErr } = await supabase
+            .from("story_chunks")
+            .update({
+              extraction_qa_status: "reviewed",
+              extraction_qa_review_report: { findings: [], recommended_action: "validate", deterministic_issues: det.issues },
+            })
+            .eq("story_id", chunk.story_id)
+            .eq("chunk_index", chunk.chunk_index);
+          if (updateErr) {
+            return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+          }
+        }
+        processed++;
+        continue;
+      }
+
+      const llmReport = await reviewChunk(
+        OPENAI_API_KEY,
+        MODEL,
+        {
+          ...metadataPayload(metadata),
+          chunk_text: sourceText,
+          source_text: sourceText,
+          extraction_json: extraction,
+          deterministic_issues: det.issues,
+          completeness_issues: completenessIssues,
+        },
+        `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
+      );
+
+      const report = {
+        ...llmReport,
+        deterministic_issues: det.issues,
+        completeness_issues: completenessIssues,
+      };
+
+      const programmaticFindings = completenessIssues.map((issue) => ({
+        type: issue.startsWith("missing_position")
+          ? "missing_position"
+          : issue.startsWith("missing_event")
+            ? "missing_event"
+            : "missing_claim",
+        severity: "minor" as const,
+        description: issue,
+        entity_type: null,
+        entity_index: null,
+        link_type: null,
+        unsupported_text: null,
+        source_excerpt: null,
+        recommended_patch: { op: "none" as const, entity_type: null, entity_index: null, replacement_text: null, new_entity: null, link: null },
+      }));
+
+      report.findings = [...programmaticFindings, ...(report.findings ?? [])];
+
+      const blocking = report.findings.filter((f) => isBlockingSeverity(f.severity));
+      const fixable = report.findings.filter((f) => isFixableSeverity(f.severity));
+      let nextStatus: string;
+      if (report.recommended_action === "human_review") {
+        nextStatus = "needs_human_review";
+      } else if (blocking.length > 0 || fixable.length > 0 || report.recommended_action === "refine") {
+        nextStatus = "needs_refinement";
+      } else {
+        nextStatus = "reviewed";
+      }
+
       if (!dryRun) {
-        await supabase
+        const { error: updateErr } = await supabase
           .from("story_chunks")
           .update({
-            extraction_qa_status: "reviewed",
-            extraction_qa_review_report: { findings: [], recommended_action: "validate", deterministic_issues: det.issues },
+            extraction_qa_status: nextStatus,
+            extraction_qa_review_report: report,
           })
           .eq("story_id", chunk.story_id)
           .eq("chunk_index", chunk.chunk_index);
+
+        if (updateErr) {
+          return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+        }
+
+        const { error: artifactErr } = await saveArtifact(supabase, {
+          story_id: chunk.story_id,
+          chunk_index: chunk.chunk_index,
+          stage: "chunk_review",
+          input_snapshot: extraction,
+          report,
+        });
+        if (artifactErr) {
+          return json({ error: artifactErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+        }
       }
       processed++;
-      continue;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[review_chunk_extraction] Error:", chunk.story_id, chunk.chunk_index, msg);
+      return json({ error: msg, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
     }
-
-    const llmReport = await reviewChunk(
-      OPENAI_API_KEY,
-      MODEL,
-      {
-        story_id: chunk.story_id,
-        chunk_index: chunk.chunk_index,
-        source_text: sourceText,
-        extraction_json: extraction,
-        deterministic_issues: det.issues,
-      },
-      `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
-    );
-
-    const report = {
-      ...llmReport,
-      deterministic_issues: det.issues,
-    };
-
-    const blocking = report.findings.filter((f) => f.severity === "blocking");
-    let nextStatus: string;
-    if (report.recommended_action === "human_review") {
-      nextStatus = "needs_human_review";
-    } else if (blocking.length > 0 || report.recommended_action === "refine") {
-      nextStatus = "needs_refinement";
-    } else {
-      nextStatus = "reviewed";
-    }
-
-    if (!dryRun) {
-      await supabase
-        .from("story_chunks")
-        .update({
-          extraction_qa_status: nextStatus,
-          extraction_qa_review_report: report,
-        })
-        .eq("story_id", chunk.story_id)
-        .eq("chunk_index", chunk.chunk_index);
-
-      await saveArtifact(supabase, {
-        story_id: chunk.story_id,
-        chunk_index: chunk.chunk_index,
-        stage: "chunk_review",
-        input_snapshot: extraction,
-        report,
-      });
-    }
-    processed++;
   }
 
   return json({

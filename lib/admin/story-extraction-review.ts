@@ -168,6 +168,8 @@ export type StoryExtractionReviewPayload = {
     id: string
     stage: string
     chunk_index: number | null
+    input_snapshot: unknown
+    output_snapshot: unknown
     report: unknown
     created_at: string
   }>
@@ -194,6 +196,15 @@ export function extractErrorMessage(error: unknown): string {
     return String((error as { message: unknown }).message)
   }
   return 'Internal server error'
+}
+
+export function extractEdgeFunctionError(data: unknown, status: number): string {
+  if (typeof data === 'object' && data !== null) {
+    const row = data as Record<string, unknown>
+    if ('error' in row && row.error != null) return String(row.error)
+    if ('message' in row && row.message != null) return String(row.message)
+  }
+  return `Edge Function ${status}`
 }
 
 function isMissingRelation(error: { code?: string; message?: string } | null): boolean {
@@ -425,7 +436,7 @@ export async function fetchStoryExtractionReview(
       (table) =>
         supabase
           .from(table)
-          .select('id, stage, chunk_index, report, created_at')
+          .select('id, stage, chunk_index, input_snapshot, output_snapshot, report, created_at')
           .eq('story_id', storyId)
           .order('created_at', { ascending: false })
           .limit(50)
@@ -614,6 +625,8 @@ export async function fetchStoryExtractionReview(
       id: a.id as string,
       stage: a.stage as string,
       chunk_index: a.chunk_index as number | null,
+      input_snapshot: a.input_snapshot,
+      output_snapshot: a.output_snapshot,
       report: a.report,
       created_at: a.created_at as string,
     })),
@@ -797,4 +810,8 @@ export function buildExtractionReviewMarkdown(payload: StoryExtractionReviewPayl
   )
 
   return lines.join('\n')
+}
+
+export function buildExtractionReviewJson(payload: StoryExtractionReviewPayload): string {
+  return JSON.stringify(payload, null, 2)
 }

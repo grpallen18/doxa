@@ -13,7 +13,8 @@ Do not commit secret values to git.
 | relevance-gate | relevance_gate | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
-| extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_EXTRACT` |
+| link-chunk-entities | link_chunk_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-chunk-extraction | review_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |

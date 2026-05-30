@@ -118,11 +118,27 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+      - OPENAI_MODEL_EXTRACT
     cron:
       job_name: extract-story-entities-every-2min
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/02-extract-story-entities/schedule.sql
       body: "{}"
+  - id: link-chunk-entities
+    department: 02-chunking-engine
+    workflow: link-chunk-entities
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/06-link-chunk-entities
+    deploy_name: link_chunk_entities
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    cron:
+      job_name: link-chunk-entities-every-2min
+      schedule: "*/2 * * * *"
+      sql: doxa-agents/departments/02-chunking-engine/06-link-chunk-entities/schedule.sql
+      body: '{"max_chunks":5}'
   - id: refine-chunk-extraction
     department: 02-chunking-engine
     workflow: refine-chunk-extraction

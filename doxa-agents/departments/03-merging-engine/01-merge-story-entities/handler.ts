@@ -6,6 +6,17 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  holderToSpeakerType,
+  normalizeChunkBlob,
+  provenanceMetadata,
+} from "../../../lib/extraction-qa/atom-schema.ts";
+import { METADATA_PROMPT_BLOCK } from "../../../lib/extraction-qa/openai-qa.ts";
+import {
+  loadStoryMetadata,
+  metadataPayload,
+  type StoryAgentMetadata,
+} from "../../../lib/extraction-qa/story-metadata.ts";
+import {
   invalidUuidMessage,
   parseStoryIdFromBody,
   testScopeFields,
@@ -90,14 +101,6 @@ type MergeEvent = {
 type MergeEventEvidenceLink = { event_index: number; evidence_index: number };
 type MergeEventClaimLink = { event_index: number; claim_index: number; relation_type: string };
 
-function normalizeChunkBlob(blob: Record<string, unknown>): Record<string, unknown> {
-  return {
-    ...blob,
-    claim_evidence_links: blob.claim_evidence_links ?? blob.links ?? [],
-    event_claim_links: blob.event_claim_links ?? [],
-  };
-}
-
 function parseDateOnly(v: string | null | undefined): string | null {
   if (!v || typeof v !== "string") return null;
   const trimmed = v.trim();
@@ -108,7 +111,7 @@ function parseDateOnly(v: string | null | undefined): string | null {
 async function callMergeLLM(
   apiKey: string,
   model: string,
-  storyId: string,
+  metadata: StoryAgentMetadata,
   chunkBlobs: unknown[],
   requestId: string
 ): Promise<{
@@ -124,72 +127,42 @@ async function callMergeLLM(
 }> {
   const system = `You merge chunk-level extractions into a single story-level set of claims, evidence, claim_evidence_links, positions, and events for DOXA.
 
-Given multiple chunk extraction blobs (each has claims, evidence, claim_evidence_links, positions, position_claim_links, position_evidence_links, events, event_evidence_links, event_claim_links), your job is to:
-1) Deduplicate overlapping claims; normalize wording; keep the most specific, best-anchored version.
-2) Consolidate evidence; merge duplicates; keep the most direct sourcing.
-3) Produce explicit relationships: evidence must link to at least one output claim OR at least one output event. Do NOT output orphan evidence. Do NOT force links.
+${METADATA_PROMPT_BLOCK}
 
-CLAIM RULES (same standard as chunk extraction; fail-closed):
-A merged claim must be self-contained and anchored:
-- Scope/Entity anchor is explicit (no vague referents).
-- Time anchor is explicit and non-invented:
-  - point-in-time: "As of <Month YYYY> …"
-  - period-bound: "During <time period / election cycle / years> …"
-  - ongoing evaluation: attributed evaluation + basis derived from evidence that exists in the merged evidence set.
-If you cannot preserve anchors without inventing details, DROP the claim.
+Given multiple chunk extraction blobs, your job is to:
+1) Deduplicate overlapping claims; normalize wording; keep the most specific version grounded in chunk content.
+2) Consolidate evidence; merge duplicates; keep the most direct sourcing (exact excerpts).
+3) Produce explicit relationships: evidence must link to at least one output claim OR event. No orphan evidence.
 
-NORMALIZATION RULES:
-- Prefer specificity: choose the version with clearer entity/jurisdiction and clearer timeframe.
-- If two claims differ only slightly, merge to the clearest wording.
-- If two claims genuinely conflict, keep both as separate claims and set polarity appropriately (asserts/denies/uncertain) based on wording.
+TEMPORAL RULES:
+- Preserve relative temporal language from chunks ("on Wednesday", "this term", "during his two terms as president").
+- Do not invent years or dates not present in chunk blobs or article text.
+- Do not drop claims merely because they use relative time instead of absolute dates.
+
+CLAIM RULES:
+- Name primary subjects explicitly. Prefer clearest wording from chunks.
+- Do not invent details to make claims self-contained. Keep chunk-grounded phrasing.
 
 EVIDENCE RULES:
-- Merge duplicates (same quote/stat/doc ref) across chunks.
-- Keep evidence atomic.
-- Omit any evidence that cannot be clearly linked to at least one remaining claim or event.
-
-CLAIM_EVIDENCE_LINK RULES:
-- Create claim_evidence_links only when the evidence clearly supports/contradicts/contextualizes.
-- Do not "attach" evidence to a claim just to avoid orphaning; instead omit the evidence.
+- Merge duplicates across chunks. Keep evidence atomic with exact excerpts.
 
 POSITION MERGE RULES:
-- Deduplicate overlapping positions across chunks; keep the clearest wording with excerpt_text and cue_phrases.
-- Preserve position_claim_links and position_evidence_links using indices into the merged claims and evidence arrays.
-- If a merged position lacks cue_phrases (empty array) or extraction_confidence < 0.6, OMIT it.
-- speaker_type: narrator | quoted | critics | supporters | null.
-- Reindex positions after merge; position_claim_links and position_evidence_links use 0-based indices into output arrays.
+- Deduplicate positions; keep clearest wording with excerpt_text and cue_phrases when available.
+- Preserve central article position. Do not omit clear article thesis.
+- Preserve position_claim_links and position_evidence_links; reindex to merged arrays.
 
 EVENT MERGE RULES:
-- Deduplicate overlapping events across chunks; prefer the most specific date, actor, and action.
-- Each event needs event_summary (self-contained), primary_actor, action, object, dates/timeframes, location, event_type as available.
-- EVENT vs CLAIM: keep occurrences as events; keep assertions/evaluations/denials about them as claims.
-- If extraction_confidence < 0.6 or no event_evidence_links, OMIT the event.
-- event_evidence_links: { event_index, evidence_index } required for each output event.
-- event_claim_links: { event_index, claim_index, relation_type } with relation_type: about | describes | disputes | causes.
-- Preserve event_claim_links from chunk blobs when the linked claim and event survive merge; reindex to merged output arrays. Do not invent new event_claim_links without chunk support.
-- Reindex events after merge; all event_*_links use 0-based indices into output arrays.
-- Do NOT output event_position_links.
+- Deduplicate events; prefer most specific actor/action from chunks.
+- Use aggregate_event for grouped summaries explicitly described in chunks.
+- event_evidence_links required for each output event.
 
-STANCE MERGE RULES (when merging claims across chunks):
-- If any chunk has stance=oppose with extraction_confidence >= 0.7, output oppose (do not average it away).
-- If any chunk has stance=support with extraction_confidence >= 0.7 and no oppose signal, output support.
-- If chunks conflict (e.g. support vs oppose), or if no clear signal, output neutral.
-- Treat missing stance in chunk blobs as neutral when merging.
-- Otherwise, use the dominant stance weighted by extraction_confidence.
+STANCE MERGE: if any chunk has stance=oppose with confidence >= 0.7, output oppose; similar for support; else neutral.
 
-OUTPUT:
-Output nine arrays: claims, evidence, claim_evidence_links, positions, position_claim_links, position_evidence_links, events, event_evidence_links, event_claim_links. Use 0-based indices.
-polarity: asserts | denies | uncertain. stance: support | oppose | neutral. evidence_type: quote | statistic | document_ref | dataset_ref | other. relation_type (claim-evidence): supports | contradicts | contextual. speaker_type: narrator | quoted | critics | supporters | null.
+OUTPUT: claims, evidence, claim_evidence_links, positions, position_claim_links, position_evidence_links, events, event_evidence_links, event_claim_links. 0-based indices.
 
-ROLE-MODEL CLAIMS (style examples; do not copy unless supported by merged content):
-- "As of February 2026, there is no clear Democratic frontrunner in the North Carolina governor's race."
-- "During the 2026 election cycle, early polling in <state/race> shows <candidate/party> leading, according to <poll named in evidence>."
-- "Critics argue that <policy> is harmful based on <specific stated basis>."
+Return JSON only. Do not add additional top-level keys.`;
 
-If the merged result has no valid anchored claims, return empty arrays.
-Return JSON only. Do not add any additional top-level keys.`;
-
-  const userPayload = { story_id: storyId, chunk_blobs: chunkBlobs };
+  const userPayload = { ...metadataPayload(metadata), chunk_blobs: chunkBlobs };
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -602,7 +575,14 @@ export const handler = async (req: Request) => {
       event_claim_links: MergeEventClaimLink[];
     };
     try {
-      mergeResult = await callMergeLLM(OPENAI_API_KEY, MODEL, storyId, blobs, `${requestId}-${storyId}`);
+      const storyMetadata = await loadStoryMetadata(supabase, storyId);
+      mergeResult = await callMergeLLM(
+        OPENAI_API_KEY,
+        MODEL,
+        storyMetadata,
+        blobs,
+        `${requestId}-${storyId}`
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[merge_story_entities] LLM error:", msg);
@@ -662,6 +642,7 @@ export const handler = async (req: Request) => {
       const conf = clampNum(c.extraction_confidence, 0, 1, 0.5);
       const stanceVal =
         c.stance && ["support", "oppose", "neutral"].includes(c.stance) ? c.stance : null;
+      const claimProv = provenanceMetadata(c as Record<string, unknown>);
       const { data: ins } = await supabase
         .from("story_claims")
         .insert({
@@ -670,8 +651,9 @@ export const handler = async (req: Request) => {
           polarity: c.polarity ?? "uncertain",
           stance: stanceVal,
           extraction_confidence: conf,
-          span_start: c.span_start ?? null,
-          span_end: c.span_end ?? null,
+          span_start: c.span_start ?? claimProv.span_start ?? null,
+          span_end: c.span_end ?? claimProv.span_end ?? null,
+          metadata: claimProv,
           run_id: runId,
         })
         .select("story_claim_id")
@@ -682,6 +664,7 @@ export const handler = async (req: Request) => {
     const evidenceIds: string[] = [];
     for (const e of evidenceToKeep) {
       const conf = clampNum(e.extraction_confidence, 0, 1, 0.5);
+      const evProv = provenanceMetadata(e as Record<string, unknown>);
       const { data: ins } = await supabase
         .from("story_evidence")
         .insert({
@@ -691,6 +674,9 @@ export const handler = async (req: Request) => {
           attribution: e.attribution ?? null,
           source_ref: e.source_ref ?? null,
           extraction_confidence: conf,
+          span_start: (e as { span_start?: number }).span_start ?? evProv.span_start ?? null,
+          span_end: (e as { span_end?: number }).span_end ?? evProv.span_end ?? null,
+          metadata: evProv,
           run_id: runId,
         })
         .select("evidence_id")
@@ -721,15 +707,17 @@ export const handler = async (req: Request) => {
     const positionIds: string[] = [];
     for (const p of mergePositions) {
       const conf = clampNum(p.extraction_confidence, 0, 1, 0.5);
+      const posRow = p as Record<string, unknown>;
+      const excerptText = String(posRow.excerpt_text ?? posRow.source_excerpt ?? "").trim();
       const { data: posIns } = await supabase
         .from("story_positions")
         .insert({
           story_id: storyId,
           raw_text: (p.raw_text ?? "").trim() || "Unspecified",
           extraction_confidence: conf,
-          excerpt_text: (p.excerpt_text ?? "").trim() || "",
+          excerpt_text: excerptText,
           cue_phrases: Array.isArray(p.cue_phrases) ? p.cue_phrases : [],
-          speaker_type: p.speaker_type ?? null,
+          speaker_type: p.speaker_type ?? holderToSpeakerType(posRow.holder) ?? null,
           run_id: runId,
         })
         .select("story_position_id")
@@ -778,6 +766,7 @@ export const handler = async (req: Request) => {
           event_timeframe_end: parseDateOnly(ev.event_timeframe_end),
           location: ev.location ?? null,
           event_type: ev.event_type ?? null,
+          metadata: provenanceMetadata(ev as Record<string, unknown>),
           run_id: runId,
         })
         .select("story_event_id")
