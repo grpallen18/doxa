@@ -5,21 +5,6 @@
 | Project | `gjxihyaovyfwajjyoyoz` | `iyuwxdjauhlaeejstlde` |
 | Git branch | `main` | `experiment/chunk-extraction-rebuild` |
 
-## Experiment home UI (branch-only)
-
-The preview branch also ships an experimental topic-explorer home + shell that
-mirrors `docs/UI Layout.png` using **mock data only** (no DB reads). It is gated
-by `NEXT_PUBLIC_EXPERIMENT_HOME_UI` and is **off by default**, so merging this
-branch to `main` does not change the live UI until the flag is set.
-
-1. Ensure `.env.local.branch` contains `NEXT_PUBLIC_EXPERIMENT_HOME_UI=true`
-   (already present; see `.env.local.branch.example`).
-2. `npm run env:branch` and restart `npm run dev`.
-3. Visit `/` — the home and left sidebar switch to the topic-explorer layout.
-
-Details in `docs/experiment-home-ui-plan.md`. Smoke tests: `npm run test:e2e`
-(self-skip when the flag is unset).
-
 ## Isolated extract tuning (preview only)
 
 Goal: run **extract only**, read claims on chunks, tweak the prompt, reset, repeat. Skip validate/merge for now.

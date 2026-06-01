@@ -1,5 +1,5 @@
 /**
- * Mock fixture for the experiment topic-explorer home (NEXT_PUBLIC_EXPERIMENT_HOME_UI).
+ * Mock fixture for the topic-explorer home (until wired to the DB).
  *
  * This is intentionally static, branch-only data shaped to match docs/UI Layout.png.
  * No Supabase / API reads. When the experiment is promoted, these shapes can be
@@ -71,38 +71,12 @@ export type Position = {
   relatedControversies: RelatedControversy[]
 }
 
-export type SourceType = {
-  id: string
-  label: string
-}
-
-/** Strength of a position within a source type, used by the diversity grid. */
-export type DiversityCell = 0 | 1 | 2 | 3
-
-export type DiscoursePoint = {
-  /** X-axis label, e.g. "May '23". */
-  label: string
-  /** One volume value per position id. */
-  values: Record<string, number>
-}
-
-export type DiscourseEvent = {
-  label: string
-  /** Index into the discourse series where the marker sits. */
-  at: number
-}
-
 export type Topic = {
   id: string
   title: string
   stats: TopicStat[]
   briefParagraphs: string[]
   positions: Position[]
-  sourceTypes: SourceType[]
-  /** diversity[positionId][sourceTypeId] = cell strength. */
-  diversity: Record<string, Record<string, DiversityCell>>
-  discourse: DiscoursePoint[]
-  discourseEvents: DiscourseEvent[]
 }
 
 export const topicNav: TopicNavItem[] = [
@@ -111,16 +85,6 @@ export const topicNav: TopicNavItem[] = [
   { id: 'ukraine-war', title: 'Ukraine War' },
   { id: 'us-economy', title: 'U.S. Economy' },
   { id: 'ai-regulation', title: 'AI Regulation' },
-]
-
-export const sourceTypes: SourceType[] = [
-  { id: 'news', label: 'News' },
-  { id: 'podcasts', label: 'Podcasts' },
-  { id: 'gov-policy', label: 'Gov/Policy' },
-  { id: 'research', label: 'Research' },
-  { id: 'opinion', label: 'Opinion' },
-  { id: 'social', label: 'Social' },
-  { id: 'video', label: 'Video' },
 ]
 
 const immigrationPositions: Position[] = [
@@ -274,34 +238,6 @@ const immigrationPositions: Position[] = [
   },
 ]
 
-const immigrationDiversity: Record<string, Record<string, DiversityCell>> = {
-  'pos-1': { news: 3, podcasts: 2, 'gov-policy': 3, research: 1, opinion: 2, social: 2, video: 1 },
-  'pos-2': { news: 3, podcasts: 2, 'gov-policy': 2, research: 3, opinion: 2, social: 1, video: 2 },
-  'pos-3': { news: 3, podcasts: 3, 'gov-policy': 3, research: 3, opinion: 3, social: 2, video: 2 },
-  'pos-4': { news: 2, podcasts: 1, 'gov-policy': 2, research: 2, opinion: 3, social: 2, video: 1 },
-  'pos-5': { news: 2, podcasts: 1, 'gov-policy': 2, research: 1, opinion: 1, social: 1, video: 0 },
-}
-
-const discourseLabels = [
-  "May '23",
-  "Aug '23",
-  "Nov '23",
-  "Feb '24",
-  "May '24",
-  "Aug '24",
-]
-
-const immigrationDiscourse: DiscoursePoint[] = discourseLabels.map((label, i) => ({
-  label,
-  values: {
-    'pos-1': [40, 52, 60, 78, 66, 58][i],
-    'pos-2': [30, 34, 44, 50, 62, 70][i],
-    'pos-3': [48, 55, 66, 80, 88, 92][i],
-    'pos-4': [22, 28, 40, 46, 52, 50][i],
-    'pos-5': [12, 18, 24, 30, 42, 48][i],
-  },
-}))
-
 const immigrationTopic: Topic = {
   id: 'immigration',
   title: 'Immigration',
@@ -317,13 +253,6 @@ const immigrationTopic: Topic = {
     'Across thousands of sources in two dozen countries, the most durable agreement is that the current system is overwhelmed; the deepest disagreement is over sequencing — what must happen first.',
   ],
   positions: immigrationPositions,
-  sourceTypes,
-  diversity: immigrationDiversity,
-  discourse: immigrationDiscourse,
-  discourseEvents: [
-    { label: 'Border surge', at: 3 },
-    { label: 'Executive action', at: 4 },
-  ],
 }
 
 export const topics: Topic[] = [immigrationTopic]

@@ -1,15 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * Playwright config for the experiment home UI smoke tests.
+ * Playwright config for home UI smoke tests.
  *
- * These specs require the experiment flag and a running dev server:
- *   npm run env:branch   # sets NEXT_PUBLIC_EXPERIMENT_HOME_UI=true
  *   npm run dev          # http://localhost:3000
  *   npm run test:e2e
- *
- * Specs self-skip when NEXT_PUBLIC_EXPERIMENT_HOME_UI !== 'true', so the
- * suite is a no-op in CI / on main unless the flag is provided.
  */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
 

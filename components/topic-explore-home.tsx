@@ -6,8 +6,6 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { TopicHeader } from '@/components/topic-header'
 import { TopicBriefPanel } from '@/components/topic-brief-panel'
 import { PositionLandscape } from '@/components/position-landscape'
-import { SourceDiversityGrid } from '@/components/source-diversity-grid'
-import { DiscourseEvolutionChart } from '@/components/discourse-evolution-chart'
 import { PositionDetailPanel } from '@/components/position-detail-panel'
 import { getPositionById, getTopicById } from '@/lib/mock/topic-explore'
 import { cn } from '@/lib/utils'
@@ -56,10 +54,6 @@ function TopicExploreHomeInner() {
             selectedId={selectedId}
             onSelect={(id) => setSelectedId((prev) => (prev === id ? null : id))}
           />
-          <div className="grid gap-4 xl:grid-cols-2">
-            <SourceDiversityGrid topic={topic} />
-            <DiscourseEvolutionChart topic={topic} />
-          </div>
         </div>
 
         {selectedPosition && (

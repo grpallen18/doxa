@@ -1,10 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const flagEnabled = process.env.NEXT_PUBLIC_EXPERIMENT_HOME_UI === 'true'
-
-test.describe('experiment home UI', () => {
-  test.skip(!flagEnabled, 'Set NEXT_PUBLIC_EXPERIMENT_HOME_UI=true to run experiment specs.')
-
+test.describe('home', () => {
   test('renders the topic dashboard with five positions', async ({ page }) => {
     await page.goto('/')
 
@@ -27,9 +23,7 @@ test.describe('experiment home UI', () => {
     await expect(page.getByText('Key Supporting Claims')).toBeVisible()
 
     if (isMobile) {
-      // Mobile renders the detail inside a sheet dialog.
       await expect(page.getByRole('dialog')).toBeVisible()
     }
   })
-
 })
