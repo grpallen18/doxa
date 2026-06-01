@@ -2,7 +2,7 @@
 
 | | Main | Preview |
 |--|------|---------|
-| Project | `gjxihyaovyfwajjyoyoz` | `iyuwxdjauhlaeejstlde` |
+| Project | `gjxihyaovyfwajjyoyoz` | `iyuwxdjauhlaeejstlde` (confirm URL resolves in dashboard) |
 | Git branch | `main` | `experiment/chunk-extraction-rebuild` |
 
 ## Isolated extract tuning (preview only)
@@ -13,7 +13,8 @@ Goal: run **extract only**, read claims on chunks, tweak the prompt, reset, repe
 
 ### Loop
 
-1. `npm run env:branch` and restart `npm run dev`
+1. `npm run env:branch` and restart `npm run dev`  
+   If auth logs `fetch failed` / `ENOTFOUND` for `iyuwxdjauhlaeejstlde.supabase.co`, the preview project is gone or paused — use `npm run env:main` or fix the project ref in `.env.local.branch`.
 2. Admin → open story `15208581-91ae-4454-92bf-d7a16d1a6313`
 3. Run **Chunk story bodies** (once, if no chunks yet)
 4. Run **Extract primary claims** only

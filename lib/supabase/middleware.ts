@@ -33,8 +33,9 @@ export async function updateSession(request: NextRequest) {
   const { data: userData, error } = await supabase.auth.getUser()
   const user = userData?.user
 
-  // Clear invalid session cookies (e.g. from deleted users) so the user isn't stuck
-  if (error) {
+  // Clear invalid session cookies (e.g. from deleted users). Skip on network errors
+  // (status 0) — signOut would call Auth again and spam "fetch failed" in the dev log.
+  if (error && error.status !== 0) {
     await supabase.auth.signOut()
   }
 

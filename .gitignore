@@ -28,6 +28,7 @@ yarn-error.log*
 .env*.local
 .env.local.branch
 .env.local.main.backup
+.env.local.preview-backup
 .env
 
 # supabase CLI local link state
