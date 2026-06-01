@@ -306,6 +306,31 @@ console.log("getMaterialityWarnings");
   assert("flags excessive claim count", warnings.some((w) => w.includes("materiality")));
 }
 
+console.log("claimsOnly validation");
+
+{
+  const claimsOnly: ExtractionJson = {
+    claims: [
+      {
+        raw_text: "Trump threatened to strike Oman if it tries to control the Strait of Hormuz.",
+        source_excerpt: "threatening to strike Oman if it tries to control the Strait of Hormuz",
+        span_start: 100,
+        span_end: 180,
+        extraction_confidence: 0.9,
+      },
+    ],
+    evidence: [],
+    positions: [],
+    events: [],
+  };
+  const chunk =
+    "Trump added a new entry on Wednesday, threatening to strike Oman if it tries to control the Strait of Hormuz along with Iran.";
+  const pre = runStrictPreValidation(chunk, claimsOnly, { claimsOnly: true, atomsOnly: true });
+  assert("claims-only passes without positions/events", pre.passes);
+  const completeness = getCompletenessIssues(claimsOnly, { claimsOnly: true });
+  assert("claims-only skips position/event completeness", completeness.length === 0);
+}
+
 console.log("oman fixture excerpt gates");
 
 {

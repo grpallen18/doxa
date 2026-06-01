@@ -25,15 +25,14 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. |
 | review-pending-stories | `review_pending_stories` | `story_id` | Only runs if story is `PENDING` and has `content_clean`. |
 | chunk-story-bodies | `chunk_story_bodies` | `story_id` | Chunks one story if `content_clean` exists and no `story_chunks` yet. |
-| extract-story-entities | `extract_story_entities` | `story_id`, optional `chunk_index` | All unextracted chunks for story, or one chunk index. |
-| standardize-chunk-extraction | `standardize_chunk_extraction` | `story_id`, optional `chunk_index` | Taxonomy/materiality standardizer (once per extract). |
-| refine-chunk-extraction | `refine_chunk_extraction` | `story_id`, optional `chunk_index` | Apply validator patches (max three cycles). |
-| validate-chunk-extraction | `validate_chunk_extraction` | `story_id`, optional `chunk_index` | Production judge; sets `atoms_passed` or refine loop. |
-| link-chunk-entities | `link_chunk_entities` | `story_id`, optional `chunk_index` | Adds semantic link arrays; sets `passed`. Required before merge. |
-| merge-story-entities | `merge_story_entities` | `story_id` | Merge extraction JSON → `story_*` tables for one story. |
+| extract-story-claims | `extract_story_claims` | `story_id`, optional `chunk_index` | Primary claims only; sets chunk QA `pending`. |
+| validate-chunk-claims | `validate_chunk_claims` | `story_id`, optional `chunk_index` | Deterministic claims QA → chunk `passed`. |
+| merge-story-claims | `merge_story_claims` | `story_id` | Merge chunk claims → `story_claims`. |
 | review-merged-extraction | `review_merged_extraction` | `story_id` | Story-level merge QA reviewer. |
 | refine-merged-extraction | `refine_merged_extraction` | `story_id` | Patch merged entities (max one cycle). |
 | validate-merged-extraction | `validate_merged_extraction` | `story_id` | Final judge; must pass before canonical linkers. |
+
+**Legacy (inactive):** `extract_story_entities`, `standardize_chunk_extraction`, `refine_chunk_extraction`, `validate_chunk_extraction`, `link_chunk_entities`, `merge_story_entities`.
 
 ### Example (service role)
 
@@ -82,12 +81,11 @@ Future (not implemented yet): `canonical_claim_id`, `canonical_position_id` for 
 1. `relevance_gate` → `scrape_story_content` → confirm `story_bodies` / `stories.scraped_at`
 2. `clean_scraped_content`
 3. `chunk_story_bodies`
-4. `extract_story_entities` (repeat until all chunks have `extraction_json`)
-5. `standardize_chunk_extraction` → `validate_chunk_extraction` → `refine_chunk_extraction` (loop, max 3 validation attempts) → `link_chunk_entities` (all chunks `extraction_qa_status = passed`)
-6. `merge_story_entities`
+4. `extract_story_claims` (repeat until all chunks have `extraction_json`)
+5. `validate_chunk_claims` (all chunks `extraction_qa_status = passed`)
+6. `merge_story_claims`
 7. `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
-8. `link_canonical_claims` / `link_canonical_events` / `link_canonical_positions`
-7. `update_stances` (per claim or whole story)
+8. `link_canonical_claims` (optional: events / positions / stances)
 
 Inspect tables after each step: `stories`, `story_bodies`, `story_chunks`, `story_claims`, `story_events`, `story_positions`, then `claims`, `events`, `canonical_positions`.
 

@@ -29,7 +29,7 @@ import {
   type PipelineStepId,
   type PipelineStepStatus,
 } from '@/lib/admin/story-pipeline-checklist'
-import { PipelineStepDetail, type PipelineStepDetailProps, pipelineStepHasDetailContent } from './pipeline-step-details'
+import { PipelineStepDetail, type PipelineStepDetailProps, type SpanHighlightProps, pipelineStepHasDetailContent } from './pipeline-step-details'
 import { STEP_DETAIL_REVEAL_DURATION_MS } from './step-detail-reveal'
 
 const POLL_INTERVAL_MS = 2000
@@ -58,6 +58,7 @@ export function StoryPipelinePanel({
   approvingQa,
   headerActions,
   renderFeedback,
+  spanHighlight,
 }: {
   payload: StoryExtractionReviewPayload
   storyId: string
@@ -66,6 +67,7 @@ export function StoryPipelinePanel({
   approvingQa: boolean
   headerActions?: ReactNode
   renderFeedback?: PipelineStepDetailProps['renderFeedback']
+  spanHighlight?: SpanHighlightProps
 }) {
   const checklist = useMemo(() => derivePipelineChecklist(payload), [payload])
   const [runningStepId, setRunningStepId] = useState<PipelineStepId | null>(null)
@@ -303,6 +305,7 @@ export function StoryPipelinePanel({
                   reveal={revealTarget?.stepId === step.id}
                   revealKey={revealTarget?.epoch}
                   renderFeedback={renderFeedback}
+                  spanHighlight={spanHighlight}
                 />
               </AccordionContent>
             </AccordionItem>

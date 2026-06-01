@@ -257,6 +257,14 @@ export function asExtractionJson(raw: unknown): ExtractionJson {
   return raw as ExtractionJson;
 }
 
+export function isClaimsOnlyExtraction(extraction: ExtractionJson): boolean {
+  const claims = Array.isArray(extraction.claims) ? extraction.claims.length : 0;
+  const evidence = Array.isArray(extraction.evidence) ? extraction.evidence.length : 0;
+  const positions = Array.isArray(extraction.positions) ? extraction.positions.length : 0;
+  const events = Array.isArray(extraction.events) ? extraction.events.length : 0;
+  return claims > 0 && evidence === 0 && positions === 0 && events === 0;
+}
+
 export function isEmptyExtraction(extraction: ExtractionJson): boolean {
   const claims = Array.isArray(extraction.claims) ? extraction.claims : [];
   const evidence = Array.isArray(extraction.evidence) ? extraction.evidence : [];

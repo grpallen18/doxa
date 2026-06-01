@@ -1,0 +1,157 @@
+{
+  "story": {
+    "story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+    "title": "Trump’s ‘blow ‘em up’ threat to Oman means he’s now attacked or threatened 1 out of every 13 countries",
+    "url": "https://www.cnn.com/2026/05/27/politics/oman-trump-threat-attack-countries",
+    "author": null,
+    "published_at": "2026-05-27T20:14:59+00:00",
+    "fetched_at": "2026-05-31T19:07:34.863532+00:00",
+    "created_at": "2026-05-31T19:07:34.863532+00:00",
+    "content_snippet": null,
+    "content_full": null,
+    "relevance_status": null,
+    "relevance_score": 82,
+    "extraction_completed_at": null,
+    "extraction_skipped_empty": false,
+    "merged_at": null,
+    "extraction_status": "pending_extraction",
+    "extraction_qa_status": null,
+    "extraction_qa_review_report": null,
+    "extraction_qa_validation_report": null,
+    "extraction_qa_refinement_count": 0,
+    "extraction_qa_validated_at": null,
+    "source_name": "CNN",
+    "article_text": "As a presidential candidate, Donald Trump gleefully painted his opponents as trigger-happy interventionists who would get the United States bogged down in all manner of foreign wars — up to and including World War III.\n\nAs president, Trump has racked up an astonishing list of countries he’s both threatened to attack and actually attacked.\n\nTrump added a new entry to that list on Wednesday, threatening to strike Oman if it tries to control the Strait of Hormuz along with Iran.\n\n“Oman will behave just like everybody else, or we’ll have to blow ‘em up,” Trump said at a White House Cabinet meeting.\n\nIt was particularly striking because it was phrased like an aside — something Trump seemingly casually dropped with little thought beforehand.\n\nAnd that’s become somewhat typical for Trump.\n\nOman is at least the 15th country that he has either threatened to attack, left open the possibility of attacking, or actually attacked during his two terms as president. Nearly all of those instances occurred in the first 16 months of his second term, though some span both terms.\n\nHe’s launched strikes in seven countries so far this term — Iran, Iraq, Nigeria, Somalia, Syria, Venezuela and Yemen — after also attacking some of those countries in his first term. That doesn’t even count the strikes on alleged drug-trafficking boats in the Caribbean Sea and Pacific Ocean, which have targeted nearly 60 vessels and killed more than 190 people.\n\nHe has also threatened or left open the possibility of strikes against seven others this term: Canada, Colombia, Cuba, Greenland (which is part of Denmark), Mexico, Panama and now Oman. He also threatened Mexico and North Korea in his first term.\n\nNot all of those threats and strikes are the same. Some, like the strikes in Iraq, were narrowly targeted at terrorists rather than the government in power. And some of the threats were less direct — in many cases, Trump just declined to rule out the possibility.\n\nSome of this may be explained by Trump’s embrace of the “madman theory” when it comes to foreign policy. In other words, he likes to portray himself as unpredictable, believing it makes foreign adversaries more likely to kowtow to his demands.\n\nBut all of it betrays a remarkably bellicose attitude from a president who has already invaded two countries this year (Iran and Venezuela) and appears to be considering a third (Cuba).\n\nAnd the data point to just how militant Trump has been. Here are some stats.\n\nThat’s how many Trump has threatened or attacked so far: 15 out of the nearly 200 countries in the world.\n\nThose countries account for 1 out of every 11 people in the world. That means 1 out of every 11 people on the planet has been at least somewhat worried that Trump could initiate a military strike on their country.\n\nTrump has now threatened or targeted five countries in the Middle East alone. That’s five out of fewer than 20 total countries in the Middle East.\n\nTrump’s threats and strikes have included countries on four of the world’s six populous continents: Africa, Asia, North America and South America. He’s also technically threatened a European country in Denmark, albeit by talking about seizing its territory in North America.\n\nOf the 15 countries he’s struck or threatened, he’s identified five of them as possible additions to the United States: Canada, Cuba, Greenland, Panama (specifically, the Panama Canal) and Venezuela."
+  },
+  "claims": [],
+  "evidence": [],
+  "positions": [],
+  "events": [],
+  "links": {
+    "claimEvidence": [],
+    "claimPosition": [],
+    "positionEvidence": [],
+    "eventClaim": [],
+    "eventEvidence": [],
+    "positionEventContext": []
+  },
+  "feedback": [],
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "content": "As a presidential candidate, Donald Trump gleefully painted his opponents as trigger-happy interventionists who would get the United States bogged down in all manner of foreign wars — up to and including World War III.\n\nAs president, Trump has racked up an astonishing list of countries he’s both threatened to attack and actually attacked.\n\nTrump added a new entry to that list on Wednesday, threatening to strike Oman if it tries to control the Strait of Hormuz along with Iran.\n\n“Oman will behave just like everybody else, or we’ll have to blow ‘em up,” Trump said at a White House Cabinet meeting.\n\nIt was particularly striking because it was phrased like an aside — something Trump seemingly casually dropped with little thought beforehand.\n\nAnd that’s become somewhat typical for Trump.\n\nOman is at least the 15th country that he has either threatened to attack, left open the possibility of attacking, or actually attacked during his two terms as president. Nearly all of those instances occurred in the first 16 months of his second term, though some span both terms.\n\nHe’s launched strikes in seven countries so far this term — Iran, Iraq, Nigeria, Somalia, Syria, Venezuela and Yemen — after also attacking some of those countries in his first term. That doesn’t even count the strikes on alleged drug-trafficking boats in the Caribbean Sea and Pacific Ocean, which have targeted nearly 60 vessels and killed more than 190 people.\n\nHe has also threatened or left open the possibility of strikes against seven others this term: Canada, Colombia, Cuba, Greenland (which is part of Denmark), Mexico, Panama and now Oman. He also threatened Mexico and North Korea in his first term.\n\nNot all of those threats and strikes are the same. Some, like the strikes in Iraq, were narrowly targeted at terrorists rather than the government in power. And some of the threats were less direct — in many cases, Trump just declined to rule out the possibility.\n\nSome of this may be explained by Trump’s embrace of the “madman theory” when it comes to foreign policy. In other words, he likes to portray himself as unpredictable, believing it makes foreign adversaries more likely to kowtow to his demands.\n\nBut all of it betrays a remarkably bellicose attitude from a president who has already invaded two countries this year (Iran and Venezuela) and appears to be considering a third (Cuba).\n\nAnd the data point to just how militant Trump has been. Here are some stats.\n\nThat’s how many Trump has threatened or attacked so far: 15 out of the nearly 200 countries in the world.\n\nThose countries account for 1 out of every 11 people in the world. That means 1 out of every 11 people on the planet has been at least somewhat worried that Trump could initiate a military strike on their country.\n\nTrump has now threatened or targeted five countries in the Middle East alone. That’s five out of fewer than 20 total countries in the Middle East.\n\nTrump’s threats and strikes have included countries on four of the world’s six populous continents: Africa, Asia, North America and South America. He’s also technically threatened a European country in Denmark, albeit by talking about seizing its territory in North America.\n\nOf the 15 countries he’s struck or threatened, he’s identified five of them as possible additions to the United States: Canada, Cuba, Greenland, Panama (specifically, the Panama Canal) and Venezuela.",
+      "extraction_json": {
+        "claims": [
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, Donald Trump has threatened or attacked 15 countries during his presidency.",
+            "span_end": 2570,
+            "span_start": 2465,
+            "source_excerpt": "That’s how many Trump has threatened or attacked so far: 15 out of the nearly 200 countries in the world.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          },
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, Trump has launched military strikes in seven countries this term: Iran, Iraq, Nigeria, Somalia, Syria, Venezuela, and Yemen.",
+            "span_end": 1259,
+            "span_start": 1077,
+            "source_excerpt": "He’s launched strikes in seven countries so far this term — Iran, Iraq, Nigeria, Somalia, Syria, Venezuela and Yemen — after also attacking some of those countries in his first term.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          },
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, 1 out of every 11 people in the world has been somewhat worried that Trump could initiate a military strike on their country.",
+            "span_end": 2785,
+            "span_start": 2639,
+            "source_excerpt": "That means 1 out of every 11 people on the planet has been at least somewhat worried that Trump could initiate a military strike on their country.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          },
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, Trump has threatened or targeted five countries in the Middle East.",
+            "span_end": 2864,
+            "span_start": 2787,
+            "source_excerpt": "Trump has now threatened or targeted five countries in the Middle East alone.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          }
+        ]
+      },
+      "extraction_qa_status": "pending",
+      "extraction_qa_standardization_report": null,
+      "extraction_qa_validation_report": null,
+      "extraction_qa_refinement_count": 0,
+      "extraction_qa_validation_attempt_count": 0,
+      "extraction_qa_validated_at": null
+    }
+  ],
+  "qa_artifacts": [
+    {
+      "id": "ce41226e-8c2e-4f97-bc61-318b8bfc01f2",
+      "stage": "chunk_extract_claims",
+      "chunk_index": 0,
+      "input_snapshot": null,
+      "output_snapshot": {
+        "claims": [
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, Donald Trump has threatened or attacked 15 countries during his presidency.",
+            "span_end": 2570,
+            "span_start": 2465,
+            "source_excerpt": "That’s how many Trump has threatened or attacked so far: 15 out of the nearly 200 countries in the world.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          },
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, Trump has launched military strikes in seven countries this term: Iran, Iraq, Nigeria, Somalia, Syria, Venezuela, and Yemen.",
+            "span_end": 1259,
+            "span_start": 1077,
+            "source_excerpt": "He’s launched strikes in seven countries so far this term — Iran, Iraq, Nigeria, Somalia, Syria, Venezuela and Yemen — after also attacking some of those countries in his first term.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          },
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, 1 out of every 11 people in the world has been somewhat worried that Trump could initiate a military strike on their country.",
+            "span_end": 2785,
+            "span_start": 2639,
+            "source_excerpt": "That means 1 out of every 11 people on the planet has been at least somewhat worried that Trump could initiate a military strike on their country.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          },
+          {
+            "stance": "neutral",
+            "polarity": "asserts",
+            "raw_text": "As of May 27, 2026, Trump has threatened or targeted five countries in the Middle East.",
+            "span_end": 2864,
+            "span_start": 2787,
+            "source_excerpt": "Trump has now threatened or targeted five countries in the Middle East alone.",
+            "source_story_id": "15208581-91ae-4454-92bf-d7a16d1a6313",
+            "source_chunk_index": 0,
+            "extraction_confidence": 0.75
+          }
+        ]
+      },
+      "report": null,
+      "created_at": "2026-05-31T20:23:13.386356+00:00"
+    }
+  ]
+}

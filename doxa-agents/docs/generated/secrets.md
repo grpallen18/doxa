@@ -13,12 +13,12 @@ Do not commit secret values to git.
 | relevance-gate | relevance_gate | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
-| extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_EXTRACT` |
+| extract-story-claims | extract_story_claims | `OPENAI_API_KEY` |
 | link-chunk-entities | link_chunk_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | standardize-chunk-extraction | standardize_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| merge-story-entities | merge_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | refine-merged-extraction | refine_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | validate-merged-extraction | validate_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
@@ -37,7 +37,9 @@ Do not commit secret values to git.
 | review-link-suggestion | review_link_suggestion | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | discord-daily-health | discord_daily_health | `DISCORD_THREAD_NAME`, `DISCORD_WEBHOOK` |
 | classify-claim-pairs | classify_claim_pairs | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_EXTRACT` |
 | generate-position-summaries | generate_position_summaries | `DRIFT_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
+| merge-story-entities | merge_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 
 **Cron prerequisites (Vault):** `project_url`, `service_role_key`
 

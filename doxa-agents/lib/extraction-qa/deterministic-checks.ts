@@ -121,7 +121,8 @@ function validateLinkIndexes(extraction: ExtractionJson): { issues: string[]; de
 
 function validateProvenanceForAtoms(
   sourceText: string,
-  extraction: ExtractionJson
+  extraction: ExtractionJson,
+  options: { claimsOnly?: boolean } = {}
 ): { issues: string[]; blocking: string[]; detail: Partial<DeterministicChecksDetail> } {
   const issues: string[] = [];
   const blocking: string[] = [];
@@ -129,12 +130,14 @@ function validateProvenanceForAtoms(
   const span_mismatches: string[] = [];
   const unsupported_locations_detected: string[] = [];
 
-  const atomLists: Array<{ label: string; key: keyof ExtractionJson }> = [
-    { label: "claim", key: "claims" },
-    { label: "evidence", key: "evidence" },
-    { label: "position", key: "positions" },
-    { label: "event", key: "events" },
-  ];
+  const atomLists: Array<{ label: string; key: keyof ExtractionJson }> = options.claimsOnly
+    ? [{ label: "claim", key: "claims" }]
+    : [
+        { label: "claim", key: "claims" },
+        { label: "evidence", key: "evidence" },
+        { label: "position", key: "positions" },
+        { label: "event", key: "events" },
+      ];
 
   for (const { label, key } of atomLists) {
     const list = Array.isArray(extraction[key]) ? (extraction[key] as unknown[]) : [];
@@ -206,15 +209,21 @@ export type StrictPreValidationOptions = {
   skipEmptyCheck?: boolean;
   enforceCompleteness?: boolean;
   atomsOnly?: boolean;
+  claimsOnly?: boolean;
 };
 
-export function getCompletenessIssues(extraction: ExtractionJson): string[] {
+export function getCompletenessIssues(
+  extraction: ExtractionJson,
+  options: Pick<StrictPreValidationOptions, "claimsOnly"> = {}
+): string[] {
   const issues: string[] = [];
   const claims = Array.isArray(extraction.claims) ? extraction.claims : [];
   const positions = Array.isArray(extraction.positions) ? extraction.positions : [];
   const events = Array.isArray(extraction.events) ? extraction.events : [];
 
   if (claims.length === 0) return issues;
+
+  if (options.claimsOnly) return issues;
 
   if (claims.length >= 3 && positions.length === 0) {
     issues.push("missing_position: substantial extraction has no article position");
@@ -227,7 +236,11 @@ export function getCompletenessIssues(extraction: ExtractionJson): string[] {
   return issues;
 }
 
-export function getMaterialityWarnings(sourceText: string, extraction: ExtractionJson): string[] {
+export function getMaterialityWarnings(
+  sourceText: string,
+  extraction: ExtractionJson,
+  options: Pick<StrictPreValidationOptions, "claimsOnly"> = {}
+): string[] {
   const warnings: string[] = [];
   const claims = Array.isArray(extraction.claims) ? extraction.claims : [];
   const evidence = Array.isArray(extraction.evidence) ? extraction.evidence : [];
@@ -236,8 +249,10 @@ export function getMaterialityWarnings(sourceText: string, extraction: Extractio
   const chunkLen = sourceText.trim().length;
 
   if (chunkLen >= SUBSTANTIAL_CHUNK_MIN_CHARS && claims.length > 14) {
-    warnings.push(`materiality: ${claims.length} claims may be excessive for chunk length (target ~6–12)`);
+    warnings.push(`materiality: ${claims.length} claims may be excessive for chunk length (target ~3–10 per story)`);
   }
+  if (options.claimsOnly) return warnings;
+
   if (chunkLen >= SUBSTANTIAL_CHUNK_MIN_CHARS && claims.length > 0 && evidence.length === 0) {
     warnings.push("materiality: no evidence atoms despite substantial chunk");
   }
@@ -350,7 +365,9 @@ export function runStrictPreValidation(
     }
   }
 
-  const provResult = validateProvenanceForAtoms(sourceText, extraction);
+  const provResult = validateProvenanceForAtoms(sourceText, extraction, {
+    claimsOnly: options.claimsOnly,
+  });
   issues.push(...provResult.issues);
   blocking_issues.push(...provResult.blocking);
 
@@ -361,7 +378,7 @@ export function runStrictPreValidation(
     blocking_issues.push(...linkResult.issues);
   }
 
-  const completenessIssues = getCompletenessIssues(extraction);
+  const completenessIssues = getCompletenessIssues(extraction, { claimsOnly: options.claimsOnly });
   for (const msg of completenessIssues) {
     issues.push(msg);
     if (options.enforceCompleteness) {

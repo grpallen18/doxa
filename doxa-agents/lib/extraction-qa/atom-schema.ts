@@ -71,6 +71,25 @@ const PROVENANCE_JSON_PROPERTIES = {
 
 const PROVENANCE_REQUIRED = ["source_excerpt", "span_start", "span_end", "extraction_confidence"] as const;
 
+export const EXTRACT_CLAIMS_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    claims: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          raw_text: { type: "string" },
+        },
+        required: ["raw_text"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["claims"],
+  additionalProperties: false,
+} as const;
+
 export const EXTRACT_ATOMS_JSON_SCHEMA = {
   type: "object",
   properties: {

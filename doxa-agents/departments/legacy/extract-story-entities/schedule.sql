@@ -1,0 +1,3 @@
+-- Inactive — legacy multi-atom extractor. Do not schedule.
+-- Unschedule if still registered:
+--   select cron.unschedule('extract-story-entities-every-2min');

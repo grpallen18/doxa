@@ -1,0 +1,10 @@
+{
+  "name": "chunk-extraction-rebuild",
+  "project_ref": "iyuwxdjauhlaeejstlde",
+  "parent_project_ref": "gjxihyaovyfwajjyoyoz",
+  "url": "https://iyuwxdjauhlaeejstlde.supabase.co",
+  "git_branch": "experiment/chunk-extraction-rebuild",
+  "dashboard": "https://supabase.com/dashboard/project/iyuwxdjauhlaeejstlde",
+  "notes": "Preview branch for claims-only extraction work. No production data. Edge function secrets must be set separately on this branch.",
+  "legacy_anon_jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5dXd4ZGphdWhsYWVlanN0bGRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTMzNTgsImV4cCI6MjA5NTgyOTM1OH0.-z9HkWKwNtKKWjcqGXkKq8FpBt0RJm_YZHSCECKwTWU"
+}

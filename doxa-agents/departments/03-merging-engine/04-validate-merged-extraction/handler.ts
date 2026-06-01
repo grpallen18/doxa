@@ -20,6 +20,7 @@ import {
   clampInt,
   corsHeaders,
   isEmptyExtraction,
+  isClaimsOnlyExtraction,
   json,
   type ReviewReport,
 } from "../../../lib/extraction-qa/types.ts";
@@ -93,7 +94,12 @@ export const handler = async (req: Request) => {
     if (isEmptyExtraction(extraction)) {
       validationReport = autoPassEmptyExtraction(sourceText.length);
     } else {
-      const strictPre = runStrictPreValidation(sourceText, extraction, { enforceCompleteness: true });
+      const claimsOnly = isClaimsOnlyExtraction(extraction);
+      const strictPre = runStrictPreValidation(sourceText, extraction, {
+        enforceCompleteness: !claimsOnly,
+        claimsOnly,
+        atomsOnly: true,
+      });
       const refinerUnresolved =
         storyMeta?.extraction_qa_refinement_count && storyMeta.extraction_qa_refinement_count > 0
           ? checkBlockingFindingsUnresolved(reviewReport, extraction, extraction, sourceText)

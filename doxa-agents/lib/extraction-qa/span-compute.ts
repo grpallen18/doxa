@@ -1,4 +1,4 @@
-import { normalizeText, verbatimContains } from "./text-match.ts";
+import { fuzzyContains, normalizeText, verbatimContains } from "./text-match.ts";
 import type { ExtractionJson } from "./types.ts";
 
 export type VerbatimSpan = { start: number; end: number };
@@ -92,6 +92,76 @@ export function enforceVerbatimExcerpts(extraction: ExtractionJson, sourceText: 
     positions: filterVerbatimAtoms(extraction.positions, sourceText),
     events: filterVerbatimAtoms(extraction.events, sourceText),
   };
+}
+
+function wordOverlapScore(a: string, b: string): number {
+  const wordsA = new Set(
+    normalizeText(a)
+      .split(" ")
+      .filter((w) => w.length > 3)
+  );
+  const wordsB = normalizeText(b)
+    .split(" ")
+    .filter((w) => w.length > 3);
+  if (wordsB.length === 0) return 0;
+  const matched = wordsB.filter((w) => wordsA.has(w)).length;
+  return matched / wordsB.length;
+}
+
+export function findBestGroundingExcerpt(sourceText: string, claimText: string): string {
+  const trimmedClaim = claimText.trim();
+  if (!trimmedClaim || !sourceText) return "";
+
+  const direct = findVerbatimSpan(sourceText, trimmedClaim);
+  if (direct) return sourceText.slice(direct.start, direct.end);
+
+  const sentences = sourceText
+    .split(/\n\n+/)
+    .flatMap((p) => p.split(/(?<=[.!?])\s+/))
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 20);
+
+  let best = "";
+  let bestScore = 0;
+  for (const sentence of sentences) {
+    const score = wordOverlapScore(sentence, trimmedClaim);
+    if (score > bestScore) {
+      bestScore = score;
+      best = sentence;
+    }
+  }
+  if (bestScore >= 0.2 && best) return best;
+
+  if (fuzzyContains(sourceText, trimmedClaim)) {
+    return sentences[0] ?? sourceText.slice(0, Math.min(240, sourceText.length)).trim();
+  }
+
+  return sentences.find((s) => wordOverlapScore(s, trimmedClaim) >= 0.15) ?? "";
+}
+
+export function attachClaimsFromRawText(
+  claims: Array<{ raw_text: string }>,
+  storyId: string,
+  chunkIndex: number,
+  sourceText: string
+): Array<Record<string, unknown>> {
+  return claims.map((claim) => {
+    const rawText = String(claim.raw_text ?? "").trim();
+    const sourceExcerpt = findBestGroundingExcerpt(sourceText, rawText);
+    const row: Record<string, unknown> = {
+      raw_text: rawText,
+      polarity: "asserts",
+      stance: "neutral",
+      source_story_id: storyId,
+      source_chunk_index: chunkIndex,
+      source_excerpt: sourceExcerpt,
+      span_start: null,
+      span_end: null,
+      extraction_confidence: sourceExcerpt ? 0.75 : 0.45,
+    };
+    const withSpan = applySpanToRow(row, sourceText);
+    return withSpan;
+  });
 }
 
 export function applyProvenanceSpans(extraction: ExtractionJson, sourceText: string): ExtractionJson {

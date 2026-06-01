@@ -13,8 +13,37 @@ import {
   resolvePostRefineExtractionJson,
   resolvePreRefineExtractionJson,
 } from '@/lib/admin/chunk-extraction'
+import { resolveArticleSpan, type ArticleSpan } from '@/lib/admin/article-span-highlight'
 import { qaStatusLabel } from '@/lib/admin/extraction-qa-types'
 import { StepDetailReveal } from './step-detail-reveal'
+
+export type SpanHighlightProps = {
+  articleText: string | null
+  chunks: StoryExtractionReviewPayload['chunks']
+  onHighlightSpan: (span: ArticleSpan | null) => void
+}
+
+function claimHoverHandlers(
+  spanHighlight: SpanHighlightProps | undefined,
+  chunkIndex: number,
+  spanStart: number | null,
+  spanEnd: number | null,
+  sourceExcerpt: string | null
+) {
+  if (!spanHighlight?.articleText) return {}
+  return {
+    onMouseEnter: () => {
+      const span = resolveArticleSpan(spanHighlight.articleText!, spanHighlight.chunks, {
+        chunkIndex,
+        spanStart,
+        spanEnd,
+        sourceExcerpt,
+      })
+      spanHighlight.onHighlightSpan(span)
+    },
+    onMouseLeave: () => spanHighlight.onHighlightSpan(null),
+  }
+}
 
 function EmptyDetail({ message }: { message: string }) {
   return <p className="text-xs text-muted">{message}</p>
@@ -161,14 +190,32 @@ function ValidationSummary({ report }: { report: unknown }) {
   )
 }
 
-function ChunkEntityList({ chunkIndex, extractionJson }: { chunkIndex: number; extractionJson: unknown }) {
+function ChunkEntityList({
+  chunkIndex,
+  extractionJson,
+  spanHighlight,
+}: {
+  chunkIndex: number
+  extractionJson: unknown
+  spanHighlight?: SpanHighlightProps
+}) {
   const counts = chunkEntityCounts(extractionJson)
   const flat = flattenExtractionJson(chunkIndex, extractionJson)
   return (
     <>
       <EntitySection title="Claims" count={counts.claims}>
         {flat.claims.map((c) => (
-          <p key={c.index} className="rounded bg-muted/20 p-2 text-xs">
+          <p
+            key={c.index}
+            className="cursor-default rounded bg-muted/20 p-2 text-xs transition-shadow hover:ring-1 hover:ring-accent-primary/40"
+            {...claimHoverHandlers(
+              spanHighlight,
+              chunkIndex,
+              c.span_start,
+              c.span_end,
+              c.source_excerpt
+            )}
+          >
             {c.raw_text}
           </p>
         ))}
@@ -198,7 +245,13 @@ function ChunkEntityList({ chunkIndex, extractionJson }: { chunkIndex: number; e
   )
 }
 
-function ChunkExtractionsDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
+function ChunkExtractionsDetail({
+  payload,
+  spanHighlight,
+}: {
+  payload: StoryExtractionReviewPayload
+  spanHighlight?: SpanHighlightProps
+}) {
   if (payload.chunks.length === 0) {
     return <EmptyDetail message="No chunks yet." />
   }
@@ -218,7 +271,11 @@ function ChunkExtractionsDetail({ payload }: { payload: StoryExtractionReviewPay
             </p>
             <div className="mt-2">
               <p className="mb-1 text-xs text-muted">Extraction before refine</p>
-              <ChunkEntityList chunkIndex={ch.chunk_index} extractionJson={extractionJson} />
+              <ChunkEntityList
+                chunkIndex={ch.chunk_index}
+                extractionJson={extractionJson}
+                spanHighlight={spanHighlight}
+              />
             </div>
           </li>
         )
@@ -230,9 +287,11 @@ function ChunkExtractionsDetail({ payload }: { payload: StoryExtractionReviewPay
 function ChunkQaDetail({
   payload,
   kind,
+  spanHighlight,
 }: {
   payload: StoryExtractionReviewPayload
   kind: 'standardize' | 'refine' | 'validate'
+  spanHighlight?: SpanHighlightProps
 }) {
   const chunks = payload.chunks.filter((c) => c.extraction_json != null)
   if (chunks.length === 0) return <EmptyDetail message="No chunks to show." />
@@ -287,6 +346,7 @@ function ChunkQaDetail({
                   <ChunkEntityList
                     chunkIndex={ch.chunk_index}
                     extractionJson={resolvePostRefineExtractionJson(ch, payload.qa_artifacts)}
+                    spanHighlight={spanHighlight}
                   />
                 </div>
               </>
@@ -574,27 +634,15 @@ export function pipelineStepHasDetailContent(
   switch (stepId) {
     case 'chunk-story-bodies':
       return payload.chunks.length > 0
-    case 'extract-story-entities':
+    case 'extract-story-claims':
       return payload.chunks.some((c) => c.extraction_json != null)
-    case 'standardize-chunk-extraction':
-      return payload.chunks.some(
-        (c) => c.extraction_json != null && c.extraction_qa_standardization_report != null
-      )
-    case 'refine-chunk-extraction':
-      return (
-        getStepNotRequiredMessage('refine-chunk-extraction', payload) != null ||
-        payload.chunks.some(
-          (c) => c.extraction_json != null && (c.extraction_qa_refinement_count ?? 0) > 0
-        )
-      )
-    case 'validate-chunk-extraction':
+    case 'validate-chunk-claims':
       return payload.chunks.some(
         (c) => c.extraction_json != null && c.extraction_qa_validation_report != null
       )
-    case 'merge-story-entities': {
+    case 'merge-story-claims': {
       if (payload.story.merged_at == null) return false
-      const counts = mergedEntityCounts(payload)
-      return counts.claims + counts.evidence + counts.positions + counts.events > 0
+      return payload.claims.length > 0
     }
     case 'review-merged-extraction':
       return payload.story.merged_at != null && payload.story.extraction_qa_review_report != null
@@ -644,6 +692,7 @@ export type PipelineStepDetailProps = {
     entityId: string
     existingRating?: string
   }) => ReactNode
+  spanHighlight?: SpanHighlightProps
 }
 
 export function PipelineStepDetail({
@@ -652,6 +701,7 @@ export function PipelineStepDetail({
   reveal = false,
   revealKey,
   renderFeedback,
+  spanHighlight,
 }: PipelineStepDetailProps) {
   const content = (() => {
     switch (stepId) {
@@ -669,15 +719,11 @@ export function PipelineStepDetail({
             ))}
           </ul>
         )
-      case 'extract-story-entities':
-        return <ChunkExtractionsDetail payload={payload} />
-      case 'standardize-chunk-extraction':
-        return <ChunkQaDetail payload={payload} kind="standardize" />
-      case 'refine-chunk-extraction':
-        return <ChunkQaDetail payload={payload} kind="refine" />
-      case 'validate-chunk-extraction':
-        return <ChunkQaDetail payload={payload} kind="validate" />
-      case 'merge-story-entities':
+      case 'extract-story-claims':
+        return <ChunkExtractionsDetail payload={payload} spanHighlight={spanHighlight} />
+      case 'validate-chunk-claims':
+        return <ChunkQaDetail payload={payload} kind="validate" spanHighlight={spanHighlight} />
+      case 'merge-story-claims':
         return <MergedEntitiesDetail payload={payload} renderFeedback={renderFeedback} />
       case 'review-merged-extraction':
         return <MergedQaDetail payload={payload} kind="review" />

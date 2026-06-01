@@ -1,0 +1,3 @@
+-- Inactive — legacy multi-atom merge. Do not schedule.
+-- Unschedule if still registered:
+--   select cron.unschedule('merge-story-entities-every-2min');

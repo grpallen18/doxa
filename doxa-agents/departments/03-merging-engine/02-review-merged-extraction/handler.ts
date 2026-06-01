@@ -15,6 +15,7 @@ import {
   clampInt,
   corsHeaders,
   isBlockingSeverity,
+  isClaimsOnlyExtraction,
   isEmptyExtraction,
   isFixableSeverity,
   json,
@@ -72,8 +73,9 @@ export const handler = async (req: Request) => {
   for (const { story_id: storyId } of stories) {
     const { articleText, extraction } = await loadMergedExtractionJson(supabase, storyId);
     const chunkUnion = await loadChunkBlobsUnion(supabase, storyId);
-    const det = runDeterministicChecks(articleText, extraction);
-    const completenessIssues = getCompletenessIssues(extraction);
+    const claimsOnly = isClaimsOnlyExtraction(extraction);
+    const det = runDeterministicChecks(articleText, extraction, { claimsOnly, atomsOnly: true });
+    const completenessIssues = getCompletenessIssues(extraction, { claimsOnly });
     const metadata = await loadStoryMetadata(supabase, storyId);
 
     if (isEmptyExtraction(extraction)) {

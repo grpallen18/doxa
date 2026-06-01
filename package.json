@@ -17,7 +17,14 @@
     "agents:purge-engine:check": "tsx scripts/generate-purge-engine.ts --check",
     "agents:refresh": "npm run agents:sync && npm run agents:docs && npm run agents:purge-engine && npm run agents:validate",
     "agents:migrate-functions": "tsx scripts/migrate-functions-to-doxa-agents.ts",
-    "agents:migrate-crons": "tsx scripts/migrate-crons-to-doxa-agents.ts"
+    "agents:migrate-crons": "tsx scripts/migrate-crons-to-doxa-agents.ts",
+    "env:branch": "powershell -ExecutionPolicy Bypass -File scripts/switch-supabase-env.ps1 -Target branch",
+    "env:main": "powershell -ExecutionPolicy Bypass -File scripts/switch-supabase-env.ps1 -Target main",
+    "seed:preview-cnn": "tsx scripts/seed-preview-cnn-fixture.ts",
+    "preview:extract-claims": "tsx scripts/preview-extract-claims.ts",
+    "debug:preview-extract": "tsx scripts/debug-preview-extract.ts",
+    "e2e:preview-claims": "tsx scripts/run-preview-claims-e2e.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -62,6 +69,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^20.11.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

@@ -19,6 +19,7 @@ import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/s
 import {
   clampInt,
   corsHeaders,
+  isClaimsOnlyExtraction,
   json,
   type RefinementPatchOp,
   type ReviewReport,
@@ -115,7 +116,11 @@ export const handler = async (req: Request) => {
       })) as RefinementPatchOp[];
 
     const patched = applyPatches(extraction, normalizedPatches);
-    const postRefineGate = runStrictPreValidation(sourceText, patched, { enforceCompleteness: true });
+    const claimsOnly = isClaimsOnlyExtraction(extraction);
+    const postRefineGate = runStrictPreValidation(sourceText, patched, {
+      enforceCompleteness: !claimsOnly,
+      claimsOnly,
+    });
     const refinerUnresolved = checkBlockingFindingsUnresolved(
       reviewReport,
       extraction,

@@ -108,22 +108,15 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/01-chunk-story-bodies/schedule.sql
       body: "{}"
-  - id: extract-story-entities
+  - id: extract-story-claims
     department: 02-chunking-engine
-    workflow: extract-story-entities
+    workflow: extract-story-claims
     kind: edge_function
     status: inactive
-    source: doxa-agents/departments/02-chunking-engine/02-extract-story-entities
-    deploy_name: extract_story_entities
+    source: doxa-agents/departments/02-chunking-engine/02-extract-story-claims
+    deploy_name: extract_story_claims
     secrets:
       - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_EXTRACT
-    cron:
-      job_name: extract-story-entities-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/02-chunking-engine/02-extract-story-entities/schedule.sql
-      body: "{}"
   - id: link-chunk-entities
     department: 02-chunking-engine
     workflow: link-chunk-entities
@@ -173,6 +166,13 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/03-standardize-chunk-extraction/schedule.sql
       body: "{}"
+  - id: validate-chunk-claims
+    department: 02-chunking-engine
+    workflow: validate-chunk-claims
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/03-validate-chunk-claims
+    deploy_name: validate_chunk_claims
   - id: validate-chunk-extraction
     department: 02-chunking-engine
     workflow: validate-chunk-extraction
@@ -190,21 +190,16 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/05-validate-chunk-extraction/schedule.sql
       body: "{}"
-  - id: merge-story-entities
+  - id: merge-story-claims
     department: 03-merging-engine
-    workflow: merge-story-entities
+    workflow: merge-story-claims
     kind: edge_function
     status: inactive
-    source: doxa-agents/departments/03-merging-engine/01-merge-story-entities
-    deploy_name: merge_story_entities
+    source: doxa-agents/departments/03-merging-engine/01-merge-story-claims
+    deploy_name: merge_story_claims
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
-    cron:
-      job_name: merge-story-entities-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/03-merging-engine/01-merge-story-entities/schedule.sql
-      body: "{}"
   - id: refine-merged-extraction
     department: 03-merging-engine
     workflow: refine-merged-extraction
@@ -594,6 +589,17 @@ steps:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     verify_jwt: false
+  - id: extract-story-entities
+    department: legacy
+    workflow: extract-story-entities
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/extract-story-entities
+    deploy_name: extract_story_entities
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_EXTRACT
   - id: generate-position-summaries
     department: legacy
     workflow: generate-position-summaries
@@ -614,3 +620,13 @@ steps:
     status: deprecated
     source: doxa-agents/departments/legacy/06-label-thesis
     deploy_name: label_thesis
+  - id: merge-story-entities
+    department: legacy
+    workflow: merge-story-entities
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/merge-story-entities
+    deploy_name: merge_story_entities
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL

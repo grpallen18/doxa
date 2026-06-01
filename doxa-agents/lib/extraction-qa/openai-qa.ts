@@ -20,27 +20,40 @@ export async function callOpenAIJson<T>(
   schemaName: string,
   schema: Record<string, unknown>,
   requestId: string,
-  strict = true
+  strict = true,
+  timeoutMs = 120_000
 ): Promise<T> {
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "X-Request-ID": requestId,
-    },
-    body: JSON.stringify({
-      model: model || DEFAULT_MODEL,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: JSON.stringify(userPayload) },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: schemaName, strict, schema },
+  let resp: Response;
+  try {
+    resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-Request-ID": requestId,
       },
-    }),
-  });
+      body: JSON.stringify({
+        model: model || DEFAULT_MODEL,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: JSON.stringify(userPayload) },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: schemaName, strict, schema },
+        },
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("timeout") || msg.includes("Timed out")) {
+      throw new Error(
+        `OpenAI timed out after ${timeoutMs}ms (model: ${model}). Set OPENAI_MODEL_EXTRACT=gpt-4o-mini on Edge secrets if this persists.`
+      );
+    }
+    throw e;
+  }
 
   if (!resp.ok) {
     const text = await resp.text();
@@ -709,6 +722,51 @@ export async function saveArtifact(
 ) {
   return supabase.from("story_extraction_qa_artifacts").insert(row);
 }
+
+export const EXTRACT_CLAIMS_SYSTEM_PROMPT = `You are the Doxa Primary Claim Extractor.
+
+Your task is to read one story chunk and extract only the primary factual claims that are useful for a discourse knowledge graph.
+
+A primary claim is a standalone factual assertion that:
+1. can be understood without needing the surrounding article,
+2. materially changes the reader's understanding of the story,
+3. could be supported, contradicted, updated, refined, or reused by another story,
+4. has a clear subject, assertion, and natural-language temporal scope,
+5. is not merely a caveat, hedge, quote, evidence snippet, transition, rhetorical flourish, minor detail, or article framing.
+
+Extract claims only from the provided text. Do not use outside knowledge. Do not invent missing facts. Do not extract positions, opinions, recommendations, moral judgments, events as standalone event records, evidence excerpts, quotes as quotes, or generic background.
+
+Every raw_text must be a complete standalone sentence with explicit temporal scope when the story involves time (use published_at as the "as of" anchor for cumulative claims when the chunk does not provide a more specific date).
+
+Prefer fewer, stronger claims over many weak claims. Aim for 1–4 primary claims per chunk. Return more only if the chunk contains multiple distinct factual arguments or datasets.
+
+Do not extract statements that primarily function as qualifiers, caveats, hedges, scope limitations, author framing, article transitions, or supporting details that only matter because of a parent claim.
+
+Preserve attribution inside the claim text when the claim is presented as someone's assertion, allegation, estimate, report, warning, or finding.
+
+Return JSON with claims array only; each item has raw_text.`;
+
+export function buildExtractClaimsUserPayload(metadata: Record<string, unknown>, chunkText: string) {
+  return {
+    story_id: metadata.story_id,
+    title: metadata.title,
+    source_name: metadata.source_name,
+    published_at: metadata.published_at,
+    chunk_text: chunkText,
+  };
+}
+
+export const MERGE_CLAIMS_SYSTEM_PROMPT = `You merge chunk-level primary claims into one deduplicated story-level claims array for DOXA.
+
+${METADATA_PROMPT_BLOCK}
+
+Given multiple chunk claim arrays:
+1) Deduplicate overlapping claims; keep the most specific standalone wording grounded in chunk content.
+2) Preserve temporal scope and attribution in claim text.
+3) Do not invent facts. Do not add evidence, positions, or events.
+4) Target 3–10 primary claims for a typical story after merge.
+
+Return JSON: claims array with raw_text, polarity (asserts|denies|uncertain), stance (support|oppose|neutral), extraction_confidence.`;
 
 export const EXTRACT_SYSTEM_PROMPT = `You are the Story Extraction Agent for Doxa.
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { extractEdgeFunctionError, extractErrorMessage } from '@/lib/admin/story-extraction-review'
 import { resolveDeployName, usesMaxChunks } from '@/lib/admin/story-pipeline-checklist'
+import { edgeFunctionHeaders } from '@/lib/supabase/edge-function-auth'
 
 /** Admin: invoke one pipeline edge function for a story. */
 export async function POST(
@@ -56,9 +57,13 @@ export async function POST(
   }
 
   const invokeBody: Record<string, unknown> = { story_id: storyId }
-  if (usesMaxChunks(deployName)) {
+  if (deployName === 'extract_story_claims') {
+    invokeBody.max_chunks = 1
+  } else if (usesMaxChunks(deployName)) {
     invokeBody.max_chunks = 20
   }
+
+  const edgeTimeoutMs = deployName === 'extract_story_claims' ? 140_000 : 60_000
 
   try {
     const url = `${supabaseUrl}/functions/v1/${deployName}`
@@ -66,9 +71,10 @@ export async function POST(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${serviceKey}`,
+        ...edgeFunctionHeaders(serviceKey),
       },
       body: JSON.stringify(invokeBody),
+      signal: AbortSignal.timeout(edgeTimeoutMs),
     })
 
     const data = await res.json().catch(() => ({}))

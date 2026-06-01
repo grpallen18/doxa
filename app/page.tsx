@@ -3,6 +3,8 @@ import { Button } from '@/components/Button'
 import { LandingHeader } from '@/components/LandingHeader'
 import { HomeFadeWrapper } from '@/components/HomeFadeWrapper'
 import { TrendingStoriesList } from '@/components/TrendingStoriesList'
+import { TopicExploreHome } from '@/components/topic-explore-home'
+import { experimentHomeUi } from '@/lib/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 
 type RecentStory = { story_id: string; title: string; url: string; created_at: string; source_name: string | null }
@@ -30,6 +32,9 @@ async function getRecentStories(limit: number): Promise<RecentStory[]> {
 }
 
 export default async function Home() {
+  if (experimentHomeUi) {
+    return <TopicExploreHome />
+  }
   const recentStories = await getRecentStories(20)
   return (
     <HomeFadeWrapper>
