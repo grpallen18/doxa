@@ -1,10 +1,11 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-export function HeaderSearch() {
+export function HeaderSearch({ className }: { className?: string }) {
   return (
-    <form action="/search" method="get" className="ml-auto w-full max-w-md shrink-0">
+    <form action="/search" method="get" className={cn('w-full max-w-md', className)}>
       <label htmlFor="header-search" className="sr-only">
         Search topics
       </label>

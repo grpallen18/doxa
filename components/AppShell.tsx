@@ -1,35 +1,21 @@
 'use client'
 
-import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, FileText, BookOpen, Activity, Map } from 'lucide-react'
 
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import { useUserRole } from '@/hooks/use-user-role'
-import { SidebarUserSection } from '@/components/SidebarUserSection'
 import { ExploreSidebarNav } from '@/components/explore-sidebar-nav'
 import { HeaderSearch } from '@/components/header-search'
-
-const adminItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/topics', label: 'Topics', icon: FileText },
-  { href: '/admin/stories', label: 'Stories', icon: BookOpen },
-  { href: '/admin/health', label: 'Health', icon: Activity },
-  { href: '/atlas', label: 'Atlas', icon: Map },
-]
+import { HeaderAdminMenu } from '@/components/header-admin-menu'
+import { HeaderUserMenu } from '@/components/header-user-menu'
+import { TopicExploreProvider } from '@/components/topic-explore-context'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -43,16 +29,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col [--header-height:calc(theme(spacing.14))]">
+      <TopicExploreProvider>
       <SidebarProvider className="flex min-h-0 flex-1 flex-col">
         <header className="flex sticky top-0 z-50 w-full shrink-0 items-center gap-2 border-b border-sidebar-border bg-sidebar px-4">
-          <div className="flex h-[--header-height] w-full items-center gap-4">
-            <div className="min-w-0 shrink-0 py-1">
-              <p className="text-2xl font-semibold leading-none tracking-tight text-sidebar-foreground">
-                doxa
+          <div className="relative flex h-[--header-height] w-full items-stretch">
+            <div className="inline-flex w-fit shrink-0 flex-col items-stretch gap-0.5 py-px">
+              <Image
+                src="/logo-color-no-bg.png"
+                alt="DOXA"
+                width={2172}
+                height={724}
+                priority
+                className="block h-[calc(var(--header-height)-1rem)] w-auto"
+              />
+              <p className="w-full pb-px text-center font-cinzel text-[11px] font-medium leading-none tracking-[0.14em] text-sidebar-foreground/70">
+                Belief, Mapped.
               </p>
-              <p className="mt-1 text-xs text-sidebar-foreground/70">Understand the world.</p>
             </div>
-            <HeaderSearch />
+            <div className="pointer-events-none absolute inset-y-0 left-1/2 flex w-full max-w-md -translate-x-1/2 items-center px-4">
+              <HeaderSearch className="pointer-events-auto w-full" />
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1 self-center">
+              {role === 'admin' && <HeaderAdminMenu />}
+              <HeaderUserMenu />
+            </div>
           </div>
         </header>
         <div className="flex min-h-[calc(100svh-var(--header-height))] flex-1">
@@ -69,39 +69,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <SidebarContent>
               <ExploreSidebarNav />
-              {role === 'admin' && (
-                <SidebarGroup>
-                  <SidebarGroupLabel>Admin</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {adminItems.map((item) => (
-                        <SidebarMenuItem key={item.href}>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={pathname === item.href || (item.href === '/atlas' && pathname.startsWith('/atlas'))}
-                            tooltip={item.label}
-                          >
-                            <Link href={item.href}>
-                              <item.icon className="size-4" />
-                              <span>{item.label}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              )}
             </SidebarContent>
-            <SidebarFooter className="border-t border-sidebar-border">
-              <SidebarUserSection />
-            </SidebarFooter>
           </Sidebar>
           <SidebarInset>
             {children}
           </SidebarInset>
         </div>
       </SidebarProvider>
+      </TopicExploreProvider>
     </div>
   )
 }

@@ -1,9 +1,15 @@
 'use client'
 
-import { Suspense } from 'react'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
-import { Bell, Bookmark, Columns3, Compass } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import {
+  Bell,
+  Bookmark,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Columns3,
+  Compass,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
   SidebarGroup,
@@ -13,7 +19,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import { defaultTopicId, topicNav } from '@/lib/mock/topic-explore'
+import { Button } from '@/components/ui/button'
+import { useTopicExplore } from '@/components/topic-explore-context'
+import { cn } from '@/lib/utils'
 
 type NavItem = {
   label: string
@@ -29,71 +37,103 @@ const mainNav: NavItem[] = [
   { label: 'Alerts & Trends', icon: Bell, comingSoon: true },
 ]
 
-export function ExploreSidebarNav() {
+function TopicTableOfContents() {
+  const explore = useTopicExplore()
+  if (!explore || explore.sections.length === 0) return null
+
+  const { sections, activeSectionId, scrollToSection, expandAll, collapseAll } = explore
+
   return (
-    <Suspense fallback={null}>
-      <ExploreSidebarNavInner />
-    </Suspense>
+    <SidebarGroup>
+      <SidebarGroupLabel className="flex items-center justify-between gap-2 pr-0">
+        <span>On this page</span>
+        <span className="flex items-center gap-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            aria-label="Expand all sections"
+            onClick={expandAll}
+          >
+            <ChevronsDownUp className="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            aria-label="Collapse all sections"
+            onClick={collapseAll}
+          >
+            <ChevronsUpDown className="size-3.5" />
+          </Button>
+        </span>
+      </SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {sections.map((section) => (
+            <SidebarMenuItem key={section.id}>
+              <SidebarMenuButton
+                type="button"
+                isActive={activeSectionId === section.id}
+                tooltip={section.title}
+                className={cn('h-auto py-2')}
+                onClick={() => scrollToSection(section.id)}
+              >
+                <span className="line-clamp-2 text-left text-xs leading-snug">{section.title}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   )
 }
 
-function ExploreSidebarNavInner() {
+function MainNavigation() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const activeTopic = searchParams.get('topic') ?? defaultTopicId
   const onHome = pathname === '/'
 
   return (
-    <>
-      <SidebarGroup>
-        <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {mainNav.map((item) => (
-              <SidebarMenuItem key={item.label}>
-                {item.comingSoon ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip="Coming soon"
-                    className="cursor-not-allowed opacity-60"
-                  >
+    <SidebarGroup>
+      <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {mainNav.map((item) => (
+            <SidebarMenuItem key={item.label}>
+              {item.comingSoon ? (
+                <SidebarMenuButton
+                  disabled
+                  tooltip="Coming soon"
+                  className="cursor-not-allowed opacity-60"
+                >
+                  <item.icon className="size-4" />
+                  <span>{item.label}</span>
+                </SidebarMenuButton>
+              ) : (
+                <SidebarMenuButton asChild isActive={onHome} tooltip={item.label}>
+                  <Link href={item.href ?? '/'}>
                     <item.icon className="size-4" />
                     <span>{item.label}</span>
-                  </SidebarMenuButton>
-                ) : (
-                  <SidebarMenuButton asChild isActive={onHome} tooltip={item.label}>
-                    <Link href={item.href ?? '/'}>
-                      <item.icon className="size-4" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      <SidebarGroup>
-        <SidebarGroupLabel>Topics</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {topicNav.map((topic) => (
-              <SidebarMenuItem key={topic.id}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={onHome && activeTopic === topic.id}
-                  tooltip={topic.title}
-                >
-                  <Link href={`/?topic=${topic.id}`}>
-                    <span>{topic.title}</span>
                   </Link>
                 </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-    </>
+              )}
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   )
+}
+
+export function ExploreSidebarNav() {
+  const explore = useTopicExplore()
+  const showToc = (explore?.sections.length ?? 0) > 0
+
+  if (showToc) {
+    return <TopicTableOfContents />
+  }
+
+  return <MainNavigation />
 }

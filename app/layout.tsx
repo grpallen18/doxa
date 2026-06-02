@@ -5,6 +5,7 @@ import { LogoutTransitionWrapper } from '@/components/LogoutTransitionWrapper'
 import { NavigationOverlayProvider, PageNavigationOverlay } from '@/components/NavigationOverlayContext'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { Toaster } from '@/components/ui/sonner'
+import { cinzel } from '@/lib/fonts'
 
 export const metadata: Metadata = {
   title: 'Doxa - Community-Calibrated Political Knowledge Graph',
@@ -40,7 +41,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>
+      <body className={cinzel.variable}>
         <ThemeProvider>
           <NavigationOverlayProvider>
             <LogoutTransitionWrapper>

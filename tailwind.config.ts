@@ -95,6 +95,9 @@ const config: Config = {
   		maxWidth: {
   			content: 'var(--content-max-width)'
   		},
+  		fontFamily: {
+  			cinzel: ['var(--font-cinzel)', 'serif'],
+  		},
   		borderColor: {
   			subtle: 'var(--border-subtle)'
   		},
