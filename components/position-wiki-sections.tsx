@@ -78,41 +78,48 @@ function PositionWikiSection({ position }: { position: Position }) {
       <section
         id={sectionId}
         aria-labelledby={`${sectionId}-heading`}
-        className="scroll-mt-[calc(var(--header-height)+1rem)] border-b border-subtle pb-6"
+        className={cn(
+          'scroll-mt-[calc(var(--header-height)+1rem)] border-b transition-[border-color] duration-300 ease-out',
+          open ? 'border-transparent pb-6' : 'border-subtle pb-0'
+        )}
         data-testid="position-wiki-section"
       >
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              'group flex w-full items-start gap-2 py-3 text-left',
-              'rounded-md transition-colors hover:bg-surface-soft',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-            )}
-          >
-            <ChevronDown
+        <div
+          className={cn(
+            'border-b transition-[border-color] duration-300 ease-out',
+            open ? 'border-foreground' : 'border-transparent'
+          )}
+        >
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
               className={cn(
-                'mt-1 size-4 shrink-0 text-muted transition-transform duration-200',
-                open && 'rotate-180'
+                'group flex w-full items-center gap-2 py-2 text-left',
+                'rounded-md transition-colors hover:bg-surface-soft',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
               )}
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1 space-y-1">
-              <h2
-                id={`${sectionId}-heading`}
-                className="text-base font-semibold leading-snug text-foreground sm:text-lg"
-              >
-                {position.headline}
-              </h2>
-              <p className="text-xs tabular-nums text-muted">
-                {position.sources.toLocaleString()} sources · {position.agreementPct}% agreement
-              </p>
-            </span>
-          </button>
-        </CollapsibleTrigger>
+            >
+              <ChevronDown
+                className={cn(
+                  'size-4 shrink-0 text-muted transition-transform duration-300 ease-out',
+                  open && 'rotate-180'
+                )}
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1">
+                <h2
+                  id={`${sectionId}-heading`}
+                  className="text-sm font-semibold leading-snug text-foreground sm:text-base"
+                >
+                  {position.headline}
+                </h2>
+              </span>
+            </button>
+          </CollapsibleTrigger>
+        </div>
 
-        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-          <div className="space-y-6 pb-2 pl-6">
+        <CollapsibleContent>
+          <div className="space-y-6 pb-2 pl-6 pt-4">
             <p className="text-sm leading-relaxed text-foreground/90">{position.description}</p>
 
             <div className="max-w-md space-y-2">
@@ -198,13 +205,6 @@ export function PositionWikiSections({ positions }: { positions: Position[] }) {
 
   return (
     <div aria-label="Topic positions" className="space-y-1" data-testid="position-wiki-sections">
-      <div className="flex flex-wrap items-end justify-between gap-3 pb-2">
-        <h2 className="sr-only">Positions</h2>
-        <p className="text-xs leading-relaxed text-muted">
-          Structured overview of major positions. Use the table of contents in the sidebar to jump
-          between sections.
-        </p>
-      </div>
       {positions.map((position) => (
         <PositionWikiSection key={position.id} position={position} />
       ))}

@@ -99,7 +99,8 @@ const config: Config = {
   			cinzel: ['var(--font-cinzel)', 'serif'],
   		},
   		borderColor: {
-  			subtle: 'var(--border-subtle)'
+  			subtle: 'var(--border-subtle)',
+  			separator: 'var(--separator)',
   		},
   		keyframes: {
   			'doxa-letter': {
@@ -134,6 +135,26 @@ const config: Config = {
   					height: '0'
   				}
   			},
+  			'collapsible-down': {
+  				from: {
+  					height: '0',
+  					opacity: '0'
+  				},
+  				to: {
+  					height: 'var(--radix-collapsible-content-height)',
+  					opacity: '1'
+  				}
+  			},
+  			'collapsible-up': {
+  				from: {
+  					height: 'var(--radix-collapsible-content-height)',
+  					opacity: '1'
+  				},
+  				to: {
+  					height: '0',
+  					opacity: '0'
+  				}
+  			},
   			'skeleton-pulse': {
   				'0%, 100%': { opacity: '0.4' },
   				'50%': { opacity: '0.8' }
@@ -152,6 +173,8 @@ const config: Config = {
   			'panel-fade-in': 'panel-fade-in 2.5s ease-out forwards',
   			'accordion-down': 'accordion-down 0.3s ease-out',
   			'accordion-up': 'accordion-up 0.3s ease-out',
+  			'collapsible-down': 'collapsible-down 0.3s ease-out',
+  			'collapsible-up': 'collapsible-up 0.3s ease-out',
   			'skeleton-pulse': 'skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
   			'advocate-marquee': 'advocate-marquee 12s linear infinite',
   			'advocate-marquee-x': 'advocate-marquee-x 18s linear infinite'
