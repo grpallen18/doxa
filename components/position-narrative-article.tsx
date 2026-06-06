@@ -1,5 +1,5 @@
 import { PositionLinkList } from '@/components/position-link-list'
-import { ClaimLinkList, CounterClaimsList } from '@/components/position-explore-lists'
+import { ClaimLinkList, PrimaryArgumentsList } from '@/components/position-explore-lists'
 import type { ExploreLinkListLayout } from '@/lib/explore-link-styles'
 import { narrativeSectionDomId } from '@/lib/position-toc'
 import type { Position, PositionNarrative, PositionNarrativeSection, Topic } from '@/lib/mock/topic-explore'
@@ -85,8 +85,8 @@ function NarrativeSectionBlock({
         <PrimaryClaimsList position={position} layout={linkLayout} />
       )}
 
-      {section.renderAs === 'counter-claims' && (
-        <CounterClaimsList
+      {section.renderAs === 'primary-arguments' && (
+        <PrimaryArgumentsList
           topic={topic}
           position={position}
           positionId={positionId}

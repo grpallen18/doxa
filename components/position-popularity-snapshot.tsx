@@ -85,7 +85,7 @@ function AdvocateSourceIcon({ sourceType }: { sourceType: PositionAdvocate['sour
 function AdvocateLinks({ advocates }: { advocates: PositionAdvocate[] }) {
   return (
     <div className="border-t border-subtle pt-3">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">Popular Viewpoints</p>
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">Recent examples</p>
       <ul className="space-y-1">
         {advocates.map((advocate) => (
           <li key={advocate.id}>

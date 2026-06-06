@@ -34,11 +34,36 @@ export async function createClient() {
   })
 }
 
-/** Admin client with service role - bypasses RLS. Use for topic creation etc. */
+function serviceRoleKeyHint(): string {
+  const urlRef = supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
+  const lines = [
+    'Check SUPABASE_SERVICE_ROLE_KEY in .env.local matches NEXT_PUBLIC_SUPABASE_URL (same Supabase project).',
+    'Dashboard → Project Settings → API Keys: use the secret key (sb_secret_...) or legacy service_role JWT — not the publishable key.',
+  ]
+  if (urlRef) {
+    lines.push(`Current URL project ref: ${urlRef}. Preview branch: npm run env:branch (see .env.local.branch.example).`)
+  }
+  return lines.join(' ')
+}
+
+/** Admin client with service role - bypasses RLS. Use for writes and edge invokes. */
 export function createAdminClient() {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   if (!supabaseUrl || !serviceKey) {
-    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY for admin operations')
+    throw new Error(`Missing SUPABASE_SERVICE_ROLE_KEY for admin operations. ${serviceRoleKeyHint()}`)
+  }
+  if (serviceKey.startsWith('sb_publishable_')) {
+    throw new Error(
+      `SUPABASE_SERVICE_ROLE_KEY is the publishable key, not the secret key. ${serviceRoleKeyHint()}`
+    )
   }
   return createSupabaseClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
+}
+
+/** Map Supabase REST errors to actionable admin messages. */
+export function formatSupabaseAdminError(message: string): string {
+  if (message.toLowerCase().includes('invalid api key')) {
+    return `Invalid API key for admin operations. ${serviceRoleKeyHint()}`
+  }
+  return message
 }

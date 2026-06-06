@@ -77,11 +77,11 @@ export function ControversyLinkList({
   )
 }
 
-export function CounterClaimsList({
+export function PrimaryArgumentsList({
   topic,
   position,
   positionId,
-  linkTestId = 'position-counter-claim-link',
+  linkTestId = 'position-primary-argument-link',
   layout = 'stack',
 }: {
   topic: Topic

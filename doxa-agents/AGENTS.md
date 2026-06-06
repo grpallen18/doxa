@@ -37,6 +37,7 @@ Pipeline agents for ingesting stories, extracting structured knowledge from text
 - [docs/generated/deploy.md](docs/generated/deploy.md)
 - [docs/generated/secrets.md](docs/generated/secrets.md)
 - [docs/generated/purge-engine.md](docs/generated/purge-engine.md) — from [ops/purge-engine-tables.yaml](ops/purge-engine-tables.yaml)
+- [docs/generated/pipeline-catalog.md](docs/generated/pipeline-catalog.md) — from [ops/pipeline-admin-catalog.yaml](ops/pipeline-admin-catalog.yaml) (admin UI stages)
 
 ```bash
 npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate

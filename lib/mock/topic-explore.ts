@@ -67,7 +67,7 @@ export type PositionNarrativeSection = {
   paragraphs?: string[]
   sections?: PositionNarrativeSection[]
   /** Special section renderers. */
-  renderAs?: 'primary-claims' | 'counter-claims' | 'sibling-positions' | 'common-claims' | 'opposing-claims' | 'opposing-arguments'
+  renderAs?: 'primary-claims' | 'primary-arguments' | 'sibling-positions' | 'common-claims' | 'opposing-claims' | 'opposing-arguments'
 }
 
 export type PositionNarrative = {
@@ -149,12 +149,12 @@ const immigrationPositions: Position[] = [
     disagreement: 'High disagreement',
     supportingClaims: immigrationPos1SupportingClaims,
     opposingClaims: [
-      { id: 'p1-o1', text: 'Enforcement-only approaches ignore root causes.', agreement: 58, sources: 142 },
-      { id: 'p1-o2', text: 'Hardline policy raises humanitarian costs.', agreement: 52, sources: 121 },
+      { id: 'p1-o1', text: 'Migration policy should address root causes, not enforcement alone', agreement: 58, sources: 142 },
+      { id: 'p1-o2', text: 'Immigration enforcement should meet humanitarian standards', agreement: 52, sources: 121 },
     ],
     relatedControversies: [
-      { id: 'p1-c1', title: 'Border Security & Enforcement', impact: 'Very High', trend: [0.2, 0.4, 0.5, 0.7, 0.9, 0.8] },
-      { id: 'p1-c2', title: 'Asylum Processing Backlogs', impact: 'High', trend: [0.3, 0.35, 0.5, 0.55, 0.6, 0.7] },
+      { id: 'p1-c1', title: 'Legal pathways should be expanded before enforcement is tightened', impact: 'Very High', trend: [0.2, 0.4, 0.5, 0.7, 0.9, 0.8] },
+      { id: 'p1-c2', title: 'Asylum processing should be humane and efficient', impact: 'High', trend: [0.3, 0.35, 0.5, 0.55, 0.6, 0.7] },
     ],
   },
   {

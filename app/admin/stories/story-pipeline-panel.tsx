@@ -252,63 +252,86 @@ export function StoryPipelinePanel({
       {stepError && <p className="text-xs text-destructive">{stepError}</p>}
       {actionMessage && <p className="text-xs text-muted">{actionMessage}</p>}
 
-      <Accordion type="multiple" value={expanded} onValueChange={setExpanded} className="space-y-2">
-        {checklist.steps.map((step) => {
-          const isRunning = runningStepId === step.id
+      <Accordion type="multiple" value={expanded} onValueChange={setExpanded} className="space-y-4">
+        {checklist.stages.map((stage) => {
+          const stageSteps = checklist.steps.filter((s) => s.stageId === stage.id)
+          if (stageSteps.length === 0) return null
           return (
-            <AccordionItem
-              key={step.id}
-              value={step.id}
-              className={`rounded-lg border border-subtle px-3 ${
-                isRunning || step.status === 'current' ? 'bg-muted/30' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2 py-1">
-                <div className="min-w-0 flex-1">
-                  <AccordionTrigger className="w-full py-2 hover:no-underline [&>svg]:hidden">
-                    <div className="flex w-full min-w-0 items-start gap-3 text-left">
-                      <StatusIcon status={isRunning ? 'current' : step.status} />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium leading-tight">{step.label}</p>
-                        {step.progress && (
-                          <p className="text-xs text-muted">{step.progress}</p>
-                        )}
-                        {step.status === 'optional' && (
-                          <p className="text-xs text-muted">Not required — nothing to refine</p>
-                        )}
+            <div key={stage.id} className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                {stage.label}
+              </h4>
+              <div className="space-y-2">
+                {stageSteps.map((step) => {
+                  const isRunning = runningStepId === step.id
+                  return (
+                    <AccordionItem
+                      key={step.id}
+                      value={step.id}
+                      className={`rounded-lg border border-subtle px-3 ${
+                        isRunning || step.status === 'current' ? 'bg-muted/30' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 py-1">
+                        <div className="min-w-0 flex-1">
+                          <AccordionTrigger className="w-full py-2 hover:no-underline [&>svg]:hidden">
+                            <div className="flex w-full min-w-0 items-start gap-3 text-left">
+                              <StatusIcon status={isRunning ? 'current' : step.status} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-medium leading-tight">{step.label}</p>
+                                  {step.manifestStatus !== 'active' && (
+                                    <span
+                                      className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                                      title={step.inactiveNote ?? undefined}
+                                    >
+                                      inactive
+                                    </span>
+                                  )}
+                                </div>
+                                {step.progress && (
+                                  <p className="text-xs text-muted">{step.progress}</p>
+                                )}
+                                {step.status === 'optional' && (
+                                  <p className="text-xs text-muted">Not required — nothing to refine</p>
+                                )}
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={step.status === 'current' ? 'default' : 'outline'}
+                          className="shrink-0"
+                          disabled={!step.runnable || runningStepId != null || clearing}
+                          onClick={() => void runStep(step.id)}
+                        >
+                          {isRunning ? (
+                            <>
+                              <Loader2 className="mr-1 size-3 animate-spin" />
+                              Running…
+                            </>
+                          ) : (
+                            'Run'
+                          )}
+                        </Button>
                       </div>
-                    </div>
-                  </AccordionTrigger>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={step.status === 'current' ? 'default' : 'outline'}
-                  className="shrink-0"
-                  disabled={!step.runnable || runningStepId != null || clearing}
-                  onClick={() => void runStep(step.id)}
-                >
-                  {isRunning ? (
-                    <>
-                      <Loader2 className="mr-1 size-3 animate-spin" />
-                      Running…
-                    </>
-                  ) : (
-                    'Run'
-                  )}
-                </Button>
+                      <AccordionContent className="border-t border-subtle pb-3 pt-2">
+                        <PipelineStepDetail
+                          stepId={step.id}
+                          payload={payload}
+                          reveal={revealTarget?.stepId === step.id}
+                          revealKey={revealTarget?.epoch}
+                          renderFeedback={renderFeedback}
+                          spanHighlight={spanHighlight}
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                  )
+                })}
               </div>
-              <AccordionContent className="border-t border-subtle pb-3 pt-2">
-                <PipelineStepDetail
-                  stepId={step.id}
-                  payload={payload}
-                  reveal={revealTarget?.stepId === step.id}
-                  revealKey={revealTarget?.epoch}
-                  renderFeedback={renderFeedback}
-                  spanHighlight={spanHighlight}
-                />
-              </AccordionContent>
-            </AccordionItem>
+            </div>
           )
         })}
       </Accordion>

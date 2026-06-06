@@ -41,6 +41,12 @@ export type StoryExtractionReviewPayload = {
     content_full: string | null
     relevance_status: string | null
     relevance_score: number | null
+    relevance_ran_at: string | null
+    scraped_at: string | null
+    scrape_dispatched_at: string | null
+    scrape_skipped: boolean
+    scrape_fail_count: number
+    has_content_clean: boolean
     extraction_completed_at: string | null
     extraction_skipped_empty: boolean
     merged_at: string | null
@@ -215,6 +221,13 @@ function isMissingRelation(error: { code?: string; message?: string } | null): b
   return msg.includes('does not exist') || msg.includes('Could not find') || msg.includes('not found')
 }
 
+function isPermissionDenied(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  if (error.code === '42501') return true
+  const msg = (error.message ?? '').toLowerCase()
+  return msg.includes('permission denied') || msg.includes('row-level security')
+}
+
 async function queryTableWithLegacy<T>(
   supabase: SupabaseClient,
   primary: string,
@@ -226,10 +239,10 @@ async function queryTableWithLegacy<T>(
   if (legacy && isMissingRelation(primaryRes.error)) {
     const legacyRes = await run(legacy)
     if (!legacyRes.error) return legacyRes.data ?? []
-    if (isMissingRelation(legacyRes.error)) return []
+    if (isMissingRelation(legacyRes.error) || isPermissionDenied(legacyRes.error)) return []
     throw legacyRes.error
   }
-  if (isMissingRelation(primaryRes.error)) return []
+  if (isMissingRelation(primaryRes.error) || isPermissionDenied(primaryRes.error)) return []
   throw primaryRes.error
 }
 
@@ -355,7 +368,8 @@ export async function fetchStoryExtractionReview(
     .from('stories')
     .select(
       `story_id, title, url, author, published_at, fetched_at, created_at,
-       content_snippet, content_full, relevance_status, relevance_score,
+       content_snippet, content_full, relevance_status, relevance_score, relevance_ran_at,
+       scraped_at, scrape_dispatched_at, scrape_skipped, scrape_fail_count,
        extraction_completed_at, extraction_skipped_empty, merged_at,
        extraction_qa_status, extraction_qa_review_report, extraction_qa_validation_report,
        extraction_qa_refinement_count, extraction_qa_validated_at,
@@ -522,6 +536,12 @@ export async function fetchStoryExtractionReview(
       content_full: storyRow.content_full,
       relevance_status: storyRow.relevance_status,
       relevance_score: storyRow.relevance_score,
+      relevance_ran_at: storyRow.relevance_ran_at as string | null,
+      scraped_at: storyRow.scraped_at as string | null,
+      scrape_dispatched_at: storyRow.scrape_dispatched_at as string | null,
+      scrape_skipped: Boolean(storyRow.scrape_skipped),
+      scrape_fail_count: Number(storyRow.scrape_fail_count ?? 0),
+      has_content_clean: Boolean(bodyRow?.content_clean),
       extraction_completed_at: storyRow.extraction_completed_at,
       extraction_skipped_empty: storyRow.extraction_skipped_empty,
       merged_at: storyRow.merged_at,

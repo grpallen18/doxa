@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import {
   countEntitiesByStory,
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   try {
-    const supabase = createAdminClient()
+    const supabase = await createClient()
     const searchParams = request.nextUrl.searchParams
     const limit = Math.min(parseInt(searchParams.get('limit') || '30', 10), 100)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       return NextResponse.json(
-        { data: null, error: { message: error.message, code: error.code } },
+        { data: null, error: { message: formatSupabaseAdminError(error.message), code: error.code } },
         { status: 500 }
       )
     }

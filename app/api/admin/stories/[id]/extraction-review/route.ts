@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { extractErrorMessage, fetchStoryExtractionReview } from '@/lib/admin/story-extraction-review'
 
@@ -20,7 +20,7 @@ export async function GET(
   }
 
   try {
-    const supabase = createAdminClient()
+    const supabase = await createClient()
     const payload = await fetchStoryExtractionReview(supabase, id)
 
     if (!payload) {
@@ -38,7 +38,7 @@ export async function GET(
         { status: 503 }
       )
     }
-    const message = extractErrorMessage(error)
+    const message = formatSupabaseAdminError(extractErrorMessage(error))
     console.error('[extraction-review]', id, message, error)
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })
   }

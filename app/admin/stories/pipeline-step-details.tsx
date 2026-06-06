@@ -308,14 +308,10 @@ function ChunkQaDetail({
   })
 
   if (relevant.length === 0) {
-    const stepId: PipelineStepId =
-      kind === 'standardize'
-        ? 'standardize-chunk-extraction'
-        : kind === 'refine'
-          ? 'refine-chunk-extraction'
-          : 'validate-chunk-extraction'
-    const notRequired = getStepNotRequiredMessage(stepId, payload)
-    if (notRequired) return <EmptyDetail message={notRequired} />
+    if (kind === 'validate') {
+      const notRequired = getStepNotRequiredMessage('validate-chunk-claims', payload)
+      if (notRequired) return <EmptyDetail message={notRequired} />
+    }
     return <EmptyDetail message={`No chunk ${kind} output yet.`} />
   }
 
@@ -627,11 +623,65 @@ function StancesDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
   )
 }
 
+function formatIngestionDate(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function IngestionDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
+  const { story } = payload
+  return (
+    <dl className="grid gap-1.5 text-xs">
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-muted">Relevance</dt>
+        <dd>
+          {story.relevance_status ?? '—'}
+          {story.relevance_score != null ? ` (${story.relevance_score})` : ''}
+        </dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-muted">Relevance ran</dt>
+        <dd>{formatIngestionDate(story.relevance_ran_at)}</dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-muted">Scraped</dt>
+        <dd>{formatIngestionDate(story.scraped_at)}</dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-muted">Scrape dispatched</dt>
+        <dd>{formatIngestionDate(story.scrape_dispatched_at)}</dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-muted">Scrape skipped</dt>
+        <dd>{story.scrape_skipped ? 'Yes' : 'No'}</dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-muted">Scrape failures</dt>
+        <dd>{story.scrape_fail_count}</dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-muted">Clean body</dt>
+        <dd>{story.has_content_clean ? 'Ready' : 'Not ready'}</dd>
+      </div>
+    </dl>
+  )
+}
+
 export function pipelineStepHasDetailContent(
   stepId: PipelineStepId,
   payload: StoryExtractionReviewPayload
 ): boolean {
   switch (stepId) {
+    case 'relevance-gate':
+    case 'scrape-story-content':
+    case 'clean-scraped-content':
+    case 'review-pending-stories':
+      return (
+        payload.story.relevance_status != null ||
+        payload.story.scraped_at != null ||
+        payload.story.has_content_clean ||
+        getStepNotRequiredMessage(stepId, payload) != null
+      )
     case 'chunk-story-bodies':
       return payload.chunks.length > 0
     case 'extract-story-claims':
@@ -705,6 +755,11 @@ export function PipelineStepDetail({
 }: PipelineStepDetailProps) {
   const content = (() => {
     switch (stepId) {
+      case 'relevance-gate':
+      case 'scrape-story-content':
+      case 'clean-scraped-content':
+      case 'review-pending-stories':
+        return <IngestionDetail payload={payload} />
       case 'chunk-story-bodies':
         if (payload.chunks.length === 0) return <EmptyDetail message="No chunks yet." />
         return (

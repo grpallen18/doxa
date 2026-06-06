@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { extractEdgeFunctionError, extractErrorMessage } from '@/lib/admin/story-extraction-review'
-import { resolveDeployName, usesMaxChunks } from '@/lib/admin/story-pipeline-checklist'
+import { getInvokeOptions, resolveDeployName } from '@/lib/admin/story-pipeline-checklist'
 import { edgeFunctionHeaders } from '@/lib/supabase/edge-function-auth'
 
 /** Admin: invoke one pipeline edge function for a story. */
@@ -56,14 +56,13 @@ export async function POST(
     )
   }
 
+  const invokeOptions = getInvokeOptions(deployName)
   const invokeBody: Record<string, unknown> = { story_id: storyId }
-  if (deployName === 'extract_story_claims') {
-    invokeBody.max_chunks = 1
-  } else if (usesMaxChunks(deployName)) {
-    invokeBody.max_chunks = 20
+  if (invokeOptions.usesMaxChunks && invokeOptions.maxChunks != null) {
+    invokeBody.max_chunks = invokeOptions.maxChunks
   }
 
-  const edgeTimeoutMs = deployName === 'extract_story_claims' ? 140_000 : 60_000
+  const edgeTimeoutMs = invokeOptions.timeoutMs
 
   try {
     const url = `${supabaseUrl}/functions/v1/${deployName}`

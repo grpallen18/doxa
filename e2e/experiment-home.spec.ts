@@ -32,9 +32,9 @@ test.describe('topic and position pages', () => {
     await expect(page.getByRole('button', { name: 'See also' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Primary claims' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'History' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Counter claims' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Primary arguments' })).toBeVisible()
     await expect(page.getByTestId('position-primary-claims').getByRole('listitem')).toHaveCount(10)
-    await expect(page.getByTestId('position-counter-claim-link')).toHaveCount(8)
+    await expect(page.getByTestId('position-primary-argument-link')).toHaveCount(8)
 
     await page.getByTestId('position-back-link').click()
     await expect(page).toHaveURL('/topics/immigration')

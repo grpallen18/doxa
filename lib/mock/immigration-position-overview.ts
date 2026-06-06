@@ -101,9 +101,9 @@ export const immigrationPositionOverview = {
           renderAs: 'primary-claims' as const,
         },
         {
-          id: 'counter-claims',
-          title: 'Counter claims',
-          renderAs: 'counter-claims' as const,
+          id: 'primary-arguments',
+          title: 'Primary arguments',
+          renderAs: 'primary-arguments' as const,
         },
       ],
     },

@@ -1,0 +1,82 @@
+# Admin pipeline catalog overlay — merged with manifest.yaml at npm run agents:pipeline-catalog.
+# Defines story-scoped stage groupings, labels, isolation params, and invoke options for the admin UI.
+# Topology/narrative stages are documented in docs/admin-pipeline-ops-roadmap.md (Phases 2–4).
+
+version: 1
+
+stages:
+  - id: ingestion
+    label: Ingestion
+    scope: story
+    steps:
+      - id: relevance-gate
+        label: Relevance gate
+        isolation_params: [story_id]
+      - id: scrape-story-content
+        label: Scrape story content
+        isolation_params: [story_id]
+      - id: clean-scraped-content
+        label: Clean scraped content
+        isolation_params: [story_id]
+      - id: review-pending-stories
+        label: Review pending stories
+        isolation_params: [story_id]
+
+  - id: extraction
+    label: Extraction
+    scope: story
+    steps:
+      - id: chunk-story-bodies
+        label: Chunk story bodies
+        isolation_params: [story_id]
+      - id: extract-story-claims
+        label: Extract primary claims
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 1
+          timeout_ms: 140000
+      - id: validate-chunk-claims
+        label: Validate chunk claims
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 20
+      - id: merge-story-claims
+        label: Merge story claims
+        isolation_params: [story_id]
+      - id: review-merged-extraction
+        label: Review merged extraction
+        isolation_params: [story_id]
+      - id: refine-merged-extraction
+        label: Refine merged extraction
+        isolation_params: [story_id]
+        optional: true
+      - id: validate-merged-extraction
+        label: Validate merged extraction
+        isolation_params: [story_id]
+
+  - id: canonical
+    label: Canonicalization
+    scope: story
+    steps:
+      - id: link-canonical-claims
+        label: Link canonical claims
+        isolation_params: [story_id, story_claim_id]
+      - id: link-canonical-events
+        label: Link canonical events
+        isolation_params: [story_id]
+        optional: true
+      - id: link-canonical-positions
+        label: Link canonical positions
+        isolation_params: [story_id, story_position_id]
+        optional: true
+      - id: update-stances
+        label: Update stances
+        isolation_params: [story_id, story_claim_id]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 20
+        optional: true
+
+inactive_note: Not active in activation.yaml — cron may not be scheduled.

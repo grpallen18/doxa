@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { FileText, Activity, BookOpen, GitBranch, Scale } from 'lucide-react'
+import { FileText, Activity, BookOpen, GitBranch, Scale, Map } from 'lucide-react'
 import { Panel } from '@/components/Panel'
 
 const adminLinks = [
@@ -10,6 +10,7 @@ const adminLinks = [
   { href: '/admin/stories', label: 'Stories', icon: BookOpen, description: 'Search stories and review extraction output (claims, evidence, positions, events).' },
   { href: '/admin/positions', label: 'Positions', icon: GitBranch, description: 'Browse positions, controversies, and viewpoints. Investigate pipeline output and trace to claims and stories.' },
   { href: '/admin/health', label: 'Health', icon: Activity, description: 'Monitor data health and pipeline status.' },
+  { href: '/admin/pipeline-roadmap', label: 'Pipeline ops roadmap', icon: Map, description: 'Multi-phase plan for admin pipeline operations (ingestion through topology).' },
 ]
 
 export default function AdminDashboardPage() {

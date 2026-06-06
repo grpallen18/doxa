@@ -7,7 +7,11 @@ Your `.env.local` file should be in the **root directory** of the project and ha
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://gjxihyaovyfwajjyoyoz.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_PeUkfHqn8NNHbfiCQmRC3Q_dv8AUr5S
+# Required for admin write ops (run-step, clear extraction, QA override):
+SUPABASE_SERVICE_ROLE_KEY=your_secret_or_service_role_key
 ```
+
+**Preview branch:** copy `.env.local.branch.example` → `.env.local.branch`, fill keys from the [preview dashboard](https://supabase.com/dashboard/project/iyuwxdjauhlaeejstlde/settings/api-keys), then `npm run env:branch`. URL and keys must be from the **same** project.
 
 ## Important Notes
 
@@ -44,6 +48,15 @@ After creating/editing `.env.local`:
    ```
 
 ## Troubleshooting
+
+### Admin stories search shows "Invalid API Key"?
+
+Story **search and review reads** use your logged-in session (publishable/anon key). **Run**, **Clear extraction**, and **QA override** need `SUPABASE_SERVICE_ROLE_KEY`.
+
+1. Confirm `SUPABASE_SERVICE_ROLE_KEY` is the **secret** key (`sb_secret_...`) or legacy **service_role** JWT — not `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+2. Confirm it matches `NEXT_PUBLIC_SUPABASE_URL` (same project ref in the URL and dashboard).
+3. Restart `npm run dev` after editing `.env.local`.
+4. For preview branch work: `npm run env:branch` and use keys from project `iyuwxdjauhlaeejstlde`.
 
 ### Still getting "Missing environment variables" error?
 
