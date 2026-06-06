@@ -3,10 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  ArrowLeft,
   Bell,
   Bookmark,
-  ChevronsDownUp,
-  ChevronsUpDown,
   Columns3,
   Compass,
 } from 'lucide-react'
@@ -19,9 +18,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import { Button } from '@/components/ui/button'
 import { useTopicExplore } from '@/components/topic-explore-context'
 import { cn } from '@/lib/utils'
+import { defaultTopicId } from '@/lib/mock/topic-explore'
+import { topicPath } from '@/lib/topic-routes'
 
 type NavItem = {
   label: string
@@ -31,58 +31,60 @@ type NavItem = {
 }
 
 const mainNav: NavItem[] = [
-  { label: 'Explore Topics', icon: Compass, href: '/' },
+  { label: 'Explore Topics', icon: Compass, href: topicPath(defaultTopicId) },
   { label: 'Saved Briefs', icon: Bookmark, comingSoon: true },
   { label: 'Comparisons', icon: Columns3, comingSoon: true },
   { label: 'Alerts & Trends', icon: Bell, comingSoon: true },
 ]
 
-function TopicTableOfContents() {
+function TableOfContentsNav() {
   const explore = useTopicExplore()
+  const pathname = usePathname()
   if (!explore || explore.sections.length === 0) return null
 
-  const { sections, activeSectionId, scrollToSection, expandAll, collapseAll } = explore
+  const { sections, backLink, activeSectionId, scrollToSection } = explore
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="flex items-center justify-between gap-2 pr-0">
-        <span>On this page</span>
-        <span className="flex items-center gap-0.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            aria-label="Expand all sections"
-            onClick={expandAll}
-          >
-            <ChevronsDownUp className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6 shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            aria-label="Collapse all sections"
-            onClick={collapseAll}
-          >
-            <ChevronsUpDown className="size-3.5" />
-          </Button>
-        </span>
-      </SidebarGroupLabel>
+      {backLink && (
+        <SidebarMenu className="mb-1">
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={backLink.label} className="h-auto py-2">
+              <Link href={backLink.href} data-testid="sidebar-back-link">
+                <ArrowLeft className="size-4 shrink-0" />
+                <span className="text-xs">{backLink.label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      )}
+      <SidebarGroupLabel>Table of Contents</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {sections.map((section) => (
             <SidebarMenuItem key={section.id}>
-              <SidebarMenuButton
-                type="button"
-                isActive={activeSectionId === section.id}
-                tooltip={section.title}
-                className={cn('h-auto py-2')}
-                onClick={() => scrollToSection(section.id)}
-              >
-                <span className="line-clamp-2 text-left text-xs leading-snug">{section.title}</span>
-              </SidebarMenuButton>
+              {section.href ? (
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === section.href}
+                  tooltip={section.title}
+                  className={cn('h-auto py-2')}
+                >
+                  <Link href={section.href}>
+                    <span className="line-clamp-2 text-left text-xs leading-snug">{section.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              ) : (
+                <SidebarMenuButton
+                  type="button"
+                  isActive={activeSectionId === section.id}
+                  tooltip={section.title}
+                  className={cn('h-auto py-2')}
+                  onClick={() => scrollToSection(section.id)}
+                >
+                  <span className="line-clamp-2 text-left text-xs leading-snug">{section.title}</span>
+                </SidebarMenuButton>
+              )}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
@@ -93,7 +95,7 @@ function TopicTableOfContents() {
 
 function MainNavigation() {
   const pathname = usePathname()
-  const onHome = pathname === '/'
+  const onTopics = pathname.startsWith('/topics/')
 
   return (
     <SidebarGroup>
@@ -112,8 +114,8 @@ function MainNavigation() {
                   <span>{item.label}</span>
                 </SidebarMenuButton>
               ) : (
-                <SidebarMenuButton asChild isActive={onHome} tooltip={item.label}>
-                  <Link href={item.href ?? '/'}>
+                <SidebarMenuButton asChild isActive={onTopics} tooltip={item.label}>
+                  <Link href={item.href ?? topicPath(defaultTopicId)}>
                     <item.icon className="size-4" />
                     <span>{item.label}</span>
                   </Link>
@@ -132,7 +134,7 @@ export function ExploreSidebarNav() {
   const showToc = (explore?.sections.length ?? 0) > 0
 
   if (showToc) {
-    return <TopicTableOfContents />
+    return <TableOfContentsNav />
   }
 
   return <MainNavigation />

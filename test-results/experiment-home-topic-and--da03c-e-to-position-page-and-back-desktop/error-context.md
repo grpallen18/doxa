@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: experiment-home.spec.ts >> home >> collapse all hides position section bodies
-- Location: e2e\experiment-home.spec.ts:26:7
+- Name: experiment-home.spec.ts >> topic and position pages >> navigates from topic page to position page and back
+- Location: e2e\experiment-home.spec.ts:15:7
 
 # Error details
 

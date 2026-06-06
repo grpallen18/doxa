@@ -1,5 +1,7 @@
-import { TopicExploreHome } from '@/components/topic-explore-home'
+import { redirect } from 'next/navigation'
+import { defaultTopicId } from '@/lib/mock/topic-explore'
+import { topicPath } from '@/lib/topic-routes'
 
 export default function Home() {
-  return <TopicExploreHome />
+  redirect(topicPath(defaultTopicId))
 }

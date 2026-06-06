@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -12,15 +13,19 @@ import {
 export type TocSection = {
   id: string
   title: string
+  href?: string
+}
+
+export type TocBackLink = {
+  href: string
+  label: string
 }
 
 type TopicExploreContextValue = {
   sections: TocSection[]
   setSections: (sections: TocSection[]) => void
-  isCollapsed: (id: string) => boolean
-  setSectionCollapsed: (id: string, collapsed: boolean) => void
-  expandAll: () => void
-  collapseAll: () => void
+  backLink: TocBackLink | null
+  setBackLink: (link: TocBackLink | null) => void
   scrollToSection: (id: string) => void
   activeSectionId: string | null
   setActiveSectionId: (id: string | null) => void
@@ -30,32 +35,10 @@ const TopicExploreContext = createContext<TopicExploreContextValue | null>(null)
 
 export function TopicExploreProvider({ children }: { children: ReactNode }) {
   const [sections, setSections] = useState<TocSection[]>([])
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
+  const [backLink, setBackLink] = useState<TocBackLink | null>(null)
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
 
-  const isCollapsed = useCallback((id: string) => collapsedIds.has(id), [collapsedIds])
-
-  const setSectionCollapsed = useCallback((id: string, collapsed: boolean) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev)
-      if (collapsed) next.add(id)
-      else next.delete(id)
-      return next
-    })
-  }, [])
-
-  const expandAll = useCallback(() => setCollapsedIds(new Set()), [])
-
-  const collapseAll = useCallback(() => {
-    setCollapsedIds(new Set(sections.map((section) => section.id)))
-  }, [sections])
-
   const scrollToSection = useCallback((id: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
     requestAnimationFrame(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -66,23 +49,13 @@ export function TopicExploreProvider({ children }: { children: ReactNode }) {
     () => ({
       sections,
       setSections,
-      isCollapsed,
-      setSectionCollapsed,
-      expandAll,
-      collapseAll,
+      backLink,
+      setBackLink,
       scrollToSection,
       activeSectionId,
       setActiveSectionId,
     }),
-    [
-      sections,
-      isCollapsed,
-      setSectionCollapsed,
-      expandAll,
-      collapseAll,
-      scrollToSection,
-      activeSectionId,
-    ]
+    [sections, backLink, scrollToSection, activeSectionId]
   )
 
   return <TopicExploreContext.Provider value={value}>{children}</TopicExploreContext.Provider>
@@ -90,4 +63,62 @@ export function TopicExploreProvider({ children }: { children: ReactNode }) {
 
 export function useTopicExplore() {
   return useContext(TopicExploreContext)
+}
+
+export function useRegisterToc({
+  backLink = null,
+  sections,
+}: {
+  backLink?: TocBackLink | null
+  sections: TocSection[]
+}) {
+  const ctx = useTopicExplore()
+  const setSections = ctx?.setSections
+  const setBackLink = ctx?.setBackLink
+  const setActiveSectionId = ctx?.setActiveSectionId
+  const backHref = backLink?.href ?? null
+  const backLabel = backLink?.label ?? null
+
+  useEffect(() => {
+    if (!setSections || !setBackLink || !setActiveSectionId) return
+
+    setBackLink(backHref && backLabel ? { href: backHref, label: backLabel } : null)
+    setSections(sections)
+    setActiveSectionId(null)
+
+    return () => {
+      setBackLink(null)
+      setSections([])
+      setActiveSectionId(null)
+    }
+  }, [setSections, setBackLink, setActiveSectionId, backHref, backLabel, sections])
+
+  useEffect(() => {
+    if (!ctx) return
+
+    const scrollIds = sections.filter((section) => !section.href).map((section) => section.id)
+    if (scrollIds.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+        if (visible[0]?.target.id) {
+          ctx.setActiveSectionId(visible[0].target.id)
+        }
+      },
+      {
+        rootMargin: '-20% 0px -55% 0px',
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      }
+    )
+
+    for (const id of scrollIds) {
+      const el = document.getElementById(id)
+      if (el) observer.observe(el)
+    }
+
+    return () => observer.disconnect()
+  }, [ctx, sections])
 }

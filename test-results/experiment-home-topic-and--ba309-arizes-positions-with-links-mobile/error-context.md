@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: experiment-home.spec.ts >> home >> table of contents scrolls to a position section
-- Location: e2e\experiment-home.spec.ts:16:7
+- Name: experiment-home.spec.ts >> topic and position pages >> topic page summarizes positions with links
+- Location: e2e\experiment-home.spec.ts:4:7
 
 # Error details
 

@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: experiment-home.spec.ts >> home >> renders the topic dashboard with wiki position sections
-- Location: e2e\experiment-home.spec.ts:4:7
+- Name: experiment-home.spec.ts >> topic and position pages >> sidebar links to position pages
+- Location: e2e\experiment-home.spec.ts:36:7
 
 # Error details
 

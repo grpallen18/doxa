@@ -6,6 +6,8 @@
  * swapped for real query results without touching the presentational components.
  */
 
+import { immigrationPositionOverview } from './immigration-position-overview'
+
 export type Level = 'Low' | 'Moderate' | 'High' | 'Very High'
 
 export type TopicNavItem = {
@@ -52,12 +54,28 @@ export type PartyAgreement = {
   democrat: number
 }
 
+export type PositionNarrativeSection = {
+  id: string
+  title: string
+  paragraphs?: string[]
+  /** Linked list of sibling topic positions (excludes the current position). */
+  renderAs?: 'sibling-positions'
+}
+
+export type PositionNarrative = {
+  title: string
+  /** Lead paragraphs rendered under the page title without a section heading. */
+  intro?: string[]
+  sections: PositionNarrativeSection[]
+}
+
 export type Position = {
   id: string
   /** 1-based ordinal shown on the card. */
   ordinal: number
   headline: string
   description: string
+  narrative?: PositionNarrative
   storyCount: number
   advocates: PositionAdvocate[]
   /** Share of people who agree with this position (0–100). */
@@ -92,6 +110,7 @@ const immigrationPositions: Position[] = [
     id: 'pos-1',
     ordinal: 1,
     headline: 'Border enforcement must come first',
+    narrative: immigrationPositionOverview,
     description:
       'Secure the border and expand enforcement before any other reform is considered legitimate.',
     storyCount: 412,
@@ -267,9 +286,24 @@ export function getTopicById(id: string | null | undefined): Topic {
   return topics.find((t) => t.id === id) ?? immigrationTopic
 }
 
+export function findTopicById(id: string): Topic | null {
+  return topics.find((t) => t.id === id) ?? null
+}
+
 export function getPositionById(topic: Topic, id: string | null | undefined): Position | null {
   if (!id) return null
   return topic.positions.find((p) => p.id === id) ?? null
+}
+
+export function getTopicPosition(
+  topicId: string,
+  positionId: string
+): { topic: Topic; position: Position } | null {
+  const topic = findTopicById(topicId)
+  if (!topic) return null
+  const position = getPositionById(topic, positionId)
+  if (!position) return null
+  return { topic, position }
 }
 
 export const detailTabs = ['Overview', 'Claims', 'Evidence', 'Sources', 'Trends'] as const
