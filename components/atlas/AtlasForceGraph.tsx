@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { VizNode, VizEdge } from './types'
 import type { ForceGraphMethods } from 'react-force-graph-2d'
+import { themeColor } from '@/lib/theme-colors'
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
@@ -44,8 +45,7 @@ function getNodeStrokeColor(selected: boolean): string {
 }
 
 function getAtlasBgColor(): string {
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  return isDark ? '#1a1a1a' : '#e8e5e1'
+  return themeColor('--atlas-bg', '#1a1a1a')
 }
 
 function getAtlasEdgeColor(): string {

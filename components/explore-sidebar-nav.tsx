@@ -79,7 +79,12 @@ function TableOfContentsNav() {
                   type="button"
                   isActive={activeSectionId === section.id}
                   tooltip={section.title}
-                  className={cn('h-auto py-2')}
+                  className={cn('h-auto py-2', section.depth ? 'pl-2' : undefined)}
+                  style={
+                    section.depth
+                      ? { paddingLeft: `${0.75 + section.depth * 0.75}rem` }
+                      : undefined
+                  }
                   onClick={() => scrollToSection(section.id)}
                 >
                   <span className="line-clamp-2 text-left text-xs leading-snug">{section.title}</span>

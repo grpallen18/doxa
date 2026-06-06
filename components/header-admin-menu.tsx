@@ -1,17 +1,18 @@
 'use client'
 
 import Link from 'next/link'
+import { Fragment } from 'react'
 import { usePathname } from 'next/navigation'
-import {
-  Activity,
-  FileText,
-  BookOpen,
-  LayoutDashboard,
-  Map,
-  Shield,
-} from 'lucide-react'
+import { Glasses } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import {
+  dropdownChromeBodyClassName,
+  dropdownChromeContentClassName,
+  dropdownChromeHeaderClassName,
+  dropdownChromeSeparatorClassName,
+  headerChromeIconButtonClassName,
+} from '@/lib/header-chrome-styles'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,45 +23,49 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 const adminItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/topics', label: 'Topics', icon: FileText },
-  { href: '/admin/stories', label: 'Stories', icon: BookOpen },
-  { href: '/admin/health', label: 'Health', icon: Activity },
-  { href: '/atlas', label: 'Atlas', icon: Map },
+  { href: '/admin', label: 'Dashboard' },
+  { href: '/admin/topics', label: 'Topics' },
+  { href: '/admin/stories', label: 'Stories' },
+  { href: '/admin/health', label: 'Health' },
+  { href: '/atlas', label: 'Atlas' },
 ]
 
 export function HeaderAdminMenu() {
   const pathname = usePathname()
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className={headerChromeIconButtonClassName}
           aria-label="Admin menu"
         >
-          <Shield className="size-4" />
+          <Glasses className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuLabel>Admin</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {adminItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href === '/atlas' && pathname.startsWith('/atlas'))
+      <DropdownMenuContent align="end" className={dropdownChromeContentClassName}>
+        <div className={dropdownChromeHeaderClassName}>
+          <DropdownMenuLabel className="px-0 py-0 text-sidebar-foreground">Admin</DropdownMenuLabel>
+        </div>
+        <DropdownMenuSeparator className={dropdownChromeSeparatorClassName} />
+        <div className={dropdownChromeBodyClassName}>
+          {adminItems.map((item, index) => {
+            const isActive =
+              pathname === item.href ||
+              (item.href === '/atlas' && pathname.startsWith('/atlas'))
 
-          return (
-            <DropdownMenuItem key={item.href} asChild className={isActive ? 'bg-accent' : undefined}>
-              <Link href={item.href}>
-                <item.icon className="size-4" />
-                {item.label}
-              </Link>
-            </DropdownMenuItem>
-          )
-        })}
+            return (
+              <Fragment key={item.href}>
+                {index > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem asChild className={isActive ? 'bg-accent' : undefined}>
+                  <Link href={item.href}>{item.label}</Link>
+                </DropdownMenuItem>
+              </Fragment>
+            )
+          })}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

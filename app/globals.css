@@ -4,27 +4,29 @@
 
 /* ==========================================================================
    Doxa Color Palette — single source of truth
-   Light: 5 off-whites (surfaces) + 5 browns (text/accents)
+   Light: white surfaces + warm off-whites for depth + 5 browns (text/accents)
    Dark: 5 grays (surfaces) + 5 light tones (text/accents)
    ========================================================================== */
 
 :root {
-  /* Surfaces */
-  --background: #e8e5e1;
+  /* Surfaces — background = white content canvas; sidebar tokens = warm chrome */
+  --chrome-warm: #f8f5f1;
+  --background: #ffffff;
   --foreground: #1a1712;
-  --surface: #e2dfdb;
-  --surface-soft: #e8e5e1;
-  --surface-section: #dad6d1;
-  --surface-accordion: #ddd9d5;
+  --surface: #faf9f7;
+  --surface-soft: #ffffff;
+  --surface-section: #f5f3f0;
+  --surface-accordion: #f7f5f2;
 
   /* Borders */
-  --border-subtle: #d2cfca;
-  --separator: #c9c5c0;
+  --border-subtle: #ebe7e2;
+  --border-heading: #ccc5bc;
+  --separator: #e0dcd6;
 
   /* Text: muted = secondary text, muted-soft = tertiary */
   --muted: #524736;
   --muted-soft: #6a6053;
-  --muted-bg: #e8e5e1;
+  --muted-bg: #faf9f7;
 
   /* Accents */
   --accent-primary: #2d5a4a;
@@ -34,8 +36,25 @@
   --accent-secondary-soft: rgba(166, 139, 109, 0.28);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 95%, white);
 
+  /* Classic web link hues — browser default :link is #0000EE; readable green parallel is #008000 */
+  --link-default-blue: #0000ee;
+  --link-default-blue-hover: #3358f5;
+  --link-default-green: #008000;
+  --link-default-green-hover: #00c400;
+  --link-accent: var(--link-default-blue);
+  --link-accent-hover: var(--link-default-blue-hover);
+  /* Idle dashed underline = deeper accent; hover solid = lighter than the hover text */
+  --link-underline-idle: var(--link-accent);
+  --link-underline-active: #6690ff;
+  --link-underline-idle-opacity: 0.8;
+
   /* Body background */
-  --body-bg: radial-gradient(circle at top left, #e8e5e1 0, #e2dfdb 40%, #dad6d1 100%);
+  --body-bg: radial-gradient(
+    circle at top left,
+    var(--background) 0,
+    var(--surface) 40%,
+    var(--surface-section) 100%
+  );
 
   /* Shadows */
   --shadow-panel-soft: 0.5em 0.5em 0.6em rgba(0, 0, 0, 0.05),
@@ -75,7 +94,7 @@
   --graph-link: rgba(82, 71, 54, 0.25);
 
   /* Atlas bubbles */
-  --atlas-bg: #e8e5e1;
+  --atlas-bg: var(--background);
   --atlas-thesis-positive: #0d9488;
   --atlas-thesis-negative: #dc2626;
   --atlas-thesis-neutral: #0f766e;
@@ -95,12 +114,12 @@
   --popover-foreground: #1a1712;
   --primary: #2d5a4a;
   --primary-foreground: #faf9f7;
-  --secondary: #e2dfdb;
+  --secondary: #f5f3f0;
   --secondary-foreground: #1a1712;
   --destructive: #dc2626;
   --destructive-foreground: #fafafa;
-  --border: #d2cfca;
-  --input: #d2cfca;
+  --border: #ebe7e2;
+  --input: #ebe7e2;
   --ring: #2d5a4a;
   --chart-1: #2d5a4a;
   --chart-2: #a68b6d;
@@ -109,13 +128,13 @@
   --chart-5: #dc2626;
   --success: #16a34a;
   --success-foreground: #052e16;
-  --sidebar-background: 30 15% 94%;
+  --sidebar-background: 36 30% 96%;
   --sidebar-foreground: 30 20% 25%;
   --sidebar-primary: 155 35% 25%;
   --sidebar-primary-foreground: 30 10% 98%;
-  --sidebar-accent: 30 11% 83%;
+  --sidebar-accent: 36 18% 92%;
   --sidebar-accent-foreground: 30 20% 25%;
-  --sidebar-border: 30 10% 88%;
+  --sidebar-border: 36 12% 88%;
   --sidebar-ring: 155 35% 25%;
 }
 
@@ -130,6 +149,7 @@
 
   /* Borders */
   --border-subtle: #333333;
+  --border-heading: #525252;
   --separator: #444444;
 
   /* Text */
@@ -144,6 +164,12 @@
   --accent-secondary: #e0ddd9;
   --accent-secondary-soft: rgba(224, 221, 217, 0.25);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 90%, var(--surface));
+
+  --link-accent: var(--link-default-green);
+  --link-accent-hover: var(--link-default-green-hover);
+  --link-underline-idle: var(--link-accent);
+  --link-underline-active: var(--link-accent-hover);
+  --link-underline-idle-opacity: 0.4;
 
   /* Body background */
   --body-bg: radial-gradient(circle at top left, #151515 0, #1a1a1a 50%, #1e1e1e 100%);
@@ -190,8 +216,8 @@
   /* shadcn / UI tokens */
   --card: #1e1e1e;
   --card-foreground: #e8e6e3;
-  --popover: #1e1e1e;
-  --popover-foreground: #e8e6e3;
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
   --primary: #f0edea;
   --primary-foreground: #1a1712;
   --secondary: #2a2a2a;
@@ -218,6 +244,10 @@
   --sidebar-ring: 30 10% 94%;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   background: var(--body-bg);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
@@ -227,18 +257,18 @@ body {
 /* Theme toggle switch */
 .theme-toggle-switch {
   position: relative;
-  width: 44px;
-  height: 22px;
-  --light: #e8e5e1;
+  width: 38px;
+  height: 19px;
+  --light: #ffffff;
   --dark: #2a2a2a;
 }
 
 .theme-toggle-switch .switch-label {
   position: absolute;
   width: 100%;
-  height: 22px;
+  height: 19px;
   background-color: var(--light);
-  border-radius: 11px;
+  border-radius: 10px;
   cursor: pointer;
   border: 2px solid var(--light);
 }
@@ -252,7 +282,7 @@ body {
   position: absolute;
   width: 100%;
   height: 100%;
-  border-radius: 11px;
+  border-radius: 10px;
   transition: 0.3s;
 }
 
@@ -263,18 +293,18 @@ body {
 .theme-toggle-switch .slider::before {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 6px;
-  width: 12px;
-  height: 12px;
+  top: 2px;
+  left: 5px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  box-shadow: inset 5px -2px 0 0 var(--dark);
+  box-shadow: inset 4px -2px 0 0 var(--dark);
   background-color: var(--light);
   transition: 0.3s;
 }
 
 .theme-toggle-switch .checkbox:checked ~ .slider::before {
-  transform: translateX(17px);
+  transform: translateX(15px);
   background-color: var(--light);
   box-shadow: none;
 }
@@ -522,6 +552,100 @@ body {
   .search-input {
     color: var(--foreground);
     background-color: var(--surface);
+  }
+
+  .doxa-link {
+    scroll-margin-top: calc(var(--header-height) + 1rem);
+    text-decoration: none;
+  }
+
+  .doxa-link__text {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    padding-bottom: 3px;
+    vertical-align: top;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--link-accent);
+    transition: color var(--interactive-duration) ease;
+  }
+
+  .doxa-link:hover .doxa-link__text,
+  .doxa-link:focus-visible .doxa-link__text {
+    color: var(--link-accent-hover);
+  }
+
+  .doxa-link__text::before,
+  .doxa-link__text::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  .doxa-link__text::before {
+    opacity: var(--link-underline-idle-opacity);
+    background-image: repeating-linear-gradient(
+      to right,
+      var(--link-underline-idle) 0,
+      var(--link-underline-idle) 3px,
+      transparent 3px,
+      transparent 6px
+    );
+    transition: opacity var(--interactive-duration) ease;
+  }
+
+  .doxa-link__text::after {
+    background-color: var(--link-underline-active);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--interactive-duration) ease;
+  }
+
+  .doxa-link:hover .doxa-link__text::before,
+  .doxa-link:focus-visible .doxa-link__text::before {
+    opacity: 0;
+  }
+
+  .doxa-link:hover .doxa-link__text::after,
+  .doxa-link:focus-visible .doxa-link__text::after {
+    transform: scaleX(1);
+  }
+
+  .doxa-link--truncate {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+  }
+
+  .doxa-link--truncate .doxa-link__text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .doxa-link__text::before,
+    .doxa-link__text::after {
+      transition: none;
+    }
+
+    .doxa-link:hover .doxa-link__text::before,
+    .doxa-link:focus-visible .doxa-link__text::before {
+      opacity: 0;
+    }
+
+    .doxa-link:hover .doxa-link__text::after,
+    .doxa-link:focus-visible .doxa-link__text::after {
+      transform: scaleX(1);
+    }
   }
 
   input[type="search"]::-webkit-search-cancel-button {

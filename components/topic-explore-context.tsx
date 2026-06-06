@@ -14,6 +14,8 @@ export type TocSection = {
   id: string
   title: string
   href?: string
+  /** Nesting depth for position page subsections (0 = top level). */
+  depth?: number
 }
 
 export type TocBackLink = {

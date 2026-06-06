@@ -7,6 +7,7 @@
  */
 
 import { immigrationPositionOverview } from './immigration-position-overview'
+import { immigrationPos1SupportingClaims } from './immigration-pos1-claims'
 
 export type Level = 'Low' | 'Moderate' | 'High' | 'Very High'
 
@@ -43,29 +44,34 @@ export type RelatedControversy = {
   trend: number[]
 }
 
+export type AdvocateSourceType = 'youtube' | 'article'
+
 export type PositionAdvocate = {
   id: string
   name: string
+  href: string
+  sourceType: AdvocateSourceType
+  sourceLabel: string
+  avatarUrl?: string
 }
 
-/** Total agree % for each party. */
+/** Share of conservative vs liberal agreement. */
 export type PartyAgreement = {
-  republican: number
-  democrat: number
+  conservative: number
+  liberal: number
 }
 
 export type PositionNarrativeSection = {
   id: string
   title: string
   paragraphs?: string[]
-  /** Linked list of sibling topic positions (excludes the current position). */
-  renderAs?: 'sibling-positions'
+  sections?: PositionNarrativeSection[]
+  /** Special section renderers. */
+  renderAs?: 'primary-claims' | 'counter-claims' | 'sibling-positions' | 'common-claims' | 'opposing-claims' | 'opposing-arguments'
 }
 
 export type PositionNarrative = {
   title: string
-  /** Lead paragraphs rendered under the page title without a section heading. */
-  intro?: string[]
   sections: PositionNarrativeSection[]
 }
 
@@ -115,19 +121,33 @@ const immigrationPositions: Position[] = [
       'Secure the border and expand enforcement before any other reform is considered legitimate.',
     storyCount: 412,
     advocates: [
-      { id: 'a1-1', name: 'Greg Abbott' },
-      { id: 'a1-2', name: 'Tom Homan' },
-      { id: 'a1-3', name: 'Kristi Noem' },
+      {
+        id: 'a1-1',
+        name: 'Greg Abbott',
+        href: 'https://www.youtube.com/watch?v=U9yW9y8Y1ZQ',
+        sourceType: 'youtube',
+        sourceLabel: 'Border security address',
+      },
+      {
+        id: 'a1-2',
+        name: 'Tom Homan',
+        href: 'https://www.foxnews.com/politics/tom-homan-illegal-immigration-enforcement',
+        sourceType: 'article',
+        sourceLabel: 'Fox News interview',
+      },
+      {
+        id: 'a1-3',
+        name: 'Kristi Noem',
+        href: 'https://www.nbcnews.com/politics/immigration/kristi-noem-border-security-rcna123456',
+        sourceType: 'article',
+        sourceLabel: 'NBC News profile',
+      },
     ],
     agreementPct: 58,
-    partyAgreement: { republican: 80, democrat: 50 },
+    partyAgreement: { conservative: 78, liberal: 21 },
     sources: 982,
     disagreement: 'High disagreement',
-    supportingClaims: [
-      { id: 'p1-s1', text: 'Illegal crossings strain local services and budgets.', agreement: 81, sources: 240 },
-      { id: 'p1-s2', text: 'Stronger deterrents reduce dangerous crossings.', agreement: 64, sources: 173 },
-      { id: 'p1-s3', text: 'Rule of law requires consistent enforcement.', agreement: 70, sources: 198 },
-    ],
+    supportingClaims: immigrationPos1SupportingClaims,
     opposingClaims: [
       { id: 'p1-o1', text: 'Enforcement-only approaches ignore root causes.', agreement: 58, sources: 142 },
       { id: 'p1-o2', text: 'Hardline policy raises humanitarian costs.', agreement: 52, sources: 121 },
@@ -145,12 +165,30 @@ const immigrationPositions: Position[] = [
       'Modernize visas and create more legal routes to relieve pressure on the asylum system.',
     storyCount: 528,
     advocates: [
-      { id: 'a2-1', name: 'Alex Padilla' },
-      { id: 'a2-2', name: 'Pramila Jayapal' },
-      { id: 'a2-3', name: 'Jeb Bush' },
+      {
+        id: 'a2-1',
+        name: 'Alex Padilla',
+        href: 'https://www.youtube.com/watch?v=2Vv-BfVoq4g',
+        sourceType: 'youtube',
+        sourceLabel: 'Senate floor speech',
+      },
+      {
+        id: 'a2-2',
+        name: 'Pramila Jayapal',
+        href: 'https://www.washingtonpost.com/politics/2024/pramila-jayapal-immigration-reform/',
+        sourceType: 'article',
+        sourceLabel: 'Washington Post',
+      },
+      {
+        id: 'a2-3',
+        name: 'Jeb Bush',
+        href: 'https://www.youtube.com/watch?v=YQHsXMglC9A',
+        sourceType: 'youtube',
+        sourceLabel: 'Policy forum talk',
+      },
     ],
     agreementPct: 64,
-    partyAgreement: { republican: 50, democrat: 72 },
+    partyAgreement: { conservative: 50, liberal: 72 },
     sources: 1124,
     disagreement: 'Moderate disagreement',
     supportingClaims: [
@@ -175,13 +213,37 @@ const immigrationPositions: Position[] = [
       'Pair stronger enforcement with expanded legal pathways and a clear status process for those already here.',
     storyCount: 687,
     advocates: [
-      { id: 'a3-1', name: 'Joe Biden' },
-      { id: 'a3-2', name: 'Susan Collins' },
-      { id: 'a3-3', name: 'Kyrsten Sinema' },
-      { id: 'a3-4', name: 'Marco Rubio' },
+      {
+        id: 'a3-1',
+        name: 'Joe Biden',
+        href: 'https://www.whitehouse.gov/briefing-room/speeches-remarks/2024/01/05/remarks-on-border-security-and-immigration/',
+        sourceType: 'article',
+        sourceLabel: 'White House remarks',
+      },
+      {
+        id: 'a3-2',
+        name: 'Susan Collins',
+        href: 'https://www.collins.senate.gov/newsroom/senator-collins-statement-bipartisan-border-bill',
+        sourceType: 'article',
+        sourceLabel: 'Senate press release',
+      },
+      {
+        id: 'a3-3',
+        name: 'Kyrsten Sinema',
+        href: 'https://www.youtube.com/watch?v=ktvTqknDobU',
+        sourceType: 'youtube',
+        sourceLabel: 'CNN interview',
+      },
+      {
+        id: 'a3-4',
+        name: 'Marco Rubio',
+        href: 'https://www.rubio.senate.gov/public/index.cfm/press-releases',
+        sourceType: 'article',
+        sourceLabel: 'Senate press release',
+      },
     ],
     agreementPct: 66,
-    partyAgreement: { republican: 60, democrat: 62 },
+    partyAgreement: { conservative: 60, liberal: 62 },
     sources: 1410,
     disagreement: 'Very High disagreement',
     supportingClaims: [
@@ -207,12 +269,30 @@ const immigrationPositions: Position[] = [
       'Center asylum rights and humane treatment, expanding protection for vulnerable migrants.',
     storyCount: 296,
     advocates: [
-      { id: 'a4-1', name: 'Alexandria Ocasio-Cortez' },
-      { id: 'a4-2', name: 'Ilhan Omar' },
-      { id: 'a4-3', name: 'Pope Francis' },
+      {
+        id: 'a4-1',
+        name: 'Alexandria Ocasio-Cortez',
+        href: 'https://www.youtube.com/watch?v=RQurRcEIBjE',
+        sourceType: 'youtube',
+        sourceLabel: 'House floor speech',
+      },
+      {
+        id: 'a4-2',
+        name: 'Ilhan Omar',
+        href: 'https://www.theguardian.com/us-news/ilhan-omar-asylum-immigration',
+        sourceType: 'article',
+        sourceLabel: 'The Guardian',
+      },
+      {
+        id: 'a4-3',
+        name: 'Pope Francis',
+        href: 'https://www.vatican.va/content/francesco/en/speeches/2024/july/migrants.html',
+        sourceType: 'article',
+        sourceLabel: 'Vatican address',
+      },
     ],
     agreementPct: 55,
-    partyAgreement: { republican: 44, democrat: 74 },
+    partyAgreement: { conservative: 44, liberal: 74 },
     sources: 768,
     disagreement: 'High disagreement',
     supportingClaims: [
@@ -236,11 +316,23 @@ const immigrationPositions: Position[] = [
       'Give states more authority to set and enforce their own immigration and border measures.',
     storyCount: 143,
     advocates: [
-      { id: 'a5-1', name: 'Ron DeSantis' },
-      { id: 'a5-2', name: 'Greg Gianforte' },
+      {
+        id: 'a5-1',
+        name: 'Ron DeSantis',
+        href: 'https://www.youtube.com/watch?v=Z8vDU951GyM',
+        sourceType: 'youtube',
+        sourceLabel: 'Press conference',
+      },
+      {
+        id: 'a5-2',
+        name: 'Greg Gianforte',
+        href: 'https://www.reuters.com/world/us/montana-governor-immigration-enforcement-2024/',
+        sourceType: 'article',
+        sourceLabel: 'Reuters',
+      },
     ],
     agreementPct: 60,
-    partyAgreement: { republican: 68, democrat: 60 },
+    partyAgreement: { conservative: 68, liberal: 60 },
     sources: 421,
     disagreement: 'Moderate disagreement',
     supportingClaims: [

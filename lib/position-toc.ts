@@ -1,5 +1,5 @@
 import type { TocSection } from '@/components/topic-explore-context'
-import type { Position } from '@/lib/mock/topic-explore'
+import type { Position, PositionNarrative, PositionNarrativeSection } from '@/lib/mock/topic-explore'
 
 export function positionSectionId(positionId: string) {
   return `position-${positionId}`
@@ -9,26 +9,77 @@ export function narrativeSectionDomId(positionId: string, narrativeSectionId: st
   return `${positionSectionId(positionId)}-narrative-${narrativeSectionId}`
 }
 
-export function buildPositionTocSections(position: Position): TocSection[] {
-  const baseId = positionSectionId(position.id)
-  const pageTitle = position.narrative?.title ?? position.headline
+export function narrativeSectionHasRenderAs(
+  sections: PositionNarrativeSection[],
+  renderAs: NonNullable<PositionNarrativeSection['renderAs']>
+): boolean {
+  for (const section of sections) {
+    if (section.renderAs === renderAs) return true
+    if (section.sections && narrativeSectionHasRenderAs(section.sections, renderAs)) return true
+  }
+  return false
+}
 
-  const sections: TocSection[] = [{ id: `${baseId}-title`, title: pageTitle }]
+export function narrativeHasSeeAlso(narrative: PositionNarrative): boolean {
+  return narrative.sections.some((section) => section.id === 'see-also')
+}
 
-  if (position.narrative) {
-    for (const section of position.narrative.sections) {
-      sections.push({
-        id: narrativeSectionDomId(position.id, section.id),
-        title: section.title,
-      })
+function narrativeSectionTocTitle(
+  section: PositionNarrativeSection,
+  narrative: PositionNarrative
+): string {
+  if (section.id === 'overview') return narrative.title
+  return section.title
+}
+
+function appendNarrativeTocSections(
+  sections: TocSection[],
+  positionId: string,
+  narrative: PositionNarrative,
+  narrativeSections: PositionNarrativeSection[],
+  depth = 0
+) {
+  for (const section of narrativeSections) {
+    sections.push({
+      id: narrativeSectionDomId(positionId, section.id),
+      title: narrativeSectionTocTitle(section, narrative),
+      depth,
+    })
+
+    if (section.sections) {
+      appendNarrativeTocSections(sections, positionId, narrative, section.sections, depth + 1)
     }
   }
+}
 
-  sections.push(
-    { id: `${baseId}-supporting`, title: 'Key supporting claims' },
-    { id: `${baseId}-opposing`, title: 'Top opposing claims' },
-    { id: `${baseId}-controversies`, title: 'Related controversies' }
-  )
+export function buildPositionTocSections(position: Position): TocSection[] {
+  const baseId = positionSectionId(position.id)
+  const sections: TocSection[] = []
+
+  if (!position.narrative) {
+    sections.push({
+      id: `${baseId}-title`,
+      title: position.headline,
+      depth: 0,
+    })
+  } else {
+    appendNarrativeTocSections(sections, position.id, position.narrative, position.narrative.sections)
+  }
+
+  if (
+    !position.narrative ||
+    !narrativeSectionHasRenderAs(position.narrative.sections, 'primary-claims') &&
+    !narrativeSectionHasRenderAs(position.narrative.sections, 'common-claims')
+  ) {
+    sections.push({ id: `${baseId}-supporting`, title: 'Key supporting claims', depth: 0 })
+  }
+
+  if (!position.narrative || !narrativeHasSeeAlso(position.narrative)) {
+    sections.push(
+      { id: `${baseId}-opposing`, title: 'Top opposing claims', depth: 0 },
+      { id: `${baseId}-controversies`, title: 'Related controversies', depth: 0 }
+    )
+  }
 
   return sections
 }

@@ -16,8 +16,8 @@ const DEM_COLOR = '#2563eb'
 
 export function PositionPartyChart({ agreement }: { agreement: PartyAgreement }) {
   const data = [
-    { party: 'Republican', agreePct: agreement.republican },
-    { party: 'Democrat', agreePct: agreement.democrat },
+    { party: 'Conservatives', agreePct: agreement.conservative },
+    { party: 'Liberals', agreePct: agreement.liberal },
   ]
 
   return (
@@ -44,7 +44,7 @@ export function PositionPartyChart({ agreement }: { agreement: PartyAgreement })
             {data.map((row) => (
               <Cell
                 key={row.party}
-                fill={row.party === 'Republican' ? REP_COLOR : DEM_COLOR}
+                fill={row.party === 'Conservatives' ? REP_COLOR : DEM_COLOR}
               />
             ))}
             <LabelList

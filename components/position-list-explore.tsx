@@ -70,9 +70,9 @@ function DiscourseStrip({ positions }: { positions: Position[] }) {
 function PartySplit({ agreement }: { agreement: Position['partyAgreement'] }) {
   return (
     <span className="hidden shrink-0 tabular-nums text-[11px] text-muted sm:inline">
-      <span style={{ color: '#991b1b' }}>R {agreement.republican}%</span>
+      <span style={{ color: '#991b1b' }}>C {agreement.conservative}%</span>
       <span className="mx-1 text-muted/60">·</span>
-      <span style={{ color: '#2563eb' }}>D {agreement.democrat}%</span>
+      <span style={{ color: '#2563eb' }}>L {agreement.liberal}%</span>
     </span>
   )
 }

@@ -6,6 +6,7 @@ const config: Config = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './lib/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
   	extend: {
@@ -51,6 +52,9 @@ const config: Config = {
   			border: 'var(--border)',
   			input: 'var(--input)',
   			ring: 'var(--ring)',
+  			'link-default-blue': 'var(--link-default-blue)',
+  			'link-default-blue-hover': 'var(--link-default-blue-hover)',
+  			'link-default-green': 'var(--link-default-green)',
   			chart: {
   				'1': 'var(--chart-1)',
   				'2': 'var(--chart-2)',
@@ -100,6 +104,7 @@ const config: Config = {
   		},
   		borderColor: {
   			subtle: 'var(--border-subtle)',
+  			heading: 'var(--border-heading)',
   			separator: 'var(--separator)',
   		},
   		keyframes: {

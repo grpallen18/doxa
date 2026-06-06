@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { forceSimulation, forceLink, forceManyBody } from 'd3-force-3d'
 import { cn } from '@/lib/utils'
 import type { VizNode } from './types'
+import { themeColor } from '@/lib/theme-colors'
 import type { OuterNode } from './types'
 
 interface AtlasNodeTestCanvasProps {
@@ -89,11 +90,6 @@ const COLORS = {
   claimNeutral:    ['#9a8a7a', '#a68b6d'] as [string, string],
   // Edges connecting nodes
   edge:            ['rgba(176,176,176,0.35)', 'rgba(74,69,57,0.35)'] as [string, string],
-  // Canvas background
-  background:      ['#1a1a1a', '#e8e5e1'] as [string, string],
-  // Surface colors for gradient center and border blend
-  surfaceSoft:     ['#2a2a2a', '#e8e5e1'] as [string, string],
-  surfaceSection:  ['#252525', '#dad6d1'] as [string, string],
   // Node borders (blended with surface - kept for fallback)
   claimBorder:     ['#5a4a3a', '#7a6a52'] as [string, string],
   centerBorder:    ['#0a6b5e', '#065f54'] as [string, string],
@@ -142,8 +138,8 @@ function pick(pair: [string, string]): string {
 }
 
 function LegendSwatch({ mainColor, label }: { mainColor: string; label: string }) {
-  const surfaceColor = pick(COLORS.surfaceSoft)
-  const surfaceSection = pick(COLORS.surfaceSection)
+  const surfaceColor = getSurfaceSoft()
+  const surfaceSection = getSurfaceSection()
   const borderColor = blendHex(mainColor, surfaceSection, 0.45)
   const midColor = blendHex(mainColor, surfaceColor, 0.42)
   const edgeColor = blendHex(mainColor, surfaceColor, 0.55)
@@ -182,8 +178,8 @@ function getBaseColor(node: VizNode): string {
 /** Returns gradient fill colors and border for the circle aesthetic (gradient + blended border) */
 function getNodeStyle(node: VizNode): { mainColor: string; borderRgb: [number, number, number]; surfaceColor: string } {
   const mainColor = getBaseColor(node)
-  const surfaceSoft = pick(COLORS.surfaceSoft)
-  const surfaceSection = pick(COLORS.surfaceSection)
+  const surfaceSoft = getSurfaceSoft()
+  const surfaceSection = getSurfaceSection()
   const borderColor = blendHex(mainColor, surfaceSection, 0.45)
   const borderRgb = parseRgb(borderColor)
   return { mainColor, borderRgb, surfaceColor: surfaceSoft }
@@ -200,7 +196,15 @@ function getEdgeColor(): string {
 }
 
 function getBgColor(): string {
-  return pick(COLORS.background)
+  return themeColor('--background', '#1a1a1a')
+}
+
+function getSurfaceSoft(): string {
+  return themeColor('--surface-soft', '#2a2a2a')
+}
+
+function getSurfaceSection(): string {
+  return themeColor('--surface-section', '#252525')
 }
 
 // ---- Per-node animated state (hover/drag visual effects) ----

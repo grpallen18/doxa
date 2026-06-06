@@ -1,11 +1,21 @@
 'use client'
 
-import { positionAccentVar } from '@/lib/topic-explore-ui'
-import type { PartyAgreement, Position } from '@/lib/mock/topic-explore'
+import { ExternalLink, Newspaper, Youtube } from 'lucide-react'
+import type { PartyAgreement, Position, PositionAdvocate } from '@/lib/mock/topic-explore'
 import { cn } from '@/lib/utils'
 
-const REP_COLOR = '#991b1b'
-const DEM_COLOR = '#2563eb'
+const CONSERVATIVE_COLOR = '#991b1b'
+const LIBERAL_COLOR = '#2563eb'
+
+function ideologySummary(agreement: PartyAgreement): string {
+  if (agreement.conservative > agreement.liberal + 10) {
+    return 'This is a mostly conservative position.'
+  }
+  if (agreement.liberal > agreement.conservative + 10) {
+    return 'This is a mostly liberal position.'
+  }
+  return 'This spans conservative and liberal support.'
+}
 
 function PartyBar({ label, percent, color }: { label: string; percent: number; color: string }) {
   return (
@@ -25,71 +35,32 @@ function PartyBar({ label, percent, color }: { label: string; percent: number; c
   )
 }
 
-function formatAgreementRank(rank: number, total: number): string {
-  if (rank === 1) return 'Most agreed position on this topic'
-  if (rank === total) return 'Least agreed position on this topic'
-  const suffix =
-    rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'
-  return `${rank}${suffix} of ${total} positions by agreement`
-}
-
 export function PositionPopularitySnapshot({
   position,
-  agreementRank,
-  topicPositionCount,
   className,
 }: {
   position: Position
-  agreementRank?: number
-  topicPositionCount?: number
   className?: string
 }) {
-  const accent = positionAccentVar(position.ordinal)
-  const showRank =
-    agreementRank != null &&
-    topicPositionCount != null &&
-    topicPositionCount > 1
-
   return (
     <figure
       className={cn(
-        'mb-4 w-full rounded-bevel border border-subtle bg-surface p-3 shadow-panel-soft',
-        'sm:float-right sm:clear-right sm:mb-3 sm:ml-5 sm:w-56',
+        'mb-4 w-full rounded-bevel border border-subtle bg-surface p-4',
+        'sm:float-right sm:clear-right sm:mb-3 sm:ml-5 sm:w-64',
         className
       )}
       data-testid="position-popularity-snapshot"
     >
-      <figcaption className="mb-3 text-[10px] font-medium uppercase tracking-wide text-muted">
-        At a glance
-      </figcaption>
-
-      <div className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p
-              className="text-3xl font-semibold leading-none tabular-nums tracking-tight"
-              style={{ color: accent }}
-            >
-              {position.agreementPct}%
-            </p>
-            <p className="mt-1 text-xs text-muted">agree with this position</p>
-          </div>
-          {showRank && (
-            <p className="max-w-[7rem] text-right text-[10px] leading-snug text-muted">
-              {formatAgreementRank(agreementRank, topicPositionCount)}
-            </p>
-          )}
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-foreground">Who Agrees?</p>
+          <PartyBars agreement={position.partyAgreement} />
+          <p className="text-center text-[11px] italic leading-snug text-muted">
+            {ideologySummary(position.partyAgreement)}
+          </p>
         </div>
 
-        <PartyBars agreement={position.partyAgreement} />
-
-        <dl className="grid grid-cols-3 gap-2 border-t border-subtle pt-3 text-center">
-          <Stat label="Sources" value={position.sources} />
-          <Stat label="Stories" value={position.storyCount} />
-          <Stat label="Advocates" value={position.advocates.length} />
-        </dl>
-
-        <p className="text-center text-[11px] text-muted">{position.disagreement}</p>
+        <AdvocateLinks advocates={position.advocates} />
       </div>
     </figure>
   )
@@ -98,28 +69,50 @@ export function PositionPopularitySnapshot({
 function PartyBars({ agreement }: { agreement: PartyAgreement }) {
   return (
     <div className="space-y-2">
-      <PartyBar label="Republican" percent={agreement.republican} color={REP_COLOR} />
-      <PartyBar label="Democrat" percent={agreement.democrat} color={DEM_COLOR} />
+      <PartyBar label="Conservatives" percent={agreement.conservative} color={CONSERVATIVE_COLOR} />
+      <PartyBar label="Liberals" percent={agreement.liberal} color={LIBERAL_COLOR} />
     </div>
   )
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function AdvocateSourceIcon({ sourceType }: { sourceType: PositionAdvocate['sourceType'] }) {
+  if (sourceType === 'youtube') {
+    return <Youtube className="size-3 shrink-0" aria-hidden />
+  }
+  return <Newspaper className="size-3 shrink-0" aria-hidden />
+}
+
+function AdvocateLinks({ advocates }: { advocates: PositionAdvocate[] }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-[10px] uppercase tracking-wide text-muted">{label}</dt>
-      <dd className="truncate text-sm font-semibold tabular-nums text-foreground">
-        {value.toLocaleString()}
-      </dd>
+    <div className="border-t border-subtle pt-3">
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">Popular Viewpoints</p>
+      <ul className="space-y-1">
+        {advocates.map((advocate) => (
+          <li key={advocate.id}>
+            <a
+              href={advocate.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-surface-section"
+              data-testid="position-advocate-link"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium text-foreground transition-colors group-hover:text-link-default-blue dark:group-hover:text-link-default-green">
+                  {advocate.name}
+                </span>
+                <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted">
+                  <AdvocateSourceIcon sourceType={advocate.sourceType} />
+                  <span className="truncate">{advocate.sourceLabel}</span>
+                </span>
+              </span>
+              <ExternalLink
+                className="size-3 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100"
+                aria-hidden
+              />
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   )
-}
-
-export function getPositionAgreementRank(
-  positionId: string,
-  positions: Pick<Position, 'id' | 'agreementPct'>[]
-): number {
-  const sorted = [...positions].sort((a, b) => b.agreementPct - a.agreementPct)
-  const index = sorted.findIndex((p) => p.id === positionId)
-  return index === -1 ? 0 : index + 1
 }

@@ -5,10 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { PositionNarrativeArticle } from '@/components/position-narrative-article'
 import { PositionDetailContent } from '@/components/position-detail-content'
-import {
-  PositionPopularitySnapshot,
-  getPositionAgreementRank,
-} from '@/components/position-popularity-snapshot'
+import { PositionPopularitySnapshot } from '@/components/position-popularity-snapshot'
 import { useRegisterToc } from '@/components/topic-explore-context'
 import { buildPositionTocSections, positionSectionId } from '@/lib/position-toc'
 import { topicPath } from '@/lib/topic-routes'
@@ -25,13 +22,6 @@ export function PositionExplorePage({
   const sectionId = positionSectionId(position.id)
 
   const tocSections = useMemo(() => buildPositionTocSections(position), [position])
-  const agreementRank = useMemo(
-    () => getPositionAgreementRank(position.id, topic.positions),
-    [position.id, topic.positions]
-  )
-  const introParagraphs =
-    position.narrative?.intro ??
-    (position.narrative ? [] : [position.description])
 
   useRegisterToc({
     backLink: { href: topicPath(topic.id), label: topic.title },
@@ -51,30 +41,26 @@ export function PositionExplorePage({
         </Link>
 
         <div data-testid="position-article-body">
-          <h1
-            id={`${sectionId}-title`}
-            className="mb-4 scroll-mt-[calc(var(--header-height)+1rem)] text-2xl font-semibold tracking-tight text-foreground"
-          >
-            {pageTitle}
-          </h1>
+          <PositionPopularitySnapshot position={position} />
 
-          <PositionPopularitySnapshot
-            position={position}
-            agreementRank={agreementRank}
-            topicPositionCount={topic.positions.length}
-          />
-
-          {introParagraphs.map((paragraph, index) => (
-            <p key={index} className="mb-4 text-sm leading-relaxed text-foreground/90">
-              {paragraph}
-            </p>
-          ))}
+          {!position.narrative && (
+            <>
+              <h1
+                id={`${sectionId}-title`}
+                className="mb-4 scroll-mt-[calc(var(--header-height)+1rem)] text-2xl font-semibold tracking-tight text-foreground"
+              >
+                {pageTitle}
+              </h1>
+              <p className="mb-4 text-sm leading-relaxed text-foreground/90">{position.description}</p>
+            </>
+          )}
 
           {position.narrative && (
             <PositionNarrativeArticle
               narrative={position.narrative}
               positionId={position.id}
               topic={topic}
+              position={position}
             />
           )}
         </div>
