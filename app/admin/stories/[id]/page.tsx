@@ -1,67 +1,95 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
-import {
-  StoryExtractionReviewView,
-  StoryReviewBreadcrumb,
-} from '../story-extraction-review-view'
+import { useCallback, useState } from 'react'
+import { HighlightedArticleText } from '@/components/admin/highlighted-article-text'
+import { StoryHubSummary } from '@/components/admin/stories/story-hub-summary'
+import { useStoryReview } from '@/components/admin/stories/story-review-provider'
+import { Panel } from '@/components/Panel'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import type { ArticleSpan } from '@/lib/admin/article-span-highlight'
+import { qaStatusLabel } from '@/lib/admin/extraction-qa-types'
 
-export default function AdminStoryExtractionReviewPage() {
-  const params = useParams()
-  const storyId = typeof params.id === 'string' ? params.id : null
-  const [payload, setPayload] = useState<StoryExtractionReviewPayload | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+function formatDate(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+}
 
-  const load = useCallback(async (silent = false) => {
-    if (!storyId) return
-    if (!silent) {
-      setLoading(true)
-      setError(null)
-    }
+export default function AdminStoryHubPage() {
+  const { storyId, payload, refresh } = useStoryReview()
+  const [approving, setApproving] = useState(false)
+  const [highlightSpan, setHighlightSpan] = useState<ArticleSpan | null>(null)
+
+  const approveQa = useCallback(async () => {
+    setApproving(true)
     try {
-      const res = await fetch(`/api/admin/stories/${storyId}/extraction-review`, {
-        cache: 'no-store',
+      const res = await fetch(`/api/admin/stories/${storyId}/qa-override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ include_chunks: true }),
       })
-      const json = await res.json()
-      if (!res.ok) {
-        if (!silent) {
-          setError(json.error?.message ?? 'Failed to load review')
-          setPayload(null)
-        }
-        return
-      }
-      setPayload(json.data)
-    } catch {
-      if (!silent) {
-        setError('Failed to load review')
-        setPayload(null)
-      }
+      if (res.ok) await refresh(true)
     } finally {
-      if (!silent) setLoading(false)
+      setApproving(false)
     }
-  }, [storyId])
+  }, [storyId, refresh])
 
-  useEffect(() => {
-    load()
-  }, [load])
+  if (!payload) return null
+
+  const { story } = payload
 
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
-        <StoryReviewBreadcrumb
-          storyId={storyId ?? ''}
-          title={payload?.story.title}
-        />
+    <div className="grid min-h-[400px] grid-cols-1 gap-4 lg:h-[calc(100vh-12rem)] lg:min-h-0 lg:grid-cols-2 lg:items-stretch">
+      <Panel
+        variant="soft"
+        interactive={false}
+        className="flex min-h-[400px] flex-col overflow-hidden lg:h-full lg:min-h-0"
+      >
+        <div className="shrink-0 border-b border-subtle p-4">
+          <h2 className="text-lg font-semibold leading-snug">{story.title}</h2>
+          <div className="mt-2 space-y-1 text-xs text-muted">
+            <p>{story.source_name ?? 'Unknown source'}</p>
+            <p>Published {formatDate(story.published_at)}</p>
+            <p>
+              <a
+                href={story.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-primary hover:underline"
+              >
+                Open original
+              </a>
+            </p>
+            <p>Status: {story.extraction_status}</p>
+            <p>QA: {qaStatusLabel(story.extraction_qa_status)}</p>
+            {story.extraction_qa_status === 'needs_human_review' && (
+              <Button type="button" size="sm" variant="outline" disabled={approving} onClick={approveQa}>
+                {approving ? 'Approving…' : 'Approve QA'}
+              </Button>
+            )}
+          </div>
+        </div>
+        <ScrollArea
+          className="min-h-0 flex-1 overflow-hidden p-4 lg:h-0"
+          onMouseLeave={() => setHighlightSpan(null)}
+        >
+          <article className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed dark:prose-invert">
+            {story.article_text ? (
+              <HighlightedArticleText text={story.article_text} highlight={highlightSpan} />
+            ) : (
+              <p className="text-muted italic">No article text available.</p>
+            )}
+          </article>
+        </ScrollArea>
+      </Panel>
 
-        {loading && <p className="text-sm text-muted">Loading extraction review…</p>}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        {!loading && !error && payload && (
-          <StoryExtractionReviewView payload={payload} onRefresh={() => load(true)} />
-        )}
-      </div>
-    </main>
+      <StoryHubSummary
+        payload={payload}
+        storyId={storyId}
+        onRefresh={() => refresh(true)}
+        onApproveQa={approveQa}
+        approvingQa={approving}
+      />
+    </div>
   )
 }

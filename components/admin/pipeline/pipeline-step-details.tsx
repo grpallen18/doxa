@@ -15,7 +15,7 @@ import {
 } from '@/lib/admin/chunk-extraction'
 import { resolveArticleSpan, type ArticleSpan } from '@/lib/admin/article-span-highlight'
 import { qaStatusLabel } from '@/lib/admin/extraction-qa-types'
-import { StepDetailReveal } from './step-detail-reveal'
+import { StepDetailReveal } from '@/components/admin/pipeline/step-detail-reveal'
 
 export type SpanHighlightProps = {
   articleText: string | null
@@ -362,7 +362,7 @@ function ChunkQaDetail({
   )
 }
 
-function MergedEntitiesDetail({
+export function MergedEntitiesDetail({
   payload,
   renderFeedback,
 }: {

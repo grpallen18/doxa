@@ -385,12 +385,16 @@ export async function fetchStoryExtractionReview(
 
   const { data: bodyRow } = await supabase
     .from('story_bodies')
-    .select('content_clean')
+    .select('content_clean, content_raw')
     .eq('story_id', storyId)
     .maybeSingle()
 
+  const contentClean = (bodyRow?.content_clean as string | null)?.trim() || null
+  const contentRaw = (bodyRow?.content_raw as string | null)?.trim() || null
+
   const articleText =
-    (bodyRow?.content_clean as string | null) ??
+    contentClean ??
+    contentRaw ??
     (storyRow.content_full as string | null) ??
     (storyRow.content_snippet as string | null)
 
@@ -541,7 +545,7 @@ export async function fetchStoryExtractionReview(
       scrape_dispatched_at: storyRow.scrape_dispatched_at as string | null,
       scrape_skipped: Boolean(storyRow.scrape_skipped),
       scrape_fail_count: Number(storyRow.scrape_fail_count ?? 0),
-      has_content_clean: Boolean(bodyRow?.content_clean),
+      has_content_clean: Boolean(contentClean),
       extraction_completed_at: storyRow.extraction_completed_at,
       extraction_skipped_empty: storyRow.extraction_skipped_empty,
       merged_at: storyRow.merged_at,

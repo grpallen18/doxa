@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -107,15 +108,10 @@ export function NavUser({
           <Button
             variant="ghost"
             size="icon"
-            className={`${headerChromeIconButtonClassName} rounded-lg`}
-            aria-label={`${user.name} account menu`}
+            className={headerChromeIconButtonClassName}
+            aria-label="Account settings"
           >
-            <Avatar className="h-8 w-8 rounded-lg">
-              <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className="rounded-lg bg-transparent text-inherit text-xs font-bold">
-                {getInitials(user.name)}
-              </AvatarFallback>
-            </Avatar>
+            <Settings className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" sideOffset={4} className={dropdownChromeContentClassName}>

@@ -1,7 +1,7 @@
 'use client'
 
 import { Sparkles } from 'lucide-react'
-import { StepDetailReveal } from '@/app/admin/stories/step-detail-reveal'
+import { StepDetailReveal } from '@/components/admin/pipeline/step-detail-reveal'
 import { Panel } from '@/components/Panel'
 import { cn } from '@/lib/utils'
 import type { Topic } from '@/lib/mock/topic-explore'

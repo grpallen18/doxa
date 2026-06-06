@@ -2,7 +2,11 @@
 
 Persistent plan for expanding the admin center into a Salesforce-style pipeline operations surface: search records, inspect pipeline stage, trace lineage, and rerun/revert steps.
 
-**Phase 0 (done):** Generated pipeline catalog, stage-grouped story checklist (ingestion → extraction → canonical), ingestion run-step support. UI summary: [/admin/pipeline-roadmap](/admin/pipeline-roadmap). Docs: [admin-story-extraction-review.md](./admin-story-extraction-review.md), [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md).
+**Phase 0 (done):** Generated pipeline catalog, stage-grouped story checklist (ingestion → extraction → canonical), ingestion run-step support.
+
+**Phase 1 (done):** Story hub + `/ingestion`, `/extraction`, `/canonical` stage pages; shared pipeline components; `reset_story_canonical_links` RPC; unified search on Admin Center hub.
+
+UI summary: [/admin/pipeline-roadmap](/admin/pipeline-roadmap). Docs: [admin-story-extraction-review.md](./admin-story-extraction-review.md), [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md).
 
 ---
 
@@ -49,7 +53,7 @@ flowchart TB
 
 | Route | Purpose |
 |-------|---------|
-| `/admin/pipeline` or enhanced `/admin` search | Unified search across record types |
+| `/admin` | Admin Center hub — search, status, navigation to all modules |
 | `/admin/stories/[id]` | Story hub (article review + macro stepper) |
 | `/admin/stories/[id]/ingestion` | Ingestion substeps in depth |
 | `/admin/stories/[id]/extraction` | Extraction + merge QA substeps |
@@ -61,7 +65,7 @@ flowchart TB
 
 ---
 
-## Phase 1 — Story pipeline complete
+## Phase 1 — Story pipeline complete (done)
 
 **Goal:** Split the monolithic story page into a hub + stage subpages; add canonical-only revert and unified search.
 

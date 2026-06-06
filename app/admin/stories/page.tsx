@@ -86,25 +86,16 @@ export default function AdminStoriesPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-sm text-muted hover:text-foreground">
-            Home
-          </Link>
-          <span className="text-muted">/</span>
-          <Link href="/admin" className="text-sm text-muted hover:text-foreground">
-            Admin
-          </Link>
-          <span className="text-muted">/</span>
-          <span className="text-sm font-medium">Stories</span>
-        </div>
-
+    <>
         <section className="space-y-2">
-          <h1 className="text-xl font-semibold">Story extraction review</h1>
+          <h1 className="text-xl font-semibold">Stories</h1>
           <p className="text-sm text-muted">
             Search stories and open a review view to compare article text against extracted claims,
-            evidence, positions, and events.
+            evidence, positions, and events. Use{' '}
+            <Link href="/admin" className="text-accent-primary hover:underline">
+              Admin Center search
+            </Link>{' '}
+            to find canonical claims and positions.
           </p>
         </section>
 
@@ -242,7 +233,6 @@ export default function AdminStoriesPage() {
             </div>
           )}
         </Panel>
-      </div>
-    </main>
+    </>
   )
 }

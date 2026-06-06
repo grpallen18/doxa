@@ -42,19 +42,38 @@ Canonical linkers require `stories.extraction_qa_status = passed` (or admin **Ap
 
 Steps marked **inactive** in the UI are not in `activation.yaml` — cron may not be scheduled even though Run works via service role.
 
-## Pipeline panel
+## Story hub and stage pages
 
-On `/admin/stories/[story_id]`, the right pane shows a stage-grouped checklist. Each step can be run individually via **Run** (one step at a time).
+All story routes under `/admin/stories/[story_id]` share a layout that loads `GET /api/admin/stories/[id]/extraction-review` once (`StoryReviewProvider`) and shows a macro **Pipeline stepper** (Ingestion → Extraction → Canonical).
 
-While a step runs, the row shows a spinner and the page polls `GET /api/admin/stories/[id]/extraction-review` every **2 seconds** until output changes or completion criteria are met (max ~72 seconds), then stops automatically.
+### Hub (`/admin/stories/[story_id]`)
+
+Two-pane **article review** surface:
+
+- **Left:** article text, metadata, **Approve QA** when merge QA is blocked
+- **Right:** **Story hub summary** — entity counts, merged-claims preview, export controls, links to stage pages (no full pipeline checklist)
+
+### Stage pages
+
+Full-width checklist for one macro stage. Each step can be run individually via **Run** (one step at a time).
+
+| Path | Checklist | Stage actions |
+|------|-----------|---------------|
+| `/admin/stories/[id]/ingestion` | Ingestion steps | — |
+| `/admin/stories/[id]/extraction` | Extraction + merge QA | **Clear extraction** |
+| `/admin/stories/[id]/canonical` | Canonical linkers + stances | **Clear canonical links** |
+
+While a step runs, the row shows a spinner and the page polls extraction-review every **2 seconds** until output changes or completion criteria are met (max ~72 seconds), then stops automatically.
 
 Steps with batch limits (`validate_chunk_claims`, `update_stances`) may need multiple **Run** clicks if the story has more than 20 chunks. **Extract** runs one chunk per click.
 
-When QA returns `needs_human_review`, the checklist shows a blocked state. Use **Approve QA** (sidebar or pipeline banner) to unblock canonical steps.
+When QA returns `needs_human_review`, the checklist shows a blocked state. Use **Approve QA** (hub sidebar or stage banner) to unblock canonical steps.
+
+Shared UI lives in `components/admin/pipeline/` (`PipelineChecklist`, `PipelineStepper`, `usePipelineStepPoll`).
 
 ### Clear extraction
 
-**Clear extraction** resets one story to “chunks only, awaiting extraction”:
+**Clear extraction** (extraction stage page only) resets one story to “chunks only, awaiting extraction”:
 
 - Deletes story-level extractions, QA artifacts, and feedback
 - Resets chunk/story extraction and QA columns (chunk `content` is kept)
@@ -64,12 +83,28 @@ Requires confirmation in the UI and `{ confirm: true }` on the API.
 
 Implemented by RPC `reset_story_extraction` (migration `131_reset_story_extraction.sql`).
 
+### Clear canonical links
+
+**Clear canonical links** (canonical stage page only) unlinks canonical IDs for one story **without** wiping extraction or merge output:
+
+- Sets `story_claims.claim_id` / `stance`, `story_events.event_id`, `story_positions.canonical_position_id` to null for the story
+- Deletes **orphan-only** rows from `claims`, `events`, `canonical_positions` (shared canonical rows on other stories are preserved)
+- Does **not** touch chunks, `story_*` entity rows, QA artifacts, or `stories.merged_at`
+
+Preview: `GET /api/admin/stories/[id]/clear-canonical/preview`. Mutate: `POST /api/admin/stories/[id]/clear-canonical` with `{ confirm: true }`.
+
+Implemented by RPC `reset_story_canonical_links` (migration `135_reset_story_canonical_links.sql`).
+
 ## Routes
 
 | Path | Purpose |
 |------|---------|
-| `/admin/stories` | Search and filter stories; open review |
-| `/admin/stories/[story_id]` | Two-pane review: article (left), pipeline panel (right) |
+| `/admin` | Admin Center hub — pipeline search, status overview, quick access |
+| `/admin/stories` | Search and filter stories |
+| `/admin/stories/[story_id]` | Hub: article (left) + entity summary (right) |
+| `/admin/stories/[story_id]/ingestion` | Ingestion checklist |
+| `/admin/stories/[story_id]/extraction` | Extraction checklist + clear extraction |
+| `/admin/stories/[story_id]/canonical` | Canonical checklist + clear canonical links |
 
 ## API (admin JWT required)
 
@@ -80,7 +115,10 @@ Implemented by RPC `reset_story_extraction` (migration `131_reset_story_extracti
 | `POST` | `/api/admin/stories/[id]/feedback` | Submit like/dislike on an entity |
 | `POST` | `/api/admin/stories/[id]/qa-override` | Admin approve QA (`include_chunks` optional) |
 | `POST` | `/api/admin/stories/[id]/clear-extraction` | Body: `{ confirm: true }`. Calls `reset_story_extraction` RPC |
+| `GET` | `/api/admin/stories/[id]/clear-canonical/preview` | Impact preview for canonical-only reset |
+| `POST` | `/api/admin/stories/[id]/clear-canonical` | Body: `{ confirm: true }`. Calls `reset_story_canonical_links` RPC |
 | `POST` | `/api/admin/stories/[id]/run-step` | Body: `{ step: "<step_id or deploy_name>" }`. Invokes one edge function for this story |
+| `GET` | `/api/admin/search` | Query: `q`, `limit`. Stories, claims, positions |
 
 **run-step** allowlist is generated from the pipeline catalog (`lib/admin/generated/pipeline-catalog.ts`). Invoke options (e.g. `max_chunks`, timeouts) come from `doxa-agents/ops/pipeline-admin-catalog.yaml`.
 
@@ -127,15 +165,16 @@ Migration `126_story_extraction_feedback.sql`. Passive dataset for future evals 
 
 ## Setup
 
-1. Apply migrations through `131_reset_story_extraction.sql` (and `130_extraction_qa.sql`, `126`, `124`/`125` if not already applied).
+1. Apply migrations through `135_reset_story_canonical_links.sql` (and `134_validate_chunk_claims_qa.sql`, `131`, `130_extraction_qa.sql`, `126`, `124`/`125` if not already applied).
 2. Ensure admin role on your user (see auth docs).
 3. Run the app with service role key configured.
 
 ## Manual test: clear + pipeline walkthrough
 
-1. Open a story on `/admin/stories/[id]`.
-2. **Ingestion** — Run relevance → scrape → clean as needed; confirm ingestion fields in step detail.
-3. **Extraction** — **Clear extraction** if testing from scratch → Run Chunk → Extract (repeat per chunk) → Validate → Merge → merge QA.
-4. Walk merge QA → canonical steps. Re-run validate if >20 chunks.
-5. Confirm blocked state when QA returns `needs_human_review`; **Approve QA** unblocks canonical steps.
-6. Clear a story whose canonical claim is shared with another story; shared data for that claim must remain.
+1. Open a story hub on `/admin/stories/[id]`; confirm stepper links and entity summary (no full checklist on hub).
+2. **Ingestion** (`/ingestion`) — Run relevance → scrape → clean as needed; confirm ingestion fields in step detail.
+3. **Extraction** (`/extraction`) — **Clear extraction** if testing from scratch → Run Chunk → Extract (repeat per chunk) → Validate → Merge → merge QA.
+4. **Canonical** (`/canonical`) — Walk link steps after merge QA passes. Re-run validate if >20 chunks.
+5. Confirm blocked state when QA returns `needs_human_review`; **Approve QA** on hub unblocks canonical steps.
+6. **Clear canonical** on a story with shared claims; shared canonical rows on other stories must remain.
+7. **Admin Center search** (`/admin?q=…`) returns matching stories, claims, and positions.

@@ -521,23 +521,10 @@ export default function AdminHealthPage() {
   const [drilldownOutcome, setDrilldownOutcome] = useState<'failure' | 'success'>('failure')
 
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-content flex-col gap-8">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-sm text-muted hover:text-foreground">
-            Home
-          </Link>
-          <span className="text-muted">/</span>
-          <Link href="/admin" className="text-sm text-muted hover:text-foreground">
-            Admin
-          </Link>
-          <span className="text-muted">/</span>
-          <span className="text-sm font-medium">Health</span>
-        </div>
-
+    <>
         <div className="space-y-6">
           <div>
-            <h2 className="mb-1 text-lg font-semibold">Data health</h2>
+            <h1 className="text-xl font-semibold">Health</h1>
             <p className="text-sm text-muted">
               Monitor pipeline status, data quality, and overall health.
             </p>
@@ -575,7 +562,6 @@ export default function AdminHealthPage() {
               </div>
             </Panel>
         </div>
-      </div>
-    </main>
+    </>
   )
 }

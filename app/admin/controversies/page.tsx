@@ -43,25 +43,12 @@ export default function AdminControversiesPage() {
   }, [fetchControversies])
 
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-sm text-muted hover:text-foreground">
-            Home
-          </Link>
-          <span className="text-muted">/</span>
-          <Link href="/admin" className="text-sm text-muted hover:text-foreground">
-            Admin
-          </Link>
-          <span className="text-muted">/</span>
-          <span className="text-sm font-medium">Controversies</span>
-        </div>
-
+    <>
         <section aria-labelledby="controversies-heading" className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h2 id="controversies-heading" className="text-lg font-semibold">
-              Existing controversies
-            </h2>
+            <h1 id="controversies-heading" className="text-xl font-semibold">
+              Controversies
+            </h1>
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -113,7 +100,6 @@ export default function AdminControversiesPage() {
             </ul>
           )}
         </section>
-      </div>
-    </main>
+    </>
   )
 }

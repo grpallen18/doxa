@@ -275,25 +275,12 @@ function AdminPositionsPageContent() {
     selectedPositionId || selectedControversyId || selectedViewpointId
 
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-content flex-col gap-8">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-sm text-muted hover:text-foreground">
-            Home
-          </Link>
-          <span className="text-muted">/</span>
-          <Link href="/admin" className="text-sm text-muted hover:text-foreground">
-            Admin
-          </Link>
-          <span className="text-muted">/</span>
-          <span className="text-sm font-medium">Positions</span>
-        </div>
-
+    <>
         <div className="space-y-6">
           <div>
-            <h2 className="mb-1 text-lg font-semibold">Positions, controversies & viewpoints</h2>
+            <h1 className="text-xl font-semibold">Agreements</h1>
             <p className="text-sm text-muted">
-              Browse pipeline output. Click a row to see details and trace to claims, stories, and topics.
+              Browse agreement clusters and trace pipeline output to canonical positions, claims, and stories.
             </p>
           </div>
 
@@ -398,8 +385,7 @@ function AdminPositionsPageContent() {
             </div>
           </Panel>
         </div>
-      </div>
-    </main>
+    </>
   )
 }
 
@@ -808,13 +794,7 @@ function DrillDownPanel({
 
 export default function AdminPositionsPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-        <div className="mx-auto flex w-full max-w-content flex-col gap-8">
-          <p className="text-sm text-muted">Loading…</p>
-        </div>
-      </main>
-    }>
+    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
       <AdminPositionsPageContent />
     </Suspense>
   )

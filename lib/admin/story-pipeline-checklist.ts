@@ -14,6 +14,7 @@ export type {
 } from '@/lib/admin/pipeline-status'
 export {
   derivePipelineChecklist,
+  deriveStageSummaries,
   getBlockedReason,
   getStepNotRequiredMessage,
   getStepOutputSnapshot,
@@ -22,3 +23,4 @@ export {
   isStepComplete,
   isStepDoneAfterRun,
 } from '@/lib/admin/pipeline-status'
+export type { StageSummary, StageSummaryStatus } from '@/lib/admin/pipeline-status'

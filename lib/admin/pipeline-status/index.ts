@@ -1,6 +1,7 @@
 import {
   PIPELINE_STAGES,
   PIPELINE_STEPS,
+  type PipelineStageId,
   type PipelineStepId,
 } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
@@ -235,4 +236,54 @@ function snapshotForStep(stepId: PipelineStepId, payload: StoryExtractionReviewP
 
 export function getStepOutputSnapshot(stepId: PipelineStepId, payload: StoryExtractionReviewPayload) {
   return snapshotForStep(stepId, payload)
+}
+
+export type StageSummaryStatus = 'complete' | 'current' | 'blocked' | 'pending'
+
+export type StageSummary = {
+  stageId: PipelineStageId
+  label: string
+  status: StageSummaryStatus
+  href: string
+}
+
+const STAGE_PATH: Record<PipelineStageId, string> = {
+  ingestion: 'ingestion',
+  extraction: 'extraction',
+  canonical: 'canonical',
+}
+
+export function deriveStageSummaries(
+  storyId: string,
+  payload: StoryExtractionReviewPayload
+): StageSummary[] {
+  const checklist = derivePipelineChecklist(payload)
+  let foundCurrent = false
+
+  return PIPELINE_STAGES.map((stage) => {
+    const stageSteps = checklist.steps.filter((s) => s.stageId === stage.id)
+    const hasBlocked = stageSteps.some((s) => s.status === 'blocked')
+    const allDone = stageSteps.every(
+      (s) => s.status === 'complete' || s.status === 'optional'
+    )
+
+    let status: StageSummaryStatus
+    if (hasBlocked) {
+      status = 'blocked'
+    } else if (allDone && stageSteps.length > 0) {
+      status = 'complete'
+    } else if (!foundCurrent) {
+      status = 'current'
+      foundCurrent = true
+    } else {
+      status = 'pending'
+    }
+
+    return {
+      stageId: stage.id,
+      label: stage.label,
+      status,
+      href: `/admin/stories/${storyId}/${STAGE_PATH[stage.id]}`,
+    }
+  })
 }

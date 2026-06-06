@@ -1,58 +1,158 @@
 'use client'
 
 import Link from 'next/link'
-import { FileText, Activity, BookOpen, GitBranch, Scale, Map } from 'lucide-react'
-import { Panel } from '@/components/Panel'
+import { usePathname } from 'next/navigation'
+import { Fragment, Suspense } from 'react'
+import {
+  AdminDashboardWidget,
+  AdminHealthCheckWidget,
+} from '@/components/admin/admin-dashboard-widget'
+import {
+  AdminPipelineSearchInput,
+  AdminPipelineSearchResults,
+  useAdminPipelineSearch,
+} from '@/components/admin/admin-pipeline-search'
+import { ADMIN_STATUS_PLACEHOLDER } from '@/lib/admin/admin-status-placeholder'
+import { cn } from '@/lib/utils'
 
-const adminLinks = [
-  { href: '/admin/topics', label: 'Topics', icon: FileText, description: 'Create topics, run the pipeline, and manage topic content.' },
-  { href: '/admin/controversies', label: 'Controversies', icon: Scale, description: 'View all controversies with positions and viewpoints.' },
-  { href: '/admin/stories', label: 'Stories', icon: BookOpen, description: 'Search stories and review extraction output (claims, evidence, positions, events).' },
-  { href: '/admin/positions', label: 'Positions', icon: GitBranch, description: 'Browse positions, controversies, and viewpoints. Investigate pipeline output and trace to claims and stories.' },
-  { href: '/admin/health', label: 'Health', icon: Activity, description: 'Monitor data health and pipeline status.' },
-  { href: '/admin/pipeline-roadmap', label: 'Pipeline ops roadmap', icon: Map, description: 'Multi-phase plan for admin pipeline operations (ingestion through topology).' },
-]
+const quickLinks = [
+  { href: '/admin/stories', label: 'Stories' },
+  { href: '/admin/health', label: 'Health' },
+  { href: '/admin/topics', label: 'Topics' },
+  { href: '/admin/positions', label: 'Agreements' },
+] as const
 
-export default function AdminDashboardPage() {
+const healthMetrics = [
+  { label: 'Pending QA', value: ADMIN_STATUS_PLACEHOLDER.storiesPendingQa, href: '/admin/stories' },
+  { label: 'Scrape fails (24h)', value: ADMIN_STATUS_PLACEHOLDER.scrapeFailures24h, href: '/admin/health' },
+  { label: 'In pipeline', value: ADMIN_STATUS_PLACEHOLDER.storiesInPipeline, href: '/admin/stories' },
+  { label: 'Agreement clusters', value: ADMIN_STATUS_PLACEHOLDER.agreementClusters, href: '/admin/positions' },
+  { label: 'Claims linked', value: ADMIN_STATUS_PLACEHOLDER.canonicalClaimsLinked, href: '/admin/stories' },
+  { label: 'Awaiting scrape', value: 8, href: '/admin/stories' },
+  { label: 'Merge QA blocked', value: 4, href: '/admin/stories' },
+  { label: 'Scrape success', value: '94%', href: '/admin/health' },
+] as const
+
+const recentStories = [
+  { title: 'Border policy shifts in Texas', id: 'demo-1' },
+  { title: 'Fed holds rates steady', id: 'demo-2' },
+  { title: 'EU AI Act enforcement timeline', id: 'demo-3' },
+] as const
+
+const recentTopics = [
+  { title: 'Immigration', id: 'demo-topic-1' },
+  { title: 'Monetary policy', id: 'demo-topic-2' },
+] as const
+
+function AdminCenterContent() {
+  const search = useAdminPipelineSearch()
+  const pathname = usePathname()
+
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-sm text-muted hover:text-foreground">
-            Home
-          </Link>
-          <span className="text-muted">/</span>
-          <span className="text-sm font-medium">Admin</span>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+          <h1 className="shrink-0 text-lg font-semibold leading-tight">Admin Center</h1>
+          <nav aria-label="Quick access" className="flex flex-wrap items-center pl-2.5 text-sm">
+            {quickLinks.map((item, index) => {
+              const isActive =
+                pathname === item.href || pathname.startsWith(`${item.href}/`)
+
+              return (
+                <Fragment key={item.href}>
+                  {index > 0 && (
+                    <span className="px-2.5 text-muted/40 select-none" aria-hidden>
+                      |
+                    </span>
+                  )}
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 underline-offset-4 transition-colors',
+                      isActive
+                        ? 'bg-muted/50 font-medium text-foreground'
+                        : 'text-muted hover:bg-muted/40 hover:text-foreground hover:underline'
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                </Fragment>
+              )
+            })}
+          </nav>
         </div>
 
-        <section aria-labelledby="admin-dashboard-heading" className="space-y-4">
-          <h1 id="admin-dashboard-heading" className="text-xl font-semibold">
-            Admin dashboard
-          </h1>
-          <p className="text-sm text-muted">
-            Manage topics, review stories, and monitor Doxa&apos;s data health.
-          </p>
-          <ul className="grid gap-3 sm:grid-cols-1">
-            {adminLinks.map((item) => (
-              <li key={item.href}>
-                <Link href={item.href}>
-                  <Panel variant="soft" interactive className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
-                        <item.icon className="size-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground">{item.label}</p>
-                        <p className="mt-0.5 text-sm text-muted">{item.description}</p>
-                      </div>
-                    </div>
-                  </Panel>
-                </Link>
+        <div className="w-full">
+          <AdminPipelineSearchInput
+            query={search.query}
+            setQuery={search.setQuery}
+            className="h-9 w-full"
+          />
+        </div>
+      </div>
+
+      <AdminPipelineSearchResults
+        query={search.query}
+        results={search.results}
+        loading={search.loading}
+        error={search.error}
+      />
+
+      <section
+        aria-label="Dashboard widgets"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        <AdminHealthCheckWidget metrics={[...healthMetrics]} className="sm:col-span-2" />
+
+        <AdminDashboardWidget title="Recent stories" href="/admin/stories">
+          <ul className="space-y-2">
+            {recentStories.map((story) => (
+              <li key={story.id} className="truncate text-sm leading-snug">
+                {story.title}
               </li>
             ))}
           </ul>
-        </section>
-      </div>
-    </main>
+          <p className="mt-auto pt-3 text-[11px] text-muted">Sample list · opens story search</p>
+        </AdminDashboardWidget>
+
+        <AdminDashboardWidget title="Agreement pair review" href="/admin/positions">
+          <p className="text-3xl font-semibold tabular-nums leading-none">24</p>
+          <p className="mt-2 text-sm text-muted">Position pairs awaiting relationship classification</p>
+        </AdminDashboardWidget>
+
+        <AdminDashboardWidget title="Topics activity" href="/admin/topics">
+          <ul className="space-y-2">
+            {recentTopics.map((topic) => (
+              <li key={topic.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{topic.title}</span>
+                <span className="shrink-0 text-[11px] text-muted">Draft</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-auto pt-3 text-[11px] text-muted">3 topics ready to process</p>
+        </AdminDashboardWidget>
+
+        <AdminDashboardWidget title="Extraction review" href="/admin/stories">
+          <p className="text-sm leading-relaxed text-muted">
+            Compare article text against merged claims before canonical linking.
+          </p>
+          <p className="mt-3 text-sm font-medium text-foreground">Open story queue →</p>
+        </AdminDashboardWidget>
+
+        <AdminDashboardWidget title="Pipeline roadmap" href="/admin/pipeline-roadmap">
+          <p className="text-sm leading-relaxed text-muted">
+            Phase plan for admin ops: story pipeline, record hubs, cluster ops, and operator polish.
+          </p>
+        </AdminDashboardWidget>
+      </section>
+    </div>
+  )
+}
+
+export default function AdminCenterPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminCenterContent />
+    </Suspense>
   )
 }
