@@ -281,10 +281,10 @@ export type StageSummary = {
   href: string
 }
 
-const STAGE_PATH: Record<PipelineStageId, string> = {
-  ingestion: 'ingestion',
-  extraction: 'extraction',
-  canonical: 'canonical',
+const STAGE_HUB_ANCHOR: Record<PipelineStageId, string> = {
+  ingestion: 'step-relevance-gate',
+  extraction: 'step-chunk-story-bodies',
+  canonical: 'post-merge-actions',
 }
 
 export {
@@ -330,7 +330,7 @@ export function deriveStageSummaries(
       stageId: stage.id,
       label: stage.label,
       status,
-      href: `/admin/stories/${storyId}/${STAGE_PATH[stage.id]}`,
+      href: `/admin/stories/${storyId}#${STAGE_HUB_ANCHOR[stage.id]}`,
     }
   })
 }

@@ -6,7 +6,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export type AdminSearchResult = {
-  type: 'story' | 'claim' | 'position'
+  type: 'story' | 'claim' | 'position' | 'event' | 'agreement'
   id: string
   title: string
   subtitle: string | null
@@ -22,7 +22,7 @@ export async function searchAdminRecords(
   const q = query.trim()
   if (!q) return []
 
-  const perType = Math.max(5, Math.ceil(limit / 3))
+  const perType = Math.max(4, Math.ceil(limit / 5))
   const results: AdminSearchResult[] = []
 
   let storyQuery = supabase
@@ -37,7 +37,7 @@ export async function searchAdminRecords(
     storyQuery = storyQuery.or(`title.ilike.%${q}%,url.ilike.%${q}%`)
   }
 
-  const [storiesRes, claimsRes, positionsRes] = await Promise.all([
+  const [storiesRes, claimsRes, positionsRes, eventsRes, agreementsRes] = await Promise.all([
     storyQuery,
     supabase
       .from('claims')
@@ -48,6 +48,16 @@ export async function searchAdminRecords(
       .from('canonical_positions')
       .select('canonical_position_id, canonical_text')
       .ilike('canonical_text', `%${q}%`)
+      .limit(perType),
+    supabase
+      .from('events')
+      .select('event_id, canonical_text')
+      .ilike('canonical_text', `%${q}%`)
+      .limit(perType),
+    supabase
+      .from('agreement_clusters')
+      .select('agreement_cluster_id, label, summary')
+      .or(`label.ilike.%${q}%,summary.ilike.%${q}%`)
       .limit(perType),
   ])
 
@@ -74,20 +84,12 @@ export async function searchAdminRecords(
   }
 
   for (const row of claimsRes.data ?? []) {
-    const { data: link } = await supabase
-      .from('story_claims')
-      .select('story_id')
-      .eq('claim_id', row.claim_id)
-      .limit(1)
-      .maybeSingle()
-
-    const storyId = link?.story_id as string | undefined
     results.push({
       type: 'claim',
       id: row.claim_id,
       title: (row.canonical_text as string).slice(0, 120),
       subtitle: 'Canonical claim',
-      href: storyId ? `/admin/stories/${storyId}` : `/admin?q=${encodeURIComponent(q)}`,
+      href: `/admin/records/claims/${row.claim_id}`,
       stageBadge: 'Canonical claim',
     })
   }
@@ -98,8 +100,30 @@ export async function searchAdminRecords(
       id: row.canonical_position_id,
       title: (row.canonical_text as string).slice(0, 120),
       subtitle: 'Canonical position',
-      href: `/admin/positions?id=${row.canonical_position_id}`,
+      href: `/admin/records/positions/${row.canonical_position_id}`,
       stageBadge: 'Canonical position',
+    })
+  }
+
+  for (const row of eventsRes.data ?? []) {
+    results.push({
+      type: 'event',
+      id: row.event_id,
+      title: (row.canonical_text as string).slice(0, 120),
+      subtitle: 'Canonical event',
+      href: `/admin/records/events/${row.event_id}`,
+      stageBadge: 'Canonical event',
+    })
+  }
+
+  for (const row of agreementsRes.data ?? []) {
+    results.push({
+      type: 'agreement',
+      id: row.agreement_cluster_id,
+      title: ((row.label ?? row.summary) as string | null)?.slice(0, 120) ?? 'Agreement cluster',
+      subtitle: 'Agreement cluster',
+      href: `/admin/agreements/${row.agreement_cluster_id}`,
+      stageBadge: 'Agreement',
     })
   }
 

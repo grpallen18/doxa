@@ -6,6 +6,14 @@ import { AdminShell } from '@/components/admin/admin-shell'
 function adminMaxWidth(pathname: string): 'default' | 'wide' | 'content' {
   if (pathname === '/admin') return 'wide'
   if (/^\/admin\/stories\/[^/]+/.test(pathname)) return 'wide'
+  if (
+    pathname.startsWith('/admin/records/') ||
+    pathname.startsWith('/admin/agents/') ||
+    pathname.startsWith('/admin/agreements/') ||
+    /^\/admin\/controversies\/[^/]+/.test(pathname)
+  ) {
+    return 'wide'
+  }
   if (pathname.startsWith('/admin/health') || pathname.startsWith('/admin/positions')) {
     return 'content'
   }

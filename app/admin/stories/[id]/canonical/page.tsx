@@ -1,7 +1,10 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { StoryStagePage } from '@/components/admin/stories/story-stage-page'
-
-export default function StoryCanonicalStagePage() {
-  return <StoryStagePage stageId="canonical" />
+export default async function StoryCanonicalRedirectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  redirect(`/admin/stories/${id}#post-merge-actions`)
 }

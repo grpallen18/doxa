@@ -67,7 +67,7 @@ export function AdminPipelineSearchInput({
     <Input
       value={query}
       onChange={(e) => setQuery(e.target.value)}
-      placeholder="Search stories, claims, positions…"
+      placeholder="Search stories, claims, positions, events, agreements…"
       aria-label="Search pipeline records"
       className={className}
     />

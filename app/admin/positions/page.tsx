@@ -418,19 +418,20 @@ function PositionsList({
         {items.map((p, i) => (
           <li
             key={p.position_cluster_id}
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelect(p.position_cluster_id)}
-            onKeyDown={(e) => e.key === 'Enter' && onSelect(p.position_cluster_id)}
-            className={`flex cursor-pointer items-baseline justify-between gap-2 rounded-sm px-1.5 py-0.5 text-xs hover:bg-muted/50 ${
-              i % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''
-            } ${selectedId === p.position_cluster_id ? 'ring-1 ring-inset ring-accent-primary' : ''}`}
+            className={i % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''}
           >
-            <span className="min-w-0 flex-1 truncate">
-              {p.label || p.summary?.slice(0, 50) || p.position_cluster_id.slice(0, 8)}
-            </span>
-            <span className="w-10 shrink-0 text-right tabular-nums text-muted">{p.claim_count}</span>
-            <span className="w-14 shrink-0 text-right tabular-nums text-muted">{p.controversy_count}</span>
+            <Link
+              href={`/admin/agreements/${p.position_cluster_id}`}
+              className={`flex items-baseline justify-between gap-2 rounded-sm px-1.5 py-0.5 text-xs hover:bg-muted/50 ${
+                selectedId === p.position_cluster_id ? 'ring-1 ring-inset ring-accent-primary' : ''
+              }`}
+            >
+              <span className="min-w-0 flex-1 truncate">
+                {p.label || p.summary?.slice(0, 50) || p.position_cluster_id.slice(0, 8)}
+              </span>
+              <span className="w-10 shrink-0 text-right tabular-nums text-muted">{p.claim_count}</span>
+              <span className="w-14 shrink-0 text-right tabular-nums text-muted">{p.controversy_count}</span>
+            </Link>
           </li>
         ))}
       </ul>
@@ -467,19 +468,20 @@ function ControversiesList({
         {items.map((c, i) => (
           <li
             key={c.controversy_cluster_id}
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelect(c.controversy_cluster_id)}
-            onKeyDown={(e) => e.key === 'Enter' && onSelect(c.controversy_cluster_id)}
-            className={`flex cursor-pointer items-baseline justify-between gap-2 rounded-sm px-1.5 py-0.5 text-xs hover:bg-muted/50 ${
-              i % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''
-            } ${selectedId === c.controversy_cluster_id ? 'ring-1 ring-inset ring-accent-primary' : ''}`}
+            className={i % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''}
           >
-            <span className="min-w-0 flex-1 truncate">
-              {c.question || c.summary?.slice(0, 50) || c.controversy_cluster_id.slice(0, 8)}
-            </span>
-            <span className="w-10 shrink-0 text-right tabular-nums text-muted">{c.position_count}</span>
-            <span className="w-12 shrink-0 text-right tabular-nums text-muted">{c.viewpoint_count}</span>
+            <Link
+              href={`/admin/controversies/${c.controversy_cluster_id}`}
+              className={`flex items-baseline justify-between gap-2 rounded-sm px-1.5 py-0.5 text-xs hover:bg-muted/50 ${
+                selectedId === c.controversy_cluster_id ? 'ring-1 ring-inset ring-accent-primary' : ''
+              }`}
+            >
+              <span className="min-w-0 flex-1 truncate">
+                {c.question || c.summary?.slice(0, 50) || c.controversy_cluster_id.slice(0, 8)}
+              </span>
+              <span className="w-10 shrink-0 text-right tabular-nums text-muted">{c.position_count}</span>
+              <span className="w-12 shrink-0 text-right tabular-nums text-muted">{c.viewpoint_count}</span>
+            </Link>
           </li>
         ))}
       </ul>
@@ -584,7 +586,7 @@ function DrillDownPanel({
               {(d.controversies ?? []).map((c) => (
                 <li key={c.controversy_cluster_id}>
                   <Link
-                    href={`/admin/positions?tab=controversies&id=${c.controversy_cluster_id}`}
+                    href={`/admin/controversies/${c.controversy_cluster_id}`}
                     className="text-xs text-accent-primary hover:underline"
                   >
                     {c.question || c.controversy_cluster_id.slice(0, 8)}
@@ -624,7 +626,12 @@ function DrillDownPanel({
             <ul className="mt-1 max-h-24 space-y-0.5 overflow-y-auto">
               {(d.claims ?? []).slice(0, 5).map((c) => (
                 <li key={c.claim_id} className="text-xs">
-                  <span className="line-clamp-2">{c.canonical_text || c.claim_id.slice(0, 8)}</span>
+                  <Link
+                    href={`/admin/records/claims/${c.claim_id}`}
+                    className="line-clamp-2 text-accent-primary hover:underline"
+                  >
+                    {c.canonical_text || c.claim_id.slice(0, 8)}
+                  </Link>
                   {(c.story_links ?? []).length > 0 && (
                     <span className="mt-0.5 flex flex-wrap gap-1">
                       {(c.story_links ?? []).map((s) =>
@@ -694,7 +701,7 @@ function DrillDownPanel({
               {(d.positions ?? []).map((p) => (
                 <li key={p.position_cluster_id}>
                   <Link
-                    href={`/admin/positions?tab=positions&id=${p.position_cluster_id}`}
+                    href={`/admin/agreements/${p.position_cluster_id}`}
                     className="text-xs text-accent-primary hover:underline"
                   >
                     {p.stance_label || p.label || p.position_cluster_id.slice(0, 8)}
@@ -764,14 +771,14 @@ function DrillDownPanel({
         <div className="mt-3 space-y-2">
           <p className="text-xs font-medium text-muted">Controversy</p>
           <Link
-            href={`/admin/positions?tab=controversies&id=${d.controversy_cluster_id}`}
+            href={`/admin/controversies/${d.controversy_cluster_id}`}
             className="block text-xs text-accent-primary hover:underline"
           >
             {d.controversy_question || d.controversy_cluster_id.slice(0, 8)}
           </Link>
           <p className="text-xs font-medium text-muted">Position</p>
           <Link
-            href={`/admin/positions?tab=positions&id=${d.position_cluster_id}`}
+            href={`/admin/agreements/${d.position_cluster_id}`}
             className="block text-xs text-accent-primary hover:underline"
           >
             {d.position_label || d.position_cluster_id.slice(0, 8)}

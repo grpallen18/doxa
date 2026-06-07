@@ -1,7 +1,10 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { StoryStagePage } from '@/components/admin/stories/story-stage-page'
-
-export default function StoryIngestionStagePage() {
-  return <StoryStagePage stageId="ingestion" />
+export default async function StoryIngestionRedirectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  redirect(`/admin/stories/${id}#step-relevance-gate`)
 }

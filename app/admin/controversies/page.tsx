@@ -86,7 +86,7 @@ export default function AdminControversiesPage() {
                       </div>
                       <div className="flex shrink-0">
                         <Link
-                          href={`/admin/positions?tab=controversies&id=${c.controversy_cluster_id}`}
+                          href={`/admin/controversies/${c.controversy_cluster_id}`}
                         >
                           <Button size="sm" variant="outline">
                             View

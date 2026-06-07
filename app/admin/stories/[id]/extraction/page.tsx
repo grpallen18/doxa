@@ -1,7 +1,10 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { StoryStagePage } from '@/components/admin/stories/story-stage-page'
-
-export default function StoryExtractionStagePage() {
-  return <StoryStagePage stageId="extraction" />
+export default async function StoryExtractionRedirectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  redirect(`/admin/stories/${id}#step-chunk-story-bodies`)
 }
