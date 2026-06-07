@@ -10,22 +10,24 @@ stages:
     scope: story
     steps:
       - id: relevance-gate
-        label: Relevance gate
+        label: Qualify story
         isolation_params: [story_id]
+      - id: review-pending-stories
+        label: Resolve pending qualification
+        isolation_params: [story_id]
+        optional: true
       - id: scrape-story-content
         label: Scrape story content
         isolation_params: [story_id]
       - id: clean-scraped-content
         label: Clean scraped content
         isolation_params: [story_id]
-      - id: review-pending-stories
-        label: Review pending stories
-        isolation_params: [story_id]
 
   - id: extraction
     label: Extraction
     scope: story
     steps:
+      # Chunk & extract
       - id: chunk-story-bodies
         label: Chunk story bodies
         isolation_params: [story_id]
@@ -36,15 +38,18 @@ stages:
           uses_max_chunks: true
           max_chunks: 1
           timeout_ms: 140000
+      # Chunk QA loop (validate today; review/refine agents planned incrementally)
       - id: validate-chunk-claims
-        label: Validate chunk claims
+        label: Review chunk claims
         isolation_params: [story_id, chunk_index]
         invoke_options:
           uses_max_chunks: true
           max_chunks: 20
+      # Merge operation — after all chunks passed
       - id: merge-story-claims
         label: Merge story claims
         isolation_params: [story_id]
+      # Merge QA loop
       - id: review-merged-extraction
         label: Review merged extraction
         isolation_params: [story_id]
@@ -53,7 +58,7 @@ stages:
         isolation_params: [story_id]
         optional: true
       - id: validate-merged-extraction
-        label: Validate merged extraction
+        label: Approve merged extraction
         isolation_params: [story_id]
 
   - id: canonical

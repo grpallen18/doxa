@@ -1,9 +1,9 @@
 # relevance-gate
 
-LLM relevance scoring for newly ingested stories; sets `relevance_status`.
+Qualify newly ingested stories; sets `relevance_status` to **Keep**, **Drop**, or **Pending**.
 
 | Deploy | Notes |
 |--------|--------|
-| `relevance_gate` | Gates stories before content acquisition |
+| `relevance_gate` | First qualify pass on title/snippet |
 
-Next: [scrape-story-content](../03-scrape-story-content/).
+If **Pending**, resolve via [review-pending-stories](../06-review-pending-stories/) before [scrape-story-content](../03-scrape-story-content/) (Keep only).

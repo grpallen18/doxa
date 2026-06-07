@@ -5,9 +5,12 @@ Claims-first extraction pipeline. Legacy multi-atom QA steps remain in repo but 
 ## Active agents (run in order)
 
 1. **[01-chunk-story-bodies](01-chunk-story-bodies/)** — split clean text into `story_chunks`
-2. **[02-extract-story-claims](02-extract-story-claims/)** — precision primary-claim extraction
-3. **[03-validate-chunk-claims](03-validate-chunk-claims/)** — deterministic chunk claims QA → `passed`
-4. Downstream: [03-merging-engine/01-merge-story-claims](../03-merging-engine/01-merge-story-claims/)
+2. **[02-extract-story-claims](02-extract-story-claims/)** — precision primary-claim extraction per chunk
+3. **[03-validate-chunk-claims](03-validate-chunk-claims/)** — chunk QA loop entry (deterministic validate today)
+
+**Chunk QA loop:** validate chunk claims until every chunk is `passed`. Review/refine chunk agents will be added incrementally (legacy agents exist but are inactive).
+
+Downstream: [03-merging-engine/01-merge-story-claims](../03-merging-engine/01-merge-story-claims/) runs only after all chunks passed.
 
 ## Inactive (legacy multi-atom path)
 

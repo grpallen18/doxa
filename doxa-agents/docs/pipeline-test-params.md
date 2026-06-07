@@ -19,18 +19,18 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | Step | Deploy name | Isolation params | Notes |
 |------|-------------|------------------|--------|
 | ingest-newsapi | `ingest-newsapi` | — | Batch only (NewsAPI window). |
-| relevance-gate | `relevance_gate` | `story_id` | Re-classify one story. |
-| scrape-story-content | `scrape_story_content` | `story_id` | Dispatch scrape for one story. |
+| relevance-gate | `relevance_gate` | `story_id` | Classify one story (Keep / Drop / Pending). |
+| review-pending-stories | `review_pending_stories` | `story_id` | Optional feedback loop when status is `PENDING`; resolves to Keep or Drop before scrape. |
+| scrape-story-content | `scrape_story_content` | `story_id` | Dispatch scrape for one Keep story. |
 | receive-scraped-content | `receive_scraped_content` | `story_id` **(required)** | Worker callback; manual POST for debugging. Deploy with `--no-verify-jwt`. |
 | clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. |
-| review-pending-stories | `review_pending_stories` | `story_id` | Only runs if story is `PENDING` and has `content_clean`. |
 | chunk-story-bodies | `chunk_story_bodies` | `story_id` | Chunks one story if `content_clean` exists and no `story_chunks` yet. |
 | extract-story-claims | `extract_story_claims` | `story_id`, optional `chunk_index` | Primary claims only; sets chunk QA `pending`. |
-| validate-chunk-claims | `validate_chunk_claims` | `story_id`, optional `chunk_index` | Deterministic claims QA → chunk `passed`. |
-| merge-story-claims | `merge_story_claims` | `story_id` | Merge chunk claims → `story_claims`. |
-| review-merged-extraction | `review_merged_extraction` | `story_id` | Story-level merge QA reviewer. |
-| refine-merged-extraction | `refine_merged_extraction` | `story_id` | Patch merged entities (max one cycle). |
-| validate-merged-extraction | `validate_merged_extraction` | `story_id` | Final judge; must pass before canonical linkers. |
+| validate-chunk-claims | `validate_chunk_claims` | `story_id`, optional `chunk_index` | Chunk QA loop — deterministic validate → chunk `passed`. |
+| merge-story-claims | `merge_story_claims` | `story_id` | Merge after all chunks passed (same gate as cron). |
+| review-merged-extraction | `review_merged_extraction` | `story_id` | Merge QA loop — reviewer. |
+| refine-merged-extraction | `refine_merged_extraction` | `story_id` | Merge QA loop — when review requests refinement. |
+| validate-merged-extraction | `validate_merged_extraction` | `story_id` | Merge QA loop — approve before canonical linkers. |
 
 **Legacy (inactive):** `extract_story_entities`, `standardize_chunk_extraction`, `refine_chunk_extraction`, `validate_chunk_extraction`, `link_chunk_entities`, `merge_story_entities`.
 
@@ -82,10 +82,9 @@ Future (not implemented yet): `canonical_claim_id`, `canonical_position_id` for 
 2. `clean_scraped_content`
 3. `chunk_story_bodies`
 4. `extract_story_claims` (repeat until all chunks have `extraction_json`)
-5. `validate_chunk_claims` (all chunks `extraction_qa_status = passed`)
-6. `merge_story_claims`
-7. `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
-8. `link_canonical_claims` (optional: events / positions / stances)
+5. `validate_chunk_claims` (chunk QA loop — all chunks `extraction_qa_status = passed`)
+6. `merge_story_claims` → **merge QA loop:** `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
+7. `link_canonical_claims` (optional: events / positions / stances)
 
 Inspect tables after each step: `stories`, `story_bodies`, `story_chunks`, `story_claims`, `story_events`, `story_positions`, then `claims`, `events`, `canonical_positions`.
 

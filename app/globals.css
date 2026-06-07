@@ -107,6 +107,17 @@
   --atlas-bubble-glow: rgba(13, 148, 136, 0.4);
   --atlas-edge: rgba(82, 71, 54, 0.35);
 
+  /* Pipeline stepper — circle + track states (complete / current / pending) */
+  --pipeline-step-border: var(--accent-primary);
+  --pipeline-step-border-active: #1a3d32;
+  --pipeline-step-complete-bg: var(--accent-primary);
+  --pipeline-step-complete-fg: var(--accent-primary-foreground);
+  --pipeline-step-current-bg: #b8dcc8;
+  --pipeline-step-current-fg: var(--accent-primary);
+  --pipeline-step-pending-bg: #ffffff;
+  --pipeline-step-track: var(--accent-primary);
+  --pipeline-step-track-muted: var(--accent-primary-soft);
+
   /* shadcn / UI tokens */
   --card: #faf9f7;
   --card-foreground: #1a1712;
@@ -212,6 +223,17 @@
   --atlas-bubble-selected-stroke: #cbd5e1;
   --atlas-bubble-glow: rgba(45, 212, 191, 0.5);
   --atlas-edge: rgba(168, 168, 168, 0.35);
+
+  /* Pipeline stepper */
+  --pipeline-step-border: #7ec4a8;
+  --pipeline-step-border-active: #000000;
+  --pipeline-step-complete-bg: #3d7562;
+  --pipeline-step-complete-fg: #ffffff;
+  --pipeline-step-current-bg: #9ed4b8;
+  --pipeline-step-current-fg: #152922;
+  --pipeline-step-pending-bg: #ffffff;
+  --pipeline-step-track: #4a9078;
+  --pipeline-step-track-muted: rgba(126, 196, 168, 0.3);
 
   /* shadcn / UI tokens */
   --card: #1e1e1e;
@@ -653,6 +675,56 @@ body {
     appearance: none;
     height: 0;
     width: 0;
+  }
+
+  .pipeline-step-node {
+    @apply relative flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors;
+    border-color: var(--pipeline-step-border);
+  }
+
+  .pipeline-step-node--substage {
+    width: 1rem;
+    height: 1rem;
+    border-width: 1.5px;
+  }
+
+  .pipeline-step-node--active {
+    border-color: var(--pipeline-step-border-active);
+  }
+
+  .pipeline-step-node--complete {
+    background-color: var(--pipeline-step-complete-bg);
+    color: var(--pipeline-step-complete-fg);
+  }
+
+  .pipeline-step-node--current {
+    background-color: var(--pipeline-step-current-bg);
+    color: var(--pipeline-step-current-fg);
+  }
+
+  .pipeline-step-node--pending {
+    background-color: var(--pipeline-step-pending-bg);
+  }
+
+  .pipeline-step-node--blocked {
+    background-color: color-mix(in srgb, var(--destructive) 80%, transparent);
+    color: #ffffff;
+  }
+
+  .pipeline-step-track {
+    @apply h-full flex-1;
+  }
+
+  .pipeline-step-track--complete {
+    background-color: var(--pipeline-step-track);
+  }
+
+  .pipeline-step-track--muted {
+    background-color: var(--pipeline-step-track-muted);
+  }
+
+  .pipeline-step-track--blocked {
+    background-color: color-mix(in srgb, var(--destructive) 50%, transparent);
   }
 
   .indicator-dot {

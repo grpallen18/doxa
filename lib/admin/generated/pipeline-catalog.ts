@@ -5,9 +5,9 @@
 
 export type PipelineStepId =
   | "relevance-gate"
+  | "review-pending-stories"
   | "scrape-story-content"
   | "clean-scraped-content"
-  | "review-pending-stories"
   | "chunk-story-bodies"
   | "extract-story-claims"
   | "validate-chunk-claims"
@@ -59,9 +59,9 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
     "scope": "story",
     "stepIds": [
       "relevance-gate",
+      "review-pending-stories",
       "scrape-story-content",
-      "clean-scraped-content",
-      "review-pending-stories"
+      "clean-scraped-content"
     ]
   },
   {
@@ -95,11 +95,30 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
   {
     "id": "relevance-gate",
     "deployName": "relevance_gate",
-    "label": "Relevance gate",
+    "label": "Qualify story",
     "stageId": "ingestion",
     "stageLabel": "Ingestion",
     "scope": "story",
     "optional": false,
+    "manifestStatus": "inactive",
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 60000
+    },
+    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+  },
+  {
+    "id": "review-pending-stories",
+    "deployName": "review_pending_stories",
+    "label": "Resolve pending qualification",
+    "stageId": "ingestion",
+    "stageLabel": "Ingestion",
+    "scope": "story",
+    "optional": true,
     "manifestStatus": "inactive",
     "isolationParams": [
       "story_id"
@@ -134,25 +153,6 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "id": "clean-scraped-content",
     "deployName": "clean_scraped_content",
     "label": "Clean scraped content",
-    "stageId": "ingestion",
-    "stageLabel": "Ingestion",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "isolationParams": [
-      "story_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
-  },
-  {
-    "id": "review-pending-stories",
-    "deployName": "review_pending_stories",
-    "label": "Review pending stories",
     "stageId": "ingestion",
     "stageLabel": "Ingestion",
     "scope": "story",
@@ -210,7 +210,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
   {
     "id": "validate-chunk-claims",
     "deployName": "validate_chunk_claims",
-    "label": "Validate chunk claims",
+    "label": "Review chunk claims",
     "stageId": "extraction",
     "stageLabel": "Extraction",
     "scope": "story",
@@ -287,7 +287,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
   {
     "id": "validate-merged-extraction",
     "deployName": "validate_merged_extraction",
-    "label": "Validate merged extraction",
+    "label": "Approve merged extraction",
     "stageId": "extraction",
     "stageLabel": "Extraction",
     "scope": "story",
@@ -386,9 +386,9 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
 
 export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "relevance_gate",
+  "review_pending_stories",
   "scrape_story_content",
   "clean_scraped_content",
-  "review_pending_stories",
   "chunk_story_bodies",
   "extract_story_claims",
   "validate_chunk_claims",

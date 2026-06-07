@@ -633,14 +633,14 @@ function IngestionDetail({ payload }: { payload: StoryExtractionReviewPayload })
   return (
     <dl className="grid gap-1.5 text-xs">
       <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Relevance</dt>
+        <dt className="shrink-0 text-muted">Qualification</dt>
         <dd>
           {story.relevance_status ?? '—'}
           {story.relevance_score != null ? ` (${story.relevance_score})` : ''}
         </dd>
       </div>
       <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Relevance ran</dt>
+        <dt className="shrink-0 text-muted">Qualify ran</dt>
         <dd>{formatIngestionDate(story.relevance_ran_at)}</dd>
       </div>
       <div className="flex gap-2">

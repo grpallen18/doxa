@@ -9,9 +9,9 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | Step | Deploy | Status | Optional | Isolation |
 |------|--------|--------|----------|-----------|
 | relevance-gate | `relevance_gate` | inactive | — | story_id |
+| review-pending-stories | `review_pending_stories` | inactive | yes | story_id |
 | scrape-story-content | `scrape_story_content` | active | — | story_id |
 | clean-scraped-content | `clean_scraped_content` | inactive | — | story_id |
-| review-pending-stories | `review_pending_stories` | inactive | — | story_id |
 
 ## Extraction (`extraction`)
 

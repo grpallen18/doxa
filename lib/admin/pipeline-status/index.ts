@@ -19,10 +19,25 @@ import {
   getExtractionBlockedReason,
   getExtractionNotRequiredMessage,
   isExtractionPipelineBlocked,
+  isExtractionStageComplete,
   isExtractionStepBlocked,
   isExtractionStepComplete,
+  isChunkReviewApproved,
   isMergeValidated,
   isRefineOptional,
+} from '@/lib/admin/pipeline-status/extraction'
+
+export {
+  EXTRACTION_STEP_GROUPS,
+  EXTRACTION_TIMELINE_HIDDEN_STEPS,
+} from '@/lib/admin/pipeline-status/extraction-groups'
+export {
+  extractTimelineDetail,
+  getExtractTimelineStatus,
+  getMergeTimelineStatus,
+  isChunkReviewApproved,
+  isExtractionStageComplete,
+  mergeTimelineDetail,
 } from '@/lib/admin/pipeline-status/extraction'
 import {
   getIngestionNotRequiredMessage,
@@ -32,6 +47,8 @@ import {
   isIngestionStepComplete,
   isReviewPendingOptional,
 } from '@/lib/admin/pipeline-status/ingestion'
+
+export { getQualifyTimelineStatus, isQualifyResolved } from '@/lib/admin/pipeline-status/ingestion'
 
 export type PipelineStepStatus = 'complete' | 'current' | 'pending' | 'blocked' | 'optional'
 
@@ -154,11 +171,26 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
   const blockedGate = pipelineBlocked && !canRunWhenBlocked(stepId)
 
   if (stepId === 'review-pending-stories') {
+    return !complete && payload.story.relevance_status === 'PENDING' && priorOk
+  }
+
+  if (stepId === 'scrape-story-content' || stepId === 'clean-scraped-content') {
     return (
       !complete &&
-      payload.story.relevance_status === 'PENDING' &&
-      payload.story.has_content_clean === true &&
-      priorOk
+      !blocked &&
+      priorOk &&
+      !blockedGate &&
+      payload.story.relevance_status === 'KEEP'
+    )
+  }
+
+  if (stepId === 'merge-story-claims') {
+    return (
+      !complete &&
+      !blocked &&
+      priorOk &&
+      !blockedGate &&
+      isChunkReviewApproved(payload)
     )
   }
 
@@ -263,9 +295,13 @@ export function deriveStageSummaries(
   return PIPELINE_STAGES.map((stage) => {
     const stageSteps = checklist.steps.filter((s) => s.stageId === stage.id)
     const hasBlocked = stageSteps.some((s) => s.status === 'blocked')
-    const allDone = stageSteps.every(
-      (s) => s.status === 'complete' || s.status === 'optional'
-    )
+
+    let allDone: boolean
+    if (stage.id === 'extraction') {
+      allDone = isExtractionStageComplete(payload)
+    } else {
+      allDone = stageSteps.every((s) => s.status === 'complete' || s.status === 'optional')
+    }
 
     let status: StageSummaryStatus
     if (hasBlocked) {

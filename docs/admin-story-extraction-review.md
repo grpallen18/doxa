@@ -10,24 +10,35 @@ Steps are grouped in the UI under three macro stages. Source of truth: `doxa-age
 
 ### Ingestion
 
+Qualify assigns **Keep**, **Drop**, or **Pending**. **Pending** is a feedback loop within qualify — a story must be resolved to Keep or Drop before scrape runs. The optional **Resolve pending qualification** step covers that review; it is not a separate macro stage after clean.
+
 | Step | Deploy | Complete when |
 |------|--------|---------------|
-| Relevance gate | `relevance_gate` | `relevance_status` set |
-| Scrape story content | `scrape_story_content` | `scraped_at` set or `scrape_skipped` |
-| Clean scraped content | `clean_scraped_content` | `story_bodies.content_clean` present |
-| Review pending stories | `review_pending_stories` | `relevance_status` is not `PENDING` |
+| Qualify story | `relevance_gate` | `relevance_status` set (Keep, Drop, or Pending) |
+| Resolve pending qualification | `review_pending_stories` | Not required unless `PENDING`; complete when status is Keep or Drop |
+| Scrape story content | `scrape_story_content` | `scraped_at` set or `scrape_skipped` (Keep only) |
+| Clean scraped content | `clean_scraped_content` | `story_bodies.content_clean` present (Keep only) |
 
 ### Extraction (claims-only path)
+
+Extraction has two QA feedback loops before canonicalization:
+
+1. **Chunk QA loop** — after extract, review/validate chunk claims until all chunks pass (chunk refine agents planned incrementally).
+2. **Merge QA loop** — after merge, review → refine (when needed) → approve merged extraction.
+
+Macro timeline: **Chunk → Extract → Merge**. Review and approve loops run within Extract and Merge; runnable steps stay in the checklist under grouped headings.
 
 | Step | Deploy | Notes |
 |------|--------|-------|
 | Chunk story bodies | `chunk_story_bodies` | Creates `story_chunks` |
 | Extract primary claims | `extract_story_claims` | 1 chunk per Run (`max_chunks: 1`) |
-| Validate chunk claims | `validate_chunk_claims` | Deterministic QA → chunk `passed` |
-| Merge story claims | `merge_story_claims` | → `story_claims` |
-| Review merged extraction | `review_merged_extraction` | Merge QA reviewer |
-| Refine merged extraction | `refine_merged_extraction` | Optional (max 1 cycle) |
-| Validate merged extraction | `validate_merged_extraction` | Gates canonical linkers |
+| Review chunk claims | `validate_chunk_claims` | Chunk QA loop — deterministic validate → chunk `passed` |
+| Merge story claims | `merge_story_claims` | After all chunks passed → `story_claims` |
+| Review merged extraction | `review_merged_extraction` | Merge QA loop — completeness reviewer |
+| Refine merged extraction | `refine_merged_extraction` | Merge QA loop branch when review requests refinement |
+| Approve merged extraction | `validate_merged_extraction` | Gates canonical linkers (`extraction_qa_status = passed`) |
+
+Extraction macro stage is **complete** only when merge QA approves (`extraction_qa_status = passed`).
 
 ### Canonicalization
 
@@ -172,9 +183,9 @@ Migration `126_story_extraction_feedback.sql`. Passive dataset for future evals 
 ## Manual test: clear + pipeline walkthrough
 
 1. Open a story hub on `/admin/stories/[id]`; confirm stepper links and entity summary (no full checklist on hub).
-2. **Ingestion** (`/ingestion`) — Run relevance → scrape → clean as needed; confirm ingestion fields in step detail.
-3. **Extraction** (`/extraction`) — **Clear extraction** if testing from scratch → Run Chunk → Extract (repeat per chunk) → Validate → Merge → merge QA.
-4. **Canonical** (`/canonical`) — Walk link steps after merge QA passes. Re-run validate if >20 chunks.
+2. **Ingestion** (`/ingestion`) — Run qualify → resolve Pending if needed → scrape → clean; confirm ingestion fields in step detail.
+3. **Extraction** (`/extraction`) — Chunk → Extract (includes review) → Merge (includes approve); confirm `extraction_qa_status = passed` before canonical.
+4. **Canonical** (`/canonical`) — Walk link steps after merge QA passes. Re-run chunk validate if >20 chunks.
 5. Confirm blocked state when QA returns `needs_human_review`; **Approve QA** on hub unblocks canonical steps.
 6. **Clear canonical** on a story with shared claims; shared canonical rows on other stories must remain.
 7. **Admin Center search** (`/admin?q=…`) returns matching stories, claims, and positions.

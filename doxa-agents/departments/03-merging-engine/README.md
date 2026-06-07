@@ -1,15 +1,17 @@
 # 03 Merging engine
 
-Merge chunk claims into `story_claims` and run merge-level extraction QA before canonicalization.
+Merge chunk claims into `story_claims`, then run merge-level extraction QA before canonicalization.
 
 ## Agents (run in order)
 
-1. **[01-merge-story-claims](01-merge-story-claims/)** — dedupe chunk claims → `story_claims`
-2. **[02-review-merged-extraction](02-review-merged-extraction/)** — completeness reviewer (story)
-3. **[03-refine-merged-extraction](03-refine-merged-extraction/)** — patch agent (merge, max one repair cycle)
-4. **[04-validate-merged-extraction](04-validate-merged-extraction/)** — judge before canonicalization
+1. **[01-merge-story-claims](01-merge-story-claims/)** — dedupe chunk claims → `story_claims` (requires all chunks `passed`)
+2. **[02-review-merged-extraction](02-review-merged-extraction/)** — merge QA loop: completeness reviewer
+3. **[03-refine-merged-extraction](03-refine-merged-extraction/)** — merge QA loop branch when review requests refinement (max one cycle)
+4. **[04-validate-merged-extraction](04-validate-merged-extraction/)** — merge QA loop: approve before canonicalization
 
-Upstream: [02-chunking-engine](../02-chunking-engine/) (chunk claims QA passed). Downstream: [04-semantic-intelligence-engine](../04-semantic-intelligence-engine/).
+**Merge QA loop:** review → refine (when needed) → approve. Canonical linkers require `stories.extraction_qa_status = passed`.
+
+Upstream: [02-chunking-engine](../02-chunking-engine/) chunk QA passed. Downstream: [04-semantic-intelligence-engine](../04-semantic-intelligence-engine/).
 
 Legacy multi-atom merge: [legacy/merge-story-entities](../legacy/merge-story-entities/).
 

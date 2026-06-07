@@ -17,11 +17,11 @@ const STAGE_META: Record<
 > = {
   ingestion: {
     title: 'Ingestion pipeline',
-    description: 'Relevance, scrape, clean, and review pending stories.',
+    description: 'Qualify (Keep/Drop/Pending), scrape, and clean story content.',
   },
   extraction: {
     title: 'Extraction pipeline',
-    description: 'Chunk, extract, validate, merge, and merge QA for this story.',
+    description: 'Chunk, extract (with review), and merge (with approve).',
   },
   canonical: {
     title: 'Canonicalization pipeline',

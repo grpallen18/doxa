@@ -128,6 +128,27 @@ export const handler = async (req: Request) => {
       .maybeSingle();
     if (storyErr) return json({ error: storyErr.message }, 500);
     if (!storyRow) return json({ error: "Story not found", story_id: singleStoryId }, 404);
+
+    const { data: readyRaw, error: readyErr } = await supabase.rpc("get_stories_ready_to_merge", {
+      p_limit: 100,
+    });
+    if (readyErr) return json({ error: readyErr.message }, 500);
+    const readyIds = new Set(
+      (Array.isArray(readyRaw) ? readyRaw : [])
+        .map((r: { story_id?: string }) => r?.story_id)
+        .filter((id): id is string => typeof id === "string")
+    );
+    if (!readyIds.has(singleStoryId)) {
+      return json(
+        {
+          error:
+            "Story is not ready to merge — all chunks must be extracted, chunk QA passed, and no story claims yet.",
+          story_id: singleStoryId,
+        },
+        409
+      );
+    }
+
     toProcess = [singleStoryId];
   } else {
     const { data: readyRaw, error: rpcErr } = await supabase.rpc("get_stories_ready_to_merge", {
