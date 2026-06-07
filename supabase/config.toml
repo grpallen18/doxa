@@ -320,6 +320,38 @@ allow_dynamic_registration = false
 [functions.receive_scraped_content]
 verify_jwt = false
 
+# Admin run-step invokes (service role / sb_secret from Next.js API — not a user session JWT).
+[functions.relevance_gate]
+verify_jwt = false
+[functions.review_pending_stories]
+verify_jwt = false
+[functions.scrape_story_content]
+verify_jwt = false
+[functions.clean_scraped_content]
+verify_jwt = false
+[functions.chunk_story_bodies]
+verify_jwt = false
+[functions.extract_story_claims]
+verify_jwt = false
+[functions.validate_chunk_claims]
+verify_jwt = false
+[functions.merge_story_claims]
+verify_jwt = false
+[functions.review_merged_extraction]
+verify_jwt = false
+[functions.refine_merged_extraction]
+verify_jwt = false
+[functions.validate_merged_extraction]
+verify_jwt = false
+[functions.link_canonical_claims]
+verify_jwt = false
+[functions.link_canonical_events]
+verify_jwt = false
+[functions.link_canonical_positions]
+verify_jwt = false
+[functions.update_stances]
+verify_jwt = false
+
 # Topology sub-functions: called by topology_pipeline via HTTP with service role key.
 [functions.topology_pipeline]
 verify_jwt = false

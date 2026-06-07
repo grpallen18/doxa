@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
@@ -46,6 +48,35 @@ function serviceRoleKeyHint(): string {
   return lines.join(' ')
 }
 
+function getSupabaseKeyUrlMismatchHint(serviceKey: string): string | null {
+  const urlRef = supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
+  if (!urlRef) return null
+
+  try {
+    const branchPath = join(process.cwd(), 'supabase', 'preview-branch.json')
+    const branchEnvPath = join(process.cwd(), '.env.local.branch')
+    if (!existsSync(branchPath) || !existsSync(branchEnvPath)) return null
+
+    const branch = JSON.parse(readFileSync(branchPath, 'utf8')) as { url?: string }
+    const branchRef = branch.url?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
+    if (!branchRef || urlRef === branchRef) return null
+
+    const branchEnv = readFileSync(branchEnvPath, 'utf8')
+    const match = branchEnv.match(/^SUPABASE_SERVICE_ROLE_KEY=(.+)$/m)
+    const branchKey = match?.[1]?.trim()
+    if (branchKey && branchKey === serviceKey) {
+      return (
+        `SUPABASE_SERVICE_ROLE_KEY is from preview branch (${branchRef}) but NEXT_PUBLIC_SUPABASE_URL is ${urlRef}. ` +
+        `For preview work run npm run env:branch and restart dev. For main, use the secret key from the ${urlRef} dashboard.`
+      )
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return null
+}
+
 /** Admin client with service role - bypasses RLS. Use for writes and edge invokes. */
 export function createAdminClient() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
@@ -56,6 +87,10 @@ export function createAdminClient() {
     throw new Error(
       `SUPABASE_SERVICE_ROLE_KEY is the publishable key, not the secret key. ${serviceRoleKeyHint()}`
     )
+  }
+  const mismatchHint = getSupabaseKeyUrlMismatchHint(serviceKey)
+  if (mismatchHint) {
+    throw new Error(mismatchHint)
   }
   return createSupabaseClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
 }

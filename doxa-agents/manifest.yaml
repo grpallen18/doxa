@@ -20,6 +20,7 @@ steps:
       - OPENAI_API_KEY
       - OPENAI_MODEL
       - OPENAI_MODEL_LARGE
+    verify_jwt: false
     cron:
       job_name: clean-scraped-content-every-5min
       schedule: "*/5 * * * *"
@@ -61,6 +62,7 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+    verify_jwt: false
     cron:
       job_name: relevance-gate-every-2min
       schedule: "*/2 * * * *"
@@ -76,6 +78,7 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+    verify_jwt: false
     cron:
       job_name: review-pending-stories-every-hour
       schedule: 0 * * * *
@@ -91,6 +94,7 @@ steps:
     secrets:
       - SCRAPE_SECRET
       - WORKER_SCRAPE_URL
+    verify_jwt: false
     cron:
       job_name: scrape-story-content-every-2min
       schedule: "*/2 * * * *"
@@ -103,6 +107,7 @@ steps:
     status: inactive
     source: doxa-agents/departments/02-chunking-engine/01-chunk-story-bodies
     deploy_name: chunk_story_bodies
+    verify_jwt: false
     cron:
       job_name: chunk-story-bodies-every-2min
       schedule: "*/2 * * * *"
@@ -117,6 +122,7 @@ steps:
     deploy_name: extract_story_claims
     secrets:
       - OPENAI_API_KEY
+    verify_jwt: false
   - id: link-chunk-entities
     department: 02-chunking-engine
     workflow: link-chunk-entities
@@ -173,6 +179,7 @@ steps:
     status: inactive
     source: doxa-agents/departments/02-chunking-engine/03-validate-chunk-claims
     deploy_name: validate_chunk_claims
+    verify_jwt: false
   - id: validate-chunk-extraction
     department: 02-chunking-engine
     workflow: validate-chunk-extraction
@@ -200,6 +207,7 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+    verify_jwt: false
   - id: refine-merged-extraction
     department: 03-merging-engine
     workflow: refine-merged-extraction
@@ -210,6 +218,7 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+    verify_jwt: false
     cron:
       job_name: refine-merged-extraction-every-2min
       schedule: "*/2 * * * *"
@@ -225,6 +234,7 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+    verify_jwt: false
     cron:
       job_name: review-merged-extraction-every-2min
       schedule: "*/2 * * * *"
@@ -240,6 +250,7 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+    verify_jwt: false
     cron:
       job_name: validate-merged-extraction-every-2min
       schedule: "*/2 * * * *"
@@ -257,6 +268,7 @@ steps:
       - OPENAI_EMBEDDING_MODEL
       - OPENAI_MODEL
       - SIMILARITY_THRESHOLD
+    verify_jwt: false
     cron:
       job_name: link-canonical-claims-every-2min
       schedule: "*/2 * * * *"
@@ -274,6 +286,7 @@ steps:
       - OPENAI_API_KEY
       - OPENAI_EMBEDDING_MODEL
       - OPENAI_MODEL
+    verify_jwt: false
     cron:
       job_name: link-canonical-events-every-2min
       schedule: "*/2 * * * *"
@@ -291,6 +304,7 @@ steps:
       - OPENAI_EMBEDDING_MODEL
       - OPENAI_MODEL
       - SIMILARITY_THRESHOLD
+    verify_jwt: false
     cron:
       job_name: link-canonical-positions-every-2min
       schedule: "*/2 * * * *"
@@ -308,6 +322,7 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+    verify_jwt: false
     cron:
       job_name: update-stance-every-20min
       schedule: "*/20 * * * *"

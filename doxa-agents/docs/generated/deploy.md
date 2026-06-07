@@ -45,7 +45,22 @@ supabase functions deploy generate_atlas_map
 JWT exceptions:
 
 ```bash
+supabase functions deploy clean_scraped_content --no-verify-jwt
 supabase functions deploy receive_scraped_content --no-verify-jwt
+supabase functions deploy relevance_gate --no-verify-jwt
+supabase functions deploy review_pending_stories --no-verify-jwt
+supabase functions deploy scrape_story_content --no-verify-jwt
+supabase functions deploy chunk_story_bodies --no-verify-jwt
+supabase functions deploy extract_story_claims --no-verify-jwt
+supabase functions deploy validate_chunk_claims --no-verify-jwt
+supabase functions deploy merge_story_claims --no-verify-jwt
+supabase functions deploy refine_merged_extraction --no-verify-jwt
+supabase functions deploy review_merged_extraction --no-verify-jwt
+supabase functions deploy validate_merged_extraction --no-verify-jwt
+supabase functions deploy link_canonical_claims --no-verify-jwt
+supabase functions deploy link_canonical_events --no-verify-jwt
+supabase functions deploy link_canonical_positions --no-verify-jwt
+supabase functions deploy update_stances --no-verify-jwt
 supabase functions deploy build_agreement_clusters --no-verify-jwt
 supabase functions deploy generate_agreement_cluster_candidates --no-verify-jwt
 supabase functions deploy classify_agreement_cluster_relationships --no-verify-jwt

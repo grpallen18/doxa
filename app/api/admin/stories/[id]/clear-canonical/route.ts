@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { extractErrorMessage } from '@/lib/admin/story-extraction-review'
 
@@ -36,21 +36,21 @@ export async function POST(
   }
 
   try {
-    const supabase = createAdminClient()
+    const supabase = await createClient()
     const { data, error } = await supabase.rpc('reset_story_canonical_links', {
       p_story_id: storyId,
     })
 
     if (error) {
       return NextResponse.json(
-        { data: null, error: { message: error.message } },
+        { data: null, error: { message: formatSupabaseAdminError(error.message) } },
         { status: 500 }
       )
     }
 
     return NextResponse.json({ data, error: null })
   } catch (error: unknown) {
-    const message = extractErrorMessage(error)
+    const message = formatSupabaseAdminError(extractErrorMessage(error))
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })
   }
 }
