@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from 'react'
 import { HighlightedArticleText } from '@/components/admin/highlighted-article-text'
-import { StoryHubSummary } from '@/components/admin/stories/story-hub-summary'
 import { useStoryReview } from '@/components/admin/stories/story-review-provider'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
@@ -39,57 +38,47 @@ export default function AdminStoryHubPage() {
   const { story } = payload
 
   return (
-    <div className="grid min-h-[400px] grid-cols-1 gap-4 lg:h-[calc(100vh-12rem)] lg:min-h-0 lg:grid-cols-2 lg:items-stretch">
-      <Panel
-        variant="soft"
-        interactive={false}
-        className="flex min-h-[400px] flex-col overflow-hidden lg:h-full lg:min-h-0"
-      >
-        <div className="shrink-0 border-b border-subtle p-4">
-          <h2 className="text-lg font-semibold leading-snug">{story.title}</h2>
-          <div className="mt-2 space-y-1 text-xs text-muted">
-            <p>{story.source_name ?? 'Unknown source'}</p>
-            <p>Published {formatDate(story.published_at)}</p>
-            <p>
-              <a
-                href={story.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-primary hover:underline"
-              >
-                Open original
-              </a>
-            </p>
-            <p>Status: {story.extraction_status}</p>
-            <p>QA: {qaStatusLabel(story.extraction_qa_status)}</p>
-            {story.extraction_qa_status === 'needs_human_review' && (
-              <Button type="button" size="sm" variant="outline" disabled={approving} onClick={approveQa}>
-                {approving ? 'Approving…' : 'Approve QA'}
-              </Button>
-            )}
-          </div>
+    <Panel
+      variant="soft"
+      interactive={false}
+      className="flex min-h-[400px] flex-col overflow-hidden lg:h-[calc(100vh-12rem)] lg:min-h-0"
+    >
+      <div className="shrink-0 border-b border-subtle p-4">
+        <h2 className="text-lg font-semibold leading-snug">{story.title}</h2>
+        <div className="mt-2 space-y-1 text-xs text-muted">
+          <p>{story.source_name ?? 'Unknown source'}</p>
+          <p>Published {formatDate(story.published_at)}</p>
+          <p>
+            <a
+              href={story.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-primary hover:underline"
+            >
+              Open original
+            </a>
+          </p>
+          <p>Status: {story.extraction_status}</p>
+          <p>QA: {qaStatusLabel(story.extraction_qa_status)}</p>
+          {story.extraction_qa_status === 'needs_human_review' && (
+            <Button type="button" size="sm" variant="outline" disabled={approving} onClick={approveQa}>
+              {approving ? 'Approving…' : 'Approve QA'}
+            </Button>
+          )}
         </div>
-        <ScrollArea
-          className="min-h-0 flex-1 overflow-hidden p-4 lg:h-0"
-          onMouseLeave={() => setHighlightSpan(null)}
-        >
-          <article className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed dark:prose-invert">
-            {story.article_text ? (
-              <HighlightedArticleText text={story.article_text} highlight={highlightSpan} />
-            ) : (
-              <p className="text-muted italic">No article text available.</p>
-            )}
-          </article>
-        </ScrollArea>
-      </Panel>
-
-      <StoryHubSummary
-        payload={payload}
-        storyId={storyId}
-        onRefresh={() => refresh(true)}
-        onApproveQa={approveQa}
-        approvingQa={approving}
-      />
-    </div>
+      </div>
+      <ScrollArea
+        className="min-h-0 flex-1 overflow-hidden p-4 lg:h-0"
+        onMouseLeave={() => setHighlightSpan(null)}
+      >
+        <article className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed dark:prose-invert">
+          {story.article_text ? (
+            <HighlightedArticleText text={story.article_text} highlight={highlightSpan} />
+          ) : (
+            <p className="text-muted italic">No article text available.</p>
+          )}
+        </article>
+      </ScrollArea>
+    </Panel>
   )
 }

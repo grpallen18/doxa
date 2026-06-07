@@ -46,11 +46,15 @@ export function PipelineStepNode({
 }
 
 export function pipelineNodeTrackClass(
-  afterStatus: StageSummaryStatus | PipelineStepStatus
+  segmentStatus: StageSummaryStatus | PipelineStepStatus
 ): string {
-  if (afterStatus === 'complete' || afterStatus === 'optional') {
+  if (
+    segmentStatus === 'complete' ||
+    segmentStatus === 'optional' ||
+    segmentStatus === 'current'
+  ) {
     return 'pipeline-step-track--complete'
   }
-  if (afterStatus === 'blocked') return 'pipeline-step-track--blocked'
+  if (segmentStatus === 'blocked') return 'pipeline-step-track--blocked'
   return 'pipeline-step-track--muted'
 }

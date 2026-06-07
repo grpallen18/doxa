@@ -109,7 +109,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "review-pending-stories",
@@ -128,7 +128,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "scrape-story-content",
@@ -166,7 +166,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "chunk-story-bodies",
@@ -185,7 +185,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "extract-story-claims",
@@ -205,7 +205,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": 1,
       "timeoutMs": 140000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "validate-chunk-claims",
@@ -225,7 +225,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": 20,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "merge-story-claims",
@@ -244,7 +244,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "review-merged-extraction",
@@ -263,7 +263,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "refine-merged-extraction",
@@ -282,7 +282,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "validate-merged-extraction",
@@ -301,7 +301,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "link-canonical-claims",
@@ -321,7 +321,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "link-canonical-events",
@@ -340,7 +340,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "link-canonical-positions",
@@ -360,7 +360,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   },
   {
     "id": "update-stances",
@@ -380,7 +380,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": 20,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — cron may not be scheduled."
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
   }
 ]
 

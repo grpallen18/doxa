@@ -22,6 +22,7 @@ import {
   isExtractionStageComplete,
   isExtractionStepBlocked,
   isExtractionStepComplete,
+  isChunkClaimsReviewComplete,
   isChunkReviewApproved,
   isMergeValidated,
   isRefineOptional,
@@ -35,6 +36,7 @@ export {
   extractTimelineDetail,
   getExtractTimelineStatus,
   getMergeTimelineStatus,
+  isChunkClaimsReviewComplete,
   isChunkReviewApproved,
   isExtractionStageComplete,
   mergeTimelineDetail,
@@ -190,7 +192,7 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
       !blocked &&
       priorOk &&
       !blockedGate &&
-      isChunkReviewApproved(payload)
+      isChunkClaimsReviewComplete(payload)
     )
   }
 
@@ -284,6 +286,15 @@ const STAGE_PATH: Record<PipelineStageId, string> = {
   extraction: 'extraction',
   canonical: 'canonical',
 }
+
+export {
+  getRevertBlockedReason,
+  getRevertStepDescription,
+  getRevertibleStepId,
+  isReviewPendingActuallyRan,
+  isStepRevertible,
+  REVERT_SCOPE_STEP_IDS,
+} from '@/lib/admin/pipeline-status/revert'
 
 export function deriveStageSummaries(
   storyId: string,

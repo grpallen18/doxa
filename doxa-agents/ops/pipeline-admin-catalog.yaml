@@ -84,4 +84,4 @@ stages:
           max_chunks: 20
         optional: true
 
-inactive_note: Not active in activation.yaml — cron may not be scheduled.
+inactive_note: Not active in activation.yaml — Activate cron in Supabase when ready.

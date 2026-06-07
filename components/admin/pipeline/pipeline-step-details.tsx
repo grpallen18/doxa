@@ -15,7 +15,17 @@ import {
 } from '@/lib/admin/chunk-extraction'
 import { resolveArticleSpan, type ArticleSpan } from '@/lib/admin/article-span-highlight'
 import { qaStatusLabel } from '@/lib/admin/extraction-qa-types'
+import {
+  FocusAccordion,
+  FocusAccordionItem,
+  AccordionContent,
+  AccordionTrigger,
+} from '@/components/admin/pipeline/focus-accordion'
 import { StepDetailReveal } from '@/components/admin/pipeline/step-detail-reveal'
+
+function formatChunkLabel(chunkIndex: number, totalChunks: number): string {
+  return `Chunk ${chunkIndex + 1}/${totalChunks}`
+}
 
 export type SpanHighlightProps = {
   articleText: string | null
@@ -190,6 +200,257 @@ function ValidationSummary({ report }: { report: unknown }) {
   )
 }
 
+function shouldShowPrimaryText(primary: string, triggerPreview: string): boolean {
+  const normalized = primary.trim()
+  if (!normalized) return false
+  if (normalized === triggerPreview.trim()) return false
+  if (triggerPreview.endsWith('…')) {
+    const prefix = triggerPreview.slice(0, -1).trimEnd()
+    return normalized.startsWith(prefix)
+  }
+  return normalized !== triggerPreview.trim()
+}
+
+function EntityMetadataLine({ fields }: { fields: Array<{ label: string; value: string | null }> }) {
+  const visible = fields.filter((field) => field.value)
+  if (visible.length === 0) return null
+  return (
+    <p className="text-xs text-muted">
+      {visible.map((field, index) => (
+        <span key={field.label}>
+          {index > 0 && ' · '}
+          <span className="font-medium text-foreground/80">{field.label}:</span> {field.value}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+function EntityExpandedDetail({
+  primaryText,
+  triggerText,
+  metadata,
+  footnotes = [],
+}: {
+  primaryText: string | null
+  triggerText: string
+  metadata: Array<{ label: string; value: string | null }>
+  footnotes?: Array<{ label: string; value: string | null }>
+}) {
+  const primary = primaryText?.trim() ?? ''
+  const showPrimary = shouldShowPrimaryText(primary, triggerText)
+  const visibleFootnotes = footnotes.filter(
+    (field) => field.value && field.value.trim() !== primary && field.value.trim() !== triggerText.trim()
+  )
+  const hasMetadata = metadata.some((field) => field.value)
+
+  if (!hasMetadata && !showPrimary && visibleFootnotes.length === 0) {
+    return <p className="text-xs text-muted">No additional details.</p>
+  }
+
+  return (
+    <div className="space-y-1">
+      <EntityMetadataLine fields={metadata} />
+      {showPrimary && <p className="text-xs whitespace-pre-wrap">{primary}</p>}
+      {visibleFootnotes.map((field) => (
+        <p key={field.label} className="text-xs text-muted">
+          <span className="font-medium text-foreground/80">{field.label}:</span> {field.value}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+function confidenceValue(value: number | null): string | null {
+  return value != null ? String(value) : null
+}
+
+function buildEntityExpandedContent({
+  primaryText,
+  triggerText,
+  metadata,
+  footnotes = [],
+}: {
+  primaryText: string | null
+  triggerText: string
+  metadata: Array<{ label: string; value: string | null }>
+  footnotes?: Array<{ label: string; value: string | null }>
+}) {
+  return (
+    <EntityExpandedDetail
+      primaryText={primaryText}
+      triggerText={triggerText}
+      metadata={metadata}
+      footnotes={footnotes}
+    />
+  )
+}
+
+function ChunkEntityNestedAccordion({
+  chunkIndex,
+  extractionJson,
+  spanHighlight,
+}: {
+  chunkIndex: number
+  extractionJson: unknown
+  spanHighlight?: SpanHighlightProps
+}) {
+  const counts = chunkEntityCounts(extractionJson)
+  const flat = flattenExtractionJson(chunkIndex, extractionJson)
+
+  const categories: Array<{
+    id: string
+    title: string
+    count: number
+    items: Array<{
+      id: string
+      trigger: string
+      content: ReactNode
+    }>
+  }> = [
+    {
+      id: 'claims',
+      title: 'Claims',
+      count: counts.claims,
+      items: flat.claims.map((claim) => {
+        const trigger = claim.raw_text.trim()
+        return {
+          id: `claim-${claim.index}`,
+          trigger,
+          content: buildEntityExpandedContent({
+            primaryText: claim.raw_text,
+            triggerText: trigger,
+            metadata: [
+              { label: 'Polarity', value: claim.polarity },
+              { label: 'Stance', value: claim.stance },
+              { label: 'Confidence', value: confidenceValue(claim.extraction_confidence) },
+            ],
+          }),
+        }
+      }),
+    },
+    {
+      id: 'evidence',
+      title: 'Evidence',
+      count: counts.evidence,
+      items: flat.evidence.map((item) => {
+        const trigger = item.excerpt.trim()
+        return {
+          id: `evidence-${item.index}`,
+          trigger,
+          content: buildEntityExpandedContent({
+            primaryText: item.excerpt,
+            triggerText: trigger,
+            metadata: [
+              { label: 'Type', value: item.evidence_type },
+              { label: 'Attribution', value: item.attribution },
+              { label: 'Confidence', value: confidenceValue(item.extraction_confidence) },
+            ],
+          }),
+        }
+      }),
+    },
+    {
+      id: 'positions',
+      title: 'Positions',
+      count: counts.positions,
+      items: flat.positions.map((item) => {
+        const trigger = item.raw_text.trim()
+        return {
+          id: `position-${item.index}`,
+          trigger,
+          content: buildEntityExpandedContent({
+            primaryText: item.raw_text,
+            triggerText: trigger,
+            metadata: [
+              { label: 'Speaker type', value: item.speaker_type },
+              { label: 'Position type', value: item.position_type },
+              { label: 'Holder', value: item.holder },
+              { label: 'Confidence', value: confidenceValue(item.extraction_confidence) },
+            ],
+            footnotes: [{ label: 'Excerpt', value: item.excerpt_text }],
+          }),
+        }
+      }),
+    },
+    {
+      id: 'events',
+      title: 'Events',
+      count: counts.events,
+      items: flat.events.map((item) => {
+        const trigger = item.event_summary.trim()
+        return {
+          id: `event-${item.index}`,
+          trigger,
+          content: buildEntityExpandedContent({
+            primaryText: item.event_summary,
+            triggerText: trigger,
+            metadata: [
+              { label: 'Type', value: item.event_type },
+              { label: 'Primary actor', value: item.primary_actor },
+              { label: 'Confidence', value: confidenceValue(item.extraction_confidence) },
+            ],
+          }),
+        }
+      }),
+    },
+  ].filter((category) => category.count > 0)
+
+  if (categories.length === 0) {
+    return <EmptyDetail message="No extracted entities in this chunk." />
+  }
+
+  return (
+    <FocusAccordion className="space-y-2">
+      {categories.map((category) => (
+        <FocusAccordionItem
+          key={category.id}
+          value={`${chunkIndex}-${category.id}`}
+          className="rounded border border-subtle px-2"
+        >
+          <AccordionTrigger className="py-2 text-xs font-medium hover:no-underline">
+            {category.title} ({category.count})
+          </AccordionTrigger>
+          <AccordionContent className="pb-2">
+            <FocusAccordion className="space-y-1">
+              {category.items.map((item, itemIndex) => {
+                const claim =
+                  category.id === 'claims'
+                    ? flat.claims[itemIndex]
+                    : null
+
+                return (
+                  <FocusAccordionItem
+                    key={item.id}
+                    value={`${chunkIndex}-${item.id}`}
+                    className="px-0"
+                  >
+                    <AccordionTrigger
+                      className="py-1.5 text-xs font-normal hover:no-underline"
+                      {...(claim
+                        ? claimHoverHandlers(
+                            spanHighlight,
+                            chunkIndex,
+                            claim.span_start,
+                            claim.span_end,
+                            claim.source_excerpt
+                          )
+                        : {})}
+                    >
+                      <span className="min-w-0 flex-1 text-left whitespace-pre-wrap">{item.trigger}</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-2 pt-0">{item.content}</AccordionContent>
+                  </FocusAccordionItem>
+                )
+              })}
+            </FocusAccordion>
+          </AccordionContent>
+        </FocusAccordionItem>
+      ))}
+    </FocusAccordion>
+  )
+}
+
 function ChunkEntityList({
   chunkIndex,
   extractionJson,
@@ -261,26 +522,29 @@ function ChunkExtractionsDetail({
   }
 
   return (
-    <ul className="space-y-3">
+    <FocusAccordion className="space-y-2">
       {extracted.map((ch) => {
         const extractionJson = resolvePreRefineExtractionJson(ch, payload.qa_artifacts)
         return (
-          <li key={ch.chunk_index} className="rounded border border-subtle p-2">
-            <p className="text-xs font-medium">
-              Chunk {ch.chunk_index} · QA {qaStatusLabel(ch.extraction_qa_status)}
-            </p>
-            <div className="mt-2">
-              <p className="mb-1 text-xs text-muted">Extraction before refine</p>
-              <ChunkEntityList
+          <FocusAccordionItem
+            key={ch.chunk_index}
+            value={`chunk-${ch.chunk_index}`}
+            className="rounded border border-subtle px-2"
+          >
+            <AccordionTrigger className="py-2 text-xs font-medium hover:no-underline">
+              {formatChunkLabel(ch.chunk_index, payload.chunks.length)}
+            </AccordionTrigger>
+            <AccordionContent className="pb-2">
+              <ChunkEntityNestedAccordion
                 chunkIndex={ch.chunk_index}
                 extractionJson={extractionJson}
                 spanHighlight={spanHighlight}
               />
-            </div>
-          </li>
+            </AccordionContent>
+          </FocusAccordionItem>
         )
       })}
-    </ul>
+    </FocusAccordion>
   )
 }
 
@@ -324,7 +588,8 @@ function ChunkQaDetail({
         return (
           <li key={ch.chunk_index} className="rounded border border-subtle p-2">
             <p className="text-xs font-medium">
-              Chunk {ch.chunk_index} · {qaStatusLabel(ch.extraction_qa_status)}
+              {formatChunkLabel(ch.chunk_index, payload.chunks.length)} ·{' '}
+              {qaStatusLabel(ch.extraction_qa_status)}
               {kind === 'refine' && (ch.extraction_qa_refinement_count ?? 0) > 0
                 ? ` · refined ${ch.extraction_qa_refinement_count}×`
                 : ''}
@@ -763,15 +1028,23 @@ export function PipelineStepDetail({
       case 'chunk-story-bodies':
         if (payload.chunks.length === 0) return <EmptyDetail message="No chunks yet." />
         return (
-          <ul className="space-y-2">
-            {payload.chunks.map((ch) => (
-              <li key={ch.chunk_index} className="rounded border border-subtle p-2 text-xs">
-                <p className="font-medium">Chunk {ch.chunk_index}</p>
-                <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-muted">
-                  {ch.content ?? '(empty)'}
-                </p>
-              </li>
-            ))}
+          <ul className="space-y-1 text-xs">
+            {payload.chunks.map((ch) => {
+              const charCount = (ch.content ?? '').length
+              return (
+                <li
+                  key={ch.chunk_index}
+                  className="flex items-baseline justify-between gap-3 rounded border border-subtle px-2 py-1.5"
+                >
+                  <span className="font-medium">
+                    {formatChunkLabel(ch.chunk_index, payload.chunks.length)}
+                  </span>
+                  <span className="shrink-0 text-muted">
+                    {charCount.toLocaleString()} {charCount === 1 ? 'character' : 'characters'}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         )
       case 'extract-story-claims':

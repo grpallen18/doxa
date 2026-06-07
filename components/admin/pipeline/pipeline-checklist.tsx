@@ -1,19 +1,32 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Bot, Loader2 } from 'lucide-react'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
-  Accordion,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  FocusAccordion,
+  FocusAccordionItem,
   AccordionContent,
-  AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion'
+} from '@/components/admin/pipeline/focus-accordion'
 import type { PipelineStageId } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
   derivePipelineChecklist,
-  EXTRACTION_STEP_GROUPS,
+  getRevertBlockedReason,
+  getRevertStepDescription,
+  isStepRevertible,
+  REVERT_SCOPE_STEP_IDS,
   type PipelineStepId,
   type PipelineStepState,
 } from '@/lib/admin/story-pipeline-checklist'
@@ -24,36 +37,38 @@ import {
   type SpanHighlightProps,
 } from '@/components/admin/pipeline/pipeline-step-details'
 import { usePipelineStepPoll } from '@/components/admin/pipeline/use-pipeline-step-poll'
+import { cn } from '@/lib/utils'
 
-function groupStepsForStage(
-  stageId: PipelineStageId,
-  steps: PipelineStepState[]
-): Array<{ label: string; description?: string; steps: PipelineStepState[] }> {
-  if (stageId !== 'extraction') {
-    return [{ label: '', steps }]
-  }
+function AgentStatusBadge({ step }: { step: PipelineStepState }) {
+  const isActive = step.manifestStatus === 'active'
 
-  const byId = new Map(steps.map((step) => [step.id, step]))
-  const grouped = EXTRACTION_STEP_GROUPS.map((group) => ({
-    label: group.label,
-    description: group.description,
-    steps: group.stepIds.map((id) => byId.get(id)).filter((step): step is PipelineStepState => step != null),
-  })).filter((group) => group.steps.length > 0)
-
-  const groupedIds = new Set(EXTRACTION_STEP_GROUPS.flatMap((g) => g.stepIds))
-  const remainder = steps.filter((step) => !groupedIds.has(step.id))
-  if (remainder.length > 0) {
-    grouped.push({ label: 'Other', description: undefined, steps: remainder })
-  }
-
-  return grouped
+  return (
+    <span
+      className={cn(
+        'inline-flex size-5 shrink-0 items-center justify-center rounded-full',
+        isActive
+          ? 'bg-[var(--pipeline-step-complete-bg)] text-[var(--pipeline-step-complete-fg)]'
+          : 'bg-destructive text-destructive-foreground'
+      )}
+      title={
+        isActive
+          ? 'Active in activation.yaml'
+          : (step.inactiveNote ?? 'Not active in activation.yaml')
+      }
+      aria-label={isActive ? 'Agent active' : 'Agent inactive'}
+    >
+      <Bot className="size-3" aria-hidden />
+    </span>
+  )
 }
 
 function PipelineStepRow({
   step,
   isRunning,
+  isReverting,
   isBusy,
   onRun,
+  onRevert,
   payload,
   revealTarget,
   renderFeedback,
@@ -61,37 +76,33 @@ function PipelineStepRow({
 }: {
   step: PipelineStepState
   isRunning: boolean
+  isReverting: boolean
   isBusy: boolean
   onRun: (stepId: PipelineStepId) => void
+  onRevert: (stepId: PipelineStepId) => void
   payload: StoryExtractionReviewPayload
   revealTarget: { stepId: PipelineStepId; epoch: number } | null
   renderFeedback?: PipelineStepDetailProps['renderFeedback']
   spanHighlight?: SpanHighlightProps
 }) {
+  const revertible = isStepRevertible(step.id, payload)
+  const showRevert = REVERT_SCOPE_STEP_IDS.includes(step.id)
+
   return (
-    <AccordionItem
+    <FocusAccordionItem
       value={step.id}
-      className={`rounded-lg border border-subtle px-3 ${
-        isRunning || step.status === 'current' ? 'bg-muted/30' : ''
-      }`}
+      className="rounded-lg border border-subtle px-3"
     >
       <div className="flex items-center gap-2 py-1">
         <div className="min-w-0 flex-1">
           <AccordionTrigger className="w-full py-2 hover:no-underline [&>svg]:hidden">
-            <div className="flex w-full min-w-0 items-start gap-3 text-left">
-              <PipelineStatusIcon status={isRunning ? 'current' : step.status} />
+            <div className="flex w-full min-w-0 items-center gap-2 text-left">
+              <div className="flex shrink-0 items-center gap-2">
+                <PipelineStatusIcon status={isRunning ? 'current' : step.status} />
+                <AgentStatusBadge step={step} />
+              </div>
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium leading-tight">{step.label}</p>
-                  {step.manifestStatus !== 'active' && (
-                    <span
-                      className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-                      title={step.inactiveNote ?? undefined}
-                    >
-                      inactive
-                    </span>
-                  )}
-                </div>
+                <p className="font-medium leading-tight">{step.label}</p>
                 {step.progress && <p className="text-xs text-muted">{step.progress}</p>}
                 {step.status === 'optional' && (
                   <p className="text-xs text-muted">Not required for this story</p>
@@ -100,23 +111,43 @@ function PipelineStepRow({
             </div>
           </AccordionTrigger>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant={step.status === 'current' ? 'default' : 'outline'}
-          className="shrink-0"
-          disabled={!step.runnable || isBusy}
-          onClick={() => onRun(step.id)}
-        >
-          {isRunning ? (
-            <>
-              <Loader2 className="mr-1 size-3 animate-spin" />
-              Running…
-            </>
-          ) : (
-            'Run'
+        <div className="flex shrink-0 items-center gap-2">
+          {showRevert && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="pipeline-checklist-btn-revert hover:!bg-white hover:!text-destructive"
+              disabled={!revertible || isBusy}
+              onClick={() => onRevert(step.id)}
+            >
+              {isReverting ? (
+                <>
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                  Reverting…
+                </>
+              ) : (
+                'Revert'
+              )}
+            </Button>
           )}
-        </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={step.runnable ? 'default' : 'outline'}
+            disabled={!step.runnable || isBusy}
+            onClick={() => onRun(step.id)}
+          >
+            {isRunning ? (
+              <>
+                <Loader2 className="mr-1 size-3 animate-spin" />
+                Running…
+              </>
+            ) : (
+              'Run'
+            )}
+          </Button>
+        </div>
       </div>
       <AccordionContent className="border-t border-subtle pb-3 pt-2">
         <PipelineStepDetail
@@ -128,7 +159,7 @@ function PipelineStepRow({
           spanHighlight={spanHighlight}
         />
       </AccordionContent>
-    </AccordionItem>
+    </FocusAccordionItem>
   )
 }
 
@@ -160,7 +191,10 @@ export function PipelineChecklist({
   description?: string
 }) {
   const checklist = useMemo(() => derivePipelineChecklist(payload), [payload])
+  const revertBlockedReason = useMemo(() => getRevertBlockedReason(payload), [payload])
   const [stepError, setStepError] = useState<string | null>(null)
+  const [revertingStepId, setRevertingStepId] = useState<PipelineStepId | null>(null)
+  const [revertTarget, setRevertTarget] = useState<PipelineStepId | null>(null)
   const [expanded, setExpanded] = useState<string[]>([])
   const {
     runningStepId,
@@ -199,7 +233,32 @@ export function PipelineChecklist({
     }
   }
 
-  const isBusy = runningStepId != null
+  const isBusy = runningStepId != null || revertingStepId != null
+
+  const revertStep = async (stepId: PipelineStepId) => {
+    setStepError(null)
+    setActionMessage(null)
+    setRevertingStepId(stepId)
+    setRevertTarget(null)
+    try {
+      const res = await fetch(`/api/admin/stories/${storyId}/revert-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step: stepId, confirm: true }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setStepError(json.error?.message ?? 'Revert failed')
+        return
+      }
+      setActionMessage(`Reverted ${stepId.replace(/-/g, ' ')}`)
+      await onRefresh()
+    } catch {
+      setStepError('Failed to revert pipeline step')
+    } finally {
+      setRevertingStepId(null)
+    }
+  }
 
   useEffect(() => {
     if (!revealTarget) return
@@ -237,14 +296,19 @@ export function PipelineChecklist({
         </div>
       )}
 
+      {revertBlockedReason && (
+        <div className="rounded-lg border border-subtle px-3 py-2 text-xs text-muted">
+          <p>{revertBlockedReason}</p>
+        </div>
+      )}
+
       {stepError && <p className="text-xs text-destructive">{stepError}</p>}
       {actionMessage && <p className="text-xs text-muted">{actionMessage}</p>}
 
-      <Accordion type="multiple" value={expanded} onValueChange={setExpanded} className="space-y-4">
+      <FocusAccordion value={expanded} onValueChange={setExpanded} className="space-y-4">
         {stages.map((stage) => {
           const stageSteps = checklist.steps.filter((s) => s.stageId === stage.id)
           if (stageSteps.length === 0) return null
-          const stepGroups = groupStepsForStage(stage.id, stageSteps)
 
           return (
             <div key={stage.id} className="space-y-2">
@@ -253,39 +317,59 @@ export function PipelineChecklist({
                   {stage.label}
                 </h4>
               )}
-              <div className="space-y-4">
-                {stepGroups.map((group) => (
-                  <div key={group.label || 'default'} className="space-y-2">
-                    {group.label && (
-                      <div>
-                        <p className="text-xs font-semibold text-foreground">{group.label}</p>
-                        {group.description && (
-                          <p className="text-xs text-muted">{group.description}</p>
-                        )}
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                      {group.steps.map((step) => (
-                        <PipelineStepRow
-                          key={step.id}
-                          step={step}
-                          isRunning={runningStepId === step.id}
-                          isBusy={isBusy}
-                          onRun={runStep}
-                          payload={payload}
-                          revealTarget={revealTarget}
-                          renderFeedback={renderFeedback}
-                          spanHighlight={spanHighlight}
-                        />
-                      ))}
-                    </div>
-                  </div>
+              <div className="space-y-2">
+                {stageSteps.map((step) => (
+                  <PipelineStepRow
+                    key={step.id}
+                    step={step}
+                    isRunning={runningStepId === step.id}
+                    isReverting={revertingStepId === step.id}
+                    isBusy={isBusy}
+                    onRun={runStep}
+                    onRevert={setRevertTarget}
+                    payload={payload}
+                    revealTarget={revealTarget}
+                    renderFeedback={renderFeedback}
+                    spanHighlight={spanHighlight}
+                  />
                 ))}
               </div>
             </div>
           )
         })}
-      </Accordion>
+      </FocusAccordion>
+
+      <AlertDialog
+        open={revertTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setRevertTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert this step?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {revertTarget
+                ? getRevertStepDescription(revertTarget)
+                : 'This will undo the latest completed step.'}{' '}
+              Only the latest completed step can be reverted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={revertingStepId != null}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: 'destructive' })}
+              disabled={revertingStepId != null || revertTarget == null}
+              onClick={(e) => {
+                e.preventDefault()
+                if (revertTarget) void revertStep(revertTarget)
+              }}
+            >
+              {revertingStepId != null ? 'Reverting…' : 'Confirm revert'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

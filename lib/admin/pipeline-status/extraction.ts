@@ -1,8 +1,13 @@
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { PIPELINE_STEPS } from '@/lib/admin/generated/pipeline-catalog'
 
 type TimelineStepStatus = 'complete' | 'current' | 'pending' | 'blocked'
+
+function isChunkClaimsValidatedStatus(status: ExtractionQaStatus): boolean {
+  return status === 'passed' || status === 'atoms_passed'
+}
 
 export function chunkQaCounts(payload: StoryExtractionReviewPayload) {
   const chunks = payload.chunks
@@ -12,9 +17,12 @@ export function chunkQaCounts(payload: StoryExtractionReviewPayload) {
   const pendingValidate = extracted.filter(
     (c) => c.extraction_qa_status === 'pending' || c.extraction_qa_status == null
   ).length
+  const validated = extracted.filter((c) =>
+    isChunkClaimsValidatedStatus(c.extraction_qa_status)
+  ).length
   const passed = extracted.filter((c) => c.extraction_qa_status === 'passed').length
   const needsHuman = extracted.filter((c) => c.extraction_qa_status === 'needs_human_review').length
-  return { total, withJson, pendingValidate, passed, needsHuman }
+  return { total, withJson, pendingValidate, validated, passed, needsHuman }
 }
 
 function isExtractComplete(payload: StoryExtractionReviewPayload): boolean {
@@ -22,6 +30,13 @@ function isExtractComplete(payload: StoryExtractionReviewPayload): boolean {
   return total > 0 && withJson === total
 }
 
+/** Review chunk claims step done (validate path → atoms_passed or admin validate → passed). */
+export function isChunkClaimsReviewComplete(payload: StoryExtractionReviewPayload): boolean {
+  const counts = chunkQaCounts(payload)
+  return isExtractComplete(payload) && counts.withJson > 0 && counts.validated === counts.withJson
+}
+
+/** All chunks at passed — merge-ready after link step. */
 export function isChunkReviewApproved(payload: StoryExtractionReviewPayload): boolean {
   const counts = chunkQaCounts(payload)
   return isExtractComplete(payload) && counts.withJson > 0 && counts.passed === counts.withJson
@@ -106,7 +121,7 @@ export function isExtractionStepComplete(
     case 'extract-story-claims':
       return isExtractComplete(payload)
     case 'validate-chunk-claims':
-      return isChunkReviewApproved(payload)
+      return isChunkClaimsReviewComplete(payload)
     case 'merge-story-claims':
       return payload.story.merged_at != null
     case 'review-merged-extraction':
@@ -128,7 +143,7 @@ export function isExtractionStepBlocked(
 ): boolean {
   if (stepId === 'validate-chunk-claims' && isChunkQaBlocked(payload)) return true
   if (stepId === 'validate-merged-extraction' && isMergeQaBlocked(payload)) return true
-  if (stepId === 'merge-story-claims' && !isChunkReviewApproved(payload) && isExtractComplete(payload)) {
+  if (stepId === 'merge-story-claims' && !isChunkClaimsReviewComplete(payload) && isExtractComplete(payload)) {
     return isChunkQaBlocked(payload)
   }
   return false
@@ -143,10 +158,10 @@ export function extractionStepProgress(
     case 'extract-story-claims':
       return c.total > 0 ? `${c.withJson}/${c.total} chunks extracted` : null
     case 'validate-chunk-claims':
-      return c.withJson > 0 ? `${c.passed}/${c.withJson} chunks passed` : null
+      return c.withJson > 0 ? `${c.validated}/${c.withJson} chunks validated` : null
     case 'merge-story-claims':
-      if (!isChunkReviewApproved(payload) && isExtractComplete(payload)) {
-        return 'Requires all chunks passed before merge'
+      if (!isChunkClaimsReviewComplete(payload) && isExtractComplete(payload)) {
+        return 'Requires all chunks validated before merge'
       }
       return null
     case 'review-merged-extraction':

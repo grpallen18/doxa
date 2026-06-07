@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { PipelineStageId } from '@/lib/admin/generated/pipeline-catalog'
-import { Panel } from '@/components/Panel'
 import { ClearCanonicalButton } from '@/components/admin/pipeline/clear-canonical-button'
 import { ClearExtractionButton } from '@/components/admin/pipeline/clear-extraction-button'
 import { PipelineChecklist } from '@/components/admin/pipeline/pipeline-checklist'
@@ -74,7 +73,7 @@ export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
   )
 
   return (
-    <Panel variant="soft" className="p-4">
+    <div className="p-4">
       {actionError && <p className="mb-3 text-xs text-destructive">{actionError}</p>}
       <PipelineChecklist
         payload={payload}
@@ -101,6 +100,6 @@ export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
           Back to story overview
         </Link>
       </p>
-    </Panel>
+    </div>
   )
 }

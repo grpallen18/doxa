@@ -17,12 +17,17 @@ export {
   deriveStageSummaries,
   getBlockedReason,
   getQualifyTimelineStatus,
+  getRevertBlockedReason,
+  getRevertStepDescription,
+  getRevertibleStepId,
   getStepNotRequiredMessage,
   getStepOutputSnapshot,
   isPipelineBlocked,
   isStepBlocked,
   isStepComplete,
   isStepDoneAfterRun,
+  isStepRevertible,
+  REVERT_SCOPE_STEP_IDS,
 } from '@/lib/admin/pipeline-status'
 export type { StageSummary, StageSummaryStatus } from '@/lib/admin/pipeline-status'
 export { EXTRACTION_STEP_GROUPS } from '@/lib/admin/pipeline-status'

@@ -346,6 +346,7 @@ export const handler = async (req: Request) => {
               relevance_tags: r.tags,
               relevance_model: MODEL,
               relevance_ran_at: now,
+              pending_review_ran_at: now,
               review_claimed_at: null,
             })
             .eq("story_id", s.story_id);
@@ -362,6 +363,7 @@ export const handler = async (req: Request) => {
               relevance_tags: ["unclear_after_review"],
               relevance_model: MODEL,
               relevance_ran_at: now,
+              pending_review_ran_at: now,
               review_claimed_at: null,
             })
             .eq("story_id", s.story_id);
