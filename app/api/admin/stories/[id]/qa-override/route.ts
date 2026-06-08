@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
+import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
+import { appendStoryAuditEvent } from '@/lib/admin/story-audit'
 
 /** Admin override: mark story (and optional chunks) extraction QA as passed. */
 export async function POST(
@@ -30,6 +32,9 @@ export async function POST(
 
   try {
     const supabase = createAdminClient()
+    const resolved = await resolveStoryIdParam(supabase, storyId)
+    if ('response' in resolved) return resolved.response
+    const { storyUuid } = resolved
 
     const { error: storyErr } = await supabase
       .from('stories')
@@ -37,7 +42,7 @@ export async function POST(
         extraction_qa_status: 'passed',
         extraction_qa_validated_at: now,
       })
-      .eq('story_id', storyId)
+      .eq('story_id', storyUuid)
 
     if (storyErr) {
       return NextResponse.json(
@@ -53,16 +58,25 @@ export async function POST(
           extraction_qa_status: 'passed',
           extraction_qa_validated_at: now,
         })
-        .eq('story_id', storyId)
+        .eq('story_id', storyUuid)
     }
 
     await supabase.from('story_extraction_qa_artifacts').insert({
-      story_id: storyId,
+      story_id: storyUuid,
       stage: 'human_override',
       report: { approved_by_admin: true, include_chunks: includeChunks },
     })
 
-    return NextResponse.json({ data: { ok: true, story_id: storyId }, error: null })
+    await appendStoryAuditEvent(supabase, {
+      storyId: storyUuid,
+      eventType: 'admin_action',
+      label: 'Admin QA override',
+      detail: includeChunks ? 'Story and chunks marked passed' : 'Story marked passed',
+      actorId: auth.user.id,
+      source: 'admin:qa-override',
+    })
+
+    return NextResponse.json({ data: { ok: true, story_id: storyUuid }, error: null })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })

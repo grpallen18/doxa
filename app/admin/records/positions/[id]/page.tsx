@@ -91,6 +91,7 @@ export default function CanonicalPositionRecordPage() {
           ),
         },
       ]}
+      auditApiPath={`/api/admin/records/positions/${positionId}/audit`}
     />
   )
 }

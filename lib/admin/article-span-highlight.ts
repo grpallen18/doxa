@@ -79,3 +79,30 @@ export function isValidArticleSpan(span: ArticleSpan | null, textLength: number)
   if (!span) return false
   return span.start >= 0 && span.end > span.start && span.end <= textLength
 }
+
+/** Resolve a highlight span within a single chunk body (offsets are chunk-local). */
+export function resolveChunkContentSpan(
+  content: string,
+  entity: Pick<EntitySpanSource, 'spanStart' | 'spanEnd' | 'sourceExcerpt'>
+): ArticleSpan | null {
+  if (!content) return null
+
+  const { spanStart, spanEnd, sourceExcerpt } = entity
+  if (
+    spanStart != null &&
+    spanEnd != null &&
+    spanStart >= 0 &&
+    spanEnd > spanStart &&
+    spanEnd <= content.length
+  ) {
+    return { start: spanStart, end: spanEnd }
+  }
+
+  const excerpt = sourceExcerpt?.trim()
+  if (excerpt) {
+    const idx = content.indexOf(excerpt)
+    if (idx >= 0) return { start: idx, end: idx + excerpt.length }
+  }
+
+  return null
+}

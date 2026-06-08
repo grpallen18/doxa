@@ -1,11 +1,12 @@
 import { cn } from '@/lib/utils'
 
 const variantClass: Record<string, string> = {
-  default: 'bg-muted text-muted-foreground',
-  success: 'bg-[var(--pipeline-step-complete-bg)] text-[var(--pipeline-step-complete-fg)]',
-  warning: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
-  danger: 'bg-destructive/15 text-destructive',
-  muted: 'bg-muted/60 text-muted',
+  default: 'border border-subtle bg-muted/50 text-foreground',
+  success:
+    'border border-[var(--pipeline-step-complete-bg)]/30 bg-[var(--pipeline-step-complete-bg)]/12 text-[var(--pipeline-step-complete-fg)]',
+  warning: 'border border-amber-500/25 bg-amber-500/10 text-amber-800 dark:text-amber-300',
+  danger: 'border border-destructive/25 bg-destructive/10 text-destructive',
+  muted: 'border border-subtle bg-muted/30 text-muted-foreground',
 }
 
 export function StatusBadge({
@@ -20,7 +21,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
         variantClass[variant] ?? variantClass.default,
         className
       )}

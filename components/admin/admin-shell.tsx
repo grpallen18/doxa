@@ -3,12 +3,13 @@ import { cn } from '@/lib/utils'
 type AdminShellProps = {
   children: React.ReactNode
   className?: string
-  maxWidth?: 'default' | 'wide' | 'content'
+  maxWidth?: 'default' | 'wide' | 'full' | 'content'
 }
 
 const maxWidthClasses = {
   default: 'max-w-5xl',
   wide: 'max-w-7xl',
+  full: 'max-w-none',
   content: 'max-w-content',
 } as const
 

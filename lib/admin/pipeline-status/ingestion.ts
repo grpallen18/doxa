@@ -2,6 +2,45 @@ import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { PipelineStepStatus } from '@/lib/admin/pipeline-status'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 
+export const STORY_DROPPED_PROGRESS = 'Story dropped — no further pipeline steps'
+
+const QUALIFICATION_STEP_IDS = new Set<PipelineStepId>([
+  'relevance-gate',
+  'review-pending-stories',
+])
+
+export function isStoryDropped(payload: StoryExtractionReviewPayload): boolean {
+  return payload.story.relevance_status === 'DROP'
+}
+
+export function isQualificationPipelineStep(stepId: PipelineStepId): boolean {
+  return QUALIFICATION_STEP_IDS.has(stepId)
+}
+
+export function isIngestionStepExecuted(
+  stepId: PipelineStepId,
+  payload: StoryExtractionReviewPayload
+): boolean {
+  const { story } = payload
+  switch (stepId) {
+    case 'relevance-gate':
+      return story.relevance_ran_at != null
+    case 'review-pending-stories':
+      return story.pending_review_ran_at != null
+    case 'scrape-story-content':
+      return (
+        story.scraped_at != null ||
+        story.scrape_skipped === true ||
+        story.scrape_dispatched_at != null ||
+        (story.scrape_fail_count ?? 0) > 0
+      )
+    case 'clean-scraped-content':
+      return story.cleaned_at != null
+    default:
+      return false
+  }
+}
+
 export function isIngestionStepComplete(
   stepId: PipelineStepId,
   payload: StoryExtractionReviewPayload
@@ -11,7 +50,7 @@ export function isIngestionStepComplete(
     case 'relevance-gate':
       return story.relevance_status != null
     case 'review-pending-stories':
-      return story.relevance_status !== 'PENDING'
+      return isQualifyResolved(payload)
     case 'scrape-story-content':
       return story.scraped_at != null || story.scrape_skipped === true
     case 'clean-scraped-content':
@@ -25,8 +64,13 @@ export function isIngestionStepBlocked(
   stepId: PipelineStepId,
   payload: StoryExtractionReviewPayload
 ): boolean {
+  if (isStoryDropped(payload) && !isQualificationPipelineStep(stepId)) {
+    return true
+  }
+
   const status = payload.story.relevance_status
   if (stepId === 'scrape-story-content' || stepId === 'clean-scraped-content') {
+    if (!isQualifyResolved(payload)) return false
     return status !== 'KEEP'
   }
   return false
@@ -59,12 +103,12 @@ export function ingestionStepProgress(
       if (story.relevance_status === 'PENDING') {
         return 'Pending — resolve Keep or Drop before scrape'
       }
-      return story.relevance_status != null
-        ? `Status: ${story.relevance_status}${story.relevance_score != null ? ` (${story.relevance_score})` : ''}`
-        : null
+      return null
     case 'review-pending-stories':
       return story.relevance_status === 'PENDING' ? 'Awaiting Keep/Drop review' : null
     case 'scrape-story-content':
+      if (!isQualifyResolved(payload)) return null
+      if (story.relevance_status === 'DROP') return STORY_DROPPED_PROGRESS
       if (story.relevance_status !== 'KEEP') return 'Requires Keep qualification'
       if (story.scrape_skipped) return 'Scrape skipped'
       if (story.scraped_at) return 'Scraped'
@@ -74,6 +118,8 @@ export function ingestionStepProgress(
       }
       return null
     case 'clean-scraped-content':
+      if (!isQualifyResolved(payload)) return null
+      if (story.relevance_status === 'DROP') return STORY_DROPPED_PROGRESS
       if (story.relevance_status !== 'KEEP') return 'Requires Keep qualification'
       return story.has_content_clean ? 'Clean body ready' : null
     default:

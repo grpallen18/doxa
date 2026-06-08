@@ -4,6 +4,7 @@ import {
   type PipelineStepId,
 } from '@/lib/admin/generated/pipeline-catalog'
 import { derivePipelineChecklist } from '@/lib/admin/pipeline-status'
+import { storyAdminHref, type StoryAdminRef } from '@/lib/admin/friendly-id'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 
 const canonicalStage = PIPELINE_STAGES.find((s) => s.id === 'canonical')
@@ -35,12 +36,12 @@ export const LIFECYCLE_PHASES: Array<{
   },
 ]
 
-export function storyHubStepHref(storyId: string, stepId: PipelineStepId): string {
-  return `/admin/stories/${storyId}#step-${stepId}`
+export function storyHubStepHref(story: StoryAdminRef, stepId: PipelineStepId): string {
+  return `${storyAdminHref(story)}#step-${stepId}`
 }
 
-export function storyHubSectionHref(storyId: string, sectionId: string): string {
-  return `/admin/stories/${storyId}#${sectionId}`
+export function storyHubSectionHref(story: StoryAdminRef, sectionId: string): string {
+  return `${storyAdminHref(story)}#${sectionId}`
 }
 
 export function getNextRunnableLifecycleStep(

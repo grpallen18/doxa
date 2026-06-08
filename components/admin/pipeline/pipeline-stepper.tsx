@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useMemo } from 'react'
 import type { PipelineStageId } from '@/lib/admin/generated/pipeline-catalog'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import { storyAdminHref } from '@/lib/admin/friendly-id'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
   derivePipelineChecklist,
@@ -157,6 +158,20 @@ function buildExtractionTimelineNodes(
   return nodes
 }
 
+function nodeAnchor(node: TimelineNode): string {
+  if (node.kind === 'stage') {
+    const anchors: Record<PipelineStageId, string> = {
+      ingestion: 'step-relevance-gate',
+      extraction: 'step-chunk-story-bodies',
+      canonical: 'post-merge-actions',
+    }
+    return anchors[node.key as PipelineStageId]
+  }
+  if (node.key === 'extract-with-review') return 'step-extract-story-claims'
+  if (node.key === 'merge-with-approve') return 'step-merge-story-claims'
+  return `step-${node.key}`
+}
+
 function buildTimelineNodes(
   summaries: StageSummary[],
   checklist: ReturnType<typeof derivePipelineChecklist>,
@@ -252,14 +267,19 @@ function trackSegmentClass(filled: boolean): string {
   return pipelineNodeTrackClass(filled ? 'complete' : 'pending')
 }
 
+const nodeTriggerClass =
+  'z-10 flex flex-col items-center gap-1 px-0.5 text-center'
+
 function TimelineNodeItem({
   node,
   pathname,
   storyHubHref,
+  onNavigate,
 }: {
   node: TimelineNode
   pathname: string
   storyHubHref: string
+  onNavigate?: (anchor: string) => void
 }) {
   const isSubstage = node.kind === 'substage'
   const active = isSubstage
@@ -267,16 +287,9 @@ function TimelineNodeItem({
       node.status === 'current'
     : isStageView(pathname, node.href, node.key, storyHubHref)
 
-  const link = (
-    <Link
-      href={node.href}
-      aria-current={active ? 'page' : undefined}
-      aria-label={isSubstage ? node.fullLabel : undefined}
-      className={cn(
-        'z-10 flex flex-col items-center gap-1 px-0.5 text-center',
-        isSubstage ? 'min-w-0' : 'shrink-0'
-      )}
-    >
+  const anchor = nodeAnchor(node)
+  const inner = (
+    <>
       <div className={cn('flex items-center justify-center', TRACK_ROW_HEIGHT)}>
         <PipelineStepNode
           size={isSubstage ? 'substage' : 'stage'}
@@ -285,34 +298,62 @@ function TimelineNodeItem({
         />
       </div>
       <p className={isSubstage ? substageLabelClass : stageLabelClass}>{node.label}</p>
+    </>
+  )
+
+  const trigger = onNavigate ? (
+    <button
+      type="button"
+      aria-label={isSubstage ? node.fullLabel : undefined}
+      className={cn(nodeTriggerClass, isSubstage ? 'min-w-0' : 'shrink-0')}
+      onClick={() => onNavigate(anchor)}
+    >
+      {inner}
+    </button>
+  ) : (
+    <Link
+      href={`${storyHubHref}#${anchor}`}
+      aria-current={active ? 'page' : undefined}
+      aria-label={isSubstage ? node.fullLabel : undefined}
+      className={cn(nodeTriggerClass, isSubstage ? 'min-w-0' : 'shrink-0')}
+    >
+      {inner}
     </Link>
   )
 
-  if (!isSubstage) return link
+  if (!isSubstage) return trigger
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{link}</TooltipTrigger>
+      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
       <TooltipContent side="bottom">{node.fullLabel}</TooltipContent>
     </Tooltip>
   )
 }
 
 export function PipelineStepper({
-  storyId,
   payload,
+  stageFilter,
+  onNavigate,
+  className,
 }: {
-  storyId: string
   payload: StoryExtractionReviewPayload
+  stageFilter?: PipelineStageId[]
+  onNavigate?: (anchor: string) => void
+  className?: string
 }) {
   const pathname = usePathname()
   const checklist = useMemo(() => derivePipelineChecklist(payload), [payload])
-  const summaries = useMemo(() => deriveStageSummaries(storyId, payload), [storyId, payload])
+  const summaries = useMemo(() => {
+    const all = deriveStageSummaries(payload)
+    if (!stageFilter) return all
+    return all.filter((s) => stageFilter.includes(s.stageId))
+  }, [payload, stageFilter])
   const nodes = useMemo(
     () => buildTimelineNodes(summaries, checklist, payload),
     [summaries, checklist, payload]
   )
-  const storyHubHref = `/admin/stories/${storyId}`
+  const storyHubHref = storyAdminHref(payload.story)
 
   const progressEndIndex = useMemo(() => getProgressEndIndex(nodes), [nodes])
   const lastIndex = nodes.length - 1
@@ -321,7 +362,7 @@ export function PipelineStepper({
     <TooltipProvider delayDuration={200}>
       <nav
         aria-label="Pipeline stages"
-        className="w-full overflow-x-auto overflow-y-visible px-0.5 pt-1.5"
+        className={cn('w-full overflow-x-auto overflow-y-visible px-0.5 pt-1.5', className)}
       >
         <div className="relative min-w-full pt-0.5" style={{ minWidth: timelineMinWidth(nodes) }}>
           <div
@@ -359,6 +400,7 @@ export function PipelineStepper({
                     node={node}
                     pathname={pathname}
                     storyHubHref={storyHubHref}
+                    onNavigate={onNavigate}
                   />
                 </div>
               )

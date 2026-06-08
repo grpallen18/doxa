@@ -6,6 +6,32 @@ import { PipelineStatusIcon } from '@/components/admin/pipeline/pipeline-status-
 import { AgentIconButton } from '@/components/admin/record/agent-icon-button'
 import { cn } from '@/lib/utils'
 
+const SHORT_STEP_LABELS: Partial<Record<PipelineStepId, string>> = {
+  'relevance-gate': 'Qualify',
+  'review-pending-stories': 'Resolve',
+  'scrape-story-content': 'Scrape',
+  'clean-scraped-content': 'Clean',
+  'chunk-story-bodies': 'Chunk',
+  'extract-story-claims': 'Extract',
+  'validate-chunk-claims': 'Chunk QA',
+  'merge-story-claims': 'Merge',
+  'review-merged-extraction': 'Review',
+  'refine-merged-extraction': 'Refine',
+  'validate-merged-extraction': 'Merge QA',
+}
+
+const pillStatusClass: Record<string, string> = {
+  complete:
+    'border-[var(--pipeline-step-complete-bg)]/35 bg-[var(--pipeline-step-complete-bg)]/8 hover:bg-[var(--pipeline-step-complete-bg)]/14',
+  current:
+    'border-[var(--pipeline-step-current-bg)]/50 bg-[var(--pipeline-step-current-bg)]/10 ring-1 ring-[var(--pipeline-step-current-bg)]/25 hover:bg-[var(--pipeline-step-current-bg)]/16',
+  running:
+    'border-[var(--pipeline-step-current-bg)]/50 bg-[var(--pipeline-step-current-bg)]/10 ring-1 ring-[var(--pipeline-step-current-bg)]/25 hover:bg-[var(--pipeline-step-current-bg)]/16',
+  pending: 'border-subtle bg-muted/25 text-muted-foreground hover:bg-muted/40',
+  blocked: 'border-destructive/35 bg-destructive/8 text-destructive hover:bg-destructive/12',
+  optional: 'border-subtle bg-muted/15 text-muted-foreground hover:bg-muted/30',
+}
+
 export function LifecycleStage({
   step,
   isRunning,
@@ -17,33 +43,31 @@ export function LifecycleStage({
   onSelect?: (stepId: PipelineStepId) => void
   className?: string
 }) {
-  const status = isRunning ? 'current' : step.status
+  const status = isRunning ? 'running' : step.status
+  const shortLabel = SHORT_STEP_LABELS[step.id] ?? step.label
 
   return (
     <button
       type="button"
-      id={`step-${step.id}`}
       className={cn(
-        'flex min-w-[4.5rem] shrink-0 flex-col items-center gap-1 scroll-mt-28 px-1 text-center',
+        'inline-flex max-w-[9rem] shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-left transition-colors scroll-mt-28',
+        pillStatusClass[status] ?? pillStatusClass.pending,
         className
       )}
       onClick={() => onSelect?.(step.id)}
       title={step.label}
     >
-      <div className="flex items-center gap-1">
-        <PipelineStatusIcon status={status} />
-        <AgentIconButton
-          stepId={step.id}
-          manifestStatus={step.manifestStatus}
-          inactiveNote={step.inactiveNote}
-        />
-      </div>
-      <span className="max-w-[5.5rem] text-[10px] font-medium leading-tight text-foreground sm:text-xs">
-        {step.label}
+      <PipelineStatusIcon status={status} size="sm" />
+      <span className="min-w-0 flex-1 truncate text-xs font-medium leading-none">
+        {shortLabel}
       </span>
-      {step.progress && (
-        <span className="max-w-[5.5rem] truncate text-[9px] text-muted">{step.progress}</span>
-      )}
+      <AgentIconButton
+        stepId={step.id}
+        manifestStatus={step.manifestStatus}
+        inactiveNote={step.inactiveNote}
+        variant="subtle"
+        className="shrink-0"
+      />
     </button>
   )
 }

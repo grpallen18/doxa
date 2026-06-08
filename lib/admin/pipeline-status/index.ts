@@ -4,6 +4,7 @@ import {
   type PipelineStageId,
   type PipelineStepId,
 } from '@/lib/admin/generated/pipeline-catalog'
+import { storyAdminHref } from '@/lib/admin/friendly-id'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
   canonicalSnapshot,
@@ -47,12 +48,26 @@ import {
   ingestionStepProgress,
   isIngestionStepBlocked,
   isIngestionStepComplete,
+  isQualificationPipelineStep,
   isReviewPendingOptional,
+  isStoryDropped,
+  STORY_DROPPED_PROGRESS,
 } from '@/lib/admin/pipeline-status/ingestion'
 
-export { getQualifyTimelineStatus, isQualifyResolved } from '@/lib/admin/pipeline-status/ingestion'
+export {
+  getQualifyTimelineStatus,
+  isQualifyResolved,
+  isStoryDropped,
+  STORY_DROPPED_PROGRESS,
+} from '@/lib/admin/pipeline-status/ingestion'
 
-export type PipelineStepStatus = 'complete' | 'current' | 'pending' | 'blocked' | 'optional'
+export type PipelineStepStatus =
+  | 'complete'
+  | 'current'
+  | 'running'
+  | 'pending'
+  | 'blocked'
+  | 'optional'
 
 export type PipelineStepState = {
   id: PipelineStepId
@@ -106,6 +121,7 @@ export function isStepComplete(stepId: PipelineStepId, payload: StoryExtractionR
 }
 
 export function isStepBlocked(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  if (isStoryDropped(payload) && !isQualificationPipelineStep(stepId)) return true
   if (INGESTION_STEPS.has(stepId)) return isIngestionStepBlocked(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return isExtractionStepBlocked(stepId, payload)
   if (CANONICAL_STEPS.has(stepId)) return isCanonicalStepBlocked(stepId, payload)
@@ -124,14 +140,18 @@ export function getStepNotRequiredMessage(
 }
 
 export function isPipelineBlocked(payload: StoryExtractionReviewPayload): boolean {
-  return isExtractionPipelineBlocked(payload)
+  return isStoryDropped(payload) || isExtractionPipelineBlocked(payload)
 }
 
 export function getBlockedReason(payload: StoryExtractionReviewPayload): string | null {
+  if (isStoryDropped(payload)) return STORY_DROPPED_PROGRESS
   return getExtractionBlockedReason(payload)
 }
 
 function stepProgress(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): string | null {
+  if (isStoryDropped(payload) && !isQualificationPipelineStep(stepId)) {
+    return STORY_DROPPED_PROGRESS
+  }
   if (INGESTION_STEPS.has(stepId)) return ingestionStepProgress(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return extractionStepProgress(stepId, payload)
   if (CANONICAL_STEPS.has(stepId)) return canonicalStepProgress(stepId, payload)
@@ -165,6 +185,8 @@ function canRunWhenBlocked(stepId: PipelineStepId): boolean {
 function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   const def = PIPELINE_STEPS.find((s) => s.id === stepId)
   if (!def) return false
+
+  if (isStoryDropped(payload) && !isQualificationPipelineStep(stepId)) return false
 
   const complete = isStepComplete(stepId, payload)
   const blocked = isStepBlocked(stepId, payload)
@@ -297,9 +319,9 @@ export {
 } from '@/lib/admin/pipeline-status/revert'
 
 export function deriveStageSummaries(
-  storyId: string,
   payload: StoryExtractionReviewPayload
 ): StageSummary[] {
+  const hubBase = storyAdminHref(payload.story)
   const checklist = derivePipelineChecklist(payload)
   let foundCurrent = false
 
@@ -330,7 +352,7 @@ export function deriveStageSummaries(
       stageId: stage.id,
       label: stage.label,
       status,
-      href: `/admin/stories/${storyId}#${STAGE_HUB_ANCHOR[stage.id]}`,
+      href: `${hubBase}#${STAGE_HUB_ANCHOR[stage.id]}`,
     }
   })
 }

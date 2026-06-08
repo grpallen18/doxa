@@ -28,6 +28,11 @@ Initial install: migration `121_purge_engine_data.sql`.
 
 ## Truncate tables
 
+- `story_history`
+- `story_chunks_history`
+- `claims_history`
+- `events_history`
+- `positions_history`
 - `story_extraction_qa_artifacts`
 - `controversy_viewpoints`
 - `topic_controversies`

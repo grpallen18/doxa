@@ -1,40 +1,67 @@
 'use client'
 
-import type { StoryAuditEvent } from '@/lib/admin/story-audit'
+import type { HistoryEvent } from '@/lib/admin/history'
+import { formatHistoryActor, formatHistoryTimestamp } from '@/lib/admin/history'
+import { RecordLedgerCell, recordLedgerValueClass } from '@/components/admin/record/record-ledger-table'
+import { cn } from '@/lib/utils'
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+function formatModifiedAt(iso: string): string {
+  return formatHistoryTimestamp(iso)
 }
 
-export function AuditTimeline({ events }: { events: StoryAuditEvent[] }) {
+const AUDIT_GRID =
+  'grid grid-cols-[minmax(6.5rem,10.5rem)_minmax(0,1fr)] md:grid-cols-[minmax(6.5rem,10.5rem)_minmax(5rem,11rem)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(6.5rem,10.5rem)_minmax(5rem,11rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(4.5rem,9rem)] gap-x-4'
+
+const AUDIT_HEADER_CLASS =
+  'border-b border-[var(--record-section-header-border)] bg-[var(--record-section-header-bg)] px-3 py-2 text-xs font-medium text-[var(--record-section-header-fg)]'
+
+const AUDIT_ROW_CLASS = cn(AUDIT_GRID, 'min-w-0 items-center px-3 py-2 transition-colors hover:bg-white')
+
+export function AuditTimeline({ events }: { events: HistoryEvent[] }) {
   if (events.length === 0) {
     return (
       <p className="text-xs text-muted">
-        No audit events found from current pipeline and status data.
+        No history recorded yet.
       </p>
     )
   }
 
   return (
-    <ol className="space-y-3 text-sm">
-      {events.map((event) => (
-        <li
-          key={event.id}
-          className="rounded-md border border-subtle px-3 py-2"
-        >
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="font-medium">{event.label}</span>
-            <time className="text-xs text-muted">{formatWhen(event.at)}</time>
-          </div>
-          {event.detail && <p className="mt-1 text-xs text-muted">{event.detail}</p>}
-          {event.meta && (
-            <p className="mt-1 font-mono text-[10px] text-muted">{event.meta}</p>
-          )}
-        </li>
-      ))}
-    </ol>
+    <div className="min-w-0 w-full rounded-md border border-subtle text-sm">
+      <div className={cn(AUDIT_GRID, AUDIT_HEADER_CLASS)}>
+        <span className="min-w-0 truncate">Modified At</span>
+        <span className="min-w-0 truncate">Field</span>
+        <span className="hidden min-w-0 truncate md:block">Previous Value</span>
+        <span className="hidden min-w-0 truncate md:block">New Value</span>
+        <span className="hidden min-w-0 truncate lg:block">User</span>
+      </div>
+      <ol className="divide-y divide-subtle">
+        {events.map((event) => (
+          <li key={event.id} className={AUDIT_ROW_CLASS}>
+            <time
+              className="min-w-0 truncate text-xs tabular-nums text-muted"
+              title={formatModifiedAt(event.at)}
+            >
+              {formatModifiedAt(event.at)}
+            </time>
+            <span className={recordLedgerValueClass} title={event.field ?? undefined}>
+              <RecordLedgerCell>{event.field}</RecordLedgerCell>
+            </span>
+            <span className={cn(recordLedgerValueClass, 'hidden md:block')} title={event.previousValue ?? undefined}>
+              <RecordLedgerCell>{event.previousValue}</RecordLedgerCell>
+            </span>
+            <span className={cn(recordLedgerValueClass, 'hidden md:block')} title={event.newValue ?? undefined}>
+              <RecordLedgerCell>{event.newValue}</RecordLedgerCell>
+            </span>
+            <span
+              className={cn(recordLedgerValueClass, 'hidden lg:block')}
+              title={formatHistoryActor(event)}
+            >
+              {formatHistoryActor(event)}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }

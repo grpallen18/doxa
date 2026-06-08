@@ -142,22 +142,18 @@ const config: Config = {
   			},
   			'collapsible-down': {
   				from: {
-  					height: '0',
-  					opacity: '0'
+  					height: '0'
   				},
   				to: {
-  					height: 'var(--radix-collapsible-content-height)',
-  					opacity: '1'
+  					height: 'var(--radix-collapsible-content-height)'
   				}
   			},
   			'collapsible-up': {
   				from: {
-  					height: 'var(--radix-collapsible-content-height)',
-  					opacity: '1'
+  					height: 'var(--radix-collapsible-content-height)'
   				},
   				to: {
-  					height: '0',
-  					opacity: '0'
+  					height: '0'
   				}
   			},
   			'skeleton-pulse': {

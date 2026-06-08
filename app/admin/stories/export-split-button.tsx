@@ -24,6 +24,7 @@ export function ExportSplitButton({
   content,
   downloadFilename,
   downloadMimeType,
+  compact = false,
   className,
 }: {
   label: string
@@ -32,6 +33,7 @@ export function ExportSplitButton({
   content: string
   downloadFilename: string
   downloadMimeType: string
+  compact?: boolean
   className?: string
 }) {
   const copy = async () => {
@@ -50,7 +52,12 @@ export function ExportSplitButton({
 
   return (
     <div className={cn('relative', className)}>
-      <div className="group relative h-8 min-w-[5.5rem] overflow-hidden rounded-md border border-input bg-background text-xs font-medium shadow-sm">
+      <div
+        className={cn(
+          'group relative overflow-hidden rounded-md border border-input bg-background font-medium shadow-sm',
+          compact ? 'h-7 min-w-[3.25rem] text-[10px]' : 'h-8 min-w-[5.5rem] text-xs'
+        )}
+      >
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center transition-opacity duration-150 group-hover:opacity-0"

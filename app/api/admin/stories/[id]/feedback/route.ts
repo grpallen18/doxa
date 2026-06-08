@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 
 import { EXTRACTION_ISSUE_TYPES } from '@/lib/admin/extraction-qa-types'
+import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
+import { appendStoryAuditEvent } from '@/lib/admin/story-audit'
 
 const ENTITY_TYPES = ['claim', 'evidence', 'position', 'event', 'relationship'] as const
 const RATINGS = ['like', 'dislike'] as const
@@ -53,6 +55,9 @@ export async function POST(
 
   try {
     const supabase = createAdminClient()
+    const resolved = await resolveStoryIdParam(supabase, storyId)
+    if ('response' in resolved) return resolved.response
+    const { storyUuid } = resolved
 
     const issueTypesRaw = body.issue_types
     const issueTypes =
@@ -75,7 +80,7 @@ export async function POST(
     const { data, error } = await supabase
       .from('story_extraction_feedback')
       .insert({
-        story_id: storyId,
+        story_id: storyUuid,
         entity_type: entityType,
         entity_id: (body.entity_id as string) || null,
         relationship_type: (body.relationship_type as string) || null,
@@ -97,6 +102,21 @@ export async function POST(
         { status: 500 }
       )
     }
+
+    await appendStoryAuditEvent(supabase, {
+      storyId: storyUuid,
+      eventType: 'admin_action',
+      label: `Feedback: ${rating}`,
+      detail: (body.notes as string) || null,
+      meta: {
+        entity_type: entityType,
+        entity_id: (body.entity_id as string) || null,
+        pipeline_stage: pipelineStageVal,
+        chunk_index: Number.isFinite(chunkIndex) ? chunkIndex : null,
+      },
+      actorId: auth.user.id,
+      source: 'admin:feedback',
+    })
 
     return NextResponse.json({ data, error: null })
   } catch (error: unknown) {

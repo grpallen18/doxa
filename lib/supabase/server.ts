@@ -62,9 +62,20 @@ function getSupabaseKeyUrlMismatchHint(serviceKey: string): string | null {
     if (!branchRef || urlRef === branchRef) return null
 
     const branchEnv = readFileSync(branchEnvPath, 'utf8')
+    const branchUrlMatch = branchEnv.match(/^NEXT_PUBLIC_SUPABASE_URL=(.+)$/m)
+    const branchUrlRef = branchUrlMatch?.[1]
+      ?.trim()
+      ?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
+    // Only compare keys when .env.local.branch is configured for the preview project.
+    if (branchUrlRef !== branchRef) return null
+
     const match = branchEnv.match(/^SUPABASE_SERVICE_ROLE_KEY=(.+)$/m)
     const branchKey = match?.[1]?.trim()
-    if (branchKey && branchKey === serviceKey) {
+    if (
+      branchKey &&
+      branchKey !== 'your_preview_secret_or_service_role_key' &&
+      branchKey === serviceKey
+    ) {
       return (
         `SUPABASE_SERVICE_ROLE_KEY is from preview branch (${branchRef}) but NEXT_PUBLIC_SUPABASE_URL is ${urlRef}. ` +
         `For preview work run npm run env:branch and restart dev. For main, use the secret key from the ${urlRef} dashboard.`

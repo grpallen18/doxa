@@ -9,6 +9,7 @@ import {
   PipelineStepNode,
   pipelineNodeTrackClass,
 } from '@/components/admin/pipeline/pipeline-step-node'
+import { RecordAuditSection } from '@/components/admin/record/record-audit-section'
 import { cn } from '@/lib/utils'
 
 export type RecordLifecycleNode = {
@@ -63,6 +64,7 @@ export function RecordHubShell({
   meta,
   lifecycle,
   sections,
+  auditApiPath,
 }: {
   title: string
   subtitle?: string
@@ -74,6 +76,7 @@ export function RecordHubShell({
     description?: string
     children: ReactNode
   }>
+  auditApiPath?: string
 }) {
   return (
     <div className="space-y-4 p-4">
@@ -91,6 +94,7 @@ export function RecordHubShell({
           {section.children}
         </RecordSectionCard>
       ))}
+      {auditApiPath && <RecordAuditSection apiPath={auditApiPath} />}
     </div>
   )
 }

@@ -91,6 +91,7 @@ export default function CanonicalClaimRecordPage() {
           ),
         },
       ]}
+      auditApiPath={`/api/admin/records/claims/${claimId}/audit`}
     />
   )
 }

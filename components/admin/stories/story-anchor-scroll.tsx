@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 const SECTION_IDS = [
   'lifecycle',
@@ -19,27 +19,27 @@ export function StoryAnchorScroll({
 }: {
   onSectionVisible?: (sectionId: string) => void
 }) {
+  const onSectionVisibleRef = useRef(onSectionVisible)
+  onSectionVisibleRef.current = onSectionVisible
+
   useEffect(() => {
     const hash = window.location.hash.replace(/^#/, '')
     if (!hash) return
 
-    const scrollToTarget = () => {
-      const target = document.getElementById(hash)
-      if (!target) return
+    const resolvedHash = hash === 'source-content' ? 'story-info' : hash
+    if (SECTION_IDS.includes(hash) || hash.startsWith('step-')) {
+      onSectionVisibleRef.current?.(resolvedHash)
+    }
+
+    const target = document.getElementById(hash) ?? document.getElementById(resolvedHash)
+    if (!target) return
+
+    const t = window.setTimeout(() => {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      onSectionVisible?.(hash)
-    }
+    }, 100)
 
-    const t = window.setTimeout(scrollToTarget, 100)
     return () => window.clearTimeout(t)
-  }, [onSectionVisible])
-
-  useEffect(() => {
-    const hash = window.location.hash.replace(/^#/, '')
-    if (hash && SECTION_IDS.includes(hash)) {
-      onSectionVisible?.(hash)
-    }
-  }, [onSectionVisible])
+  }, [])
 
   return null
 }

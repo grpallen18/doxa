@@ -10,6 +10,13 @@ import { cinzel } from '@/lib/fonts'
 export const metadata: Metadata = {
   title: 'Doxa - Community-Calibrated Political Knowledge Graph',
   description: 'A meta-news platform that structures political narratives from multiple perspectives',
+  icons: {
+    icon: [
+      { url: '/favicon-light.png', media: '(prefers-color-scheme: light)' },
+      { url: '/favicon-dark.png', media: '(prefers-color-scheme: dark)' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 }
 
 const themeScript = `

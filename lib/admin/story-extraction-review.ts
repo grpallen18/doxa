@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
+import { resolveStoryUuid } from '@/lib/admin/resolve-story-id'
 
 export type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
 
@@ -12,6 +13,7 @@ export type ExtractionStatus =
 
 export type StoryListItem = {
   story_id: string
+  friendly_id: string
   title: string
   url: string
   source_name: string | null
@@ -31,6 +33,7 @@ export type StoryListItem = {
 export type StoryExtractionReviewPayload = {
   story: {
     story_id: string
+    friendly_id: string
     title: string
     url: string
     author: string | null
@@ -49,6 +52,8 @@ export type StoryExtractionReviewPayload = {
     scrape_skipped: boolean
     scrape_fail_count: number
     has_content_clean: boolean
+    cleaned_at: string | null
+    content_length_clean: number | null
     extraction_completed_at: string | null
     extraction_skipped_empty: boolean
     merged_at: string | null
@@ -164,6 +169,7 @@ export type StoryExtractionReviewPayload = {
   }>
   chunks: Array<{
     chunk_index: number
+    friendly_id: string
     content: string | null
     extraction_json: unknown
     extraction_qa_status: ExtractionQaStatus
@@ -364,12 +370,15 @@ async function loadStoryLinks(
 
 export async function fetchStoryExtractionReview(
   supabase: SupabaseClient,
-  storyId: string
+  storyIdOrFriendlyId: string
 ): Promise<StoryExtractionReviewPayload | null> {
+  const storyId = await resolveStoryUuid(supabase, storyIdOrFriendlyId)
+  if (!storyId) return null
+
   const { data: storyRow, error: storyErr } = await supabase
     .from('stories')
     .select(
-      `story_id, title, url, author, published_at, fetched_at, created_at,
+      `story_id, friendly_id, title, url, author, published_at, fetched_at, created_at,
        content_snippet, content_full, relevance_status, relevance_score, relevance_ran_at,
        relevance_tags, pending_review_ran_at,
        scraped_at, scrape_dispatched_at, scrape_skipped, scrape_fail_count,
@@ -388,12 +397,15 @@ export async function fetchStoryExtractionReview(
 
   const { data: bodyRow } = await supabase
     .from('story_bodies')
-    .select('content_clean, content_raw')
+    .select('content_clean, content_raw, cleaned_at, content_length_clean')
     .eq('story_id', storyId)
     .maybeSingle()
 
   const contentClean = (bodyRow?.content_clean as string | null)?.trim() || null
   const contentRaw = (bodyRow?.content_raw as string | null)?.trim() || null
+  const cleanedAt = (bodyRow?.cleaned_at as string | null) ?? null
+  const contentLengthClean =
+    bodyRow?.content_length_clean != null ? Number(bodyRow.content_length_clean) : null
 
   const articleText =
     contentClean ??
@@ -447,7 +459,7 @@ export async function fetchStoryExtractionReview(
     supabase
       .from('story_chunks')
       .select(
-        'chunk_index, content, extraction_json, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at'
+        'chunk_index, friendly_id, content, extraction_json, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at'
       )
       .eq('story_id', storyId)
       .order('chunk_index', { ascending: true }),
@@ -533,6 +545,7 @@ export async function fetchStoryExtractionReview(
   return {
     story: {
       story_id: storyRow.story_id,
+      friendly_id: storyRow.friendly_id as string,
       title: storyRow.title,
       url: storyRow.url,
       author: storyRow.author,
@@ -551,6 +564,8 @@ export async function fetchStoryExtractionReview(
       scrape_skipped: Boolean(storyRow.scrape_skipped),
       scrape_fail_count: Number(storyRow.scrape_fail_count ?? 0),
       has_content_clean: Boolean(contentClean),
+      cleaned_at: cleanedAt,
+      content_length_clean: contentLengthClean,
       extraction_completed_at: storyRow.extraction_completed_at,
       extraction_skipped_empty: storyRow.extraction_skipped_empty,
       merged_at: storyRow.merged_at,
@@ -643,6 +658,7 @@ export async function fetchStoryExtractionReview(
     })),
     chunks: (chunksRes.data ?? []).map((c) => ({
       chunk_index: c.chunk_index as number,
+      friendly_id: c.friendly_id as string,
       content: c.content as string | null,
       extraction_json: c.extraction_json,
       extraction_qa_status: (c.extraction_qa_status as ExtractionQaStatus) ?? null,
@@ -726,7 +742,7 @@ export function buildExtractionReviewMarkdown(payload: StoryExtractionReviewPayl
   lines.push(bullet('URL', story.url))
   lines.push(bullet('Published Date', formatDate(story.published_at)))
   lines.push(bullet('Ingested Date', formatDate(story.fetched_at)))
-  lines.push(bullet('Story ID', story.story_id))
+  lines.push(bullet('Story ID', story.friendly_id))
   lines.push(bullet('Extraction Status', story.extraction_status))
   lines.push(bullet('QA Status', story.extraction_qa_status ?? '—'))
   lines.push('')

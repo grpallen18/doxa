@@ -10,19 +10,20 @@ import {
 
 export function StoryExtractionExportButtons({
   payload,
-  storyId,
+  compact = false,
 }: {
   payload: StoryExtractionReviewPayload
-  storyId: string
+  compact?: boolean
 }) {
   const markdown = useMemo(() => buildExtractionReviewMarkdown(payload), [payload])
   const json = useMemo(() => buildExtractionReviewJson(payload), [payload])
-  const exportBasename = `story-extraction-${storyId.slice(0, 8)}`
+  const exportBasename = `story-extraction-${payload.story.friendly_id}`
 
   return (
     <>
       <ExportSplitButton
-        label="Markdown"
+        compact={compact}
+        label={compact ? '.MD' : 'Markdown'}
         copyLabel="Copy markdown"
         downloadLabel="Download markdown"
         content={markdown}
@@ -30,7 +31,8 @@ export function StoryExtractionExportButtons({
         downloadMimeType="text/markdown"
       />
       <ExportSplitButton
-        label="JSON"
+        compact={compact}
+        label={compact ? '.JSON' : 'JSON'}
         copyLabel="Copy JSON"
         downloadLabel="Download JSON"
         content={json}

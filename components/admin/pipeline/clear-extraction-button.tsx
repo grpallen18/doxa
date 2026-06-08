@@ -19,11 +19,13 @@ export function ClearExtractionButton({
   disabled,
   onCleared,
   onError,
+  compact = false,
 }: {
   storyId: string
   disabled?: boolean
   onCleared: () => Promise<void>
   onError: (message: string) => void
+  compact?: boolean
 }) {
   const [clearing, setClearing] = useState(false)
   const [open, setOpen] = useState(false)
@@ -53,8 +55,14 @@ export function ClearExtractionButton({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button type="button" size="sm" variant="destructive" disabled={disabled || clearing}>
-          Clear extraction
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          disabled={disabled || clearing}
+          className={compact ? 'h-7 px-2 text-xs' : undefined}
+        >
+          {compact ? 'Clear' : 'Clear extraction'}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

@@ -17,6 +17,10 @@
   --surface-soft: #ffffff;
   --surface-section: #f5f3f0;
   --surface-accordion: #f7f5f2;
+  --record-section-header-bg: color-mix(in srgb, var(--accent-secondary) 22%, white);
+  --record-section-header-fg: var(--foreground);
+  --record-section-header-hover: var(--record-section-header-bg);
+  --record-section-header-border: color-mix(in srgb, var(--accent-secondary) 28%, var(--border-subtle));
 
   /* Borders */
   --border-subtle: #ebe7e2;
@@ -32,6 +36,8 @@
   --accent-primary: #2d5a4a;
   --accent-primary-soft: rgba(45, 90, 74, 0.18);
   --accent-primary-foreground: #faf9f7;
+  --provenance-highlight: color-mix(in srgb, var(--accent-primary) 10%, white);
+  --provenance-highlight-mark: color-mix(in srgb, var(--accent-primary) 16%, white);
   --accent-secondary: #a68b6d;
   --accent-secondary-soft: rgba(166, 139, 109, 0.28);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 95%, white);
@@ -118,6 +124,11 @@
   --pipeline-step-track: var(--accent-secondary);
   --pipeline-step-track-muted: var(--accent-secondary-soft);
 
+  --agent-icon-active-bg: #bbf7d0;
+  --agent-icon-active-fg: #166534;
+  --agent-icon-inactive-bg: #fecaca;
+  --agent-icon-inactive-fg: #991b1b;
+
   /* shadcn / UI tokens */
   --card: #faf9f7;
   --card-foreground: #1a1712;
@@ -157,6 +168,10 @@
   --surface-soft: #2a2a2a;
   --surface-section: #252525;
   --surface-accordion: #1a1a1a;
+  --record-section-header-bg: color-mix(in srgb, #a68b6d 26%, var(--surface-section));
+  --record-section-header-fg: var(--foreground);
+  --record-section-header-hover: var(--record-section-header-bg);
+  --record-section-header-border: color-mix(in srgb, #a68b6d 32%, var(--border-subtle));
 
   /* Borders */
   --border-subtle: #333333;
@@ -172,6 +187,8 @@
   --accent-primary: #f0edea;
   --accent-primary-soft: rgba(240, 237, 234, 0.2);
   --accent-primary-foreground: #1a1712;
+  --provenance-highlight: color-mix(in srgb, var(--link-default-green) 12%, transparent);
+  --provenance-highlight-mark: color-mix(in srgb, var(--link-default-green) 18%, transparent);
   --accent-secondary: #e0ddd9;
   --accent-secondary-soft: rgba(224, 221, 217, 0.25);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 90%, var(--surface));
@@ -234,6 +251,11 @@
   --pipeline-step-pending-bg: var(--surface-soft);
   --pipeline-step-track: #a68b6d;
   --pipeline-step-track-muted: rgba(166, 139, 109, 0.28);
+
+  --agent-icon-active-bg: color-mix(in srgb, #22c55e 38%, var(--surface-soft));
+  --agent-icon-active-fg: #bbf7d0;
+  --agent-icon-inactive-bg: color-mix(in srgb, #f87171 42%, var(--surface-soft));
+  --agent-icon-inactive-fg: #fecaca;
 
   /* shadcn / UI tokens */
   --card: #1e1e1e;

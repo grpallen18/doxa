@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { storyAdminHref } from '@/lib/admin/friendly-id'
 import type { ExtractionStatus, StoryListItem } from '@/lib/admin/story-extraction-review'
 import { qaStatusLabel } from '@/lib/admin/extraction-qa-types'
 
@@ -186,7 +187,7 @@ export default function AdminStoriesPage() {
                 {items.map((story) => (
                   <li key={story.story_id}>
                     <Link
-                      href={`/admin/stories/${story.story_id}`}
+                      href={storyAdminHref(story)}
                       className="block px-4 py-3 transition-colors hover:bg-muted/30"
                     >
                       <p className="font-medium line-clamp-2">{story.title}</p>

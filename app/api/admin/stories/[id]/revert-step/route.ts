@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { extractErrorMessage } from '@/lib/admin/story-extraction-review'
+import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 import { REVERT_SCOPE_STEP_IDS, type PipelineStepId } from '@/lib/admin/story-pipeline-checklist'
 
 /** Admin: revert one pipeline step (ingestion through review chunk claims). */
@@ -54,8 +55,12 @@ export async function POST(
 
   try {
     const supabase = await createClient()
+    const resolved = await resolveStoryIdParam(supabase, storyId)
+    if ('response' in resolved) return resolved.response
+    const { storyUuid } = resolved
+
     const { data, error } = await supabase.rpc('revert_story_pipeline_step', {
-      p_story_id: storyId,
+      p_story_id: storyUuid,
       p_step_id: stepInput,
     })
 

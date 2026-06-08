@@ -10,6 +10,7 @@ import {
 } from '@/lib/admin/story-pipeline-checklist'
 import { pipelineStepHasDetailContent } from '@/components/admin/pipeline/pipeline-step-details'
 import { STEP_DETAIL_REVEAL_DURATION_MS } from '@/components/admin/pipeline/step-detail-reveal'
+import { showPipelineWarning } from '@/lib/admin/pipeline-toast'
 
 const POLL_INTERVAL_MS = 2000
 const MAX_POLLS = 36
@@ -41,7 +42,10 @@ export function usePipelineStepPoll({
     const intervalId = setInterval(() => {
       pollCountRef.current += 1
       if (pollCountRef.current > MAX_POLLS) {
-        setActionMessage('Step may still be running. Refresh the page or run the step again.')
+        showPipelineWarning(
+          'Step may still be running. Refresh the page or run the step again.'
+        )
+        setActionMessage(null)
         runBaselineRef.current = null
         stopPolling()
         return

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
+import { isStoryFriendlyId, normalizeStoryFriendlyId } from '@/lib/admin/friendly-id'
 import {
   countEntitiesByStory,
   deriveExtractionStatus,
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('stories')
       .select(
-        `story_id, title, url, published_at, fetched_at, created_at,
+        `story_id, friendly_id, title, url, published_at, fetched_at, created_at,
          relevance_status, relevance_score, extraction_completed_at,
          extraction_skipped_empty, merged_at, content_snippet, extraction_qa_status,
          ${sourceJoin}`,
@@ -55,6 +56,9 @@ export async function GET(request: NextRequest) {
 
     if (keyword) {
       const orParts = [`title.ilike.%${keyword}%`, `content_snippet.ilike.%${keyword}%`]
+      if (isStoryFriendlyId(keyword)) {
+        orParts.push(`friendly_id.eq.${normalizeStoryFriendlyId(keyword)}`)
+      }
       if (storyIdsFromBody && storyIdsFromBody.length > 0) {
         orParts.push(`story_id.in.(${storyIdsFromBody.join(',')})`)
       }
@@ -100,6 +104,7 @@ export async function GET(request: NextRequest) {
       }
       return {
         story_id: row.story_id,
+        friendly_id: row.friendly_id as string,
         title: row.title,
         url: row.url,
         source_name: sourceName,

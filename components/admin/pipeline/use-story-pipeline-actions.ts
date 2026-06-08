@@ -7,6 +7,10 @@ import {
   type PipelineStepId,
 } from '@/lib/admin/story-pipeline-checklist'
 import { usePipelineStepPoll } from '@/components/admin/pipeline/use-pipeline-step-poll'
+import {
+  showPipelineError,
+  showPipelineSuccess,
+} from '@/lib/admin/pipeline-toast'
 
 export function useStoryPipelineActions({
   storyId,
@@ -46,13 +50,18 @@ export function useStoryPipelineActions({
         })
         const json = await res.json()
         if (!res.ok) {
-          setStepError(json.error?.message ?? 'Step failed to start')
+          const message = json.error?.message ?? 'Step failed to start'
+          const deployName = json.error?.deploy_name as string | undefined
+          setStepError(message)
+          showPipelineError(message, deployName)
           cancelRun()
           return
         }
         void onRefresh()
       } catch {
-        setStepError('Failed to invoke pipeline step')
+        const message = 'Failed to invoke pipeline step'
+        setStepError(message)
+        showPipelineError(message)
         cancelRun()
       }
     },
@@ -73,13 +82,18 @@ export function useStoryPipelineActions({
         })
         const json = await res.json()
         if (!res.ok) {
-          setStepError(json.error?.message ?? 'Revert failed')
+          const message = json.error?.message ?? 'Revert failed'
+          setStepError(message)
+          showPipelineError(message)
           return
         }
-        setActionMessage(`Reverted ${stepId.replace(/-/g, ' ')}`)
+        showPipelineSuccess(`Reverted ${stepId.replace(/-/g, ' ')}`)
+        setActionMessage(null)
         await onRefresh()
       } catch {
-        setStepError('Failed to revert pipeline step')
+        const message = 'Failed to revert pipeline step'
+        setStepError(message)
+        showPipelineError(message)
       } finally {
         setRevertingStepId(null)
       }

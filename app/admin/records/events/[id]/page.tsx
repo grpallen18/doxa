@@ -67,6 +67,7 @@ export default function CanonicalEventRecordPage() {
           ),
         },
       ]}
+      auditApiPath={`/api/admin/records/events/${eventId}/audit`}
     />
   )
 }

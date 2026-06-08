@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { extractErrorMessage } from '@/lib/admin/story-extraction-review'
+import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 
 /** Admin: reset story extraction to chunks awaiting extraction. */
 export async function POST(
@@ -38,8 +39,12 @@ export async function POST(
 
   try {
     const supabase = await createClient()
+    const resolved = await resolveStoryIdParam(supabase, storyId)
+    if ('response' in resolved) return resolved.response
+    const { storyUuid } = resolved
+
     const { data, error } = await supabase.rpc('reset_story_extraction', {
-      p_story_id: storyId,
+      p_story_id: storyUuid,
     })
 
     if (error) {

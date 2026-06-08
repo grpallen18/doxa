@@ -22,6 +22,11 @@ truncate_groups:
 
 # Truncated individually with CASCADE when the table exists.
 truncate_tables:
+  - story_history
+  - story_chunks_history
+  - claims_history
+  - events_history
+  - positions_history
   - story_extraction_qa_artifacts
   - controversy_viewpoints
   - topic_controversies

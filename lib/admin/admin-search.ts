@@ -1,9 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { deriveStageSummaries } from '@/lib/admin/pipeline-status'
+import { isStoryFriendlyId, isUuid, normalizeStoryFriendlyId, storyAdminHref } from '@/lib/admin/friendly-id'
 import { fetchStoryExtractionReview } from '@/lib/admin/story-extraction-review'
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export type AdminSearchResult = {
   type: 'story' | 'claim' | 'position' | 'event' | 'agreement'
@@ -27,12 +25,14 @@ export async function searchAdminRecords(
 
   let storyQuery = supabase
     .from('stories')
-    .select('story_id, title, url, created_at')
+    .select('story_id, friendly_id, title, url, created_at')
     .order('created_at', { ascending: false })
     .limit(perType)
 
-  if (UUID_RE.test(q)) {
+  if (isUuid(q)) {
     storyQuery = storyQuery.eq('story_id', q)
+  } else if (isStoryFriendlyId(q)) {
+    storyQuery = storyQuery.eq('friendly_id', normalizeStoryFriendlyId(q))
   } else {
     storyQuery = storyQuery.or(`title.ilike.%${q}%,url.ilike.%${q}%`)
   }
@@ -66,7 +66,7 @@ export async function searchAdminRecords(
     try {
       const payload = await fetchStoryExtractionReview(supabase, row.story_id)
       if (payload) {
-        const stages = deriveStageSummaries(row.story_id, payload)
+        const stages = deriveStageSummaries(payload)
         const current = stages.find((s) => s.status === 'current' || s.status === 'blocked')
         stageBadge = current?.label ?? (stages.every((s) => s.status === 'complete') ? 'Complete' : null)
       }
@@ -75,10 +75,13 @@ export async function searchAdminRecords(
     }
     results.push({
       type: 'story',
-      id: row.story_id,
+      id: (row.friendly_id as string) ?? row.story_id,
       title: row.title,
       subtitle: row.url,
-      href: `/admin/stories/${row.story_id}`,
+      href: storyAdminHref({
+        story_id: row.story_id,
+        friendly_id: row.friendly_id as string | undefined,
+      }),
       stageBadge,
     })
   }

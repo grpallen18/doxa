@@ -37,6 +37,7 @@ import {
 import { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
 import { AgentIconButton } from '@/components/admin/record/agent-icon-button'
 import { StageActionButtons } from '@/components/admin/record/stage-action-buttons'
+import { cn } from '@/lib/utils'
 
 function PipelineStepRow({
   step,
@@ -49,6 +50,7 @@ function PipelineStepRow({
   revealTarget,
   renderFeedback,
   spanHighlight,
+  embedded,
 }: {
   step: PipelineStepState
   isRunning: boolean
@@ -60,6 +62,7 @@ function PipelineStepRow({
   revealTarget: { stepId: PipelineStepId; epoch: number } | null
   renderFeedback?: PipelineStepDetailProps['renderFeedback']
   spanHighlight?: SpanHighlightProps
+  embedded?: boolean
 }) {
   const revertible = isStepRevertible(step.id, payload)
   const showRevert = REVERT_SCOPE_STEP_IDS.includes(step.id)
@@ -68,14 +71,19 @@ function PipelineStepRow({
     <FocusAccordionItem
       value={step.id}
       id={`step-${step.id}`}
-      className="scroll-mt-28 rounded-lg border border-subtle px-3"
+      className={cn(
+        'scroll-mt-28 rounded-lg border border-subtle px-3 transition-colors',
+        embedded && 'bg-surface hover:bg-white'
+      )}
     >
       <div className="flex items-center gap-2 py-1">
         <div className="min-w-0 flex-1">
-          <AccordionTrigger className="w-full py-2 hover:no-underline [&>svg]:hidden">
+          <AccordionTrigger
+            className="w-full py-2 hover:bg-transparent hover:no-underline [&>svg]:hidden"
+          >
             <div className="flex w-full min-w-0 items-center gap-2 text-left">
               <div className="flex shrink-0 items-center gap-2">
-                <PipelineStatusIcon status={isRunning ? 'current' : step.status} />
+                <PipelineStatusIcon status={isRunning ? 'running' : step.status} />
                 <AgentIconButton
                   stepId={step.id}
                   manifestStatus={step.manifestStatus}
@@ -92,18 +100,20 @@ function PipelineStepRow({
             </div>
           </AccordionTrigger>
         </div>
-        <StageActionButtons
-          stepId={step.id}
-          label={step.label}
-          runnable={step.runnable}
-          revertible={revertible}
-          showRevert={showRevert}
-          isRunning={isRunning}
-          isReverting={isReverting}
-          isBusy={isBusy}
-          onRun={onRun}
-          onRevert={onRevert}
-        />
+        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+          <StageActionButtons
+            stepId={step.id}
+            label={step.label}
+            runnable={step.runnable}
+            revertible={revertible}
+            showRevert={showRevert}
+            isRunning={isRunning}
+            isReverting={isReverting}
+            isBusy={isBusy}
+            onRun={onRun}
+            onRevert={onRevert}
+          />
+        </div>
       </div>
       <AccordionContent className="border-t border-subtle pb-3 pt-2">
         <PipelineStepDetail
@@ -132,9 +142,10 @@ export function PipelineChecklist({
   renderFeedback,
   spanHighlight,
   title = 'Pipeline',
-  description = 'Run one step at a time. Expand a step to review its output.',
+  description,
   showBlockedBanner = true,
   showRevertBlockedNotice = true,
+  embedded = false,
   pipelineActions: externalActions,
 }: {
   payload: StoryExtractionReviewPayload
@@ -152,6 +163,7 @@ export function PipelineChecklist({
   description?: string
   showBlockedBanner?: boolean
   showRevertBlockedNotice?: boolean
+  embedded?: boolean
   pipelineActions?: ReturnType<typeof useStoryPipelineActions>
 }) {
   const internalActions = useStoryPipelineActions({ storyId, payload, onRefresh })
@@ -186,16 +198,20 @@ export function PipelineChecklist({
 
   return (
     <div className="space-y-4 text-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="font-medium">{title}</h3>
-          <p className="mt-1 text-xs text-muted">{description}</p>
+      {(title || description || headerActions || toolbarActions) && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            {title ? <h3 className="font-medium">{title}</h3> : null}
+            {description ? <p className="mt-0.5 text-xs text-muted">{description}</p> : null}
+          </div>
+          {(headerActions || toolbarActions) && (
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+              {headerActions}
+              {toolbarActions}
+            </div>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {headerActions}
-          {toolbarActions}
-        </div>
-      </div>
+      )}
 
       {showBlockedBanner && checklist.isPipelineBlocked && checklist.blockedReason && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
@@ -218,9 +234,6 @@ export function PipelineChecklist({
           <p>{revertBlockedReason}</p>
         </div>
       )}
-
-      {actions.stepError && <p className="text-xs text-destructive">{actions.stepError}</p>}
-      {actions.actionMessage && <p className="text-xs text-muted">{actions.actionMessage}</p>}
 
       <FocusAccordion
         value={actions.expanded}
@@ -252,6 +265,7 @@ export function PipelineChecklist({
                     revealTarget={actions.revealTarget}
                     renderFeedback={renderFeedback}
                     spanHighlight={spanHighlight}
+                    embedded={embedded}
                   />
                 ))}
               </div>

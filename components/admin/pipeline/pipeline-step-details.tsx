@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
+import { isIngestionStepExecuted } from '@/lib/admin/pipeline-status/ingestion'
 import {
   getStepNotRequiredMessage,
   type PipelineStepId,
@@ -22,6 +23,7 @@ import {
   AccordionTrigger,
 } from '@/components/admin/pipeline/focus-accordion'
 import { StepDetailReveal } from '@/components/admin/pipeline/step-detail-reveal'
+import { RecordFieldRow, recordFieldGridClass } from '@/components/admin/record/record-field-row'
 
 function formatChunkLabel(chunkIndex: number, totalChunks: number): string {
   return `Chunk ${chunkIndex + 1}/${totalChunks}`
@@ -888,47 +890,138 @@ function StancesDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
   )
 }
 
-function formatIngestionDate(iso: string | null): string {
-  if (!iso) return '—'
+function formatIngestionDate(iso: string | null): string | null {
+  if (!iso) return null
   return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-function IngestionDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
-  const { story } = payload
+function StepMetadata({ rows }: { rows: Array<{ label: string; value: ReactNode }> }) {
   return (
-    <dl className="grid gap-1.5 text-xs">
-      <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Qualification</dt>
-        <dd>
-          {story.relevance_status ?? '—'}
-          {story.relevance_score != null ? ` (${story.relevance_score})` : ''}
-        </dd>
-      </div>
-      <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Qualify ran</dt>
-        <dd>{formatIngestionDate(story.relevance_ran_at)}</dd>
-      </div>
-      <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Scraped</dt>
-        <dd>{formatIngestionDate(story.scraped_at)}</dd>
-      </div>
-      <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Scrape dispatched</dt>
-        <dd>{formatIngestionDate(story.scrape_dispatched_at)}</dd>
-      </div>
-      <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Scrape skipped</dt>
-        <dd>{story.scrape_skipped ? 'Yes' : 'No'}</dd>
-      </div>
-      <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Scrape failures</dt>
-        <dd>{story.scrape_fail_count}</dd>
-      </div>
-      <div className="flex gap-2">
-        <dt className="shrink-0 text-muted">Clean body</dt>
-        <dd>{story.has_content_clean ? 'Ready' : 'Not ready'}</dd>
-      </div>
+    <dl className={recordFieldGridClass}>
+      {rows.map(({ label, value }) => (
+        <RecordFieldRow key={label} label={label}>
+          {value}
+        </RecordFieldRow>
+      ))}
     </dl>
+  )
+}
+
+function RelevanceGateDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
+  const { story } = payload
+  const executed = isIngestionStepExecuted('relevance-gate', payload)
+  const tags = executed ? (story.relevance_tags?.filter(Boolean) ?? []) : []
+
+  return (
+    <StepMetadata
+      rows={[
+        {
+          label: 'Qualification status',
+          value: executed ? story.relevance_status : null,
+        },
+        {
+          label: 'Relevance score',
+          value: executed ? story.relevance_score : null,
+        },
+        {
+          label: 'Qualify ran',
+          value: executed ? formatIngestionDate(story.relevance_ran_at) : null,
+        },
+        ...(tags.length > 0
+          ? [{ label: 'Relevance tags', value: tags.join(', ') }]
+          : []),
+      ]}
+    />
+  )
+}
+
+function ReviewPendingDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
+  const { story } = payload
+  const notRequired = getStepNotRequiredMessage('review-pending-stories', payload)
+  const executed = isIngestionStepExecuted('review-pending-stories', payload)
+
+  return (
+    <div className="space-y-2">
+      {notRequired && <p className="text-xs text-muted">{notRequired}</p>}
+      <StepMetadata
+        rows={[
+          {
+            label: 'Qualification status',
+            value: executed ? story.relevance_status : null,
+          },
+          {
+            label: 'Pending review ran',
+            value: executed ? formatIngestionDate(story.pending_review_ran_at) : null,
+          },
+          {
+            label: 'Awaiting resolution',
+            value: executed
+              ? story.relevance_status === 'PENDING'
+                ? 'Yes'
+                : 'No'
+              : null,
+          },
+        ]}
+      />
+    </div>
+  )
+}
+
+function ScrapeStoryDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
+  const { story } = payload
+  const executed = isIngestionStepExecuted('scrape-story-content', payload)
+
+  return (
+    <StepMetadata
+      rows={[
+        {
+          label: 'Scraped',
+          value: executed ? formatIngestionDate(story.scraped_at) : null,
+        },
+        {
+          label: 'Scrape dispatched',
+          value: executed ? formatIngestionDate(story.scrape_dispatched_at) : null,
+        },
+        {
+          label: 'Scrape skipped',
+          value: executed ? (story.scrape_skipped ? 'Yes' : 'No') : null,
+        },
+        {
+          label: 'Scrape failures',
+          value:
+            executed && story.scrape_fail_count > 0 ? story.scrape_fail_count : null,
+        },
+      ]}
+    />
+  )
+}
+
+function CleanScrapedDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
+  const { story } = payload
+  const executed = isIngestionStepExecuted('clean-scraped-content', payload)
+  const articleLength =
+    story.content_length_clean ?? (story.has_content_clean ? story.article_text?.length : null)
+
+  return (
+    <StepMetadata
+      rows={[
+        {
+          label: 'Clean body',
+          value: executed ? (story.has_content_clean ? 'Ready' : 'Not ready') : null,
+        },
+        {
+          label: 'Article length',
+          value:
+            executed && articleLength != null && articleLength > 0
+              ? `${articleLength.toLocaleString()} characters`
+              : null,
+        },
+        {
+          label: 'Cleaned',
+          value: executed ? formatIngestionDate(story.cleaned_at) : null,
+        },
+      ]}
+    />
   )
 }
 
@@ -938,15 +1031,16 @@ export function pipelineStepHasDetailContent(
 ): boolean {
   switch (stepId) {
     case 'relevance-gate':
-    case 'scrape-story-content':
-    case 'clean-scraped-content':
+      return isIngestionStepExecuted('relevance-gate', payload)
     case 'review-pending-stories':
       return (
-        payload.story.relevance_status != null ||
-        payload.story.scraped_at != null ||
-        payload.story.has_content_clean ||
+        isIngestionStepExecuted('review-pending-stories', payload) ||
         getStepNotRequiredMessage(stepId, payload) != null
       )
+    case 'scrape-story-content':
+      return isIngestionStepExecuted('scrape-story-content', payload)
+    case 'clean-scraped-content':
+      return isIngestionStepExecuted('clean-scraped-content', payload)
     case 'chunk-story-bodies':
       return payload.chunks.length > 0
     case 'extract-story-claims':
@@ -1021,10 +1115,13 @@ export function PipelineStepDetail({
   const content = (() => {
     switch (stepId) {
       case 'relevance-gate':
-      case 'scrape-story-content':
-      case 'clean-scraped-content':
+        return <RelevanceGateDetail payload={payload} />
       case 'review-pending-stories':
-        return <IngestionDetail payload={payload} />
+        return <ReviewPendingDetail payload={payload} />
+      case 'scrape-story-content':
+        return <ScrapeStoryDetail payload={payload} />
+      case 'clean-scraped-content':
+        return <CleanScrapedDetail payload={payload} />
       case 'chunk-story-bodies':
         if (payload.chunks.length === 0) return <EmptyDetail message="No chunks yet." />
         return (

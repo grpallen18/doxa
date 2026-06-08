@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
+import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 import { extractEdgeFunctionError, extractErrorMessage } from '@/lib/admin/story-extraction-review'
+import { createAdminClient } from '@/lib/supabase/server'
 import { getInvokeOptions, resolveDeployName } from '@/lib/admin/story-pipeline-checklist'
 import { edgeFunctionHeaders } from '@/lib/supabase/edge-function-auth'
 
@@ -56,8 +58,13 @@ export async function POST(
     )
   }
 
+  const supabase = createAdminClient()
+  const resolved = await resolveStoryIdParam(supabase, storyId)
+  if ('response' in resolved) return resolved.response
+  const { storyUuid } = resolved
+
   const invokeOptions = getInvokeOptions(deployName)
-  const invokeBody: Record<string, unknown> = { story_id: storyId }
+  const invokeBody: Record<string, unknown> = { story_id: storyUuid }
   if (invokeOptions.usesMaxChunks && invokeOptions.maxChunks != null) {
     invokeBody.max_chunks = invokeOptions.maxChunks
   }

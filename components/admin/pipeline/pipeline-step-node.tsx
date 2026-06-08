@@ -14,6 +14,7 @@ const statusClass: Record<StageSummaryStatus, string> = {
 
 function resolveStatusClass(status: PipelineStepNodeStatus): string {
   if (status === 'optional') return statusClass.complete
+  if (status === 'running') return statusClass.current
   return statusClass[status]
 }
 
@@ -40,7 +41,7 @@ export function PipelineStepNode({
     >
       {status === 'complete' && <Check className={iconClass} aria-hidden />}
       {status === 'optional' && <Minus className={iconClass} aria-hidden />}
-      {status === 'current' && <Loader2 className={cn(iconClass, 'animate-spin')} aria-hidden />}
+      {status === 'running' && <Loader2 className={cn(iconClass, 'animate-spin')} aria-hidden />}
     </div>
   )
 }

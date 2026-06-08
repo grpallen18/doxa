@@ -24,6 +24,46 @@ BEGIN
     v_skipped := v_skipped || ARRAY['viz'];
   END IF;
 
+  -- required: story_history
+  IF 'public.story_history'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.story_history RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'story_history');
+  ELSE
+    v_skipped := array_append(v_skipped, 'story_history');
+  END IF;
+
+  -- required: story_chunks_history
+  IF 'public.story_chunks_history'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.story_chunks_history RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'story_chunks_history');
+  ELSE
+    v_skipped := array_append(v_skipped, 'story_chunks_history');
+  END IF;
+
+  -- required: claims_history
+  IF 'public.claims_history'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.claims_history RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'claims_history');
+  ELSE
+    v_skipped := array_append(v_skipped, 'claims_history');
+  END IF;
+
+  -- required: events_history
+  IF 'public.events_history'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.events_history RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'events_history');
+  ELSE
+    v_skipped := array_append(v_skipped, 'events_history');
+  END IF;
+
+  -- required: positions_history
+  IF 'public.positions_history'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.positions_history RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'positions_history');
+  ELSE
+    v_skipped := array_append(v_skipped, 'positions_history');
+  END IF;
+
   -- required: story_extraction_qa_artifacts
   IF 'public.story_extraction_qa_artifacts'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.story_extraction_qa_artifacts RESTART IDENTITY CASCADE';

@@ -51,7 +51,7 @@ export function JsonMarkdownViewer({
           </Button>
         </div>
       )}
-      <pre className="max-h-96 overflow-auto rounded-md border border-subtle bg-muted/30 p-3 text-xs leading-relaxed whitespace-pre-wrap">
+      <pre className="max-h-96 overflow-auto rounded-md border border-subtle bg-surface p-3 text-xs leading-relaxed whitespace-pre-wrap">
         {content}
       </pre>
     </div>

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
-import { buildStoryAuditEvents } from '@/lib/admin/story-audit'
-import { fetchStoryExtractionReview, extractErrorMessage } from '@/lib/admin/story-extraction-review'
+import { fetchStoryAuditEvents } from '@/lib/admin/story-audit'
+import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 
 export async function GET(
   _request: NextRequest,
@@ -11,8 +11,8 @@ export async function GET(
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
-  const { id: storyId } = await params
-  if (!storyId) {
+  const { id } = await params
+  if (!id) {
     return NextResponse.json(
       { data: null, error: { message: 'Missing story ID' } },
       { status: 400 }
@@ -21,20 +21,13 @@ export async function GET(
 
   try {
     const supabase = createAdminClient()
-    const payload = await fetchStoryExtractionReview(supabase, storyId)
-    if (!payload) {
-      return NextResponse.json(
-        { data: null, error: { message: 'Story not found', code: 'NOT_FOUND' } },
-        { status: 404 }
-      )
-    }
+    const resolved = await resolveStoryIdParam(supabase, id)
+    if ('response' in resolved) return resolved.response
 
-    const events = await buildStoryAuditEvents(supabase, storyId, payload)
+    const events = await fetchStoryAuditEvents(supabase, resolved.storyUuid)
     return NextResponse.json({ data: { events }, error: null })
   } catch (error: unknown) {
-    return NextResponse.json(
-      { data: null, error: { message: extractErrorMessage(error) } },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    return NextResponse.json({ data: null, error: { message } }, { status: 500 })
   }
 }

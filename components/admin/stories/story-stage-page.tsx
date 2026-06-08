@@ -9,6 +9,8 @@ import { PipelineChecklist } from '@/components/admin/pipeline/pipeline-checklis
 import { StoryExtractionExportButtons } from '@/components/admin/stories/story-extraction-export-buttons'
 import { StoryFeedbackButtons } from '@/components/admin/stories/story-feedback-buttons'
 import { useStoryReview } from '@/components/admin/stories/story-review-provider'
+import { storyAdminHref } from '@/lib/admin/friendly-id'
+import { showPipelineError } from '@/lib/admin/pipeline-toast'
 
 const STAGE_META: Record<
   PipelineStageId,
@@ -31,7 +33,6 @@ const STAGE_META: Record<
 export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
   const { storyId, payload, refresh } = useStoryReview()
   const [approving, setApproving] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
   const meta = STAGE_META[stageId]
 
   if (!payload) return null
@@ -55,26 +56,25 @@ export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
       <ClearExtractionButton
         storyId={storyId}
         onCleared={async () => refresh(true)}
-        onError={setActionError}
+        onError={showPipelineError}
       />
     ) : stageId === 'canonical' ? (
       <ClearCanonicalButton
         storyId={storyId}
         onCleared={async () => refresh(true)}
-        onError={setActionError}
+        onError={showPipelineError}
       />
     ) : null
 
   const headerActions = (
     <>
-      <StoryExtractionExportButtons payload={payload} storyId={storyId} />
+      <StoryExtractionExportButtons payload={payload} />
       {toolbar}
     </>
   )
 
   return (
     <div className="p-4">
-      {actionError && <p className="mb-3 text-xs text-destructive">{actionError}</p>}
       <PipelineChecklist
         payload={payload}
         storyId={storyId}
@@ -96,7 +96,7 @@ export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
         )}
       />
       <p className="mt-4 text-xs text-muted">
-        <Link href={`/admin/stories/${storyId}`} className="text-accent-primary hover:underline">
+        <Link href={storyAdminHref(payload.story)} className="text-accent-primary hover:underline">
           Back to story overview
         </Link>
       </p>
