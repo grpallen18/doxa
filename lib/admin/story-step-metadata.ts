@@ -1,18 +1,7 @@
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { getStepOutputSnapshot, isStepComplete } from '@/lib/admin/pipeline-status'
+import { STEP_QA_ARTIFACT_STAGES } from '@/lib/admin/pipeline-status/qa-lane-stages'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
-
-const STEP_QA_STAGES: Partial<Record<PipelineStepId, readonly string[]>> = {
-  'extract-story-claims': ['chunk_extract_claims', 'chunk_extract'],
-  'validate-chunk-claims': ['chunk_review_claims', 'chunk_review', 'chunk_validate'],
-  'refine-chunk-claims': ['chunk_refine_claims', 'chunk_refine'],
-  'extract-story-positions': ['chunk_extract_positions'],
-  'validate-chunk-positions': ['chunk_review_positions'],
-  'refine-chunk-positions': ['chunk_refine_positions'],
-  'review-merged-extraction': ['merge_review'],
-  'refine-merged-extraction': ['merge_refine'],
-  'validate-merged-extraction': ['merge_validate'],
-}
 
 function maxIso(dates: Array<string | null | undefined>): string | null {
   const valid = dates.filter((d): d is string => Boolean(d))
@@ -37,7 +26,7 @@ function latestQaArtifactAt(
 }
 
 export function getStoryStepQaArtifactStages(stepId: PipelineStepId): readonly string[] {
-  return STEP_QA_STAGES[stepId] ?? []
+  return STEP_QA_ARTIFACT_STAGES[stepId] ?? []
 }
 
 export function getStoryStepCompletedAt(
@@ -47,7 +36,7 @@ export function getStoryStepCompletedAt(
   if (!isStepComplete(stepId, payload)) return null
 
   const { story, chunks } = payload
-  const qaStages = STEP_QA_STAGES[stepId]
+  const qaStages = STEP_QA_ARTIFACT_STAGES[stepId]
 
   switch (stepId) {
     case 'relevance-gate':
@@ -102,7 +91,7 @@ export function getStoryStepQaArtifacts(
   stepId: PipelineStepId,
   payload: StoryExtractionReviewPayload
 ) {
-  const stages = STEP_QA_STAGES[stepId]
+  const stages = STEP_QA_ARTIFACT_STAGES[stepId]
   if (!stages?.length) return []
   return payload.qa_artifacts.filter((artifact) => stages.includes(artifact.stage))
 }

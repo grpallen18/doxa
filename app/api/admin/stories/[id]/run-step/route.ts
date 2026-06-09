@@ -101,6 +101,11 @@ export async function POST(
   const edgeTimeoutMs = invokeOptions.timeoutMs
 
   try {
+    await supabase.rpc('stage_story_audit_actor', {
+      p_story_id: storyUuid,
+      p_actor_id: auth.user.id,
+    })
+
     const url = `${supabaseUrl}/functions/v1/${deployName}`
     const res = await fetch(url, {
       method: 'POST',
@@ -151,5 +156,11 @@ export async function POST(
       { data: null, error: { message, deploy_name: deployName } },
       { status: 502 }
     )
+  } finally {
+    try {
+      await supabase.rpc('clear_story_audit_actor', { p_story_id: storyUuid })
+    } catch (clearError: unknown) {
+      console.error('[run-step] Failed to clear staged audit actor:', clearError)
+    }
   }
 }

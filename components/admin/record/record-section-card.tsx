@@ -58,27 +58,35 @@ export function RecordSectionCard({
       >
         <CollapsibleTrigger
           className={cn(
-            'flex w-full min-w-0 items-center gap-2 px-4 py-1.5 text-left transition-colors'
+            'flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-4 text-left transition-colors',
+            headerActions ? 'pr-2' : 'pr-4'
           )}
         >
           <h2 className="min-w-0 flex-1 text-sm font-semibold tracking-tight sm:text-base">{title}</h2>
-          {headerActions ? (
-            <div
-              className="flex shrink-0 items-center gap-1"
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              {headerActions}
-            </div>
+          {!headerActions ? (
+            <ChevronDown
+              className={cn(
+                'size-4 shrink-0 text-[var(--record-section-header-fg)]/80 transition-transform',
+                open && 'rotate-180'
+              )}
+              aria-hidden
+            />
           ) : null}
-          <ChevronDown
-            className={cn(
-              'size-4 shrink-0 text-[var(--record-section-header-fg)]/80 transition-transform',
-              open && 'rotate-180'
-            )}
-            aria-hidden
-          />
         </CollapsibleTrigger>
+        {headerActions ? (
+          <div className="flex shrink-0 items-center gap-1 py-1.5">{headerActions}</div>
+        ) : null}
+        {headerActions ? (
+          <CollapsibleTrigger className="flex shrink-0 items-center py-1.5 pr-4 pl-1 transition-colors">
+            <ChevronDown
+              className={cn(
+                'size-4 shrink-0 text-[var(--record-section-header-fg)]/80 transition-transform',
+                open && 'rotate-180'
+              )}
+              aria-hidden
+            />
+          </CollapsibleTrigger>
+        ) : null}
       </div>
       <CollapsibleContent className={isPanel ? 'bg-surface-soft' : 'bg-surface'}>
         <div className="min-h-0 px-5 py-4">{children}</div>

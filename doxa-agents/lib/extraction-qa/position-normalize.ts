@@ -58,10 +58,27 @@ export function normalizeExtractedPositionRow(
     raw.standardized_position_text ?? raw.raw_position_text ?? raw.raw_text ?? ""
   ).trim();
 
-  const isAttributed = Boolean(raw.is_attributed_to_other_actor);
+  const ownership = asRecord(raw.source_ownership);
+  const isAttributed =
+    raw.is_attributed_to_other_actor !== undefined
+      ? Boolean(raw.is_attributed_to_other_actor)
+      : Boolean(ownership?.is_attributed_to_other_actor);
   const isSourcePosition =
-    raw.is_source_position === undefined ? !isAttributed : Boolean(raw.is_source_position);
+    raw.is_source_position !== undefined
+      ? Boolean(raw.is_source_position)
+      : ownership?.is_source_position !== undefined
+        ? Boolean(ownership.is_source_position)
+        : !isAttributed;
+  const attributedActor = raw.attributed_actor ?? ownership?.attributed_actor ?? null;
+  const sourceEndorses =
+    raw.source_endorses_attributed_position ??
+    ownership?.source_endorses_attributed_position ??
+    (isAttributed && !isSourcePosition ? "unclear" : "not_applicable");
   const signalType = String(raw.signal_type ?? "explicit").toLowerCase();
+  const holder =
+    typeof raw.holder === "string" && raw.holder.trim()
+      ? raw.holder
+      : mapHolder(isSourcePosition, isAttributed);
 
   const sourceExcerpt = primarySourceExcerpt(raw, sourceText, rawText);
   const confidence = clampConfidence(raw.confidence ?? raw.extraction_confidence, sourceExcerpt ? 0.75 : 0.45);
@@ -69,7 +86,7 @@ export function normalizeExtractedPositionRow(
   const row: Record<string, unknown> = {
     raw_text: rawText,
     position_type: mapPositionType(signalType, isSourcePosition, isAttributed),
-    holder: mapHolder(isSourcePosition, isAttributed),
+    holder,
     source_story_id: storyId,
     source_chunk_index: chunkIndex,
     source_excerpt: sourceExcerpt,
@@ -82,8 +99,8 @@ export function normalizeExtractedPositionRow(
     source_ownership: {
       is_source_position: isSourcePosition,
       is_attributed_to_other_actor: isAttributed,
-      attributed_actor: raw.attributed_actor ?? null,
-      source_endorses_attributed_position: raw.source_endorses_attributed_position ?? "not_applicable",
+      attributed_actor: attributedActor,
+      source_endorses_attributed_position: sourceEndorses,
     },
     provenance: raw.provenance ?? {
       supporting_spans: raw.supporting_spans ?? [],

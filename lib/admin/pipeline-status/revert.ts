@@ -2,23 +2,41 @@ import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { isCanonicalStepComplete } from '@/lib/admin/pipeline-status/canonical'
 import {
-  isChunkClaimsReviewComplete,
+  isChunkClaimsReviewStarted,
+  isChunkPositionsReviewStarted,
   isExtractionStepComplete,
 } from '@/lib/admin/pipeline-status/extraction'
+import { getExtractionStepLane } from '@/lib/admin/pipeline-status/extraction-groups'
 import { isIngestionStepComplete } from '@/lib/admin/pipeline-status/ingestion'
+import { getLaneQaRevertTip } from '@/lib/admin/pipeline-status/qa-revert-tip'
 
-export const REVERT_SCOPE_STEP_IDS: PipelineStepId[] = [
+const INGESTION_REVERT_SCOPE: PipelineStepId[] = [
   'relevance-gate',
   'review-pending-stories',
   'scrape-story-content',
   'clean-scraped-content',
   'chunk-story-bodies',
-  'extract-story-claims',
-  'validate-chunk-claims',
 ]
 
-/** Steps after review chunk claims — revert is blocked once any of these complete. */
-const POST_VALIDATE_REVERT_STEP_IDS: PipelineStepId[] = [
+const CLAIMS_REVERT_SCOPE: PipelineStepId[] = [
+  'extract-story-claims',
+  'validate-chunk-claims',
+  'refine-chunk-claims',
+]
+
+const POSITIONS_REVERT_SCOPE: PipelineStepId[] = [
+  'extract-story-positions',
+  'validate-chunk-positions',
+  'refine-chunk-positions',
+]
+
+export const REVERT_SCOPE_STEP_IDS: PipelineStepId[] = [
+  ...INGESTION_REVERT_SCOPE,
+  ...CLAIMS_REVERT_SCOPE,
+  ...POSITIONS_REVERT_SCOPE,
+]
+
+const CLAIMS_POST_REVERT_STEP_IDS: PipelineStepId[] = [
   'merge-story-claims',
   'review-merged-extraction',
   'refine-merged-extraction',
@@ -29,18 +47,18 @@ const POST_VALIDATE_REVERT_STEP_IDS: PipelineStepId[] = [
   'update-stances',
 ]
 
-const INGESTION_REVERT_STEPS = new Set<PipelineStepId>([
-  'relevance-gate',
-  'review-pending-stories',
-  'scrape-story-content',
-  'clean-scraped-content',
-])
+const SHARED_MERGE_QA_STEP_IDS: PipelineStepId[] = [
+  'review-merged-extraction',
+  'refine-merged-extraction',
+  'validate-merged-extraction',
+]
 
-const EXTRACTION_REVERT_STEPS = new Set<PipelineStepId>([
-  'chunk-story-bodies',
-  'extract-story-claims',
-  'validate-chunk-claims',
-])
+const CANONICAL_REVERT_STEP_IDS: PipelineStepId[] = [
+  'link-canonical-claims',
+  'link-canonical-events',
+  'link-canonical-positions',
+  'update-stances',
+]
 
 export function isReviewPendingActuallyRan(payload: StoryExtractionReviewPayload): boolean {
   if (payload.story.pending_review_ran_at) return true
@@ -48,23 +66,25 @@ export function isReviewPendingActuallyRan(payload: StoryExtractionReviewPayload
   return tags.includes('unclear_after_review')
 }
 
-function isStepCompletedForRevertTip(
-  stepId: PipelineStepId,
+function latestIngestionRevertTip(payload: StoryExtractionReviewPayload): PipelineStepId | null {
+  let lastCompleted: PipelineStepId | null = null
+  for (const stepId of INGESTION_REVERT_SCOPE) {
+    if (stepId === 'review-pending-stories') {
+      if (isReviewPendingActuallyRan(payload)) lastCompleted = stepId
+      continue
+    }
+    if (isIngestionStepComplete(stepId, payload)) {
+      lastCompleted = stepId
+    }
+  }
+  return lastCompleted
+}
+
+function getExtractionLaneRevertTip(
+  lane: 'claims' | 'positions',
   payload: StoryExtractionReviewPayload
-): boolean {
-  if (stepId === 'review-pending-stories') {
-    return isReviewPendingActuallyRan(payload)
-  }
-  if (stepId === 'validate-chunk-claims') {
-    return isChunkClaimsReviewComplete(payload)
-  }
-  if (INGESTION_REVERT_STEPS.has(stepId)) {
-    return isIngestionStepComplete(stepId, payload)
-  }
-  if (EXTRACTION_REVERT_STEPS.has(stepId)) {
-    return isExtractionStepComplete(stepId, payload)
-  }
-  return false
+): PipelineStepId | null {
+  return getLaneQaRevertTip(lane, payload)
 }
 
 function isPostValidateStepComplete(
@@ -77,30 +97,89 @@ function isPostValidateStepComplete(
   return isExtractionStepComplete(stepId, payload)
 }
 
-export function hasPostRevertScopeProgress(payload: StoryExtractionReviewPayload): boolean {
-  return POST_VALIDATE_REVERT_STEP_IDS.some((stepId) =>
+function hasClaimsLanePostProgress(payload: StoryExtractionReviewPayload): boolean {
+  if (payload.claims.length > 0 || payload.evidence.length > 0) return true
+  return CLAIMS_POST_REVERT_STEP_IDS.some((stepId) =>
     isPostValidateStepComplete(stepId, payload)
   )
 }
 
+function hasPositionsLanePostProgress(payload: StoryExtractionReviewPayload): boolean {
+  return payload.positions.length > 0
+}
+
+function hasSharedMergeQaProgress(payload: StoryExtractionReviewPayload): boolean {
+  return SHARED_MERGE_QA_STEP_IDS.some((stepId) =>
+    isExtractionStepComplete(stepId, payload)
+  )
+}
+
+function hasCanonicalProgress(payload: StoryExtractionReviewPayload): boolean {
+  return CANONICAL_REVERT_STEP_IDS.some((stepId) =>
+    isCanonicalStepComplete(stepId, payload)
+  )
+}
+
+export function isStepRevertBlocked(
+  stepId: PipelineStepId,
+  payload: StoryExtractionReviewPayload
+): boolean {
+  const lane = getExtractionStepLane(stepId)
+
+  if (lane === 'claims') {
+    if (hasClaimsLanePostProgress(payload)) return true
+    if (hasSharedMergeQaProgress(payload)) return true
+    if (hasCanonicalProgress(payload)) return true
+    if (stepId === 'extract-story-claims' && isChunkClaimsReviewStarted(payload)) return true
+    return false
+  }
+
+  if (lane === 'positions') {
+    if (hasPositionsLanePostProgress(payload)) return true
+    if (hasSharedMergeQaProgress(payload)) return true
+    if (hasCanonicalProgress(payload)) return true
+    if (stepId === 'extract-story-positions' && isChunkPositionsReviewStarted(payload)) return true
+    return false
+  }
+
+  if (hasClaimsLanePostProgress(payload)) return true
+  if (hasPositionsLanePostProgress(payload)) return true
+  if (hasSharedMergeQaProgress(payload)) return true
+  if (hasCanonicalProgress(payload)) return true
+  if (isChunkClaimsReviewStarted(payload)) return true
+  if (isChunkPositionsReviewStarted(payload)) return true
+  return false
+}
+
+export function hasPostRevertScopeProgress(payload: StoryExtractionReviewPayload): boolean {
+  return (
+    hasClaimsLanePostProgress(payload) ||
+    hasPositionsLanePostProgress(payload) ||
+    hasSharedMergeQaProgress(payload) ||
+    hasCanonicalProgress(payload)
+  )
+}
+
 export function getRevertBlockedReason(payload: StoryExtractionReviewPayload): string | null {
-  if (!hasPostRevertScopeProgress(payload)) return null
+  if (REVERT_SCOPE_STEP_IDS.some((stepId) => isStepRevertible(stepId, payload))) {
+    return null
+  }
+  if (!hasPostRevertScopeProgress(payload) && !isChunkClaimsReviewStarted(payload) && !isChunkPositionsReviewStarted(payload)) {
+    return null
+  }
+  if (isChunkClaimsReviewStarted(payload) || isChunkPositionsReviewStarted(payload)) {
+    return 'Revert the latest completed review or refine step in each lane before earlier extract steps.'
+  }
   return 'Later merge or canonical steps have progress. Use Clear extraction first.'
 }
 
 export function getRevertibleStepId(
   payload: StoryExtractionReviewPayload
 ): PipelineStepId | null {
-  if (hasPostRevertScopeProgress(payload)) return null
-
-  let lastCompleted: PipelineStepId | null = null
   for (const stepId of REVERT_SCOPE_STEP_IDS) {
-    if (isStepCompletedForRevertTip(stepId, payload)) {
-      lastCompleted = stepId
-    }
+    if (isStepRevertible(stepId, payload)) return stepId
   }
-
-  return lastCompleted
+  return null
 }
 
 export function isStepRevertible(
@@ -108,7 +187,16 @@ export function isStepRevertible(
   payload: StoryExtractionReviewPayload
 ): boolean {
   if (!REVERT_SCOPE_STEP_IDS.includes(stepId)) return false
-  return getRevertibleStepId(payload) === stepId
+  if (isStepRevertBlocked(stepId, payload)) return false
+
+  const lane = getExtractionStepLane(stepId)
+  if (lane === 'claims') {
+    return getExtractionLaneRevertTip('claims', payload) === stepId
+  }
+  if (lane === 'positions') {
+    return getExtractionLaneRevertTip('positions', payload) === stepId
+  }
+  return latestIngestionRevertTip(payload) === stepId
 }
 
 export function getRevertStepDescription(stepId: PipelineStepId): string {
@@ -124,9 +212,17 @@ export function getRevertStepDescription(stepId: PipelineStepId): string {
     case 'chunk-story-bodies':
       return 'Deletes all story chunks for this story.'
     case 'extract-story-claims':
-      return 'Clears extraction JSON on chunks; chunks are kept.'
+      return 'Clears claims extraction JSON on chunks; chunks are kept.'
     case 'validate-chunk-claims':
-      return 'Clears all chunk review and refine QA (keeps extracted claims) so review can run again from scratch.'
+      return 'Undoes the latest chunk claims review pass (one cycle). Keeps extraction JSON; restores the prior review state when re-reviewing after refine.'
+    case 'refine-chunk-claims':
+      return 'Undoes the latest chunk claims refinement pass. Restores pre-refine extraction JSON and keeps the review findings that requested refinement.'
+    case 'extract-story-positions':
+      return 'Clears positions extraction JSON on chunks; chunks are kept.'
+    case 'validate-chunk-positions':
+      return 'Undoes the latest chunk positions review pass (one cycle). Keeps extraction JSON; restores the prior review state when re-reviewing after refine.'
+    case 'refine-chunk-positions':
+      return 'Undoes the latest chunk positions refinement pass. Restores pre-refine extraction JSON and keeps the review findings that requested refinement.'
     default:
       return 'Reverts this pipeline step.'
   }

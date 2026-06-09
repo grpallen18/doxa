@@ -115,12 +115,30 @@ export type ClaimsReviewReport = {
   attempt_number?: number;
 };
 
+function reviewFailureHasRefinableFindings(
+  issues: Array<{ severity?: string }>,
+  patches: unknown[]
+): boolean {
+  const actionable = issues.some(
+    (issue) => issue.severity === "blocking" || issue.severity === "major"
+  );
+  return actionable || patches.length > 0;
+}
+
 export function resolveClaimsReviewFailureStatus(
   attemptCount: number,
-  recommendedAction: ClaimsReviewReport["recommended_action"]
+  recommendedAction: ClaimsReviewReport["recommended_action"],
+  report?: Pick<ClaimsReviewReport, "issues" | "patches">
 ): ExtractionQaStatus {
   if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
   if (recommendedAction === "needs_refinement") return "needs_refinement";
+  if (recommendedAction === "reject") return "needs_human_review";
+  if (
+    report &&
+    reviewFailureHasRefinableFindings(report.issues ?? [], report.patches ?? [])
+  ) {
+    return "needs_refinement";
+  }
   return "needs_human_review";
 }
 
@@ -183,10 +201,18 @@ export type PositionsReviewReport = {
 
 export function resolvePositionsReviewFailureStatus(
   attemptCount: number,
-  recommendedAction: PositionsReviewReport["recommended_action"]
+  recommendedAction: PositionsReviewReport["recommended_action"],
+  report?: Pick<PositionsReviewReport, "issues" | "patches">
 ): ExtractionQaStatus {
   if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
   if (recommendedAction === "needs_refinement") return "needs_refinement";
+  if (recommendedAction === "reject") return "needs_human_review";
+  if (
+    report &&
+    reviewFailureHasRefinableFindings(report.issues ?? [], report.patches ?? [])
+  ) {
+    return "needs_refinement";
+  }
   return "needs_human_review";
 }
 

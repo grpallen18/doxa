@@ -19,6 +19,7 @@ import {
   extractionStepProgress,
   getExtractionBlockedReason,
   getExtractionNotRequiredMessage,
+  isExtractionLanePipelineBlocked,
   isExtractionPipelineBlocked,
   isExtractionStageComplete,
   isExtractionStepBlocked,
@@ -26,6 +27,7 @@ import {
   isChunkClaimsReviewComplete,
   isChunkClaimsReviewStarted,
   isChunkPositionsReviewApproved,
+  isChunkPositionsReviewStarted,
   isChunkReviewApproved,
   isMergeValidated,
   isPositionsLaneStarted,
@@ -51,6 +53,15 @@ import {
   POSITIONS_LANE_STEP_IDS,
 } from '@/lib/admin/pipeline-status/extraction-groups'
 import { linkEntitiesPrerequisiteStepIds } from '@/lib/admin/pipeline-flow-layout'
+import {
+  isChunkAwaitingFirstReview,
+  isChunkPendingRereviewAfterRefine,
+  laneHasChunksNeedingRefinement,
+  laneHasChunksPendingRereview,
+  laneHasChunksReadyToRefine,
+  refineLanePriorOk,
+} from '@/lib/admin/pipeline-status/qa-lane-state'
+import { isStepRevertible } from '@/lib/admin/pipeline-status/revert'
 export {
   extractTimelineDetail,
   getExtractTimelineStatus,
@@ -309,8 +320,12 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
   const complete = isStepComplete(stepId, payload)
   const blocked = isStepBlocked(stepId, payload)
   const priorOk = priorStepsSatisfied(stepId, payload)
-  const pipelineBlocked = isPipelineBlocked(payload)
-  const blockedGate = pipelineBlocked && !canRunWhenBlocked(stepId)
+  const extractionLane = getExtractionStepLane(stepId)
+  const lanePipelineBlocked =
+    extractionLane != null
+      ? isExtractionLanePipelineBlocked(extractionLane, payload)
+      : isPipelineBlocked(payload)
+  const blockedGate = lanePipelineBlocked && !canRunWhenBlocked(stepId)
 
   if (stepId === 'review-pending-stories') {
     return !complete && payload.story.relevance_status === 'PENDING' && priorOk
@@ -347,6 +362,13 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
   }
 
   if (stepId === 'refine-chunk-claims' || stepId === 'refine-chunk-positions') {
+    const lane = stepId === 'refine-chunk-claims' ? 'claims' : 'positions'
+    if (laneHasChunksReadyToRefine(lane, payload)) {
+      return refineLanePriorOk(lane, payload) && !blockedGate && !blocked
+    }
+    if (laneHasChunksNeedingRefinement(lane, payload)) {
+      return false
+    }
     return (
       !complete &&
       !blocked &&
@@ -354,6 +376,45 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
       !blockedGate &&
       !isRefineOptional(stepId, payload)
     )
+  }
+
+  if (stepId === 'validate-chunk-claims' || stepId === 'validate-chunk-positions') {
+    const lane = stepId === 'validate-chunk-claims' ? 'claims' : 'positions'
+    const awaitingReview =
+      laneHasChunksPendingRereview(lane, payload) ||
+      payload.chunks.some((chunk) => {
+        if (lane === 'positions') {
+          return (
+            chunk.positions_extraction_json != null &&
+            (chunk.positions_qa_status == null ||
+              chunk.positions_qa_status === 'pending' ||
+              chunk.positions_qa_status === 'needs_human_review')
+          )
+        }
+        return (
+          chunk.extraction_json != null &&
+          (chunk.extraction_qa_status == null ||
+            chunk.extraction_qa_status === 'pending' ||
+            chunk.extraction_qa_status === 'needs_human_review')
+        )
+      })
+    const canRun =
+      (!complete || awaitingReview) &&
+      priorOk &&
+      !blockedGate &&
+      (awaitingReview || !blocked)
+    if (!canRun) return false
+    if (laneHasChunksNeedingRefinement(lane, payload)) {
+      return payload.chunks.some((chunk) => isChunkAwaitingFirstReview(lane, chunk))
+    }
+    if (isStepRevertible(stepId, payload)) {
+      return payload.chunks.some(
+        (chunk) =>
+          isChunkAwaitingFirstReview(lane, chunk) ||
+          isChunkPendingRereviewAfterRefine(lane, chunk)
+      )
+    }
+    return true
   }
 
   if (stepId === 'validate-merged-extraction') {

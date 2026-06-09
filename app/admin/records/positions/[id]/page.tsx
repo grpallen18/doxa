@@ -8,6 +8,7 @@ import {
   ProvenanceStoryList,
   RecordHubShell,
 } from '@/components/admin/record/record-hub-shell'
+import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
@@ -20,9 +21,9 @@ export default function CanonicalPositionRecordPage() {
     `/api/admin/records/positions/${positionId}`
   )
 
-  if (loading) return <p className="p-4 text-sm text-muted">Loading position…</p>
+  if (loading) return <RecordPageLoading message="Loading position…" />
   if (error || !data) {
-    return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
+    return <RecordPageError message={error ?? 'Not found'} />
   }
 
   const lifecycle = {

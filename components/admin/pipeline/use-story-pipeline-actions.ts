@@ -29,15 +29,13 @@ export function useStoryPipelineActions({
   const [revertTarget, setRevertTarget] = useState<PipelineStepId | null>(null)
   const [expanded, setExpanded] = useState<string[]>([])
   const {
-    runningStepId,
+    isStepRunning,
     actionMessage,
     setActionMessage,
     revealTarget,
     beginRun,
     cancelRun,
   } = usePipelineStepPoll({ payload, onRefresh })
-
-  const isBusy = runningStepId != null || revertingStepId != null
 
   const syncPromptSchema = useCallback(async (stepId: string) => {
     try {
@@ -75,7 +73,7 @@ export function useStoryPipelineActions({
           const deployName = json.error?.deploy_name as string | undefined
           setStepError(message)
           showPipelineError(message, deployName)
-          cancelRun()
+          cancelRun(stepId)
           return
         }
 
@@ -95,7 +93,7 @@ export function useStoryPipelineActions({
         const message = 'Failed to invoke pipeline step'
         setStepError(message)
         showPipelineError(message)
-        cancelRun()
+        cancelRun(stepId)
       }
     },
     [storyId, onRefresh, beginRun, cancelRun, setActionMessage, syncPromptSchema]
@@ -154,7 +152,7 @@ export function useStoryPipelineActions({
   }, [revealTarget])
 
   return {
-    runningStepId,
+    isStepRunning,
     revertingStepId,
     revertTarget,
     stepError,
@@ -162,7 +160,6 @@ export function useStoryPipelineActions({
     revealTarget,
     expanded,
     setExpanded,
-    isBusy,
     runStep,
     requestRevert,
     cancelRevert,

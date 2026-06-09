@@ -11,6 +11,7 @@ import { StoryFeedbackButtons } from '@/components/admin/stories/story-feedback-
 import { useStoryReview } from '@/components/admin/stories/story-review-provider'
 import { storyAdminHref } from '@/lib/admin/friendly-id'
 import { showPipelineError } from '@/lib/admin/pipeline-toast'
+import { RecordPageFrame } from '@/components/admin/record/record-page-frame'
 
 const STAGE_META: Record<
   PipelineStageId,
@@ -74,7 +75,7 @@ export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
   )
 
   return (
-    <div className="p-4">
+    <RecordPageFrame>
       <PipelineChecklist
         payload={payload}
         storyId={storyId}
@@ -100,6 +101,6 @@ export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
           Back to story overview
         </Link>
       </p>
-    </div>
+    </RecordPageFrame>
   )
 }

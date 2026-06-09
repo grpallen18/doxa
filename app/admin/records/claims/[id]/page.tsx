@@ -8,6 +8,7 @@ import {
   ProvenanceStoryList,
   RecordHubShell,
 } from '@/components/admin/record/record-hub-shell'
+import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
@@ -20,8 +21,8 @@ export default function CanonicalClaimRecordPage() {
     `/api/admin/records/claims/${claimId}`
   )
 
-  if (loading) return <p className="p-4 text-sm text-muted">Loading claim…</p>
-  if (error || !data) return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
+  if (loading) return <RecordPageLoading message="Loading claim…" />
+  if (error || !data) return <RecordPageError message={error ?? 'Not found'} />
 
   const lifecycle = {
     title: 'Canonical lifecycle',

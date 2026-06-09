@@ -176,6 +176,20 @@ export function aggregateChunkEntityCounts(chunks: ChunkRecord[]) {
   }
 }
 
+export type ChunkExtractedPosition = {
+  chunk_index: number
+  index: number
+  position_id: string | null
+  raw_text: string
+  signal_type: string | null
+  position_type: string | null
+  holder: string | null
+  extraction_confidence: number | null
+  source_excerpt: string | null
+  span_start: number | null
+  span_end: number | null
+}
+
 export function flattenExtractionJson(
   chunkIndex: number,
   extractionJson: unknown
@@ -183,6 +197,106 @@ export function flattenExtractionJson(
   return flattenChunkEntities([
     { chunk_index: chunkIndex, extraction_json: extractionJson } as ChunkRecord,
   ])
+}
+
+export function countPositionsInExtractionJson(positionsExtractionJson: unknown): number {
+  const blob = asRecord(positionsExtractionJson)
+  if (!blob) return 0
+  return asArray(blob.positions).length
+}
+
+export type ExportedChunkPosition = {
+  position_id: string | null
+  raw_position_text: string | null
+  standardized_position_text: string | null
+  raw_text: string | null
+  signal_type: string | null
+  signal_strength: number | null
+  stance_signature: unknown | null
+  position_type: string | null
+  holder: string | null
+  extraction_confidence: number | null
+  source_excerpt: string | null
+  span_start: number | null
+  span_end: number | null
+  provenance: unknown | null
+  source_ownership: unknown | null
+  related_claim_ids: unknown | null
+  notes: string | null
+}
+
+export function exportChunkPositionRecords(
+  positionsExtractionJson: unknown
+): ExportedChunkPosition[] {
+  const blob = asRecord(positionsExtractionJson)
+  if (!blob) return []
+
+  const records: ExportedChunkPosition[] = []
+
+  for (const row of asArray(blob.positions)) {
+    const position = asRecord(row)
+    if (!position) continue
+    const rawText =
+      str(position.raw_text) ??
+      str(position.standardized_position_text) ??
+      str(position.raw_position_text)
+    if (!rawText) continue
+
+    records.push({
+      position_id: str(position.position_id),
+      raw_position_text: str(position.raw_position_text) ?? rawText,
+      standardized_position_text: str(position.standardized_position_text) ?? rawText,
+      raw_text: rawText,
+      signal_type: str(position.signal_type),
+      signal_strength: num(position.signal_strength),
+      stance_signature: position.stance_signature ?? null,
+      position_type: str(position.position_type),
+      holder: str(position.holder),
+      extraction_confidence: num(position.extraction_confidence ?? position.confidence),
+      source_excerpt: str(position.source_excerpt),
+      span_start: num(position.span_start),
+      span_end: num(position.span_end),
+      provenance: position.provenance ?? null,
+      source_ownership: position.source_ownership ?? null,
+      related_claim_ids: position.related_claim_ids ?? null,
+      notes: str(position.notes),
+    })
+  }
+
+  return records
+}
+
+export function flattenPositionsExtractionJson(
+  chunkIndex: number,
+  positionsExtractionJson: unknown
+): ChunkExtractedPosition[] {
+  const blob = asRecord(positionsExtractionJson)
+  if (!blob) return []
+
+  return asArray(blob.positions)
+    .map((row, index) => {
+      const position = asRecord(row)
+      if (!position) return null
+      const raw_text =
+        str(position.raw_text) ??
+        str(position.standardized_position_text) ??
+        str(position.raw_position_text)
+      if (!raw_text) return null
+      return {
+        chunk_index: chunkIndex,
+        index,
+        position_id: str(position.position_id),
+        raw_text,
+        signal_type: str(position.signal_type),
+        position_type: str(position.position_type),
+        holder: str(position.holder),
+        extraction_confidence: num(position.extraction_confidence),
+        source_excerpt: str(position.source_excerpt),
+        span_start: num(position.span_start),
+        span_end: num(position.span_end),
+      }
+    })
+    .filter((position): position is ChunkExtractedPosition => position != null)
 }
 
 export function chunkEntityCounts(blob: unknown) {

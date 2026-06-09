@@ -23,6 +23,8 @@ import {
 } from "./text-match.ts";
 import { isEmptyExtraction, isPositionsPipelineEmpty, MAX_VALIDATION_ATTEMPTS } from "./types.ts";
 import { hasSemanticLinks } from "./atom-schema.ts";
+import { formatAtomDeterministicIssue } from "./deterministic-issue-format.ts";
+import { findBestGroundingExcerpt } from "./span-compute.ts";
 
 export type DeterministicCheckResult = {
   issues: string[];
@@ -43,7 +45,15 @@ function eventSummary(e: unknown): string {
 }
 
 function positionText(p: unknown): string {
-  return String(asRecord(p)?.raw_text ?? "");
+  const row = asRecord(p);
+  return String(row?.raw_text ?? row?.standardized_position_text ?? row?.raw_position_text ?? "");
+}
+
+function atomDisplayText(label: string, row: unknown): string {
+  if (label === "position") return positionText(row);
+  if (label === "claim") return claimText(row);
+  if (label === "event") return eventSummary(row);
+  return String(asRecord(row)?.excerpt ?? asRecord(row)?.excerpt_text ?? "");
 }
 
 function sourceExcerpt(row: unknown): string {
@@ -151,9 +161,17 @@ function validateProvenanceForAtoms(
   for (const { label, key } of atomLists) {
     const list = Array.isArray(extraction[key]) ? (extraction[key] as unknown[]) : [];
     for (let i = 0; i < list.length; i++) {
+      const row = asRecord(list[i]);
       const excerpt = sourceExcerpt(list[i]);
       if (!excerpt) {
-        const msg = `provenance_missing: ${label} ${i + 1} has no source_excerpt`;
+        const msg = formatAtomDeterministicIssue({
+          code: "provenance_missing",
+          label,
+          index: i,
+          row: list[i],
+          field_path: "source_excerpt",
+          summary: `provenance_missing: ${label} #${i + 1} has no source_excerpt`,
+        });
         issues.push(msg);
         blocking.push(msg);
         all_provenance_excerpts_verbatim = false;
@@ -161,16 +179,33 @@ function validateProvenanceForAtoms(
       }
       if (!verbatimContains(sourceText, excerpt)) {
         all_provenance_excerpts_verbatim = false;
-        const msg = `provenance_not_verbatim: ${label} ${i + 1} source_excerpt not in chunk`;
+        const recommended = findBestGroundingExcerpt(sourceText, atomDisplayText(label, list[i]));
+        const msg = formatAtomDeterministicIssue({
+          code: "provenance_not_verbatim",
+          label,
+          index: i,
+          row: list[i],
+          field_path: "source_excerpt",
+          bad_value: excerpt,
+          recommended_value: recommended || null,
+          summary: `provenance_not_verbatim: ${label} #${i + 1} source_excerpt not in chunk`,
+        });
         issues.push(msg);
         blocking.push(msg);
       }
-      const row = asRecord(list[i]);
       const spanStart = typeof row?.span_start === "number" ? row.span_start : null;
       const spanEnd = typeof row?.span_end === "number" ? row.span_end : null;
       const spanCheck = spanMatchesExcerpt(sourceText, spanStart, spanEnd, excerpt);
       if (!spanCheck.ok && spanCheck.reason) {
-        const msg = `span_mismatch: ${label} ${i + 1} ${spanCheck.reason}`;
+        const msg = formatAtomDeterministicIssue({
+          code: "span_mismatch",
+          label,
+          index: i,
+          row: list[i],
+          field_path: "span_start/span_end",
+          bad_value: spanCheck.reason,
+          summary: `span_mismatch: ${label} #${i + 1} ${spanCheck.reason}`,
+        });
         issues.push(msg);
         span_mismatches.push(msg);
       }
@@ -687,23 +722,33 @@ export function checkBlockingClaimsReviewUnresolved(
   return unresolved;
 }
 
-function positionTextByIdOrIndex(
+function positionRowByIdOrIndex(
   extraction: ExtractionJson,
   positionId: string | null,
   positionIndex: number | null
-): string {
+): Record<string, unknown> | null {
   const positions = Array.isArray(extraction.positions) ? (extraction.positions as unknown[]) : [];
   if (positionId) {
     for (const item of positions) {
       if (item === null || typeof item !== "object") continue;
       const row = item as Record<string, unknown>;
-      if (row.position_id === positionId) return String(row.raw_text ?? "");
+      if (row.position_id === positionId) return row;
     }
   }
   if (positionIndex !== null && positionIndex >= 0 && positionIndex < positions.length) {
-    return entityText(extraction, "position", positionIndex);
+    const item = positions[positionIndex];
+    return item !== null && typeof item === "object" ? (item as Record<string, unknown>) : null;
   }
-  return "";
+  return null;
+}
+
+function positionTextByIdOrIndex(
+  extraction: ExtractionJson,
+  positionId: string | null,
+  positionIndex: number | null
+): string {
+  const row = positionRowByIdOrIndex(extraction, positionId, positionIndex);
+  return row ? String(row.raw_text ?? "") : "";
 }
 
 export function checkBlockingPositionsReviewUnresolved(
@@ -717,14 +762,26 @@ export function checkBlockingPositionsReviewUnresolved(
   const issues = Array.isArray(report?.issues) ? report.issues : [];
 
   for (const issue of issues) {
-    if (issue.severity !== "blocking") continue;
-    if (issue.issue_type !== "temporal" && issue.issue_type !== "grounding") continue;
+    const isBlocking = issue.severity === "blocking";
+    const isMajorOwnership =
+      issue.severity === "major" &&
+      (issue.issue_type === "stance_flattening" || issue.issue_type === "attribution");
+    if (!isBlocking && !isMajorOwnership) continue;
+    if (
+      isBlocking &&
+      issue.issue_type !== "temporal" &&
+      issue.issue_type !== "grounding" &&
+      issue.issue_type !== "stance_flattening" &&
+      issue.issue_type !== "attribution"
+    ) {
+      continue;
+    }
 
     const beforeText = positionTextByIdOrIndex(before, issue.position_id, issue.position_index);
     const afterText = positionTextByIdOrIndex(after, issue.position_id, issue.position_index);
     const patch = (report?.patches ?? []).find(
       (p) =>
-        p.severity === "blocking" &&
+        (isBlocking ? p.severity === "blocking" : p.severity === "major" || p.severity === "blocking") &&
         (p.position_ids.includes(issue.position_id ?? "") ||
           (issue.position_index != null && p.position_indexes.includes(issue.position_index)))
     );
@@ -734,6 +791,15 @@ export function checkBlockingPositionsReviewUnresolved(
       const afterLen = Array.isArray(after.positions) ? after.positions.length : 0;
       if (afterLen >= beforeLen && afterText === beforeText && beforeText) {
         unresolved.push(`refiner_failed_blocking: position not removed — ${issue.finding}`);
+      }
+      continue;
+    }
+
+    if (issue.issue_type === "stance_flattening" || issue.issue_type === "attribution") {
+      const beforeRow = positionRowByIdOrIndex(before, issue.position_id, issue.position_index);
+      const afterRow = positionRowByIdOrIndex(after, issue.position_id, issue.position_index);
+      if (beforeRow && afterRow && JSON.stringify(beforeRow) === JSON.stringify(afterRow)) {
+        unresolved.push(`refiner_failed_${issue.severity}: ownership not corrected — ${issue.finding}`);
       }
       continue;
     }

@@ -1,3 +1,4 @@
+import { coalescePositionPatchValue } from "./position-refine-patches.ts";
 import type { ExtractionJson, RefinementPatchOp } from "./types.ts";
 
 const ENTITY_KEYS: Record<string, keyof ExtractionJson> = {
@@ -137,8 +138,11 @@ export function applyPatches(extraction: ExtractionJson, patches: RefinementPatc
       const list = arr(out, key);
       if (patch.entity_index < 0 || patch.entity_index >= list.length) continue;
       const existing = { ...(list[patch.entity_index] as Record<string, unknown>) };
-      const patchValue = { ...(patch.value ?? {}) } as Record<string, unknown>;
+      let patchValue = { ...(patch.value ?? {}) } as Record<string, unknown>;
       if (key === "claims") delete patchValue.claim_id;
+      if (key === "positions") {
+        patchValue = coalescePositionPatchValue(existing, patchValue);
+      }
       list[patch.entity_index] = { ...existing, ...patchValue };
       setArr(out, key, list);
     }

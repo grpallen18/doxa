@@ -9,6 +9,7 @@ import {
 } from '@/lib/admin/story-pipeline-checklist'
 import {
   chunkEntityCounts,
+  exportChunkPositionRecords,
   flattenExtractionJson,
   mergedEntityCounts,
   resolvePostRefineExtractionJson,
@@ -532,6 +533,240 @@ function ChunkExtractionsDetail({
         )
       })}
     </FocusAccordion>
+  )
+}
+
+function ChunkPositionsList({
+  chunkIndex,
+  positionsExtractionJson,
+  spanHighlight,
+}: {
+  chunkIndex: number
+  positionsExtractionJson: unknown
+  spanHighlight?: SpanHighlightProps
+}) {
+  const positions = exportChunkPositionRecords(positionsExtractionJson)
+  if (positions.length === 0) {
+    return <EmptyDetail message="No positions in this chunk." />
+  }
+
+  return (
+    <ul className="space-y-1.5">
+      {positions.map((position, index) => (
+        <li
+          key={position.position_id ?? index}
+          className="cursor-default rounded bg-muted/20 p-2 text-xs transition-shadow hover:ring-1 hover:ring-accent-primary/40"
+          {...claimHoverHandlers(
+            spanHighlight,
+            chunkIndex,
+            position.span_start,
+            position.span_end,
+            position.source_excerpt
+          )}
+        >
+          <p>{position.raw_text}</p>
+          {position.signal_type || position.holder ? (
+            <p className="mt-1 text-muted">
+              {[position.signal_type, position.holder].filter(Boolean).join(' · ')}
+            </p>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ChunkPositionsExtractionsDetail({
+  payload,
+  spanHighlight,
+}: {
+  payload: StoryExtractionReviewPayload
+  spanHighlight?: SpanHighlightProps
+}) {
+  if (payload.chunks.length === 0) {
+    return <EmptyDetail message="No chunks yet." />
+  }
+  const extracted = payload.chunks.filter((c) => c.positions_extraction_json != null)
+  if (extracted.length === 0) {
+    return <EmptyDetail message="No chunk position extractions yet." />
+  }
+
+  return (
+    <FocusAccordion className="space-y-2">
+      {extracted.map((ch) => (
+        <FocusAccordionItem
+          key={ch.chunk_index}
+          value={`positions-chunk-${ch.chunk_index}`}
+          className="rounded border border-subtle px-2"
+        >
+          <AccordionTrigger className="py-2 text-xs font-medium hover:no-underline">
+            {formatChunkLabel(ch.chunk_index, payload.chunks.length)}
+          </AccordionTrigger>
+          <AccordionContent className="pb-2">
+            <ChunkPositionsList
+              chunkIndex={ch.chunk_index}
+              positionsExtractionJson={ch.positions_extraction_json}
+              spanHighlight={spanHighlight}
+            />
+          </AccordionContent>
+        </FocusAccordionItem>
+      ))}
+    </FocusAccordion>
+  )
+}
+
+function ChunkPositionsReviewDetail({ payload }: { payload: StoryExtractionReviewPayload }) {
+  const reviewArtifacts = payload.qa_artifacts.filter(
+    (a) => a.stage === 'chunk_review_positions' && a.chunk_index != null
+  )
+  const chunks = payload.chunks.filter(
+    (c) =>
+      c.positions_extraction_json != null &&
+      (c.positions_qa_review_report != null ||
+        reviewArtifacts.some((a) => a.chunk_index === c.chunk_index))
+  )
+  if (chunks.length === 0) {
+    const notRequired = getStepNotRequiredMessage('validate-chunk-positions', payload)
+    if (notRequired) return <EmptyDetail message={notRequired} />
+    return <EmptyDetail message="No chunk positions review output yet." />
+  }
+
+  return (
+    <ul className="space-y-3">
+      {chunks.map((ch) => {
+        const artifacts = reviewArtifacts
+          .filter((a) => a.chunk_index === ch.chunk_index)
+          .sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          )
+        return (
+          <li key={ch.chunk_index} className="rounded border border-subtle p-2">
+            <p className="text-xs font-medium">
+              {formatChunkLabel(ch.chunk_index, payload.chunks.length)} ·{' '}
+              {qaStatusLabel(ch.positions_qa_status)}
+              {artifacts.length > 1 ? ` · ${artifacts.length} review runs` : ''}
+            </p>
+            {artifacts.length > 0 ? (
+              <ul className="mt-2 space-y-2">
+                {artifacts.map((artifact, i) => (
+                  <li key={artifact.id} className="rounded bg-muted/10 p-2">
+                    <p className="text-xs text-muted">
+                      Review {i + 1} · {new Date(artifact.created_at).toLocaleString()}
+                    </p>
+                    <div className="mt-1">
+                      <ClaimsReviewReportDisplay
+                        report={artifact.report ?? ch.positions_qa_review_report}
+                        emptyMessage="No findings."
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-2">
+                <ClaimsReviewReportDisplay
+                  report={ch.positions_qa_review_report}
+                  emptyMessage="No findings."
+                />
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function ChunkPositionsRefineDetail({
+  payload,
+  spanHighlight,
+}: {
+  payload: StoryExtractionReviewPayload
+  spanHighlight?: SpanHighlightProps
+}) {
+  const chunks = payload.chunks.filter((c) => (c.positions_qa_refinement_count ?? 0) > 0)
+  if (chunks.length === 0) {
+    const notRequired = getStepNotRequiredMessage('refine-chunk-positions', payload)
+    if (notRequired) return <EmptyDetail message={notRequired} />
+    return <EmptyDetail message="No chunk positions refine output yet." />
+  }
+
+  return (
+    <ul className="space-y-3">
+      {chunks.map((ch) => {
+        const artifacts = payload.qa_artifacts
+          .filter(
+            (a) => a.stage === 'chunk_refine_positions' && a.chunk_index === ch.chunk_index
+          )
+          .sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          )
+        return (
+          <li key={ch.chunk_index} className="rounded border border-subtle p-2">
+            <p className="text-xs font-medium">
+              {formatChunkLabel(ch.chunk_index, payload.chunks.length)} ·{' '}
+              {qaStatusLabel(ch.positions_qa_status)}
+              {(ch.positions_qa_refinement_count ?? 0) > 0
+                ? ` · refined ${ch.positions_qa_refinement_count}×`
+                : ''}
+            </p>
+            {artifacts.length > 0 ? (
+              <ul className="mt-2 space-y-2">
+                {artifacts.map((artifact, i) => (
+                  <li key={artifact.id} className="rounded bg-muted/10 p-2">
+                    <p className="text-xs text-muted">
+                      Refine {i + 1} · {new Date(artifact.created_at).toLocaleString()}
+                    </p>
+                    {artifact.report ? (
+                      <div className="mt-1">
+                        <RefinePatches report={artifact.report} />
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="mt-2">
+              <p className="mb-1 text-xs text-muted">Positions after latest refine</p>
+              <ChunkPositionsList
+                chunkIndex={ch.chunk_index}
+                positionsExtractionJson={ch.positions_extraction_json}
+                spanHighlight={spanHighlight}
+              />
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function MergedPositionsDetail({
+  payload,
+  renderFeedback,
+}: {
+  payload: StoryExtractionReviewPayload
+  renderFeedback?: PipelineStepDetailProps['renderFeedback']
+}) {
+  if (payload.positions.length === 0) {
+    return <EmptyDetail message="No merged story positions yet." />
+  }
+
+  return (
+    <EntitySection title="Positions" count={payload.positions.length}>
+      {payload.positions.map((position) => (
+        <div key={position.story_position_id} className="rounded bg-muted/20 p-2 text-xs">
+          <p>{position.raw_text}</p>
+          {renderFeedback?.({
+            entityType: 'position',
+            entityId: position.story_position_id,
+            existingRating: payload.feedback.find(
+              (f) => f.entity_type === 'position' && f.entity_id === position.story_position_id
+            )?.rating,
+          })}
+        </div>
+      ))}
+    </EntitySection>
   )
 }
 
@@ -1165,6 +1400,8 @@ export function pipelineStepHasDetailContent(
       return payload.chunks.length > 0
     case 'extract-story-claims':
       return payload.chunks.some((c) => c.extraction_json != null)
+    case 'extract-story-positions':
+      return payload.chunks.some((c) => c.positions_extraction_json != null)
     case 'validate-chunk-claims':
       return payload.chunks.some(
         (c) => c.extraction_json != null && c.extraction_qa_review_report != null
@@ -1175,10 +1412,22 @@ export function pipelineStepHasDetailContent(
         payload.chunks.some((c) => (c.extraction_qa_refinement_count ?? 0) > 0) ||
         payload.qa_artifacts.some((a) => a.stage === 'chunk_refine_claims')
       )
+    case 'validate-chunk-positions':
+      return payload.chunks.some(
+        (c) => c.positions_extraction_json != null && c.positions_qa_review_report != null
+      )
+    case 'refine-chunk-positions':
+      return (
+        getStepNotRequiredMessage('refine-chunk-positions', payload) != null ||
+        payload.chunks.some((c) => (c.positions_qa_refinement_count ?? 0) > 0) ||
+        payload.qa_artifacts.some((a) => a.stage === 'chunk_refine_positions')
+      )
     case 'merge-story-claims': {
       if (payload.story.merged_at == null) return false
       return payload.claims.length > 0
     }
+    case 'merge-story-positions':
+      return payload.positions.length > 0
     case 'review-merged-extraction':
       return payload.story.merged_at != null && payload.story.extraction_qa_review_report != null
     case 'refine-merged-extraction':
@@ -1272,12 +1521,20 @@ export function PipelineStepDetail({
         )
       case 'extract-story-claims':
         return <ChunkExtractionsDetail payload={payload} spanHighlight={spanHighlight} />
+      case 'extract-story-positions':
+        return <ChunkPositionsExtractionsDetail payload={payload} spanHighlight={spanHighlight} />
       case 'validate-chunk-claims':
         return <ChunkClaimsReviewDetail payload={payload} />
+      case 'validate-chunk-positions':
+        return <ChunkPositionsReviewDetail payload={payload} />
       case 'refine-chunk-claims':
         return <ChunkClaimsRefineDetail payload={payload} spanHighlight={spanHighlight} />
+      case 'refine-chunk-positions':
+        return <ChunkPositionsRefineDetail payload={payload} spanHighlight={spanHighlight} />
       case 'merge-story-claims':
         return <MergedEntitiesDetail payload={payload} renderFeedback={renderFeedback} />
+      case 'merge-story-positions':
+        return <MergedPositionsDetail payload={payload} renderFeedback={renderFeedback} />
       case 'review-merged-extraction':
         return <MergedQaDetail payload={payload} kind="review" />
       case 'refine-merged-extraction':

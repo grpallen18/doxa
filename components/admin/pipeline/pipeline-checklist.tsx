@@ -47,9 +47,8 @@ import { cn } from '@/lib/utils'
 function renderStepRows(
   stageSteps: PipelineStepState[],
   props: {
-    runningStepId: PipelineStepId | null
+    isStepRunning: (stepId: PipelineStepId) => boolean
     revertingStepId: PipelineStepId | null
-    isBusy: boolean
     onRun: (stepId: PipelineStepId) => void
     onRevert: (stepId: PipelineStepId) => void
     payload: StoryExtractionReviewPayload
@@ -63,9 +62,8 @@ function renderStepRows(
     <PipelineStepRow
       key={step.id}
       step={step}
-      isRunning={props.runningStepId === step.id}
+      isRunning={props.isStepRunning(step.id)}
       isReverting={props.revertingStepId === step.id}
-      isBusy={props.isBusy}
       onRun={props.onRun}
       onRevert={props.onRevert}
       payload={props.payload}
@@ -128,7 +126,6 @@ function PipelineStepRow({
   step,
   isRunning,
   isReverting,
-  isBusy,
   onRun,
   onRevert,
   payload,
@@ -140,7 +137,6 @@ function PipelineStepRow({
   step: PipelineStepState
   isRunning: boolean
   isReverting: boolean
-  isBusy: boolean
   onRun: (stepId: PipelineStepId) => void
   onRevert: (stepId: PipelineStepId) => void
   payload: StoryExtractionReviewPayload
@@ -194,7 +190,6 @@ function PipelineStepRow({
             showRevert={showRevert}
             isRunning={isRunning}
             isReverting={isReverting}
-            isBusy={isBusy}
             onRun={onRun}
             onRevert={onRevert}
           />
@@ -330,9 +325,8 @@ export function PipelineChecklist({
           if (stageSteps.length === 0) return null
 
           const extractionRowProps = {
-            runningStepId: actions.runningStepId,
+            isStepRunning: actions.isStepRunning,
             revertingStepId: actions.revertingStepId,
-            isBusy: actions.isBusy,
             onRun: actions.runStep,
             onRevert: actions.requestRevert,
             payload,
@@ -357,9 +351,8 @@ export function PipelineChecklist({
                     <PipelineStepRow
                       key={step.id}
                       step={step}
-                      isRunning={actions.runningStepId === step.id}
+                      isRunning={actions.isStepRunning(step.id)}
                       isReverting={actions.revertingStepId === step.id}
-                      isBusy={actions.isBusy}
                       onRun={actions.runStep}
                       onRevert={actions.requestRevert}
                       payload={payload}

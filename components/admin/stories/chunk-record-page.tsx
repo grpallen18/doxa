@@ -9,6 +9,7 @@ import { RecordAuditSection } from '@/components/admin/record/record-audit-secti
 import { EntityHeader } from '@/components/admin/record/entity-header'
 import { RecordEntityLinkBar } from '@/components/admin/record/record-entity-link-bar'
 import { RecordFieldRow, recordFieldGridClass } from '@/components/admin/record/record-field-row'
+import { RecordPageBody, RecordPageError, RecordPageFrame, RecordPageLoading } from '@/components/admin/record/record-page-frame'
 import { RecordSectionCard } from '@/components/admin/record/record-section-card'
 import type { ChunkRecord } from '@/lib/admin/chunk-record'
 import { formatChunkLabel } from '@/lib/admin/chunk-record'
@@ -62,9 +63,9 @@ export function ChunkRecordPage() {
       .finally(() => setLoading(false))
   }, [storyId, chunkRef])
 
-  if (loading) return <p className="p-4 text-sm text-muted">Loading chunk…</p>
+  if (loading) return <RecordPageLoading message="Loading chunk…" />
   if (error || !data) {
-    return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
+    return <RecordPageError message={error ?? 'Not found'} />
   }
 
   const chunkApiBase = `/api/admin/stories/${storyId}/chunks/${encodeURIComponent(data.chunk_friendly_id)}`
@@ -72,7 +73,18 @@ export function ChunkRecordPage() {
   const qaHistoryPath = `${chunkApiBase}/qa-history`
 
   return (
-    <div className="w-full px-4 sm:px-6 md:px-8 lg:px-10">
+    <RecordPageFrame>
+      <EntityHeader
+        layout="record"
+        embedded
+        entityType="chunk"
+        title={formatChunkLabel(
+          data.chunk_index,
+          data.chunk_count,
+          data.chunk_friendly_id
+        )}
+        subtitle="Story chunk"
+      />
       <RecordEntityLinkBar
         links={[
           {
@@ -86,19 +98,7 @@ export function ChunkRecordPage() {
         ]}
       />
 
-      <EntityHeader
-        layout="record"
-        embedded
-        entityType="chunk"
-        title={formatChunkLabel(
-          data.chunk_index,
-          data.chunk_count,
-          data.chunk_friendly_id
-        )}
-        subtitle="Story chunk"
-      />
-
-      <div className="divide-y divide-subtle">
+      <RecordPageBody>
         <RecordSectionCard id="chunk-info" title="Chunk info" variant="panel">
           <div className="grid gap-x-8 sm:grid-cols-2">
             <dl className={recordFieldGridClass}>
@@ -135,14 +135,15 @@ export function ChunkRecordPage() {
           <ChunkContentExtractionLayout
             content={data.content}
             extractionJson={data.extraction_json}
+            positionsExtractionJson={data.positions_extraction_json}
             chunkIndex={data.chunk_index}
           />
         </RecordSectionCard>
 
         <ChunkQaHistorySection apiPath={qaHistoryPath} variant="panel" />
 
-        <RecordAuditSection apiPath={auditPath} variant="panel" />
-      </div>
-    </div>
+        <RecordAuditSection apiPath={auditPath} title="History" variant="panel" />
+      </RecordPageBody>
+    </RecordPageFrame>
   )
 }

@@ -6,6 +6,7 @@ import { StoryExtractionExportButtons } from '@/components/admin/stories/story-e
 import { useStoryReview } from '@/components/admin/stories/story-review-provider'
 import { StoryAnchorScroll } from '@/components/admin/stories/story-anchor-scroll'
 import { EntityHeader } from '@/components/admin/record/entity-header'
+import { RecordPageFrame } from '@/components/admin/record/record-page-frame'
 import { RecordAuditSection } from '@/components/admin/record/record-audit-section'
 import { RecordEntityLinkBar } from '@/components/admin/record/record-entity-link-bar'
 import { RecordFieldGrid } from '@/components/admin/record/record-field-grid'
@@ -80,7 +81,7 @@ function StoryRecordPageContent({
   )
 
   return (
-    <div className="w-full px-4 sm:px-6 md:px-8 lg:px-10">
+    <RecordPageFrame>
       <StoryAnchorScroll onSectionVisible={handleSectionVisible} />
 
       <EntityHeader layout="record" embedded entityType="story" title={story.title} />
@@ -166,6 +167,6 @@ function StoryRecordPageContent({
           />
         </aside>
       </div>
-    </div>
+    </RecordPageFrame>
   )
 }

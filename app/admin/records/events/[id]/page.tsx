@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import type { EventRecordHub } from '@/lib/admin/record-hub/events'
 import { useRecordHub } from '@/components/admin/record/use-record-hub'
 import { ProvenanceStoryList, RecordHubShell } from '@/components/admin/record/record-hub-shell'
+import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
@@ -16,8 +17,8 @@ export default function CanonicalEventRecordPage() {
     `/api/admin/records/events/${eventId}`
   )
 
-  if (loading) return <p className="p-4 text-sm text-muted">Loading event…</p>
-  if (error || !data) return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
+  if (loading) return <RecordPageLoading message="Loading event…" />
+  if (error || !data) return <RecordPageError message={error ?? 'Not found'} />
 
   const lifecycle = {
     title: 'Canonical lifecycle',

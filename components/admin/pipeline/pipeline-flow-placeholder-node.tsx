@@ -40,7 +40,6 @@ export function PipelineFlowPlaceholderNode({
           showRevert
           isRunning={false}
           isReverting={false}
-          isBusy={false}
           onRun={() => {}}
           onRevert={() => {}}
           compact

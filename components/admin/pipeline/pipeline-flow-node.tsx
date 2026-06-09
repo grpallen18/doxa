@@ -20,7 +20,6 @@ export function PipelineFlowNode({
   payload,
   isRunning,
   isReverting,
-  isBusy,
   onRun,
   onRevert,
 }: {
@@ -28,7 +27,6 @@ export function PipelineFlowNode({
   payload: StoryExtractionReviewPayload
   isRunning: boolean
   isReverting: boolean
-  isBusy: boolean
   onRun: (stepId: PipelineStepId) => void
   onRevert: (stepId: PipelineStepId) => void
 }) {
@@ -67,7 +65,6 @@ export function PipelineFlowNode({
           showRevert
           isRunning={isRunning}
           isReverting={isReverting}
-          isBusy={isBusy}
           onRun={onRun}
           onRevert={onRevert}
           compact

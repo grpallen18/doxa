@@ -10,6 +10,13 @@ import {
   runStrictPreValidation,
 } from "../../../lib/extraction-qa/deterministic-checks.ts";
 import { normalizeExtractedPositionRow } from "../../../lib/extraction-qa/position-normalize.ts";
+import { resolvePositionEntityIndex } from "../../../lib/extraction-qa/position-refine-patches.ts";
+import {
+  buildPositionsRefineUserPayload,
+  buildPositionsReviewPlanPatches,
+  collectExplicitEndorsementPositionIds,
+  enforceAttributedEndorsementDefaults,
+} from "../../../lib/extraction-qa/position-refine-plan.ts";
 import { refineChunkPositions, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
 import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
 import {
@@ -159,7 +166,9 @@ export const handler = async (req: Request) => {
     for (const chunk of chunks) {
       const { data: meta } = await supabase
         .from("story_chunks")
-        .select("positions_qa_review_report, positions_qa_refinement_count")
+        .select(
+          "positions_qa_review_report, positions_qa_validation_report, positions_qa_refinement_count"
+        )
         .eq("story_id", chunk.story_id)
         .eq("chunk_index", chunk.chunk_index)
         .single();
@@ -171,19 +180,38 @@ export const handler = async (req: Request) => {
 
       const extraction = asExtractionJson(asPositionsExtractionJson(chunk.positions_extraction_json));
       const reviewReport = (meta?.positions_qa_review_report ?? {}) as PositionsReviewReport;
+      const validationReport = meta?.positions_qa_validation_report ?? null;
       const sourceText = chunk.content ?? "";
       const storyMetadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
+
+      const reviewPlanPatches: RefinementPatchOp[] = buildPositionsReviewPlanPatches(
+        reviewReport,
+        extraction
+      )
+        .filter((p) => p && p.op && p.entity_type === "position")
+        .map((p) => {
+          const rawValue = (p.value ?? {}) as Record<string, unknown>;
+          const entityIndex = resolvePositionEntityIndex(
+            extraction,
+            p.entity_index ?? -1,
+            rawValue.position_id
+          );
+          return { ...p, entity_index: entityIndex };
+        })
+        .filter((p) => p.op === "remove" || p.entity_index >= 0) as RefinementPatchOp[];
+
+      const preRefinedExtraction = applyPatches(extraction, reviewPlanPatches);
 
       const refineResult = await refineChunkPositions(
         OPENAI_API_KEY,
         MODEL,
         activePrompt.systemPrompt,
-        {
-          ...metadataPayload(storyMetadata),
-          chunk_text: sourceText,
-          positions_extraction_json: extraction,
-          review_report: reviewReport,
-        },
+        buildPositionsRefineUserPayload(
+          { ...metadataPayload(storyMetadata), chunk_text: sourceText },
+          preRefinedExtraction,
+          reviewReport,
+          validationReport
+        ),
         `${requestId}-${chunk.story_id}-${chunk.chunk_index}`
       );
 
@@ -192,33 +220,52 @@ export const handler = async (req: Request) => {
       const normalizedPatches: RefinementPatchOp[] = (patches ?? [])
         .filter((p) => p && p.op && p.entity_type === "position")
         .map((p) => {
+          const rawValue = (p.value ?? {}) as Record<string, unknown>;
+          const entityIndex = resolvePositionEntityIndex(
+            preRefinedExtraction,
+            p.entity_index ?? -1,
+            rawValue.position_id
+          );
           const patchValue =
             p.op === "add" || p.op === "update"
               ? (() => {
-                  const value = { ...((p.value ?? {}) as Record<string, unknown>) };
+                  const value = { ...rawValue };
                   delete value.position_id;
+                  for (const [k, v] of Object.entries(value)) {
+                    if (v === null) delete value[k];
+                  }
                   return value;
                 })()
               : undefined;
           return {
             op: p.op as RefinementPatchOp["op"],
             entity_type: "position",
-            entity_index: p.entity_index ?? 0,
+            entity_index: entityIndex,
             ...(patchValue ? { value: patchValue } : {}),
           };
         }) as RefinementPatchOp[];
 
       const nextRefinementCount = refinementCount + 1;
 
-      const patchedRaw = applyPatches(extraction, normalizedPatches);
+      const allPatches = [...reviewPlanPatches, ...normalizedPatches];
+      const explicitEndorsementIds = collectExplicitEndorsementPositionIds(
+        allPatches,
+        preRefinedExtraction
+      );
+
+      const patchedRaw = applyPatches(preRefinedExtraction, normalizedPatches);
       const normalized = normalizePositionsExtraction(
         patchedRaw,
         chunk.story_id,
         chunk.chunk_index,
         sourceText
       );
-      const patchedPositions = await ensureStablePositionIds(
+      const withEndorsementDefaults = enforceAttributedEndorsementDefaults(
         normalized.positions as Array<Record<string, unknown>>,
+        explicitEndorsementIds
+      );
+      const patchedPositions = await ensureStablePositionIds(
+        withEndorsementDefaults,
         chunk.story_id,
         chunk.chunk_index,
         { refinementCycle: nextRefinementCount }
@@ -259,14 +306,17 @@ export const handler = async (req: Request) => {
           story_id: chunk.story_id,
           chunk_index: chunk.chunk_index,
           stage: "chunk_refine_positions",
-          input_snapshot: extraction,
+          input_snapshot: preRefinedExtraction,
           output_snapshot: patched,
           report: {
             refinement_cycle: nextRefinementCount,
-            patches: normalizedPatches,
+            review_plan_patches: reviewPlanPatches,
+            patches: allPatches,
+            llm_patches: normalizedPatches,
             ignored_findings: ignored_findings ?? [],
             post_refine_gate: postRefineGate,
             unresolved_blocking: unresolvedBlocking,
+            explicit_endorsement_position_ids: [...explicitEndorsementIds],
           },
           run_id: runId,
         });

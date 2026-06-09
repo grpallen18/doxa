@@ -6,6 +6,7 @@ import {
   getStoryStepMetadataSnapshot,
   getStoryStepQaArtifacts,
 } from '@/lib/admin/story-step-metadata'
+import { getStoryStepExportOutput } from '@/lib/admin/story-step-output'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { bullet, formatExportDate } from '@/lib/admin/record-export/shared'
 
@@ -15,6 +16,7 @@ export function buildStoryStepExportPayload(
 ) {
   const catalog = PIPELINE_STEPS.find((step) => step.id === stepId)
   const checklistStep = derivePipelineChecklist(payload).steps.find((step) => step.id === stepId)
+  const output = getStoryStepExportOutput(stepId, payload)
 
   return {
     export_scope: 'story_step' as const,
@@ -36,6 +38,7 @@ export function buildStoryStepExportPayload(
       title: payload.story.title,
       url: payload.story.url,
     },
+    output,
     metadata: getStoryStepMetadataSnapshot(stepId, payload),
     qa_artifacts: getStoryStepQaArtifacts(stepId, payload),
   }
@@ -80,7 +83,15 @@ export function buildStoryStepExportMarkdown(
   lines.push(bullet('URL', data.story.url))
   lines.push('')
 
-  lines.push('## Step snapshot', '')
+  if (data.output != null) {
+    lines.push('## Step output', '')
+    lines.push('```json')
+    lines.push(JSON.stringify(data.output, null, 2))
+    lines.push('```')
+    lines.push('')
+  }
+
+  lines.push('## Pipeline snapshot', '')
   lines.push('```json')
   lines.push(JSON.stringify(data.metadata.output_snapshot, null, 2))
   lines.push('```')

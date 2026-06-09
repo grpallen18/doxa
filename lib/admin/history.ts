@@ -98,12 +98,18 @@ export function formatHistoryActor(event: HistoryEvent): string {
 }
 
 export function isAgentHistoryEvent(event: HistoryEvent): boolean {
-  if (event.eventType === 'pipeline_step') return true
+  if (event.actorId) return false
+
   const source = event.source ?? ''
+  if (source.startsWith('admin:') || source.startsWith('api:')) return false
+  if (source.startsWith('trigger:stories:manual')) return false
+
+  if (event.eventType === 'pipeline_step') return true
   if (source.startsWith('trigger:')) return true
+  if (source.startsWith('cron:') || source.startsWith('schedule:')) return true
   if (source.startsWith('rpc:')) return true
-  if (!event.actorId && event.eventType !== 'admin_action') return true
-  return false
+
+  return event.eventType !== 'admin_action'
 }
 
 type HistoryRow = {

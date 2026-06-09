@@ -485,6 +485,73 @@ export const PATCH_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const POSITION_PATCH_OBJECT_SCHEMA = {
+  type: ["object", "null"],
+  properties: {
+    ...PATCH_OBJECT_SCHEMA.properties,
+    position_id: { type: ["string", "null"] },
+    signal_type: { type: ["string", "null"] },
+    signal_strength: { type: ["number", "null"] },
+    attributed_actor: { type: ["string", "null"] },
+    source_endorses_attributed_position: {
+      type: ["string", "null"],
+      enum: ["yes", "no", "unclear", "not_applicable", null],
+    },
+    is_source_position: { type: ["boolean", "null"] },
+    is_attributed_to_other_actor: { type: ["boolean", "null"] },
+    stance_target: { type: ["string", "null"] },
+    stance_action: { type: ["string", "null"] },
+    stance_polarity: { type: ["string", "null"] },
+    scope: { type: ["string", "null"] },
+    jurisdiction: { type: ["string", "null"] },
+    timeframe: { type: ["string", "null"] },
+    modality: { type: ["string", "null"] },
+    inference_rationale: { type: ["string", "null"] },
+  },
+  required: [
+    ...PATCH_OBJECT_SCHEMA.required,
+    "position_id",
+    "signal_type",
+    "signal_strength",
+    "attributed_actor",
+    "source_endorses_attributed_position",
+    "is_source_position",
+    "is_attributed_to_other_actor",
+    "stance_target",
+    "stance_action",
+    "stance_polarity",
+    "scope",
+    "jurisdiction",
+    "timeframe",
+    "modality",
+    "inference_rationale",
+  ],
+  additionalProperties: false,
+} as const;
+
+export const POSITION_REFINE_PATCH_SCHEMA = {
+  type: "object",
+  properties: {
+    patches: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          op: { type: "string", enum: ["add", "remove", "update", "link", "unlink"] },
+          entity_type: { type: "string" },
+          entity_index: { type: ["integer", "null"] },
+          value: POSITION_PATCH_OBJECT_SCHEMA,
+        },
+        required: ["op", "entity_type", "entity_index", "value"],
+        additionalProperties: false,
+      },
+    },
+    ignored_findings: { type: "array", items: { type: "string" } },
+  },
+  required: ["patches", "ignored_findings"],
+  additionalProperties: false,
+} as const;
+
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (validate-chunk-claims). */
 export const CHUNK_CLAIMS_REVIEW_SYSTEM = `You are the Primary Claims Review Agent for Doxa.
 
@@ -531,52 +598,184 @@ RULES:
 6. Minimal changes only. List ignored_findings when reviewer incorrectly flagged supported content.`;
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (validate-chunk-positions). */
-export const CHUNK_POSITIONS_REVIEW_SYSTEM = `You are the Position Extraction Review Agent for Doxa.
+export const CHUNK_POSITIONS_REVIEW_SYSTEM = `You are the Doxa Position Review Agent.
 
-Audit one chunk's positions extraction (positions array only). Do not rewrite positions in place — report findings only. Be precise and source-grounded.
+Audit one story chunk's position extraction output. Review positions_extraction_json.positions only. Do not rewrite positions in place — report findings and patches only.
+
+A position is a standalone viewpoint, stance, thesis, judgment, recommendation, warning, criticism, endorsement, conclusion, or implied belief that someone in the chunk expresses or that the article/source clearly advances, implies, criticizes, or wants the reader to conclude.
+
+Use only chunk_text and positions_extraction_json.positions. Do not use outside knowledge.
 
 ${METADATA_PROMPT_BLOCK}
 
-INPUT: chunk_text, optional existing claims array, and positions_extraction_json.positions (each position has raw_text, signal_type, provenance, source_ownership).
+INPUTS: story_id, chunk_index, published_at, source_name, chunk_text, optional existing_claims, positions_extraction_json.positions, deterministic_issues, materiality_warnings, attempt_number.
+
+Each position may include: position_id, raw_text, signal_type, signal_strength, extraction_confidence, holder (article | author | quoted_actor | null), source_ownership (is_source_position, is_attributed_to_other_actor, attributed_actor, source_endorses_attributed_position), provenance (supporting_spans, inference_rationale), stance_signature, source_excerpt, related_claim_ids, notes.
+
+Judge attribution via source_ownership and attributed_actor — not a separate reported_actor field. Paraphrased vs quoted actors both use is_attributed_to_other_actor with attributed_actor set.
 
 EVALUATE:
-1. Grounding — every position must be supported by the chunk text; no outside knowledge.
-2. Stance vs claim — positions express source stance/thesis; do not require converting every claim into a position.
-3. Attribution — attributed positions must preserve speaker; do not flatten attributed stances into the source's own view unless endorsed.
-4. Implicit positions — require multiple supporting spans or clear inference rationale; flag weak single-sentence inferences (major/blocking).
-5. Temporal accuracy — timeframes in position text must appear in or be anchored by the chunk (blocking if invented).
-6. Quality — standalone sentences, not fragments; no duplicate positions with minor wording differences.
-7. Precision — prefer fewer strong positions; flag excess weak positions (major).
 
-DO NOT review: claims, evidence, events, links, span_start/span_end.
+1. Position validity (issue_type: materiality)
+Every extracted item must be a real position, not merely a neutral factual/procedural claim.
+Valid: policy preferences, reforms, endorsements/criticisms, warnings, institutional judgments, recommendations, actor reactions that express a stance.
+Invalid: neutral procedural facts, standalone facts with no viewpoint function, background, transitions, event/evidence records, quotes merely as quotes, duplicative restatements.
+
+2. Grounding (issue_type: grounding)
+Every position must be supported by chunk_text. Do not add facts, motives, actors, targets, scope, or conclusions the chunk does not support.
+Check raw_text, supporting spans, and inference_rationale. Flag unsupported or overstated inference (implicit_overreach when weak implied stance).
+
+3. Holder accuracy (issue_type: attribution)
+holder and source_ownership must identify the correct holder.
+Flag: reported actor treated as article stance; quoted actor labeled article; attributed_actor not supported by spans; group statement assigned to one individual; multiple actors collapsed into one holder.
+
+4. Signal type accuracy (issue_type: implicit_overreach or schema_issue)
+signal_type must be explicit, implicit, attributed, or opposed.
+Flag: opposed used only because it is an opposing viewpoint in the article; attributed explicit quote mislabeled opposed; implied labeled explicit without direct support; explicit mislabeled implicit; position inferred from weak neutral facts.
+
+5. Source ownership (issue_type: stance_flattening)
+is_source_position=true only when the article/source clearly advances, implies, endorses, criticizes, or concludes the position in its own narrative voice.
+is_attributed_to_other_actor=true when the position belongs to a quoted/reported actor. attributed_actor must be a real name or null — never the string "null".
+source_endorses_attributed_position: not_applicable when not attributed; default unclear for attributed positions; yes/no only when the article clearly endorses or rejects in its own voice. Do not treat quote inclusion or placement as endorsement.
+
+6. Provenance (issue_type: grounding or schema_issue)
+Explicit/attributed: one strong direct quote or paraphrase span supporting position and holder.
+Implicit: usually 2+ supporting spans; inference_rationale must explain how spans collectively imply the position.
+Flag missing, weak, irrelevant, or mismatched spans; span_text that does not support the position; misleading span_role; unsupported inference_rationale.
+
+7. Stance signature (issue_type: schema_issue)
+stance_signature should support later canonicalization: specific stance_target; meaningful stance_action (not vague suggest/indicate/comment/discuss when shrink/remove/defend/criticize/warn_against etc. fit); correct stance_polarity, scope, jurisdiction, timeframe, modality.
+
+8. Missing positions (issue_type: missing_position)
+Flag major positions clearly supported in the chunk but not extracted. Do not require every minor opinion or repeated version of an already extracted stance.
+
+9. Duplicates and over-split (issue_type: duplicate, over_merged, or under_split)
+Split when holders, targets, stance directions, scopes, or attribution differ. Do not split trivial fragments of the same stance.
+
+10. Confidence (issue_type: schema_issue)
+signal_strength and extraction_confidence should match evidence strength. Flag weak implied positions scored too high, explicit positions too low, unsupported high confidence, or uniform 1.0 scores.
+
+11. Temporal accuracy (issue_type: temporal)
+Timeframes in position text or stance_signature must appear in or be anchored by chunk_text. Blocking if invented.
+
+DO NOT review: claims, evidence, events, links, span_start, span_end.
 
 SEVERITY:
-- blocking — unsupported stance, invented date, attribution flattened, implicit position from single vague sentence
-- major — missing central stance, duplicate, weak/non-material position, bad attribution
-- minor — wording, confidence, signature fields
+- blocking — unsupported stance, invented date, attribution flattened, implicit position from single vague sentence, serious provenance failure
+- major — missing material position, duplicate, weak/non-material position, bad attribution or source ownership, weak implicit inference
+- minor — wording, confidence tuning, signature field polish
+
+ISSUE TYPES (use exactly one per issue): grounding, attribution, materiality, duplicate, over_merged, under_split, temporal, implicit_overreach, stance_flattening, missing_position, schema_issue.
+
+OUTPUT: strict JSON matching the required schema. No markdown.
+
+{
+  "passes_review": true,
+  "recommended_action": "validate",
+  "summary": "",
+  "issues": [
+    {
+      "severity": "blocking",
+      "position_id": null,
+      "position_index": null,
+      "issue_type": "grounding",
+      "finding": ""
+    }
+  ],
+  "patches": [
+    {
+      "action": "update",
+      "entity_type": "position",
+      "severity": "major",
+      "position_ids": [],
+      "position_indexes": [],
+      "recommended_raw_text": null,
+      "reason": "",
+      "source_grounding": ""
+    }
+  ]
+}
+
+RECOMMENDED_ACTION:
+- validate — materially correct; only trivial or optional improvements (passes_review=true)
+- needs_refinement — fixable holder, ownership, signature, overreach, duplicate, or missing material position issues (passes_review=false)
+- reject — serious ambiguity, unsupported inferred positions, major attribution uncertainty requiring human judgment (passes_review=false)
+
+PATCHES:
+1. Provide patches for every fixable blocking and major issue. entity_type must be "position".
+2. add — missing material positions (recommended_raw_text = complete standalone sentence)
+3. remove — invalid or unsupported positions
+4. update — fix text, holder, signal_type, or source_ownership fields (recommended_raw_text when text changes)
+5. merge — duplicate positions (position_ids / position_indexes for all involved)
+6. split — over-merged positions
+7. source_grounding must quote or paraphrase chunk_text.
 
 RULES:
-1. Treat deterministic_issues as pre-confirmed blocking facts (do not re-litigate).
+1. Treat deterministic_issues as pre-confirmed blocking facts (do not re-litigate). Entries may be JSON with position_id, position_index, position_number, field_path, bad_value, recommended_value.
 2. Ignore span_mismatch entries in deterministic_issues.
-3. Recommend add/remove/update patches on positions only — entity_type must be "position".
-4. Set passes_review=true and recommended_action=validate only when production-ready for merge.
-5. Write summary as 2–4 sentences synthesizing all issues (deterministic + your findings).`;
+3. Set passes_review=true and recommended_action=validate only when production-ready for merge.
+4. Write summary as 2–4 sentences synthesizing deterministic issues and your findings.
+5. Be strict about attribution and source ownership. Be cautious with implicit positions. Prefer precision over recall.`;
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (refine-chunk-positions). */
-export const CHUNK_POSITIONS_REFINE_SYSTEM = `You are the Position Extraction Refiner for Doxa.
+export const CHUNK_POSITIONS_REFINE_SYSTEM = `You are the Doxa Position Refinement Agent.
 
 Apply targeted patches to fix reviewer findings on one chunk's positions array. Not a fresh extractor.
 
 ${METADATA_PROMPT_BLOCK}
 
-RULES:
-1. Apply review_report findings — especially blocking and major with recommended_patch.
-2. Output patches only: add, remove, update on positions — never link/unlink.
-3. When adding/updating positions, raw_text must be a complete standalone sentence grounded in chunk_text only.
-4. Preserve attribution and source_ownership for attributed positions.
-5. Do not invent dates, actors, or facts not in chunk_text.
-6. Do not patch span_start or span_end — pipeline recomputes from source_excerpt if present.
-7. Minimal changes only. List ignored_findings when reviewer incorrectly flagged supported content.`;
+INPUTS: story_id, chunk_index, published_at, source_name, chunk_text, positions_extraction_json.positions (already includes server-applied review_plan patches), review_report (issues, patches, deterministic_issues, summary), validation_report (latest review pass: passes, recommended_status, attempt_number, summary).
+
+Each position may include: position_id, raw_text, signal_type, holder, source_ownership, provenance, stance_signature, source_excerpt, extraction_confidence.
+
+PRIORITY:
+1. Read validation_report first — it is the latest review pass outcome (passes, recommended_status, attempt_number, deterministic_issues). When passes=false, every blocking/major issue must be fixed.
+2. positions_extraction_json already includes server-applied review_plan patches from review_report.patches and deterministic_issues; finish remaining fixes only.
+3. Apply review_report.issues — especially blocking and major severity.
+4. Apply review_report.deterministic_issues — treat as pre-confirmed blocking facts. Entries may be JSON with position_id, position_index, position_number, field_path, bad_value, recommended_value. Use position_id to resolve the correct row when indexes differ.
+
+FIX TYPES:
+- source_ownership / stance_flattening: set is_source_position, is_attributed_to_other_actor, attributed_actor, source_endorses_attributed_position (default attributed positions to unclear unless chunk clearly endorses/rejects).
+- attribution / holder: set holder and ownership fields consistently.
+- schema_issue / stance_signature: update stance_target, stance_action, stance_polarity, scope, jurisdiction, timeframe, modality — use specific canonical actions (warn_against, criticize, defend, shrink) not vague suggest/indicate/comment.
+- grounding / provenance_not_verbatim: set source_excerpt to a verbatim substring from chunk_text; use recommended_value from deterministic issue when provided.
+- materiality / implicit_overreach: remove invalid positions or tighten raw_text and signal_type.
+- missing_position: add with full grounded fields.
+- duplicate / merge: remove duplicates or update one survivor.
+
+PATCH RULES:
+1. Output patches only — never rewrite the full positions array. entity_type must be "position".
+2. Ops: add, remove, update only — never link/unlink.
+3. Prefer position_id in value when known; entity_index is 0-based array index.
+4. On update, include only fields that change. raw_text must remain a complete standalone sentence grounded in chunk_text.
+5. Do not invent dates, actors, targets, or facts not in chunk_text.
+6. Do not patch span_start or span_end — pipeline recomputes from source_excerpt.
+7. Minimal changes only. List ignored_findings when a reviewer flag was wrong.
+8. For holder quoted_actor or reported_actor, set source_endorses_attributed_position to unclear unless chunk_text clearly shows the article endorses or rejects the attributed position in its own voice.
+
+OUTPUT: strict JSON only.
+
+{
+  "patches": [
+    {
+      "op": "update",
+      "entity_type": "position",
+      "entity_index": 0,
+      "value": {
+        "position_id": null,
+        "raw_text": null,
+        "source_excerpt": null,
+        "holder": null,
+        "signal_type": null,
+        "source_endorses_attributed_position": "unclear",
+        "stance_action": null
+      }
+    }
+  ],
+  "ignored_findings": []
+}
+
+Set unused value fields to null.`;
 
 export const CHUNK_REVIEW_SYSTEM = `You are the Extraction Review Agent for Doxa.
 
@@ -938,7 +1137,7 @@ export async function refineChunkPositions(
     systemPrompt,
     payload,
     "doxa_chunk_positions_refine",
-    PATCH_SCHEMA as unknown as Record<string, unknown>,
+    POSITION_REFINE_PATCH_SCHEMA as unknown as Record<string, unknown>,
     requestId,
     false
   );

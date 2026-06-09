@@ -93,7 +93,7 @@ export function FlowAgentIcon({
               </Button>
             </PopoverClose>
             <Button type="button" size="sm" className="h-7 px-2 text-xs" asChild>
-              <Link href={`/admin/agents/${stepId}`}>Agent page</Link>
+              <Link href={`/admin/agents/${stepId}`}>View Agent</Link>
             </Button>
           </div>
         </div>

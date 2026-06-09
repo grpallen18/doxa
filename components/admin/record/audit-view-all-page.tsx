@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { AuditHistoryPanel } from '@/components/admin/record/audit-history-panel'
+import { RecordPageBody, RecordPageFrame } from '@/components/admin/record/record-page-frame'
+import { RecordSectionCard } from '@/components/admin/record/record-section-card'
 
 export function AuditViewAllPage({
   title,
@@ -15,16 +17,21 @@ export function AuditViewAllPage({
   emptyMessage?: string
 }) {
   return (
-    <div className="space-y-4 p-4">
-      <Link href={backHref} className="text-sm text-accent-primary hover:underline">
-        ← Back
-      </Link>
-      <h1 className="text-lg font-semibold">{title}</h1>
-      <AuditHistoryPanel
-        apiPath={apiPath}
-        viewAll
-        emptyMessage={emptyMessage}
-      />
-    </div>
+    <RecordPageFrame>
+      <header className="px-4 py-3 sm:px-5">
+        <Link href={backHref} className="text-sm text-accent-primary hover:underline">
+          ← Back
+        </Link>
+        <h1 className="mt-2 text-base font-semibold text-[var(--record-section-header-fg)] sm:text-lg">
+          {title}
+        </h1>
+      </header>
+
+      <RecordPageBody>
+        <RecordSectionCard id="audit-history" title="History" variant="panel">
+          <AuditHistoryPanel apiPath={apiPath} viewAll emptyMessage={emptyMessage} />
+        </RecordSectionCard>
+      </RecordPageBody>
+    </RecordPageFrame>
   )
 }

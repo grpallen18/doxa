@@ -246,7 +246,11 @@ export const handler = async (req: Request) => {
         validatedAt = now;
       } else {
         nextAttemptCount = attemptNumber;
-        finalStatus = resolveClaimsReviewFailureStatus(attemptNumber, reviewReport.recommended_action);
+        finalStatus = resolveClaimsReviewFailureStatus(
+          attemptNumber,
+          reviewReport.recommended_action,
+          reviewReport
+        );
         if (finalStatus === "needs_human_review") {
           validatedAt = now;
         }

@@ -45,7 +45,6 @@ export function PipelineLifecycleFlowchart({
 
   const nodeProps = {
     payload,
-    isBusy: pipelineActions.isBusy,
     onRun: pipelineActions.runStep,
     onRevert: pipelineActions.requestRevert,
   }
@@ -57,7 +56,7 @@ export function PipelineLifecycleFlowchart({
       <PipelineFlowNode
         key={stepId}
         step={step}
-        isRunning={pipelineActions.runningStepId === stepId}
+        isRunning={pipelineActions.isStepRunning(stepId)}
         isReverting={pipelineActions.revertingStepId === stepId}
         {...nodeProps}
       />

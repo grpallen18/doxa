@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
+export type RecordLedgerTab = {
+  id: string
+  label: string
+}
+
 export const recordLedgerHeaderClass =
   'border-b border-sidebar-border bg-sidebar px-3 py-2 text-xs font-medium text-sidebar-foreground'
 
@@ -15,13 +20,39 @@ export function RecordLedgerTable({
   columns,
   gridClass,
   children,
+  tabs,
+  activeTab,
+  onTabChange,
 }: {
   columns: string[]
   gridClass: string
   children: ReactNode
+  tabs?: RecordLedgerTab[]
+  activeTab?: string
+  onTabChange?: (tabId: string) => void
 }) {
   return (
     <div className="min-w-0 w-full rounded-md border border-subtle text-sm">
+      {tabs && tabs.length > 0 && onTabChange && (
+        <div className="flex gap-1 border-b border-subtle px-2 py-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onTabChange(tab.id)}
+              aria-pressed={activeTab === tab.id}
+              className={cn(
+                'whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide transition-colors',
+                activeTab === tab.id
+                  ? 'bg-surface-soft text-foreground'
+                  : 'text-muted hover:text-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className={cn(gridClass, recordLedgerHeaderClass)}
       >

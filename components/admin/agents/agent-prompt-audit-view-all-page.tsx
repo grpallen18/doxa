@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { AgentPromptAuditTable } from '@/components/admin/agents/agent-prompt-audit-table'
+import { RecordPageBody, RecordPageFrame } from '@/components/admin/record/record-page-frame'
+import { RecordSectionCard } from '@/components/admin/record/record-section-card'
 
 export function AgentPromptAuditViewAllPage({
   stepId,
@@ -11,15 +13,24 @@ export function AgentPromptAuditViewAllPage({
   agentLabel: string
 }) {
   return (
-    <div className="space-y-4 p-4">
-      <Link
-        href={`/admin/agents/${stepId}`}
-        className="text-sm text-accent-primary hover:underline"
-      >
-        ← Back to agent
-      </Link>
-      <h1 className="text-lg font-semibold">{agentLabel} — prompt audit trail</h1>
-      <AgentPromptAuditTable stepId={stepId} viewAll />
-    </div>
+    <RecordPageFrame>
+      <header className="px-4 py-3 sm:px-5">
+        <Link
+          href={`/admin/agents/${stepId}`}
+          className="text-sm text-accent-primary hover:underline"
+        >
+          ← Back to agent
+        </Link>
+        <h1 className="mt-2 text-base font-semibold text-[var(--record-section-header-fg)] sm:text-lg">
+          {agentLabel} — prompt audit trail
+        </h1>
+      </header>
+
+      <RecordPageBody>
+        <RecordSectionCard id="audit" title="Prompt audit trail" variant="panel">
+          <AgentPromptAuditTable stepId={stepId} viewAll />
+        </RecordSectionCard>
+      </RecordPageBody>
+    </RecordPageFrame>
   )
 }

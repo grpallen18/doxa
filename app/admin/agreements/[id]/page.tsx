@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useRecordHub } from '@/components/admin/record/use-record-hub'
 import { RecordHubShell } from '@/components/admin/record/record-hub-shell'
+import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
 import { StatusBadge } from '@/components/admin/record/status-badge'
 
 type AgreementDetail = {
@@ -39,9 +40,9 @@ export default function AgreementRecordPage() {
   const id = typeof params.id === 'string' ? params.id : ''
   const { data, loading, error } = useRecordHub<AgreementDetail>(`/api/admin/positions/${id}`)
 
-  if (loading) return <p className="p-4 text-sm text-muted">Loading agreement…</p>
+  if (loading) return <RecordPageLoading message="Loading agreement…" />
   if (error || !data) {
-    return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
+    return <RecordPageError message={error ?? 'Not found'} />
   }
 
   const lifecycle = {

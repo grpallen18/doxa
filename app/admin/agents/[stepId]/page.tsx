@@ -5,9 +5,13 @@ import type { AgentDetail, AgentRunSummary } from '@/lib/admin/agent-detail'
 import { AgentRecentRunsTable } from '@/components/admin/agents/agent-recent-runs-table'
 import { AgentPromptAuditTable } from '@/components/admin/agents/agent-prompt-audit-table'
 import { useRecordHub } from '@/components/admin/record/use-record-hub'
+import { RecordPageBody, RecordPageError, RecordPageFrame, RecordPageLoading } from '@/components/admin/record/record-page-frame'
 import { RecordSectionCard } from '@/components/admin/record/record-section-card'
 import { StatusBadge } from '@/components/admin/record/status-badge'
-import { AgentProfileHeader } from '@/components/admin/agents/agent-profile-header'
+import {
+  AgentProfileHeader,
+  formatAgentJobTitle,
+} from '@/components/admin/agents/agent-profile-header'
 import { AgentPromptSection } from '@/components/admin/agents/agent-prompt-section'
 
 type AgentApiResponse = {
@@ -22,19 +26,44 @@ export default function AgentRecordPage() {
     `/api/admin/agents/${stepId}`
   )
 
-  if (loading) return <p className="p-4 text-sm text-muted">Loading agent…</p>
-  if (error || !data) return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
+  if (loading) return <RecordPageLoading message="Loading agent…" />
+  if (error || !data) return <RecordPageError message={error ?? 'Not found'} />
 
   const { agent, lastRun } = data
   const promptTitle =
     agent.promptKind === 'llm' ? 'System prompt' : 'Prompt'
+  const lastRunLabel = lastRun?.started_at
+    ? new Date(lastRun.started_at).toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+    : 'Never'
 
   return (
-    <div className="space-y-4 p-4">
-      <AgentProfileHeader agent={agent} lastRun={lastRun} />
+    <RecordPageFrame>
+      <AgentProfileHeader agent={agent} />
 
-      <RecordSectionCard id="configuration" title="Agent configuration">
+      <RecordPageBody>
+      <RecordSectionCard id="configuration" title="Agent configuration" variant="panel">
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs font-medium text-muted">Pipeline stage</dt>
+            <dd className="mt-0.5">{formatAgentJobTitle(agent)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted">Model</dt>
+            <dd className="mt-0.5">{lastRun?.model_name ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted">Last run</dt>
+            <dd className="mt-0.5">
+              {lastRun?.started_at ? (
+                <time dateTime={lastRun.started_at}>{lastRunLabel}</time>
+              ) : (
+                lastRunLabel
+              )}
+            </dd>
+          </div>
           <div>
             <dt className="text-xs font-medium text-muted">Deploy</dt>
             <dd className="mt-0.5 font-mono text-xs">{agent.deployName}</dd>
@@ -90,19 +119,20 @@ export default function AgentRecordPage() {
         </dl>
       </RecordSectionCard>
 
-      <RecordSectionCard id="prompt" title={promptTitle}>
+      <RecordSectionCard id="prompt" title={promptTitle} variant="panel">
         <AgentPromptSection stepId={stepId} agent={agent} />
       </RecordSectionCard>
 
-      <RecordSectionCard id="recent-runs" title="Recent runs">
+      <RecordSectionCard id="recent-runs" title="Recent runs" variant="panel">
         <AgentRecentRunsTable stepId={stepId} />
       </RecordSectionCard>
 
       {agent.promptKind === 'llm' && (
-        <RecordSectionCard id="audit" title="Prompt audit trail">
+        <RecordSectionCard id="audit" title="Prompt audit trail" variant="panel">
           <AgentPromptAuditTable stepId={stepId} />
         </RecordSectionCard>
       )}
-    </div>
+      </RecordPageBody>
+    </RecordPageFrame>
   )
 }
