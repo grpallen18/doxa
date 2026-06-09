@@ -33,6 +33,10 @@ stages:
         isolation_params: [story_id]
       - id: extract-story-claims
         label: Extract primary claims
+        prompt_kind: llm
+        user_payload_doc: |
+          JSON user message: story_id, title, source_name, published_at, chunk_text.
+          Built by buildExtractClaimsUserPayload() in openai-qa.ts.
         isolation_params: [story_id, chunk_index]
         invoke_options:
           uses_max_chunks: true
@@ -41,10 +45,57 @@ stages:
       # Chunk QA loop (validate today; review/refine agents planned incrementally)
       - id: validate-chunk-claims
         label: Review chunk claims
+        prompt_kind: llm
+        user_payload_doc: |
+          JSON user message: story metadata, chunk_text, extraction_json (claims), deterministic_issues, materiality_warnings, attempt_number.
         isolation_params: [story_id, chunk_index]
         invoke_options:
           uses_max_chunks: true
           max_chunks: 20
+      - id: refine-chunk-claims
+        label: Refine chunk claims
+        prompt_kind: llm
+        optional: true
+        user_payload_doc: |
+          JSON user message: story metadata, chunk_text, extraction_json, review_report (findings from prior review).
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 20
+      # Positions track (parallel to claims)
+      - id: extract-story-positions
+        label: Extract positions
+        prompt_kind: llm
+        user_payload_doc: |
+          JSON user message: story_id, chunk_id, published_at, source_name, chunk_text, optional existing_claims.
+          Built by buildExtractPositionsUserPayload() in openai-qa.ts.
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 1
+          timeout_ms: 140000
+      - id: validate-chunk-positions
+        label: Review chunk positions
+        prompt_kind: llm
+        user_payload_doc: |
+          JSON user message: story metadata, chunk_text, positions_extraction_json, optional existing_claims, deterministic_issues, materiality_warnings, attempt_number.
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 20
+      - id: refine-chunk-positions
+        label: Refine chunk positions
+        prompt_kind: llm
+        optional: true
+        user_payload_doc: |
+          JSON user message: story metadata, chunk_text, positions_extraction_json, review_report.
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 20
+      - id: merge-story-positions
+        label: Merge story positions
+        isolation_params: [story_id]
       # Merge operation — after all chunks passed
       - id: merge-story-claims
         label: Merge story claims
@@ -67,13 +118,16 @@ stages:
     steps:
       - id: link-canonical-claims
         label: Link canonical claims
+        prompt_kind: embeddings
         isolation_params: [story_id, story_claim_id]
       - id: link-canonical-events
         label: Link canonical events
+        prompt_kind: embeddings
         isolation_params: [story_id]
         optional: true
       - id: link-canonical-positions
         label: Link canonical positions
+        prompt_kind: embeddings
         isolation_params: [story_id, story_position_id]
         optional: true
       - id: update-stances

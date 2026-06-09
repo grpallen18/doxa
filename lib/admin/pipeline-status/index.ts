@@ -24,20 +24,39 @@ import {
   isExtractionStepBlocked,
   isExtractionStepComplete,
   isChunkClaimsReviewComplete,
+  isChunkClaimsReviewStarted,
+  isChunkPositionsReviewApproved,
   isChunkReviewApproved,
   isMergeValidated,
+  isPositionsLaneStarted,
   isRefineOptional,
 } from '@/lib/admin/pipeline-status/extraction'
 
 export {
+  CLAIMS_LANE_STEP_IDS,
+  EXTRACTION_PARALLEL_LANES,
+  EXTRACTION_SHARED_STEP_IDS,
   EXTRACTION_STEP_GROUPS,
   EXTRACTION_TIMELINE_HIDDEN_STEPS,
+  getExtractionLaneStepIds,
+  getExtractionStepLane,
+  MERGE_QA_STEP_IDS,
+  POSITIONS_LANE_STEP_IDS,
 } from '@/lib/admin/pipeline-status/extraction-groups'
+import {
+  CLAIMS_LANE_STEP_IDS,
+  getExtractionLaneStepIds,
+  getExtractionStepLane,
+  MERGE_QA_STEP_IDS,
+  POSITIONS_LANE_STEP_IDS,
+} from '@/lib/admin/pipeline-status/extraction-groups'
+import { linkEntitiesPrerequisiteStepIds } from '@/lib/admin/pipeline-flow-layout'
 export {
   extractTimelineDetail,
   getExtractTimelineStatus,
   getMergeTimelineStatus,
   isChunkClaimsReviewComplete,
+  isChunkClaimsReviewStarted,
   isChunkReviewApproved,
   isExtractionStageComplete,
   mergeTimelineDetail,
@@ -99,8 +118,13 @@ const INGESTION_STEPS = new Set([
 const EXTRACTION_STEPS = new Set([
   'chunk-story-bodies',
   'extract-story-claims',
+  'extract-story-positions',
   'validate-chunk-claims',
+  'validate-chunk-positions',
+  'refine-chunk-claims',
+  'refine-chunk-positions',
   'merge-story-claims',
+  'merge-story-positions',
   'review-merged-extraction',
   'refine-merged-extraction',
   'validate-merged-extraction',
@@ -160,22 +184,116 @@ function stepProgress(stepId: PipelineStepId, payload: StoryExtractionReviewPayl
 
 function isStepOptional(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   if (stepId === 'review-pending-stories') return isReviewPendingOptional(payload)
-  if (stepId === 'refine-merged-extraction') return isRefineOptional(stepId, payload)
+  if (
+    stepId === 'refine-chunk-claims' ||
+    stepId === 'refine-chunk-positions' ||
+    stepId === 'refine-merged-extraction'
+  ) {
+    return isRefineOptional(stepId, payload)
+  }
+  if (stepId === 'merge-story-positions' && !isPositionsLaneStarted(payload)) return true
   const def = PIPELINE_STEPS.find((s) => s.id === stepId)
   if (def?.optional && isMergeValidated(payload)) return true
   return false
 }
 
-function priorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
-  const idx = PIPELINE_STEPS.findIndex((s) => s.id === stepId)
+function isPriorStepSatisfied(sid: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  if (isStepComplete(sid, payload)) return true
+  if (isStepOptional(sid, payload)) return true
+  const def = PIPELINE_STEPS.find((s) => s.id === sid)
+  if (def?.optional) return true
+  return false
+}
+
+function stageStepIds(stageId: PipelineStageId): PipelineStepId[] {
+  return (PIPELINE_STAGES.find((s) => s.id === stageId)?.stepIds ?? []) as PipelineStepId[]
+}
+
+function priorStepsInOrder(
+  stepId: PipelineStepId,
+  orderedStepIds: PipelineStepId[],
+  payload: StoryExtractionReviewPayload
+): boolean {
+  const idx = orderedStepIds.indexOf(stepId)
+  if (idx < 0) return true
   for (let i = 0; i < idx; i++) {
-    const sid = PIPELINE_STEPS[i].id
-    if (isStepComplete(sid, payload)) continue
-    if (isStepOptional(sid, payload)) continue
-    if (PIPELINE_STEPS[i].optional) continue
-    return false
+    if (!isPriorStepSatisfied(orderedStepIds[i], payload)) return false
   }
   return true
+}
+
+function ingestionPriorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  return priorStepsInOrder(stepId, stageStepIds('ingestion'), payload)
+}
+
+function isIngestionComplete(payload: StoryExtractionReviewPayload): boolean {
+  return stageStepIds('ingestion').every((sid) => isPriorStepSatisfied(sid, payload))
+}
+
+function extractionUpstreamReady(payload: StoryExtractionReviewPayload): boolean {
+  return isIngestionComplete(payload) && isStepComplete('chunk-story-bodies', payload)
+}
+
+function extractionLanePriorStepsSatisfied(
+  stepId: PipelineStepId,
+  laneId: 'claims' | 'positions' | 'merge-qa',
+  payload: StoryExtractionReviewPayload
+): boolean {
+  if (!extractionUpstreamReady(payload)) return false
+
+  if (laneId === 'merge-qa') {
+    if (!isPriorStepSatisfied('merge-story-claims', payload)) return false
+    if (isPositionsLaneStarted(payload) && !isPriorStepSatisfied('merge-story-positions', payload)) {
+      return false
+    }
+    return priorStepsInOrder(stepId, [...MERGE_QA_STEP_IDS], payload)
+  }
+
+  return priorStepsInOrder(stepId, [...getExtractionLaneStepIds(laneId)], payload)
+}
+
+function allRequiredExtractionComplete(payload: StoryExtractionReviewPayload): boolean {
+  const requiredSteps: PipelineStepId[] = [
+    'chunk-story-bodies',
+    ...CLAIMS_LANE_STEP_IDS,
+    ...MERGE_QA_STEP_IDS,
+  ]
+  if (isPositionsLaneStarted(payload)) {
+    requiredSteps.push(...POSITIONS_LANE_STEP_IDS)
+  }
+  return requiredSteps.every((sid) => isPriorStepSatisfied(sid, payload))
+}
+
+function canonicalPriorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  if (!allRequiredExtractionComplete(payload)) return false
+  return priorStepsInOrder(stepId, stageStepIds('canonical'), payload)
+}
+
+function linkEntitiesPrerequisitesMet(payload: StoryExtractionReviewPayload): boolean {
+  return linkEntitiesPrerequisiteStepIds().every((sid) => isPriorStepSatisfied(sid, payload))
+}
+
+function priorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  const extractionLane = getExtractionStepLane(stepId)
+  if (extractionLane === 'shared') {
+    return priorStepsInOrder(stepId, stageStepIds('ingestion'), payload)
+  }
+  if (extractionLane === 'claims') {
+    return extractionLanePriorStepsSatisfied(stepId, 'claims', payload)
+  }
+  if (extractionLane === 'positions') {
+    return extractionLanePriorStepsSatisfied(stepId, 'positions', payload)
+  }
+  if (extractionLane === 'merge-qa') {
+    return extractionLanePriorStepsSatisfied(stepId, 'merge-qa', payload)
+  }
+  if (INGESTION_STEPS.has(stepId) || stepId === 'relevance-gate') {
+    return ingestionPriorStepsSatisfied(stepId, payload)
+  }
+  if (CANONICAL_STEPS.has(stepId)) {
+    return canonicalPriorStepsSatisfied(stepId, payload)
+  }
+  return priorStepsInOrder(stepId, PIPELINE_STEPS.map((s) => s.id), payload)
 }
 
 function canRunWhenBlocked(stepId: PipelineStepId): boolean {
@@ -214,7 +332,37 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
       !blocked &&
       priorOk &&
       !blockedGate &&
-      isChunkClaimsReviewComplete(payload)
+      isChunkReviewApproved(payload)
+    )
+  }
+
+  if (stepId === 'merge-story-positions') {
+    return (
+      !complete &&
+      !blocked &&
+      priorOk &&
+      !blockedGate &&
+      isChunkPositionsReviewApproved(payload)
+    )
+  }
+
+  if (stepId === 'refine-chunk-claims' || stepId === 'refine-chunk-positions') {
+    return (
+      !complete &&
+      !blocked &&
+      priorOk &&
+      !blockedGate &&
+      !isRefineOptional(stepId, payload)
+    )
+  }
+
+  if (stepId === 'validate-merged-extraction') {
+    return (
+      !complete &&
+      !blocked &&
+      priorOk &&
+      !blockedGate &&
+      linkEntitiesPrerequisitesMet(payload)
     )
   }
 
@@ -231,7 +379,16 @@ export function derivePipelineChecklist(payload: StoryExtractionReviewPayload): 
   const blockedReason = getBlockedReason(payload)
   const pipelineBlocked = isPipelineBlocked(payload)
 
-  let foundCurrent = false
+  const currentLaneKeys = new Set<string>()
+  let foundGlobalCurrent = false
+
+  function statusLaneKey(stepId: PipelineStepId): string {
+    const lane = getExtractionStepLane(stepId)
+    if (lane === 'claims' || lane === 'positions' || lane === 'merge-qa') return lane
+    if (lane === 'shared') return 'extraction-shared'
+    return 'global'
+  }
+
   const steps: PipelineStepState[] = PIPELINE_STEPS.map((def) => {
     const complete = isStepComplete(def.id, payload)
     const blocked = isStepBlocked(def.id, payload)
@@ -247,11 +404,21 @@ export function derivePipelineChecklist(payload: StoryExtractionReviewPayload): 
       status = 'optional'
     } else if (optional) {
       status = 'optional'
-    } else if (!foundCurrent) {
-      status = 'current'
-      foundCurrent = true
     } else {
-      status = 'pending'
+      const laneKey = statusLaneKey(def.id)
+      if (laneKey === 'global') {
+        if (!foundGlobalCurrent) {
+          status = 'current'
+          foundGlobalCurrent = true
+        } else {
+          status = 'pending'
+        }
+      } else if (!currentLaneKeys.has(laneKey)) {
+        status = 'current'
+        currentLaneKeys.add(laneKey)
+      } else {
+        status = 'pending'
+      }
     }
 
     return {
@@ -306,7 +473,7 @@ export type StageSummary = {
 const STAGE_HUB_ANCHOR: Record<PipelineStageId, string> = {
   ingestion: 'step-relevance-gate',
   extraction: 'step-chunk-story-bodies',
-  canonical: 'post-merge-actions',
+  canonical: 'lifecycle-flowchart',
 }
 
 export {

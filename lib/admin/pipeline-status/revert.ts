@@ -126,7 +126,7 @@ export function getRevertStepDescription(stepId: PipelineStepId): string {
     case 'extract-story-claims':
       return 'Clears extraction JSON on chunks; chunks are kept.'
     case 'validate-chunk-claims':
-      return 'Clears chunk validation QA on extracted chunks so review can run again.'
+      return 'Clears all chunk review and refine QA (keeps extracted claims) so review can run again from scratch.'
     default:
       return 'Reverts this pipeline step.'
   }

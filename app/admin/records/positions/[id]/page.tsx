@@ -45,6 +45,7 @@ export default function CanonicalPositionRecordPage() {
 
   return (
     <RecordHubShell
+      entityType="position"
       title={data.canonical_text}
       subtitle="Canonical position"
       meta={[

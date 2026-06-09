@@ -45,7 +45,7 @@ export function RecordSectionCard({
       className={cn(
         'scroll-mt-24',
         isPanel
-          ? 'bg-surface'
+          ? 'overflow-hidden rounded-lg border border-subtle bg-surface-soft'
           : 'overflow-hidden rounded-lg border border-subtle bg-card shadow-sm',
         className
       )}
@@ -80,7 +80,7 @@ export function RecordSectionCard({
           />
         </CollapsibleTrigger>
       </div>
-      <CollapsibleContent className="bg-surface">
+      <CollapsibleContent className={isPanel ? 'bg-surface-soft' : 'bg-surface'}>
         <div className="min-h-0 px-5 py-4">{children}</div>
       </CollapsibleContent>
     </Collapsible>

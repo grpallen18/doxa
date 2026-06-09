@@ -63,6 +63,7 @@ export default function ControversyRecordPage() {
 
   return (
     <RecordHubShell
+      entityType="controversy"
       title={data.question ?? data.label ?? 'Controversy'}
       subtitle="Controversy cluster"
       meta={[

@@ -63,6 +63,7 @@ export default function AgreementRecordPage() {
 
   return (
     <RecordHubShell
+      entityType="agreement"
       title={data.label ?? data.summary ?? 'Agreement cluster'}
       subtitle="Agreement cluster"
       meta={[

@@ -163,7 +163,7 @@ function nodeAnchor(node: TimelineNode): string {
     const anchors: Record<PipelineStageId, string> = {
       ingestion: 'step-relevance-gate',
       extraction: 'step-chunk-story-bodies',
-      canonical: 'post-merge-actions',
+      canonical: 'lifecycle-flowchart',
     }
     return anchors[node.key as PipelineStageId]
   }

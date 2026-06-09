@@ -31,3 +31,10 @@ export {
 } from '@/lib/admin/pipeline-status'
 export type { StageSummary, StageSummaryStatus } from '@/lib/admin/pipeline-status'
 export { EXTRACTION_STEP_GROUPS } from '@/lib/admin/pipeline-status'
+export {
+  CLAIMS_LANE_STEP_IDS,
+  EXTRACTION_PARALLEL_LANES,
+  EXTRACTION_SHARED_STEP_IDS,
+  MERGE_QA_STEP_IDS,
+  POSITIONS_LANE_STEP_IDS,
+} from '@/lib/admin/pipeline-status'

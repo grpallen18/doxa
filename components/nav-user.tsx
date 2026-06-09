@@ -84,11 +84,10 @@ function UserDropdownContent({
   )
 }
 
-export function NavUser({
+function NavUserHeader({
   user,
   onSignOut,
   themeToggle,
-  variant = "sidebar",
 }: {
   user: {
     name: string
@@ -97,29 +96,40 @@ export function NavUser({
   }
   onSignOut?: () => void
   themeToggle?: React.ReactNode
-  variant?: "sidebar" | "header"
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={headerChromeIconButtonClassName}
+          aria-label="Account settings"
+        >
+          <Settings className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom" sideOffset={4} className={dropdownChromeContentClassName}>
+        <UserDropdownContent user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function NavUserSidebar({
+  user,
+  onSignOut,
+  themeToggle,
+}: {
+  user: {
+    name: string
+    email: string
+    avatar: string
+  }
+  onSignOut?: () => void
+  themeToggle?: React.ReactNode
 }) {
   const { isMobile } = useSidebar()
-
-  if (variant === "header") {
-    return (
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={headerChromeIconButtonClassName}
-            aria-label="Account settings"
-          >
-            <Settings className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="bottom" sideOffset={4} className={dropdownChromeContentClassName}>
-          <UserDropdownContent user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
-  }
 
   return (
     <SidebarMenu>
@@ -154,4 +164,26 @@ export function NavUser({
       </SidebarMenuItem>
     </SidebarMenu>
   )
+}
+
+export function NavUser({
+  user,
+  onSignOut,
+  themeToggle,
+  variant = "sidebar",
+}: {
+  user: {
+    name: string
+    email: string
+    avatar: string
+  }
+  onSignOut?: () => void
+  themeToggle?: React.ReactNode
+  variant?: "sidebar" | "header"
+}) {
+  if (variant === "header") {
+    return <NavUserHeader user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
+  }
+
+  return <NavUserSidebar user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
 }

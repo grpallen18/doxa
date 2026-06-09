@@ -1,9 +1,9 @@
 # validate-chunk-claims
 
-Chunk QA loop entry (claims-only path): deterministic validation sets chunk `extraction_qa_status` to `passed` or `needs_human_review`. Future review/refine chunk agents will extend this loop.
+Hybrid claims review: deterministic pre-checks plus LLM review (`extraction_qa_review_report`). Sets chunk status to `passed`, `needs_refinement`, or `needs_human_review`.
 
 | Deploy name | Queue stage |
 |-------------|-------------|
-| `validate_chunk_claims` | `validate_claims` |
+| `validate_chunk_claims` | `validate_claims` (`pending`) |
 
-Upstream: [extract-story-claims](../02-extract-story-claims/). Downstream: [merge-story-claims](../../03-merging-engine/01-merge-story-claims/) after all chunks passed.
+Upstream: [02-extract-story-claims](../02-extract-story-claims/). On `needs_refinement`: [04-refine-chunk-claims](../04-refine-chunk-claims/) then re-review. Downstream: [merge-story-claims](../../03-merging-engine/01-merge-story-claims/) after all chunks `passed`.

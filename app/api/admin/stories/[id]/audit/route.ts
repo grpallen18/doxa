@@ -3,9 +3,10 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { fetchStoryAuditEvents } from '@/lib/admin/story-audit'
 import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
+import { paginatedApiPayload, parseAuditListParams } from '@/lib/admin/api-pagination'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
@@ -24,8 +25,19 @@ export async function GET(
     const resolved = await resolveStoryIdParam(supabase, id)
     if ('response' in resolved) return resolved.response
 
-    const events = await fetchStoryAuditEvents(supabase, resolved.storyUuid)
-    return NextResponse.json({ data: { events }, error: null })
+    const viewAll = request.nextUrl.searchParams.get('view') === 'all'
+    const { limit, offset } = parseAuditListParams(
+      request.nextUrl.searchParams,
+      viewAll ? 'view_all' : 'embed'
+    )
+    const { events, total } = await fetchStoryAuditEvents(supabase, resolved.storyUuid, {
+      limit,
+      offset,
+    })
+    return NextResponse.json({
+      data: paginatedApiPayload(events, limit, offset, total),
+      error: null,
+    })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })

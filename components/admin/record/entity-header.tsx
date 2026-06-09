@@ -1,5 +1,28 @@
 import type { ReactNode } from 'react'
+import { EntityHeaderIcon } from '@/components/admin/record/entity-header-icon'
+import type { EntityRecordKind } from '@/lib/admin/entity-record-icons'
 import { cn } from '@/lib/utils'
+
+function EntityHeaderTitle({
+  title,
+  entityType,
+  className,
+  iconSize = 'md',
+}: {
+  title: ReactNode
+  entityType?: EntityRecordKind
+  className?: string
+  iconSize?: 'sm' | 'md' | 'lg'
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      {entityType ? <EntityHeaderIcon kind={entityType} size={iconSize} /> : null}
+      <h1 className={cn('min-w-0 flex-1 text-[var(--record-section-header-fg)]', className)}>
+        {title}
+      </h1>
+    </div>
+  )
+}
 
 export type EntityHeaderMetaItem = {
   label: string
@@ -15,6 +38,7 @@ export function EntityHeader({
   destructiveActions,
   layout = 'default',
   embedded = false,
+  entityType,
   className,
 }: {
   title: ReactNode
@@ -25,6 +49,7 @@ export function EntityHeader({
   destructiveActions?: ReactNode
   layout?: 'default' | 'record'
   embedded?: boolean
+  entityType?: EntityRecordKind
   className?: string
 }) {
   if (layout === 'record') {
@@ -32,14 +57,18 @@ export function EntityHeader({
       <header
         className={cn(
           embedded
-            ? 'bg-surface px-4 py-3 sm:px-5'
+            ? 'px-4 py-3 sm:px-5'
             : 'rounded-lg border border-subtle bg-card px-4 py-3 sm:px-5',
           className
         )}
       >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-6">
           <div className="min-w-0">
-            <h1 className="text-base font-semibold leading-snug sm:text-lg">{title}</h1>
+            <EntityHeaderTitle
+              title={title}
+              entityType={entityType}
+              className="text-base font-semibold leading-snug sm:text-lg"
+            />
             {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
             {meta && meta.length > 0 && (
               <dl className="mt-2.5 flex flex-nowrap items-baseline gap-x-6 overflow-x-auto text-sm">
@@ -91,7 +120,12 @@ export function EntityHeader({
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold leading-snug sm:text-xl">{title}</h1>
+          <EntityHeaderTitle
+            title={title}
+            entityType={entityType}
+            iconSize="lg"
+            className="text-lg font-semibold leading-snug sm:text-xl"
+          />
           {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
         </div>
         {actions && (

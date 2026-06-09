@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { HighlightedArticleText } from '@/components/admin/highlighted-article-text'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { claimRowKey } from '@/lib/admin/chunk-claim-ids'
 import {
   flattenExtractionJson,
   type ChunkClaim,
@@ -27,9 +28,6 @@ function claimRowSpan(content: string, claim: ChunkClaim): ArticleSpan | null {
   })
 }
 
-function claimRowKey(claim: ChunkClaim): string {
-  return `${claim.chunk_index}-${claim.index}`
-}
 
 export function ChunkContentExtractionLayout({
   content,
@@ -76,17 +74,21 @@ export function ChunkContentExtractionLayout({
       </ScrollArea>
 
       <div className="min-w-0">
-        {claims.length === 0 ? (
-          <p className="text-xs text-muted">No extracted claims yet.</p>
-        ) : (
-          <RecordLedgerTable
-            columns={['Claim', 'Polarity', 'Stance']}
-            gridClass={CLAIMS_GRID}
-          >
-            <ol className="divide-y divide-subtle">
-              {claims.map((claim) => {
+        <RecordLedgerTable
+          columns={['Claim', 'Polarity', 'Stance']}
+          gridClass={CLAIMS_GRID}
+        >
+          <ol className="divide-y divide-subtle">
+            {claims.length === 0 ? (
+              <li className={cn(CLAIMS_GRID, 'items-baseline px-3 py-2')}>
+                <span className="text-xs italic text-muted">No extracted claims yet.</span>
+                <span className="text-xs text-muted/60">—</span>
+                <span className="text-xs text-muted/60">—</span>
+              </li>
+            ) : (
+              claims.map((claim) => {
                 const span = claimRowSpan(content, claim)
-                const rowKey = claimRowKey(claim)
+                const rowKey = claimRowKey({ claim_id: claim.claim_id, index: claim.index })
                 const isHovered = hoveredClaimKey === rowKey
 
                 return (
@@ -118,10 +120,10 @@ export function ChunkContentExtractionLayout({
                     <span className={recordLedgerValueClass}>{claim.stance ?? '—'}</span>
                   </li>
                 )
-              })}
-            </ol>
-          </RecordLedgerTable>
-        )}
+              })
+            )}
+          </ol>
+        </RecordLedgerTable>
       </div>
     </div>
   )

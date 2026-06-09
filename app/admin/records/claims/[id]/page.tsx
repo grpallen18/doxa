@@ -43,6 +43,7 @@ export default function CanonicalClaimRecordPage() {
 
   return (
     <RecordHubShell
+      entityType="claim"
       title={data.canonical_text}
       subtitle="Canonical claim"
       meta={[

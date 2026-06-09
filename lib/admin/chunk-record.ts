@@ -15,6 +15,7 @@ export type ChunkRecord = {
   extraction_json: unknown | null
   extraction_qa_status: string | null
   extraction_qa_standardization_report: unknown | null
+  extraction_qa_review_report: unknown | null
   extraction_qa_validation_report: unknown | null
   extraction_qa_refinement_count: number
   extraction_qa_validation_attempt_count: number
@@ -22,7 +23,7 @@ export type ChunkRecord = {
 }
 
 const CHUNK_SELECT =
-  'chunk_index, friendly_id, content, extraction_json, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at'
+  'chunk_index, friendly_id, content, extraction_json, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_review_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at'
 
 export async function fetchChunkRecord(
   supabase: SupabaseClient,
@@ -65,6 +66,7 @@ export async function fetchChunkRecord(
     extraction_json: chunk.extraction_json,
     extraction_qa_status: (chunk.extraction_qa_status as string | null) ?? null,
     extraction_qa_standardization_report: chunk.extraction_qa_standardization_report,
+    extraction_qa_review_report: chunk.extraction_qa_review_report,
     extraction_qa_validation_report: chunk.extraction_qa_validation_report,
     extraction_qa_refinement_count: (chunk.extraction_qa_refinement_count as number) ?? 0,
     extraction_qa_validation_attempt_count:

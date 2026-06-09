@@ -123,7 +123,9 @@ export function applyPatches(extraction: ExtractionJson, patches: RefinementPatc
 
     if (patch.op === "add") {
       const list = arr(out, key);
-      list.push(patch.value);
+      const value = { ...(patch.value ?? {}) } as Record<string, unknown>;
+      if (key === "claims") delete value.claim_id;
+      list.push(value);
       setArr(out, key, list);
     } else if (patch.op === "remove") {
       const list = arr(out, key);
@@ -134,7 +136,10 @@ export function applyPatches(extraction: ExtractionJson, patches: RefinementPatc
     } else if (patch.op === "update") {
       const list = arr(out, key);
       if (patch.entity_index < 0 || patch.entity_index >= list.length) continue;
-      list[patch.entity_index] = { ...(list[patch.entity_index] as object), ...patch.value };
+      const existing = { ...(list[patch.entity_index] as Record<string, unknown>) };
+      const patchValue = { ...(patch.value ?? {}) } as Record<string, unknown>;
+      if (key === "claims") delete patchValue.claim_id;
+      list[patch.entity_index] = { ...existing, ...patchValue };
       setArr(out, key, list);
     }
   }

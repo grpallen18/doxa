@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
-import { fetchClaimsHistory } from '@/lib/admin/history'
+import { fetchPaginatedClaimsAudit } from '@/lib/admin/paginated-audit-fetch'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
@@ -20,8 +20,8 @@ export async function GET(
 
   try {
     const supabase = createAdminClient()
-    const events = await fetchClaimsHistory(supabase, id)
-    return NextResponse.json({ data: { events }, error: null })
+    const data = await fetchPaginatedClaimsAudit(supabase, id, request)
+    return NextResponse.json({ data, error: null })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })

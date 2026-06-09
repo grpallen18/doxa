@@ -28,11 +28,14 @@ export async function GET(
 
   try {
     const supabase = createAdminClient()
-    const recentRuns = await fetchAgentRecentRuns(supabase, agent.deployName)
-    const lastRun = recentRuns[0] ?? null
+    const { runs } = await fetchAgentRecentRuns(supabase, agent.deployName, {
+      limit: 1,
+      offset: 0,
+    })
+    const lastRun = runs[0] ?? null
 
     return NextResponse.json({
-      data: { agent, recentRuns, lastRun },
+      data: { agent, lastRun },
       error: null,
     })
   } catch (error: unknown) {

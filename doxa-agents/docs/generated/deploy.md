@@ -11,12 +11,17 @@ supabase functions deploy review_pending_stories
 supabase functions deploy scrape_story_content
 supabase functions deploy chunk_story_bodies
 supabase functions deploy extract_story_claims
+supabase functions deploy extract_story_positions
 supabase functions deploy link_chunk_entities
+supabase functions deploy refine_chunk_claims
 supabase functions deploy refine_chunk_extraction
+supabase functions deploy refine_chunk_positions
 supabase functions deploy standardize_chunk_extraction
 supabase functions deploy validate_chunk_claims
 supabase functions deploy validate_chunk_extraction
+supabase functions deploy validate_chunk_positions
 supabase functions deploy merge_story_claims
+supabase functions deploy merge_story_positions
 supabase functions deploy refine_merged_extraction
 supabase functions deploy review_merged_extraction
 supabase functions deploy validate_merged_extraction
@@ -52,6 +57,7 @@ supabase functions deploy review_pending_stories --no-verify-jwt
 supabase functions deploy scrape_story_content --no-verify-jwt
 supabase functions deploy chunk_story_bodies --no-verify-jwt
 supabase functions deploy extract_story_claims --no-verify-jwt
+supabase functions deploy refine_chunk_claims --no-verify-jwt
 supabase functions deploy validate_chunk_claims --no-verify-jwt
 supabase functions deploy merge_story_claims --no-verify-jwt
 supabase functions deploy refine_merged_extraction --no-verify-jwt

@@ -1,0 +1,22 @@
+# Dev/bootstrap reference for agent_prompt_slots — production uses SQL migrations.
+# npm run agents:validate warns when prompt_kind: llm steps lack an entry here.
+
+seeds:
+  extract-story-claims:
+    system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
+    export_name: EXTRACT_CLAIMS_SYSTEM_PROMPT
+  validate-chunk-claims:
+    system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
+    export_name: CHUNK_CLAIMS_REVIEW_SYSTEM
+  refine-chunk-claims:
+    system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
+    export_name: CHUNK_CLAIMS_REFINE_SYSTEM
+  extract-story-positions:
+    system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
+    export_name: EXTRACT_POSITIONS_SYSTEM_PROMPT
+  validate-chunk-positions:
+    system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
+    export_name: CHUNK_POSITIONS_REVIEW_SYSTEM
+  refine-chunk-positions:
+    system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
+    export_name: CHUNK_POSITIONS_REFINE_SYSTEM

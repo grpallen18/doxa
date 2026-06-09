@@ -20,6 +20,11 @@ import {
 } from '@/components/admin/pipeline/focus-accordion'
 import type { PipelineStageId } from '@/lib/admin/generated/pipeline-catalog'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import {
+  EXTRACTION_PARALLEL_LANES,
+  EXTRACTION_SHARED_STEP_IDS,
+  MERGE_QA_STEP_IDS,
+} from '@/lib/admin/story-pipeline-checklist'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
   derivePipelineChecklist,
@@ -38,6 +43,86 @@ import { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-p
 import { AgentIconButton } from '@/components/admin/record/agent-icon-button'
 import { StageActionButtons } from '@/components/admin/record/stage-action-buttons'
 import { cn } from '@/lib/utils'
+
+function renderStepRows(
+  stageSteps: PipelineStepState[],
+  props: {
+    runningStepId: PipelineStepId | null
+    revertingStepId: PipelineStepId | null
+    isBusy: boolean
+    onRun: (stepId: PipelineStepId) => void
+    onRevert: (stepId: PipelineStepId) => void
+    payload: StoryExtractionReviewPayload
+    revealTarget: { stepId: PipelineStepId; epoch: number } | null
+    renderFeedback?: PipelineStepDetailProps['renderFeedback']
+    spanHighlight?: SpanHighlightProps
+    embedded?: boolean
+  }
+) {
+  return stageSteps.map((step) => (
+    <PipelineStepRow
+      key={step.id}
+      step={step}
+      isRunning={props.runningStepId === step.id}
+      isReverting={props.revertingStepId === step.id}
+      isBusy={props.isBusy}
+      onRun={props.onRun}
+      onRevert={props.onRevert}
+      payload={props.payload}
+      revealTarget={props.revealTarget}
+      renderFeedback={props.renderFeedback}
+      spanHighlight={props.spanHighlight}
+      embedded={props.embedded}
+    />
+  ))
+}
+
+function ExtractionStageSteps({
+  stageSteps,
+  rowProps,
+}: {
+  stageSteps: PipelineStepState[]
+  rowProps: Parameters<typeof renderStepRows>[1]
+}) {
+  const stepById = (id: PipelineStepId) => stageSteps.find((step) => step.id === id)
+  const sharedSteps = EXTRACTION_SHARED_STEP_IDS.map(stepById).filter(
+    (step): step is PipelineStepState => step != null
+  )
+  const mergeQaSteps = MERGE_QA_STEP_IDS.map(stepById).filter(
+    (step): step is PipelineStepState => step != null
+  )
+
+  return (
+    <div className="space-y-4">
+      {sharedSteps.length > 0 && (
+        <div className="space-y-2">{renderStepRows(sharedSteps, rowProps)}</div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        {EXTRACTION_PARALLEL_LANES.map((lane) => {
+          const laneSteps = lane.stepIds
+            .map((id) => stepById(id))
+            .filter((step): step is PipelineStepState => step != null)
+          if (laneSteps.length === 0) return null
+
+          return (
+            <div key={lane.id} className="min-w-0 space-y-2">
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">{lane.label}</h5>
+              {renderStepRows(laneSteps, rowProps)}
+            </div>
+          )
+        })}
+      </div>
+
+      {mergeQaSteps.length > 0 && (
+        <div className="space-y-2">
+          <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">Merge approval</h5>
+          {renderStepRows(mergeQaSteps, rowProps)}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function PipelineStepRow({
   step,
@@ -244,6 +329,19 @@ export function PipelineChecklist({
           const stageSteps = filteredSteps.filter((s) => s.stageId === stage.id)
           if (stageSteps.length === 0) return null
 
+          const extractionRowProps = {
+            runningStepId: actions.runningStepId,
+            revertingStepId: actions.revertingStepId,
+            isBusy: actions.isBusy,
+            onRun: actions.runStep,
+            onRevert: actions.requestRevert,
+            payload,
+            revealTarget: actions.revealTarget,
+            renderFeedback,
+            spanHighlight,
+            embedded,
+          }
+
           return (
             <div key={stage.id} className="space-y-2">
               {!stageId && !stepIds?.length && (
@@ -251,24 +349,28 @@ export function PipelineChecklist({
                   {stage.label}
                 </h4>
               )}
-              <div className="space-y-2">
-                {stageSteps.map((step) => (
-                  <PipelineStepRow
-                    key={step.id}
-                    step={step}
-                    isRunning={actions.runningStepId === step.id}
-                    isReverting={actions.revertingStepId === step.id}
-                    isBusy={actions.isBusy}
-                    onRun={actions.runStep}
-                    onRevert={actions.requestRevert}
-                    payload={payload}
-                    revealTarget={actions.revealTarget}
-                    renderFeedback={renderFeedback}
-                    spanHighlight={spanHighlight}
-                    embedded={embedded}
-                  />
-                ))}
-              </div>
+              {stage.id === 'extraction' ? (
+                <ExtractionStageSteps stageSteps={stageSteps} rowProps={extractionRowProps} />
+              ) : (
+                <div className="space-y-2">
+                  {stageSteps.map((step) => (
+                    <PipelineStepRow
+                      key={step.id}
+                      step={step}
+                      isRunning={actions.runningStepId === step.id}
+                      isReverting={actions.revertingStepId === step.id}
+                      isBusy={actions.isBusy}
+                      onRun={actions.runStep}
+                      onRevert={actions.requestRevert}
+                      payload={payload}
+                      revealTarget={actions.revealTarget}
+                      renderFeedback={renderFeedback}
+                      spanHighlight={spanHighlight}
+                      embedded={embedded}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}

@@ -59,7 +59,7 @@ function findAllNormalizedSpans(sourceText: string, excerpt: string): VerbatimSp
   return results;
 }
 
-function applySpanToRow(row: Record<string, unknown>, sourceText: string): Record<string, unknown> {
+export function applySpanToRow(row: Record<string, unknown>, sourceText: string): Record<string, unknown> {
   const excerpt = sourceExcerptFromAtom(row);
   if (!excerpt) return row;
 
@@ -140,7 +140,7 @@ export function findBestGroundingExcerpt(sourceText: string, claimText: string):
 }
 
 export function attachClaimsFromRawText(
-  claims: Array<{ raw_text: string }>,
+  claims: Array<{ raw_text: string; claim_id?: string }>,
   storyId: string,
   chunkIndex: number,
   sourceText: string
@@ -159,8 +159,35 @@ export function attachClaimsFromRawText(
       span_end: null,
       extraction_confidence: sourceExcerpt ? 0.75 : 0.45,
     };
+    if (claim.claim_id) row.claim_id = claim.claim_id;
     const withSpan = applySpanToRow(row, sourceText);
     return withSpan;
+  });
+}
+
+export function attachPositionsFromRawText(
+  positions: Array<{ raw_text: string; position_id?: string; source_excerpt?: string }>,
+  storyId: string,
+  chunkIndex: number,
+  sourceText: string
+): Array<Record<string, unknown>> {
+  return positions.map((position) => {
+    const rawText = String(position.raw_text ?? "").trim();
+    const sourceExcerpt =
+      String(position.source_excerpt ?? "").trim() || findBestGroundingExcerpt(sourceText, rawText);
+    const row: Record<string, unknown> = {
+      raw_text: rawText,
+      position_type: "article_stance",
+      holder: "article",
+      source_story_id: storyId,
+      source_chunk_index: chunkIndex,
+      source_excerpt: sourceExcerpt,
+      span_start: null,
+      span_end: null,
+      extraction_confidence: sourceExcerpt ? 0.75 : 0.45,
+    };
+    if (position.position_id) row.position_id = position.position_id;
+    return applySpanToRow(row, sourceText);
   });
 }
 

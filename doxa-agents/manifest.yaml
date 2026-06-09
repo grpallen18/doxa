@@ -123,6 +123,15 @@ steps:
     secrets:
       - OPENAI_API_KEY
     verify_jwt: false
+  - id: extract-story-positions
+    department: 02-chunking-engine
+    workflow: extract-story-positions
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/08-extract-story-positions
+    deploy_name: extract_story_positions
+    secrets:
+      - OPENAI_API_KEY
   - id: link-chunk-entities
     department: 02-chunking-engine
     workflow: link-chunk-entities
@@ -138,6 +147,19 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/06-link-chunk-entities/schedule.sql
       body: '{"max_chunks":5}'
+  - id: refine-chunk-claims
+    department: 02-chunking-engine
+    workflow: refine-chunk-claims
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/04-refine-chunk-claims
+    deploy_name: refine_chunk_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+    verify_jwt: false
   - id: refine-chunk-extraction
     department: 02-chunking-engine
     workflow: refine-chunk-extraction
@@ -155,6 +177,18 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/04-refine-chunk-extraction/schedule.sql
       body: "{}"
+  - id: refine-chunk-positions
+    department: 02-chunking-engine
+    workflow: refine-chunk-positions
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/10-refine-chunk-positions
+    deploy_name: refine_chunk_positions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
   - id: standardize-chunk-extraction
     department: 02-chunking-engine
     workflow: standardize-chunk-extraction
@@ -179,6 +213,11 @@ steps:
     status: inactive
     source: doxa-agents/departments/02-chunking-engine/03-validate-chunk-claims
     deploy_name: validate_chunk_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
     verify_jwt: false
   - id: validate-chunk-extraction
     department: 02-chunking-engine
@@ -197,6 +236,18 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/02-chunking-engine/05-validate-chunk-extraction/schedule.sql
       body: "{}"
+  - id: validate-chunk-positions
+    department: 02-chunking-engine
+    workflow: validate-chunk-positions
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/09-validate-chunk-positions
+    deploy_name: validate_chunk_positions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
   - id: merge-story-claims
     department: 03-merging-engine
     workflow: merge-story-claims
@@ -208,6 +259,16 @@ steps:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     verify_jwt: false
+  - id: merge-story-positions
+    department: 03-merging-engine
+    workflow: merge-story-positions
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-merging-engine/02-merge-story-positions
+    deploy_name: merge_story_positions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
   - id: refine-merged-extraction
     department: 03-merging-engine
     workflow: refine-merged-extraction

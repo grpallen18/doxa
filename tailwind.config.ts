@@ -91,6 +91,7 @@ const config: Config = {
   			surface: 'var(--surface)',
   			'surface-soft': 'var(--surface-soft)',
   			'surface-section': 'var(--surface-section)',
+  			'surface-canvas': 'var(--surface-canvas)',
   			muted: 'var(--muted-bg)'
   		},
   		textColor: {

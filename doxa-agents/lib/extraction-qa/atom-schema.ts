@@ -90,6 +90,90 @@ export const EXTRACT_CLAIMS_JSON_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const EXTRACT_POSITION_STANCE_SIGNATURE_SCHEMA = {
+  type: "object",
+  properties: {
+    stance_target: { type: "string" },
+    stance_action: { type: "string" },
+    stance_polarity: { type: "string" },
+    scope: { type: "string" },
+    jurisdiction: { type: "string" },
+    timeframe: { type: "string" },
+    modality: { type: "string" },
+  },
+  required: [
+    "stance_target",
+    "stance_action",
+    "stance_polarity",
+    "scope",
+    "jurisdiction",
+    "timeframe",
+    "modality",
+  ],
+  additionalProperties: false,
+} as const;
+
+const EXTRACT_POSITION_SPAN_SCHEMA = {
+  type: "object",
+  properties: {
+    span_text: { type: "string" },
+    span_role: { type: "string" },
+    why_it_matters: { type: "string" },
+  },
+  required: ["span_text", "span_role", "why_it_matters"],
+  additionalProperties: false,
+} as const;
+
+export const EXTRACT_POSITIONS_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    positions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          raw_position_text: { type: "string" },
+          standardized_position_text: { type: "string" },
+          signal_type: { type: "string", enum: ["explicit", "implicit", "attributed", "opposed"] },
+          signal_strength: { type: "number" },
+          confidence: { type: "number" },
+          stance_signature: EXTRACT_POSITION_STANCE_SIGNATURE_SCHEMA,
+          is_source_position: { type: "boolean" },
+          is_attributed_to_other_actor: { type: "boolean" },
+          attributed_actor: { type: ["string", "null"] },
+          source_endorses_attributed_position: {
+            type: "string",
+            enum: ["yes", "no", "unclear", "not_applicable"],
+          },
+          supporting_spans: { type: "array", items: EXTRACT_POSITION_SPAN_SCHEMA },
+          inference_rationale: { type: "string" },
+          related_claim_ids: { type: "array", items: { type: "string" } },
+          notes: { type: "string" },
+        },
+        required: [
+          "raw_position_text",
+          "standardized_position_text",
+          "signal_type",
+          "signal_strength",
+          "confidence",
+          "stance_signature",
+          "is_source_position",
+          "is_attributed_to_other_actor",
+          "attributed_actor",
+          "source_endorses_attributed_position",
+          "supporting_spans",
+          "inference_rationale",
+          "related_claim_ids",
+          "notes",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["positions"],
+  additionalProperties: false,
+} as const;
+
 export const EXTRACT_ATOMS_JSON_SCHEMA = {
   type: "object",
   properties: {

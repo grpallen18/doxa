@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
-import { fetchStoryChunksHistory } from '@/lib/admin/history'
+import { fetchPaginatedChunkAudit } from '@/lib/admin/paginated-audit-fetch'
 import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 import { resolveChunkIndex } from '@/lib/admin/resolve-chunk-ref'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; chunkIndex: string }> }
 ) {
   const auth = await requireAdmin()
@@ -33,8 +33,13 @@ export async function GET(
       )
     }
 
-    const events = await fetchStoryChunksHistory(supabase, resolved.storyUuid, chunkIndex)
-    return NextResponse.json({ data: { events }, error: null })
+    const data = await fetchPaginatedChunkAudit(
+      supabase,
+      resolved.storyUuid,
+      chunkIndex,
+      request
+    )
+    return NextResponse.json({ data, error: null })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })

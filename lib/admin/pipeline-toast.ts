@@ -1,4 +1,9 @@
 import { toast } from 'sonner'
+import {
+  isPromptSchemaMismatchWarning,
+  pipelineWarningMessage,
+  type PipelineWarning,
+} from '@/lib/admin/pipeline-warnings'
 
 const PIPELINE_TOAST_POSITION = 'top-center' as const
 
@@ -32,8 +37,26 @@ export function showPipelineSuccess(message: string) {
   toast.success(message, { position: PIPELINE_TOAST_POSITION })
 }
 
-export function showPipelineWarning(message: string) {
-  toast.warning(message, { position: PIPELINE_TOAST_POSITION, duration: 8000 })
+export function showPipelineWarning(
+  warning: PipelineWarning,
+  options?: { onFixSchema?: (stepId: string) => void | Promise<void> }
+) {
+  const message = pipelineWarningMessage(warning)
+  const canFix =
+    isPromptSchemaMismatchWarning(warning) &&
+    warning.canSyncSchema &&
+    options?.onFixSchema
+
+  toast.warning(message, {
+    position: PIPELINE_TOAST_POSITION,
+    duration: 12_000,
+    action: canFix
+      ? {
+          label: 'Fix schema',
+          onClick: () => void options.onFixSchema!(warning.stepId),
+        }
+      : undefined,
+  })
 }
 
 export function showPipelineInfo(message: string) {

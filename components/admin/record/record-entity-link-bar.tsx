@@ -17,13 +17,13 @@ export function RecordEntityLinkBar({
     <nav
       aria-label="Related links"
       className={cn(
-        'flex flex-nowrap items-center gap-x-6 overflow-x-auto bg-surface px-4 py-2 text-sm sm:px-5',
+        'flex flex-nowrap items-center gap-x-6 overflow-x-auto px-4 py-3 text-sm sm:px-5',
         className
       )}
     >
       {links.map((link) => (
-        <p key={link.label} className="shrink-0 text-muted">
-          <span>{link.label}: </span>
+        <p key={link.label} className="shrink-0">
+          <span className="text-[var(--record-section-header-fg)]">{link.label}: </span>
           <a
             href={link.href}
             target="_blank"

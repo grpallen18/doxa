@@ -33,6 +33,7 @@ export default function CanonicalEventRecordPage() {
 
   return (
     <RecordHubShell
+      entityType="event"
       title={data.canonical_text}
       subtitle="Canonical event"
       meta={[

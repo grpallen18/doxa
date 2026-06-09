@@ -5,6 +5,7 @@ type ChunkRecord = StoryExtractionReviewPayload['chunks'][number]
 export type ChunkClaim = {
   chunk_index: number
   index: number
+  claim_id: string | null
   raw_text: string
   polarity: string | null
   stance: string | null
@@ -94,6 +95,7 @@ export function flattenChunkEntities(chunks: ChunkRecord[]): ChunkExtractionEnti
       claims.push({
         chunk_index: chunk.chunk_index,
         index,
+        claim_id: str(c.claim_id),
         raw_text,
         polarity: str(c.polarity),
         stance: str(c.stance),
@@ -204,28 +206,35 @@ export function mergedEntityCounts(payload: StoryExtractionReviewPayload) {
 
 type QaArtifact = StoryExtractionReviewPayload['qa_artifacts'][number]
 
-function artifactForChunk(artifacts: QaArtifact[], chunkIndex: number, stage: string) {
-  return artifacts.find((a) => a.stage === stage && a.chunk_index === chunkIndex)
+const REFINE_STAGES = ['chunk_refine_claims', 'chunk_refine'] as const
+const REVIEW_STAGES = ['chunk_review_claims', 'chunk_review'] as const
+
+function latestArtifactForChunk(
+  artifacts: QaArtifact[],
+  chunkIndex: number,
+  stages: readonly string[]
+) {
+  return artifacts.find((a) => a.chunk_index === chunkIndex && stages.includes(a.stage))
 }
 
-/** Pre-refine extraction: artifact snapshot when refined, else live chunk JSON. */
+/** Pre-refine extraction: latest refine input snapshot, else latest review input, else live chunk JSON. */
 export function resolvePreRefineExtractionJson(
   chunk: ChunkRecord,
   artifacts: QaArtifact[]
 ): unknown {
-  const refine = artifactForChunk(artifacts, chunk.chunk_index, 'chunk_refine')
+  const refine = latestArtifactForChunk(artifacts, chunk.chunk_index, REFINE_STAGES)
   if (refine?.input_snapshot != null) return refine.input_snapshot
-  const review = artifactForChunk(artifacts, chunk.chunk_index, 'chunk_review')
+  const review = latestArtifactForChunk(artifacts, chunk.chunk_index, REVIEW_STAGES)
   if (review?.input_snapshot != null) return review.input_snapshot
   return chunk.extraction_json
 }
 
-/** Post-refine extraction: refine artifact output when present, else live chunk JSON. */
+/** Post-refine extraction: latest refine output snapshot when present, else live chunk JSON. */
 export function resolvePostRefineExtractionJson(
   chunk: ChunkRecord,
   artifacts: QaArtifact[]
 ): unknown {
-  const refine = artifactForChunk(artifacts, chunk.chunk_index, 'chunk_refine')
+  const refine = latestArtifactForChunk(artifacts, chunk.chunk_index, REFINE_STAGES)
   if (refine?.output_snapshot != null) return refine.output_snapshot
   return chunk.extraction_json
 }

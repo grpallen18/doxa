@@ -6,5 +6,5 @@ export default async function StoryCanonicalRedirectPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  redirect(`/admin/stories/${id}#post-merge-actions`)
+  redirect(`/admin/stories/${id}#lifecycle-flowchart`)
 }

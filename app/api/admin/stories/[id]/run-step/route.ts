@@ -3,7 +3,11 @@ import { requireAdmin } from '@/lib/auth'
 import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 import { extractEdgeFunctionError, extractErrorMessage } from '@/lib/admin/story-extraction-review'
 import { createAdminClient } from '@/lib/supabase/server'
-import { getInvokeOptions, resolveDeployName } from '@/lib/admin/story-pipeline-checklist'
+import { PIPELINE_STEPS, getInvokeOptions, resolveDeployName } from '@/lib/admin/story-pipeline-checklist'
+import { logStoryPipelineStepRun } from '@/lib/admin/story-audit'
+import { fetchAgentPrompt } from '@/lib/admin/agent-prompt-store'
+import { checkAgentPromptSchemaMatch } from '@/lib/admin/agent-prompt-response-schema'
+import type { PipelineWarning } from '@/lib/admin/pipeline-warnings'
 import { edgeFunctionHeaders } from '@/lib/supabase/edge-function-auth'
 
 /** Admin: invoke one pipeline edge function for a story. */
@@ -63,10 +67,35 @@ export async function POST(
   if ('response' in resolved) return resolved.response
   const { storyUuid } = resolved
 
+  const stepDef = PIPELINE_STEPS.find((step) => step.deployName === deployName)
   const invokeOptions = getInvokeOptions(deployName)
   const invokeBody: Record<string, unknown> = { story_id: storyUuid }
   if (invokeOptions.usesMaxChunks && invokeOptions.maxChunks != null) {
     invokeBody.max_chunks = invokeOptions.maxChunks
+  }
+
+  const warnings: PipelineWarning[] = []
+  let promptVersionNumber: number | null = null
+
+  if (stepDef?.promptKind === 'llm' && stepDef.id) {
+    const promptView = await fetchAgentPrompt(supabase, stepDef.id)
+    const activePrompt = promptView?.slot?.activeVersion
+    if (activePrompt) {
+      promptVersionNumber = activePrompt.versionNumber
+      const mismatch = await checkAgentPromptSchemaMatch(
+        supabase,
+        stepDef.id,
+        activePrompt.systemPrompt
+      )
+      if (mismatch?.message) {
+        warnings.push({
+          kind: 'prompt_schema_mismatch',
+          message: mismatch.message,
+          stepId: stepDef.id,
+          canSyncSchema: true,
+        })
+      }
+    }
   }
 
   const edgeTimeoutMs = invokeOptions.timeoutMs
@@ -83,7 +112,7 @@ export async function POST(
       signal: AbortSignal.timeout(edgeTimeoutMs),
     })
 
-    const data = await res.json().catch(() => ({}))
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (!res.ok) {
       const message = extractEdgeFunctionError(data, res.status)
       return NextResponse.json(
@@ -92,8 +121,28 @@ export async function POST(
       )
     }
 
+    try {
+      await logStoryPipelineStepRun(supabase, {
+        storyId: storyUuid,
+        stepId: stepDef?.id ?? stepInput,
+        stepLabel: stepDef?.label ?? deployName,
+        deployName,
+        actorId: auth.user.id,
+        result: data,
+      })
+    } catch (auditError: unknown) {
+      console.error('[run-step] Failed to append story audit event:', auditError)
+    }
+
+    const resultPromptVersion =
+      typeof data.prompt_version_number === 'number' ? data.prompt_version_number : promptVersionNumber
     return NextResponse.json({
-      data: { deploy_name: deployName, result: data },
+      data: {
+        deploy_name: deployName,
+        result: data,
+        prompt_version_number: resultPromptVersion,
+        warnings,
+      },
       error: null,
     })
   } catch (error: unknown) {

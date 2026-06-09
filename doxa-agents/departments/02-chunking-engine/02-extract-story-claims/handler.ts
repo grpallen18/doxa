@@ -4,12 +4,13 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { EXTRACT_CLAIMS_JSON_SCHEMA } from "../../../lib/extraction-qa/atom-schema.ts";
+import { loadActivePrompt } from "../../../lib/agent-prompts.ts";
 import {
   buildExtractClaimsUserPayload,
   callOpenAIJson,
-  EXTRACT_CLAIMS_SYSTEM_PROMPT,
   saveArtifact,
 } from "../../../lib/extraction-qa/openai-qa.ts";
+import { ensureStableClaimIds } from "../../../lib/extraction-qa/claim-ids.ts";
 import { attachClaimsFromRawText } from "../../../lib/extraction-qa/span-compute.ts";
 import {
   loadStoryMetadataBatch,
@@ -65,6 +66,7 @@ function clampInt(n: unknown, min: number, max: number, fallback: number) {
 async function callOpenAIClaims(
   apiKey: string,
   model: string,
+  systemPrompt: string,
   metadata: StoryAgentMetadata,
   content: string,
   storyId: string,
@@ -77,7 +79,7 @@ async function callOpenAIClaims(
     callOpenAIJson<{ claims?: Array<{ raw_text?: string; claim_text?: string }> }>(
       apiKey,
       model,
-      EXTRACT_CLAIMS_SYSTEM_PROMPT,
+      systemPrompt,
       userPayload,
       "doxa_extract_story_claims",
       EXTRACT_CLAIMS_JSON_SCHEMA as unknown as Record<string, unknown>,
@@ -93,7 +95,8 @@ async function callOpenAIClaims(
     raw_text: String(c?.raw_text ?? c?.claim_text ?? "").trim(),
   })).filter((c) => c.raw_text.length > 0);
 
-  const claims = attachClaimsFromRawText(claimsRaw, storyId, chunkIndex, content);
+  const attached = attachClaimsFromRawText(claimsRaw, storyId, chunkIndex, content);
+  const claims = await ensureStableClaimIds(attached, storyId, chunkIndex);
   return { claims };
 }
 
@@ -213,6 +216,14 @@ export const handler = async (req: Request) => {
     });
   }
 
+  let activePrompt;
+  try {
+    activePrompt = await loadActivePrompt(supabase, "extract-story-claims");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return json({ error: msg }, 500);
+  }
+
   let runId: string | null = null;
   if (!dryRun) {
     try {
@@ -224,6 +235,7 @@ export const handler = async (req: Request) => {
           started_at: new Date().toISOString(),
           model_provider: "openai",
           model_name: MODEL,
+          prompt_version_id: activePrompt.versionId,
         })
         .select("run_id")
         .single();
@@ -249,6 +261,7 @@ export const handler = async (req: Request) => {
       const result = await callOpenAIClaims(
         OPENAI_API_KEY,
         MODEL,
+        activePrompt.systemPrompt,
         metadata,
         chunk.content ?? "",
         chunk.story_id,

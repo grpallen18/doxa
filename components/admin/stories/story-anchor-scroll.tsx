@@ -3,14 +3,11 @@
 import { useEffect, useRef } from 'react'
 
 const SECTION_IDS = [
-  'lifecycle',
+  'lifecycle-flowchart',
   'story-info',
   'source-content',
+  'chunks',
   'extracted-atoms',
-  'agent-outputs',
-  'validation-review',
-  'merge-results',
-  'post-merge-actions',
   'audit-history',
 ]
 

@@ -2,7 +2,11 @@ import fs from 'fs'
 import path from 'path'
 import yaml from 'yaml'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { PIPELINE_STEPS, type PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import {
+  PIPELINE_STEPS,
+  type PipelineStepId,
+  type PromptKind,
+} from '@/lib/admin/generated/pipeline-catalog'
 
 type ManifestStep = {
   id: string
@@ -47,6 +51,8 @@ export type AgentDetail = {
   sourcePath: string | null
   cron: { job_name: string; schedule: string } | null
   secrets: string[]
+  promptKind: PromptKind
+  userPayloadDoc: string | null
 }
 
 export type AgentRunSummary = {
@@ -83,22 +89,31 @@ export function getAgentDetail(stepId: string): AgentDetail | null {
     sourcePath: manifestStep?.source ?? null,
     cron: manifestStep?.cron ?? null,
     secrets: manifestStep?.secrets ?? [],
+    promptKind: catalog.promptKind,
+    userPayloadDoc: catalog.userPayloadDoc,
   }
+}
+
+export type AgentRunsPageResult = {
+  runs: AgentRunSummary[]
+  total: number
 }
 
 export async function fetchAgentRecentRuns(
   supabase: SupabaseClient,
   deployName: string,
-  limit = 20
-): Promise<AgentRunSummary[]> {
-  const { data: runs } = await supabase
+  pagination: { limit: number; offset: number }
+): Promise<AgentRunsPageResult> {
+  const { data: runs, count } = await supabase
     .from('pipeline_runs')
-    .select('run_id, pipeline_name, status, started_at, ended_at, model_name, error')
+    .select('run_id, pipeline_name, status, started_at, ended_at, model_name, error', {
+      count: 'exact',
+    })
     .eq('pipeline_name', deployName)
     .order('started_at', { ascending: false })
-    .limit(limit)
+    .range(pagination.offset, pagination.offset + pagination.limit - 1)
 
-  if (!runs?.length) return []
+  if (!runs?.length) return { runs: [], total: count ?? 0 }
 
   const runIds = runs.map((r) => r.run_id as string)
 
@@ -114,14 +129,17 @@ export async function fetchAgentRecentRuns(
     }
   }
 
-  return runs.map((run) => ({
-    run_id: run.run_id as string,
-    pipeline_name: run.pipeline_name as string,
-    status: run.status as string,
-    started_at: run.started_at as string,
-    ended_at: (run.ended_at as string | null) ?? null,
-    model_name: (run.model_name as string | null) ?? null,
-    error: (run.error as string | null) ?? null,
-    story_id: storyByRun.get(run.run_id as string) ?? null,
-  }))
+  return {
+    runs: runs.map((run) => ({
+      run_id: run.run_id as string,
+      pipeline_name: run.pipeline_name as string,
+      status: run.status as string,
+      started_at: run.started_at as string,
+      ended_at: (run.ended_at as string | null) ?? null,
+      model_name: (run.model_name as string | null) ?? null,
+      error: (run.error as string | null) ?? null,
+      story_id: storyByRun.get(run.run_id as string) ?? null,
+    })),
+    total: count ?? runs.length,
+  }
 }

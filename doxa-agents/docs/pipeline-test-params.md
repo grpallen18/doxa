@@ -26,8 +26,12 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. |
 | chunk-story-bodies | `chunk_story_bodies` | `story_id` | Chunks one story if `content_clean` exists and no `story_chunks` yet. |
 | extract-story-claims | `extract_story_claims` | `story_id`, optional `chunk_index` | Primary claims only; sets chunk QA `pending`. |
+| extract-story-positions | `extract_story_positions` | `story_id`, optional `chunk_index` | Positions only; sets `positions_qa_status` `pending`. Runs parallel to claims. |
 | validate-chunk-claims | `validate_chunk_claims` | `story_id`, optional `chunk_index` | Chunk QA loop — deterministic validate → chunk `passed`. |
+| validate-chunk-positions | `validate_chunk_positions` | `story_id`, optional `chunk_index` | Positions chunk QA loop → `positions_qa_status` `passed`. |
+| refine-chunk-positions | `refine_chunk_positions` | `story_id`, optional `chunk_index` | Positions refine when review requests it. |
 | merge-story-claims | `merge_story_claims` | `story_id` | Merge after all chunks passed (same gate as cron). |
+| merge-story-positions | `merge_story_positions` | `story_id` | Merge positions after all chunks `positions_qa_status = passed`. |
 | review-merged-extraction | `review_merged_extraction` | `story_id` | Merge QA loop — reviewer. |
 | refine-merged-extraction | `refine_merged_extraction` | `story_id` | Merge QA loop — when review requests refinement. |
 | validate-merged-extraction | `validate_merged_extraction` | `story_id` | Merge QA loop — approve before canonical linkers. |
@@ -82,9 +86,12 @@ Future (not implemented yet): `canonical_claim_id`, `canonical_position_id` for 
 2. `clean_scraped_content`
 3. `chunk_story_bodies`
 4. `extract_story_claims` (repeat until all chunks have `extraction_json`)
-5. `validate_chunk_claims` (chunk QA loop — all chunks `extraction_qa_status = passed`)
-6. `merge_story_claims` → **merge QA loop:** `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
-7. `link_canonical_claims` (optional: events / positions / stances)
+5. `extract_story_positions` (repeat until all chunks have `positions_extraction_json`) — **parallel with claims**
+6. `validate_chunk_claims` (chunk QA loop — all chunks `extraction_qa_status = passed`)
+7. `validate_chunk_positions` (positions QA loop — all chunks `positions_qa_status = passed`)
+8. `merge_story_claims` → **merge QA loop:** `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
+9. `merge_story_positions` (after positions chunk QA passed)
+10. `link_canonical_claims` (optional: events / positions / stances)
 
 Inspect tables after each step: `stories`, `story_bodies`, `story_chunks`, `story_claims`, `story_events`, `story_positions`, then `claims`, `events`, `canonical_positions`.
 

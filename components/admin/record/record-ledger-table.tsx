@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
+export const recordLedgerHeaderClass =
+  'border-b border-sidebar-border bg-sidebar px-3 py-2 text-xs font-medium text-sidebar-foreground'
+
 export function RecordLedgerCell({ children }: { children: ReactNode }) {
   if (children == null || children === '') {
     return <span className="text-muted/60">—</span>
@@ -20,10 +23,7 @@ export function RecordLedgerTable({
   return (
     <div className="min-w-0 w-full rounded-md border border-subtle text-sm">
       <div
-        className={cn(
-          gridClass,
-          'border-b border-[var(--record-section-header-border)] bg-[var(--record-section-header-bg)] px-3 py-2 text-xs font-medium text-[var(--record-section-header-fg)]'
-        )}
+        className={cn(gridClass, recordLedgerHeaderClass)}
       >
         {columns.map((column) => (
           <span key={column} className="min-w-0 truncate">

@@ -4,20 +4,20 @@ import { useMemo } from 'react'
 import { ExportSplitButton } from '@/app/admin/stories/export-split-button'
 import type { ChunkRecord } from '@/lib/admin/chunk-record'
 import {
-  buildChunkExtractionReviewJson,
-  buildChunkExtractionReviewMarkdown,
-} from '@/lib/admin/chunk-extraction-export'
+  buildChunkRecordExportJson,
+  buildChunkRecordExportMarkdown,
+} from '@/lib/admin/record-export'
 
 export function ChunkExtractionExportButtons({
   record,
-  compact = true,
+  compact = false,
 }: {
   record: ChunkRecord
   compact?: boolean
 }) {
-  const markdown = useMemo(() => buildChunkExtractionReviewMarkdown(record), [record])
-  const json = useMemo(() => buildChunkExtractionReviewJson(record), [record])
-  const exportBasename = `chunk-extraction-${record.chunk_friendly_id}`
+  const markdown = useMemo(() => buildChunkRecordExportMarkdown(record), [record])
+  const json = useMemo(() => buildChunkRecordExportJson(record), [record])
+  const exportBasename = `chunk-record-${record.chunk_friendly_id}`
 
   return (
     <>

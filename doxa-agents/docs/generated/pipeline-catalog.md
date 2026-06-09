@@ -20,6 +20,11 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | chunk-story-bodies | `chunk_story_bodies` | inactive | — | story_id |
 | extract-story-claims | `extract_story_claims` | inactive | — | story_id, chunk_index |
 | validate-chunk-claims | `validate_chunk_claims` | inactive | — | story_id, chunk_index |
+| refine-chunk-claims | `refine_chunk_claims` | inactive | yes | story_id, chunk_index |
+| extract-story-positions | `extract_story_positions` | inactive | — | story_id, chunk_index |
+| validate-chunk-positions | `validate_chunk_positions` | inactive | — | story_id, chunk_index |
+| refine-chunk-positions | `refine_chunk_positions` | inactive | yes | story_id, chunk_index |
+| merge-story-positions | `merge_story_positions` | inactive | — | story_id |
 | merge-story-claims | `merge_story_claims` | inactive | — | story_id |
 | review-merged-extraction | `review_merged_extraction` | inactive | — | story_id |
 | refine-merged-extraction | `refine_merged_extraction` | inactive | yes | story_id |

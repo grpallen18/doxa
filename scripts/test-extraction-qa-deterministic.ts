@@ -1,10 +1,12 @@
 /**
  * Deterministic extraction QA checks — run: npx tsx scripts/test-extraction-qa-deterministic.ts
  */
+import { detectAttributionDrift } from "../doxa-agents/lib/extraction-qa/attribution-drift.ts";
 import {
   checkBlockingFindingsUnresolved,
   getCompletenessIssues,
   getMaterialityWarnings,
+  mergeAttributionDriftIntoClaimsReview,
   runStrictPreValidation,
 } from "../doxa-agents/lib/extraction-qa/deterministic-checks.ts";
 import {
@@ -17,7 +19,7 @@ import {
   MAX_VALIDATION_ATTEMPTS,
   resolveValidationFailureStatus,
 } from "../doxa-agents/lib/extraction-qa/types.ts";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 let passed = 0;
@@ -331,9 +333,86 @@ console.log("claimsOnly validation");
   assert("claims-only skips position/event completeness", completeness.length === 0);
 }
 
-console.log("oman fixture excerpt gates");
+console.log("attribution drift");
 
 {
+  const badIssue = detectAttributionDrift(
+    {
+      claim_id: "claim-210-days",
+      raw_text: "Trump said that Pulte can serve in the role for 210 days.",
+      source_excerpt: "He can serve in the role for 210 days.",
+    },
+    0
+  );
+  assert("flags Trump said with narration-only excerpt", badIssue != null);
+  assert("210-day issue type is attribution", badIssue?.issue_type === "attribution");
+  assert("210-day issue severity is major", badIssue?.severity === "major");
+  assert("210-day issue references claim_id", badIssue?.claim_id === "claim-210-days");
+
+  const goodClaimed = detectAttributionDrift(
+    {
+      claim_id: "claim-cheating",
+      raw_text:
+        "Trump claimed without evidence that Democrats were cheating in California's primaries.",
+      source_excerpt:
+        "hours after he claimed on social media without evidence that Democrats were cheating in California’s primaries this week.",
+    },
+    0
+  );
+  assert("no issue when excerpt contains he claimed", goodClaimed == null);
+
+  const goodTold = detectAttributionDrift(
+    {
+      claim_id: "claim-elections",
+      raw_text: "Trump said Pulte might investigate 'the rigged elections'.",
+      source_excerpt:
+        'He also told reporters on Thursday that Pulte might investigate “the rigged elections”',
+    },
+    0
+  );
+  assert("no issue when excerpt contains He told reporters", goodTold == null);
+
+  const extraction = {
+    claims: [
+      {
+        claim_id: "claim-210-days",
+        raw_text: "Trump said that Pulte can serve in the role for 210 days.",
+        source_excerpt: "He can serve in the role for 210 days.",
+      },
+    ],
+    evidence: [],
+    positions: [],
+    events: [],
+  };
+  const chunk =
+    "Pulte was named acting director. He can serve in the role for 210 days. Trump spoke at the White House.";
+  const pre = runStrictPreValidation(chunk, extraction, { claimsOnly: true, atomsOnly: true });
+  assert("strict pre adds attribution drift string", pre.issues.some((i) => i.startsWith("attribution_drift:")));
+  assert("strict pre keeps passes when only attribution drift", pre.passes);
+
+  const merged = mergeAttributionDriftIntoClaimsReview(
+    {
+      issues: [],
+      patches: [],
+      recommended_action: "validate",
+      passes_review: true,
+      summary: "ok",
+      deterministic_issues: pre.issues,
+    },
+    pre.attribution_issues ?? []
+  );
+  assert("merge sets needs_refinement", merged.recommended_action === "needs_refinement");
+  assert("merge adds structured attribution issue", merged.issues?.some((i) => i.issue_type === "attribution"));
+
+  if (badIssue) {
+    console.log("\nExample deterministic issue (210-day claim):");
+    console.log(JSON.stringify(badIssue, null, 2));
+  }
+}
+
+console.log("oman fixture excerpt gates");
+
+if (existsSync(join(process.cwd(), "docs", "sample_extraction.json"))) {
   const fixturePath = join(process.cwd(), "docs", "sample_extraction.json");
   const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
     chunks: Array<{ content: string; extraction_json: ExtractionJson }>;
@@ -345,6 +424,8 @@ console.log("oman fixture excerpt gates");
   );
   const pre = runStrictPreValidation(chunk.content, enforced, { atomsOnly: true });
   assert("oman candidate excerpts pass verbatim + span checks", pre.passes);
+} else {
+  console.log("  skip oman fixture (sample_extraction.json not present)");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

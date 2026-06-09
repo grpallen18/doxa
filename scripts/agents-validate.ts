@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import yaml from 'yaml';
 import {
   REPO_ROOT,
   MANIFEST_BANNER,
@@ -157,6 +158,30 @@ function main() {
   for (const readme of requiredReadmes) {
     if (!fs.existsSync(readme)) {
       err(`Missing README: ${path.relative(REPO_ROOT, readme).replace(/\\/g, '/')}`);
+    }
+  }
+
+  const catalogPath = path.join(REPO_ROOT, 'doxa-agents', 'ops', 'pipeline-admin-catalog.yaml');
+  const seedsPath = path.join(REPO_ROOT, 'doxa-agents', 'ops', 'agent-prompt-seeds.yaml');
+  if (fs.existsSync(catalogPath)) {
+    const catalog = yaml.parse(fs.readFileSync(catalogPath, 'utf8')) as {
+      stages?: Array<{ steps?: Array<{ id: string; prompt_kind?: string }> }>;
+    };
+    const seedIds = new Set<string>();
+    if (fs.existsSync(seedsPath)) {
+      const seedsDoc = yaml.parse(fs.readFileSync(seedsPath, 'utf8')) as {
+        seeds?: Record<string, unknown>;
+      };
+      for (const id of Object.keys(seedsDoc.seeds ?? {})) seedIds.add(id);
+    }
+    for (const stage of catalog.stages ?? []) {
+      for (const step of stage.steps ?? []) {
+        if (step.prompt_kind === 'llm' && !seedIds.has(step.id)) {
+          warn(
+            `prompt_kind: llm for ${step.id} has no entry in doxa-agents/ops/agent-prompt-seeds.yaml`,
+          );
+        }
+      }
     }
   }
 

@@ -61,6 +61,159 @@ export function resolveValidationFailureStatus(
   return "needs_human_review";
 }
 
+export function resolveReviewFailureStatus(
+  attemptCount: number,
+  recommendedAction: ReviewReport["recommended_action"]
+): ExtractionQaStatus {
+  if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
+  if (recommendedAction === "refine") return "needs_refinement";
+  return "needs_human_review";
+}
+
+export const CLAIMS_REVIEW_ISSUE_TYPES = [
+  "grounding",
+  "attribution",
+  "materiality",
+  "duplicate",
+  "over_merged",
+  "under_split",
+  "temporal",
+  "quote_like",
+  "missing_claim",
+  "deterministic",
+  "schema_issue",
+] as const;
+
+export type ClaimsReviewIssueType = (typeof CLAIMS_REVIEW_ISSUE_TYPES)[number];
+
+export type ClaimsReviewIssue = {
+  severity: "blocking" | "major" | "minor";
+  claim_id: string | null;
+  claim_index: number | null;
+  issue_type: ClaimsReviewIssueType | string;
+  finding: string;
+};
+
+export type ClaimsReviewPatch = {
+  action: "add" | "remove" | "update" | "merge" | "split";
+  entity_type: "claim";
+  severity: "blocking" | "major" | "minor";
+  claim_ids: string[];
+  claim_indexes: number[];
+  recommended_raw_text: string | null;
+  reason: string;
+  source_grounding: string;
+};
+
+export type ClaimsReviewReport = {
+  passes_review: boolean;
+  recommended_action: "validate" | "needs_refinement" | "reject";
+  summary: string;
+  issues: ClaimsReviewIssue[];
+  patches: ClaimsReviewPatch[];
+  deterministic_issues?: string[];
+  attempt_number?: number;
+};
+
+export function resolveClaimsReviewFailureStatus(
+  attemptCount: number,
+  recommendedAction: ClaimsReviewReport["recommended_action"]
+): ExtractionQaStatus {
+  if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
+  if (recommendedAction === "needs_refinement") return "needs_refinement";
+  return "needs_human_review";
+}
+
+export function chunkClaimsReviewPasses(report: ClaimsReviewReport): boolean {
+  if (report.passes_review === false) return false;
+  if (report.recommended_action !== "validate") return false;
+  const blocking = (report.issues ?? []).filter((i) => i.severity === "blocking");
+  if (blocking.length > 0) return false;
+  const majorAttribution = (report.issues ?? []).filter(
+    (i) => i.severity === "major" && i.issue_type === "attribution"
+  );
+  return majorAttribution.length === 0;
+}
+
+export const POSITIONS_REVIEW_ISSUE_TYPES = [
+  "grounding",
+  "attribution",
+  "materiality",
+  "duplicate",
+  "over_merged",
+  "under_split",
+  "temporal",
+  "implicit_overreach",
+  "stance_flattening",
+  "missing_position",
+  "deterministic",
+  "schema_issue",
+] as const;
+
+export type PositionsReviewIssueType = (typeof POSITIONS_REVIEW_ISSUE_TYPES)[number];
+
+export type PositionsReviewIssue = {
+  severity: "blocking" | "major" | "minor";
+  position_id: string | null;
+  position_index: number | null;
+  issue_type: PositionsReviewIssueType | string;
+  finding: string;
+};
+
+export type PositionsReviewPatch = {
+  action: "add" | "remove" | "update" | "merge" | "split";
+  entity_type: "position";
+  severity: "blocking" | "major" | "minor";
+  position_ids: string[];
+  position_indexes: number[];
+  recommended_raw_text: string | null;
+  reason: string;
+  source_grounding: string;
+};
+
+export type PositionsReviewReport = {
+  passes_review: boolean;
+  recommended_action: "validate" | "needs_refinement" | "reject";
+  summary: string;
+  issues: PositionsReviewIssue[];
+  patches: PositionsReviewPatch[];
+  deterministic_issues?: string[];
+  attempt_number?: number;
+};
+
+export function resolvePositionsReviewFailureStatus(
+  attemptCount: number,
+  recommendedAction: PositionsReviewReport["recommended_action"]
+): ExtractionQaStatus {
+  if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
+  if (recommendedAction === "needs_refinement") return "needs_refinement";
+  return "needs_human_review";
+}
+
+export function chunkPositionsReviewPasses(report: PositionsReviewReport): boolean {
+  if (report.passes_review === false) return false;
+  if (report.recommended_action !== "validate") return false;
+  const blocking = (report.issues ?? []).filter((i) => i.severity === "blocking");
+  if (blocking.length > 0) return false;
+  const majorAttribution = (report.issues ?? []).filter(
+    (i) => i.severity === "major" && (i.issue_type === "attribution" || i.issue_type === "stance_flattening")
+  );
+  return majorAttribution.length === 0;
+}
+
+export function isPositionsOnlyExtraction(extraction: ExtractionJson): boolean {
+  const positions = Array.isArray(extraction.positions) ? extraction.positions.length : 0;
+  const claims = Array.isArray(extraction.claims) ? extraction.claims.length : 0;
+  const evidence = Array.isArray(extraction.evidence) ? extraction.evidence.length : 0;
+  const events = Array.isArray(extraction.events) ? extraction.events.length : 0;
+  return positions > 0 && claims === 0 && evidence === 0 && events === 0;
+}
+
+export function isPositionsPipelineEmpty(extraction: ExtractionJson): boolean {
+  const positions = Array.isArray(extraction.positions) ? extraction.positions : [];
+  return positions.length === 0;
+}
+
 export type IssueType =
   | "missing_claim"
   | "unsupported_claim"
@@ -155,6 +308,7 @@ export type StrictPreValidationResult = {
   blocking_issues: string[];
   issues: string[];
   deterministic_checks: DeterministicChecksDetail;
+  attribution_issues?: ClaimsReviewIssue[];
 };
 
 export type ValidationScores = {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PaginationParams } from '@/lib/admin/pagination'
 
 export type HistoryEventType =
   | 'field_change'
@@ -177,86 +178,88 @@ async function enrichHistoryActors(
   )
 }
 
+export type HistoryPageResult = {
+  events: HistoryEvent[]
+  total: number
+}
+
+async function fetchHistoryTablePage(
+  supabase: SupabaseClient,
+  table: string,
+  filters: Record<string, string | number>,
+  pagination: PaginationParams
+): Promise<HistoryPageResult> {
+  let query = supabase
+    .from(table)
+    .select('id, occurred_at, event_type, label, detail, meta, actor_id, source', {
+      count: 'exact',
+    })
+
+  for (const [key, value] of Object.entries(filters)) {
+    query = query.eq(key, value)
+  }
+
+  const { data, error, count } = await query
+    .order('occurred_at', { ascending: false })
+    .range(pagination.offset, pagination.offset + pagination.limit - 1)
+
+  if (error) throw error
+  const events = await enrichHistoryActors(
+    supabase,
+    mapHistoryRows((data ?? []) as HistoryRow[])
+  )
+  return { events, total: count ?? 0 }
+}
+
 export async function fetchStoryHistory(
   supabase: SupabaseClient,
   storyId: string,
-  limit = 100
-): Promise<HistoryEvent[]> {
-  const { data, error } = await supabase
-    .from('story_history')
-    .select('id, occurred_at, event_type, label, detail, meta, actor_id, source')
-    .eq('story_id', storyId)
-    .order('occurred_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return enrichHistoryActors(supabase, mapHistoryRows((data ?? []) as HistoryRow[]))
+  pagination: PaginationParams
+): Promise<HistoryPageResult> {
+  return fetchHistoryTablePage(supabase, 'story_history', { story_id: storyId }, pagination)
 }
 
 export async function fetchStoryChunksHistory(
   supabase: SupabaseClient,
   storyId: string,
   chunkIndex: number,
-  limit = 100
-): Promise<HistoryEvent[]> {
-  const { data, error } = await supabase
-    .from('story_chunks_history')
-    .select('id, occurred_at, event_type, label, detail, meta, actor_id, source')
-    .eq('story_id', storyId)
-    .eq('chunk_index', chunkIndex)
-    .order('occurred_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return enrichHistoryActors(supabase, mapHistoryRows((data ?? []) as HistoryRow[]))
+  pagination: PaginationParams
+): Promise<HistoryPageResult> {
+  return fetchHistoryTablePage(
+    supabase,
+    'story_chunks_history',
+    { story_id: storyId, chunk_index: chunkIndex },
+    pagination
+  )
 }
 
 export async function fetchClaimsHistory(
   supabase: SupabaseClient,
   claimId: string,
-  limit = 100
-): Promise<HistoryEvent[]> {
-  const { data, error } = await supabase
-    .from('claims_history')
-    .select('id, occurred_at, event_type, label, detail, meta, actor_id, source')
-    .eq('claim_id', claimId)
-    .order('occurred_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return enrichHistoryActors(supabase, mapHistoryRows((data ?? []) as HistoryRow[]))
+  pagination: PaginationParams
+): Promise<HistoryPageResult> {
+  return fetchHistoryTablePage(supabase, 'claims_history', { claim_id: claimId }, pagination)
 }
 
 export async function fetchEventsHistory(
   supabase: SupabaseClient,
   eventId: string,
-  limit = 100
-): Promise<HistoryEvent[]> {
-  const { data, error } = await supabase
-    .from('events_history')
-    .select('id, occurred_at, event_type, label, detail, meta, actor_id, source')
-    .eq('event_id', eventId)
-    .order('occurred_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return enrichHistoryActors(supabase, mapHistoryRows((data ?? []) as HistoryRow[]))
+  pagination: PaginationParams
+): Promise<HistoryPageResult> {
+  return fetchHistoryTablePage(supabase, 'events_history', { event_id: eventId }, pagination)
 }
 
 export async function fetchPositionsHistory(
   supabase: SupabaseClient,
   canonicalPositionId: string,
-  limit = 100
-): Promise<HistoryEvent[]> {
-  const { data, error } = await supabase
-    .from('positions_history')
-    .select('id, occurred_at, event_type, label, detail, meta, actor_id, source')
-    .eq('canonical_position_id', canonicalPositionId)
-    .order('occurred_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return enrichHistoryActors(supabase, mapHistoryRows((data ?? []) as HistoryRow[]))
+  pagination: PaginationParams
+): Promise<HistoryPageResult> {
+  return fetchHistoryTablePage(
+    supabase,
+    'positions_history',
+    { canonical_position_id: canonicalPositionId },
+    pagination
+  )
 }
 
 export async function appendStoryHistory(

@@ -1,0 +1,104 @@
+type LegacyFinding = {
+  severity?: string
+  description?: string
+  type?: string
+}
+
+type ClaimsIssue = {
+  severity?: string
+  issue_type?: string
+  finding?: string
+  claim_id?: string | null
+}
+
+type ClaimsPatch = {
+  action?: string
+  severity?: string
+  reason?: string
+  recommended_raw_text?: string | null
+  claim_ids?: string[]
+}
+
+function EmptyMessage({ message }: { message: string }) {
+  return <p className="text-xs text-muted">{message}</p>
+}
+
+export function ClaimsReviewReportDisplay({
+  report,
+  emptyMessage = 'No issues.',
+}: {
+  report: unknown
+  emptyMessage?: string
+}) {
+  if (!report || typeof report !== 'object') return null
+  const r = report as {
+    summary?: string
+    recommended_action?: string
+    passes_review?: boolean
+    issues?: ClaimsIssue[]
+    patches?: ClaimsPatch[]
+    findings?: LegacyFinding[]
+  }
+
+  const issues = r.issues ?? []
+  const legacyFindings = r.findings ?? []
+  const patches = r.patches ?? []
+
+  return (
+    <div className="space-y-2">
+      {r.summary ? (
+        <p className="rounded bg-muted/20 px-2 py-1.5 text-xs text-foreground">{r.summary}</p>
+      ) : null}
+      {r.recommended_action ? (
+        <p className="text-xs text-muted">
+          Action: <span className="font-medium text-foreground">{r.recommended_action}</span>
+          {typeof r.passes_review === 'boolean'
+            ? ` · passes_review=${r.passes_review ? 'true' : 'false'}`
+            : null}
+        </p>
+      ) : null}
+
+      {issues.length > 0 ? (
+        <ul className="space-y-1.5">
+          {issues.map((issue, i) => (
+            <li key={i} className="rounded bg-muted/20 px-2 py-1.5 text-xs">
+              <span className="font-medium capitalize">{issue.severity ?? 'note'}</span>
+              {issue.issue_type ? ` · ${issue.issue_type.replace(/_/g, ' ')}` : ''}
+              {issue.claim_id ? ` · ${issue.claim_id}` : ''}: {issue.finding}
+            </li>
+          ))}
+        </ul>
+      ) : legacyFindings.length > 0 ? (
+        <ul className="space-y-1.5">
+          {legacyFindings.map((f, i) => (
+            <li key={i} className="rounded bg-muted/20 px-2 py-1.5 text-xs">
+              <span className="font-medium capitalize">{f.severity ?? 'note'}</span>
+              {f.type ? ` · ${f.type.replace(/_/g, ' ')}` : ''}: {f.description}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyMessage message={emptyMessage} />
+      )}
+
+      {patches.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted">Recommended patches</p>
+          <ul className="space-y-1.5">
+            {patches.map((patch, i) => (
+              <li key={i} className="rounded bg-muted/20 px-2 py-1.5 text-xs">
+                <span className="font-medium capitalize">{patch.action ?? 'patch'}</span>
+                {patch.severity ? ` · ${patch.severity}` : ''}
+                {patch.claim_ids?.length ? ` · ${patch.claim_ids.join(', ')}` : ''}
+                {patch.reason ? `: ${patch.reason}` : ''}
+                {patch.recommended_raw_text ? (
+                  <p className="mt-1 text-foreground">{patch.recommended_raw_text}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  )
+}

@@ -47,7 +47,7 @@ export function StoryInfoLayout({
           ref={articleViewportRef}
           type="always"
           className={cn(
-            'h-[min(37.5vh,21rem)] min-h-0 overflow-hidden rounded-md border border-subtle bg-surface',
+            'h-[min(37.5vh,21rem)] min-h-0 overflow-hidden rounded-md border border-surface-canvas bg-surface-soft',
             '[&_[data-slot=scroll-area-viewport]]:h-full [&_[data-slot=scroll-area-viewport]]:max-h-full',
             '[&_[data-slot=scroll-area-thumb]]:bg-muted-foreground/50'
           )}

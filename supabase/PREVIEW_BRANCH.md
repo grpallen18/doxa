@@ -19,10 +19,7 @@ Goal: run **extract only**, read claims on chunks, tweak the prompt, reset, repe
 3. Run **Chunk story bodies** (once, if no chunks yet)
 4. Run **Extract primary claims** only
 5. Expand the extract step in the checklist to review claims per chunk
-6. Edit prompt: `doxa-agents/lib/extraction-qa/openai-qa.ts` → `EXTRACT_CLAIMS_SYSTEM_PROMPT`, then redeploy:
-   ```powershell
-   supabase functions deploy extract_story_claims
-   ```
+6. Edit prompt: Admin → `/admin/agents/extract-story-claims` → edit system prompt and save (no redeploy; takes effect within ~60s). Apply migration `149_agent_prompt_store.sql` on the branch DB first.
 7. **Clear extraction** in admin (resets chunk `extraction_json` + any `story_claims` for that story)
 8. Go to step 4 again
 

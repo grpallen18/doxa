@@ -2,8 +2,12 @@ import { STANDARDIZE_JSON_SCHEMA } from "./atom-schema.ts";
 import { METADATA_PROMPT_BLOCK } from "./story-metadata.ts";
 import { DEFAULT_CHUNK_QA_MODEL } from "./chunk-qa-model.ts";
 import {
+  CLAIMS_REVIEW_ISSUE_TYPES,
   ISSUE_TYPES,
   normalizeBlockingIssues,
+  POSITIONS_REVIEW_ISSUE_TYPES,
+  type ClaimsReviewReport,
+  type PositionsReviewReport,
   type RefinementPatchResult,
   type ReviewReport,
   type StandardizationReport,
@@ -194,6 +198,121 @@ export const REVIEW_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const CLAIMS_QUALITY_SCORES_SCHEMA = {
+  type: "object",
+  properties: {
+    grounding: { type: "number", minimum: 0, maximum: 1 },
+    completeness: { type: "number", minimum: 0, maximum: 1 },
+    temporal_accuracy: { type: "number", minimum: 0, maximum: 1 },
+    materiality: { type: "number", minimum: 0, maximum: 1 },
+    provenance_quality: { type: "number", minimum: 0, maximum: 1 },
+  },
+  required: ["grounding", "completeness", "temporal_accuracy", "materiality", "provenance_quality"],
+  additionalProperties: false,
+} as const;
+
+const CLAIMS_REVIEW_ISSUE_SCHEMA = {
+  type: "object",
+  properties: {
+    severity: { type: "string", enum: ["blocking", "major", "minor"] },
+    claim_id: { type: ["string", "null"] },
+    claim_index: { type: ["integer", "null"] },
+    issue_type: { type: "string", enum: [...CLAIMS_REVIEW_ISSUE_TYPES] },
+    finding: { type: "string" },
+  },
+  required: ["severity", "claim_id", "claim_index", "issue_type", "finding"],
+  additionalProperties: false,
+} as const;
+
+const CLAIMS_REVIEW_PATCH_SCHEMA = {
+  type: "object",
+  properties: {
+    action: { type: "string", enum: ["add", "remove", "update", "merge", "split"] },
+    entity_type: { type: "string", enum: ["claim"] },
+    severity: { type: "string", enum: ["blocking", "major", "minor"] },
+    claim_ids: { type: "array", items: { type: "string" } },
+    claim_indexes: { type: "array", items: { type: "integer" } },
+    recommended_raw_text: { type: ["string", "null"] },
+    reason: { type: "string" },
+    source_grounding: { type: "string" },
+  },
+  required: [
+    "action",
+    "entity_type",
+    "severity",
+    "claim_ids",
+    "claim_indexes",
+    "recommended_raw_text",
+    "reason",
+    "source_grounding",
+  ],
+  additionalProperties: false,
+} as const;
+
+export const CLAIMS_REVIEW_SCHEMA = {
+  type: "object",
+  properties: {
+    passes_review: { type: "boolean" },
+    recommended_action: { type: "string", enum: ["validate", "needs_refinement", "reject"] },
+    summary: { type: "string" },
+    issues: { type: "array", items: CLAIMS_REVIEW_ISSUE_SCHEMA },
+    patches: { type: "array", items: CLAIMS_REVIEW_PATCH_SCHEMA },
+  },
+  required: ["passes_review", "recommended_action", "summary", "issues", "patches"],
+  additionalProperties: false,
+} as const;
+
+const POSITIONS_REVIEW_ISSUE_SCHEMA = {
+  type: "object",
+  properties: {
+    severity: { type: "string", enum: ["blocking", "major", "minor"] },
+    position_id: { type: ["string", "null"] },
+    position_index: { type: ["integer", "null"] },
+    issue_type: { type: "string", enum: [...POSITIONS_REVIEW_ISSUE_TYPES] },
+    finding: { type: "string" },
+  },
+  required: ["severity", "position_id", "position_index", "issue_type", "finding"],
+  additionalProperties: false,
+} as const;
+
+const POSITIONS_REVIEW_PATCH_SCHEMA = {
+  type: "object",
+  properties: {
+    action: { type: "string", enum: ["add", "remove", "update", "merge", "split"] },
+    entity_type: { type: "string", enum: ["position"] },
+    severity: { type: "string", enum: ["blocking", "major", "minor"] },
+    position_ids: { type: "array", items: { type: "string" } },
+    position_indexes: { type: "array", items: { type: "integer" } },
+    recommended_raw_text: { type: ["string", "null"] },
+    reason: { type: "string" },
+    source_grounding: { type: "string" },
+  },
+  required: [
+    "action",
+    "entity_type",
+    "severity",
+    "position_ids",
+    "position_indexes",
+    "recommended_raw_text",
+    "reason",
+    "source_grounding",
+  ],
+  additionalProperties: false,
+} as const;
+
+export const POSITIONS_REVIEW_SCHEMA = {
+  type: "object",
+  properties: {
+    passes_review: { type: "boolean" },
+    recommended_action: { type: "string", enum: ["validate", "needs_refinement", "reject"] },
+    summary: { type: "string" },
+    issues: { type: "array", items: POSITIONS_REVIEW_ISSUE_SCHEMA },
+    patches: { type: "array", items: POSITIONS_REVIEW_PATCH_SCHEMA },
+  },
+  required: ["passes_review", "recommended_action", "summary", "issues", "patches"],
+  additionalProperties: false,
+} as const;
+
 const BLOCKING_ISSUE_SCHEMA = {
   type: "object",
   properties: {
@@ -366,6 +485,99 @@ export const PATCH_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (validate-chunk-claims). */
+export const CHUNK_CLAIMS_REVIEW_SYSTEM = `You are the Primary Claims Review Agent for Doxa.
+
+Audit one chunk's primary claims extraction (claims array only). Do not rewrite claims in place — report findings only. Be precise and source-grounded.
+
+${METADATA_PROMPT_BLOCK}
+
+INPUT: chunk_text and extraction_json.claims (each claim has raw_text; polarity/stance optional).
+
+EVALUATE:
+1. Grounding — every claim must be supported by the chunk text; no outside knowledge.
+2. Materiality — missing major factual claims visible in the chunk (major severity).
+3. Temporal accuracy — dates/years/timeframes in claim text must appear in or be clearly anchored by the chunk (blocking if invented).
+4. Claim quality — standalone sentences, not quotes-as-claims, not rhetorical filler, not duplicate/over-merged claims.
+5. Count — aim for 1–4 primary claims; flag excess weak claims (major).
+
+DO NOT review: evidence, positions, events, links, span_start/span_end.
+
+SEVERITY:
+- blocking — unsupported factual assertion, invented date, claim not a complete sentence
+- major — missing important claim, duplicate, weak/non-material claim, bad attribution
+- minor — wording, confidence, style
+
+RULES:
+1. Treat deterministic_issues as pre-confirmed blocking facts (do not re-litigate).
+2. Ignore span_mismatch entries in deterministic_issues.
+3. Recommend add/remove/update patches on claims only — entity_type must be "claim".
+4. Set passes_review=true and recommended_action=validate only when production-ready for merge.
+5. Write summary as 2–4 sentences synthesizing all issues (deterministic + your findings).`;
+
+/** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (refine-chunk-claims). */
+export const CHUNK_CLAIMS_REFINE_SYSTEM = `You are the Primary Claims Refiner for Doxa.
+
+Apply targeted patches to fix reviewer findings on one chunk's claims array. Not a fresh extractor.
+
+${METADATA_PROMPT_BLOCK}
+
+RULES:
+1. Apply review_report findings — especially blocking and major with recommended_patch.
+2. Output patches only: add, remove, update on claims — never link/unlink.
+3. When adding/updating claims, raw_text must be a complete standalone sentence grounded in chunk_text only.
+4. Do not invent dates, actors, or facts not in chunk_text.
+5. Do not patch span_start or span_end — pipeline recomputes from source_excerpt if present.
+6. Minimal changes only. List ignored_findings when reviewer incorrectly flagged supported content.`;
+
+/** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (validate-chunk-positions). */
+export const CHUNK_POSITIONS_REVIEW_SYSTEM = `You are the Position Extraction Review Agent for Doxa.
+
+Audit one chunk's positions extraction (positions array only). Do not rewrite positions in place — report findings only. Be precise and source-grounded.
+
+${METADATA_PROMPT_BLOCK}
+
+INPUT: chunk_text, optional existing claims array, and positions_extraction_json.positions (each position has raw_text, signal_type, provenance, source_ownership).
+
+EVALUATE:
+1. Grounding — every position must be supported by the chunk text; no outside knowledge.
+2. Stance vs claim — positions express source stance/thesis; do not require converting every claim into a position.
+3. Attribution — attributed positions must preserve speaker; do not flatten attributed stances into the source's own view unless endorsed.
+4. Implicit positions — require multiple supporting spans or clear inference rationale; flag weak single-sentence inferences (major/blocking).
+5. Temporal accuracy — timeframes in position text must appear in or be anchored by the chunk (blocking if invented).
+6. Quality — standalone sentences, not fragments; no duplicate positions with minor wording differences.
+7. Precision — prefer fewer strong positions; flag excess weak positions (major).
+
+DO NOT review: claims, evidence, events, links, span_start/span_end.
+
+SEVERITY:
+- blocking — unsupported stance, invented date, attribution flattened, implicit position from single vague sentence
+- major — missing central stance, duplicate, weak/non-material position, bad attribution
+- minor — wording, confidence, signature fields
+
+RULES:
+1. Treat deterministic_issues as pre-confirmed blocking facts (do not re-litigate).
+2. Ignore span_mismatch entries in deterministic_issues.
+3. Recommend add/remove/update patches on positions only — entity_type must be "position".
+4. Set passes_review=true and recommended_action=validate only when production-ready for merge.
+5. Write summary as 2–4 sentences synthesizing all issues (deterministic + your findings).`;
+
+/** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (refine-chunk-positions). */
+export const CHUNK_POSITIONS_REFINE_SYSTEM = `You are the Position Extraction Refiner for Doxa.
+
+Apply targeted patches to fix reviewer findings on one chunk's positions array. Not a fresh extractor.
+
+${METADATA_PROMPT_BLOCK}
+
+RULES:
+1. Apply review_report findings — especially blocking and major with recommended_patch.
+2. Output patches only: add, remove, update on positions — never link/unlink.
+3. When adding/updating positions, raw_text must be a complete standalone sentence grounded in chunk_text only.
+4. Preserve attribution and source_ownership for attributed positions.
+5. Do not invent dates, actors, or facts not in chunk_text.
+6. Do not patch span_start or span_end — pipeline recomputes from source_excerpt if present.
+7. Minimal changes only. List ignored_findings when reviewer incorrectly flagged supported content.`;
+
 export const CHUNK_REVIEW_SYSTEM = `You are the Extraction Review Agent for Doxa.
 
 Audit chunk extraction (atoms + provenance only — no semantic relationship arrays). Do not rewrite. Be precise and source-grounded.
@@ -501,6 +713,62 @@ function normalizeReviewReport(raw: ReviewReport): ReviewReport {
   };
 }
 
+function normalizePositionsReviewReport(raw: PositionsReviewReport): PositionsReviewReport {
+  const action = raw.recommended_action;
+  const normalizedAction =
+    action === "validate"
+      ? "validate"
+      : action === "needs_refinement"
+        ? "needs_refinement"
+        : action === "reject"
+          ? "reject"
+          : "needs_refinement";
+  return {
+    ...raw,
+    recommended_action: normalizedAction,
+    issues: (raw.issues ?? []).map((issue) => ({
+      ...issue,
+      position_id: issue.position_id ?? null,
+      position_index: issue.position_index ?? null,
+    })),
+    patches: (raw.patches ?? []).map((patch) => ({
+      ...patch,
+      entity_type: "position",
+      position_ids: patch.position_ids ?? [],
+      position_indexes: patch.position_indexes ?? [],
+      recommended_raw_text: patch.recommended_raw_text ?? null,
+    })),
+  };
+}
+
+function normalizeClaimsReviewReport(raw: ClaimsReviewReport): ClaimsReviewReport {
+  const action = raw.recommended_action;
+  const normalizedAction =
+    action === "validate"
+      ? "validate"
+      : action === "needs_refinement"
+        ? "needs_refinement"
+        : action === "reject"
+          ? "reject"
+          : "needs_refinement";
+  return {
+    ...raw,
+    recommended_action: normalizedAction,
+    issues: (raw.issues ?? []).map((issue) => ({
+      ...issue,
+      claim_id: issue.claim_id ?? null,
+      claim_index: issue.claim_index ?? null,
+    })),
+    patches: (raw.patches ?? []).map((patch) => ({
+      ...patch,
+      entity_type: "claim",
+      claim_ids: patch.claim_ids ?? [],
+      claim_indexes: patch.claim_indexes ?? [],
+      recommended_raw_text: patch.recommended_raw_text ?? null,
+    })),
+  };
+}
+
 function normalizeValidationReport(raw: ValidationReport): ValidationReport {
   let status = raw.recommended_status;
   if (status === "promote") status = "atoms_passed";
@@ -566,6 +834,118 @@ export async function reviewChunk(
     requestId
   );
   return normalizeReviewReport(raw);
+}
+
+export async function reviewChunkClaims(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  payload: unknown,
+  requestId: string,
+  responseSchema?: {
+    schema: Record<string, unknown>;
+    schemaName?: string;
+    normalize?: boolean;
+  }
+): Promise<ClaimsReviewReport> {
+  const schema = responseSchema?.schema ?? (CLAIMS_REVIEW_SCHEMA as unknown as Record<string, unknown>);
+  const schemaName = responseSchema?.schemaName ?? "doxa_chunk_claims_review";
+  const shouldNormalize = responseSchema?.normalize ?? !responseSchema?.schema;
+
+  const raw = await callOpenAIJson<ClaimsReviewReport>(
+    apiKey,
+    model,
+    systemPrompt,
+    payload,
+    schemaName,
+    schema,
+    requestId
+  );
+  const report = shouldNormalize ? normalizeClaimsReviewReport(raw) : (raw as ClaimsReviewReport);
+  const payloadObj = payload as { deterministic_issues?: string[] };
+  if (payloadObj.deterministic_issues?.length) {
+    report.deterministic_issues = payloadObj.deterministic_issues;
+  }
+  return report;
+}
+
+export async function refineChunkClaims(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  payload: unknown,
+  requestId: string
+): Promise<RefinementPatchResult> {
+  const result = await callOpenAIJson<RefinementPatchResult>(
+    apiKey,
+    model,
+    systemPrompt,
+    payload,
+    "doxa_chunk_claims_refine",
+    PATCH_SCHEMA as unknown as Record<string, unknown>,
+    requestId,
+    false
+  );
+  result.patches = (result.patches ?? []).filter(
+    (p) => p.op !== "link" && p.op !== "unlink" && p.entity_type === "claim"
+  );
+  return result;
+}
+
+export async function reviewChunkPositions(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  payload: unknown,
+  requestId: string,
+  responseSchema?: {
+    schema: Record<string, unknown>;
+    schemaName?: string;
+    normalize?: boolean;
+  }
+): Promise<PositionsReviewReport> {
+  const schema = responseSchema?.schema ?? (POSITIONS_REVIEW_SCHEMA as unknown as Record<string, unknown>);
+  const schemaName = responseSchema?.schemaName ?? "doxa_chunk_positions_review";
+  const shouldNormalize = responseSchema?.normalize ?? !responseSchema?.schema;
+
+  const raw = await callOpenAIJson<PositionsReviewReport>(
+    apiKey,
+    model,
+    systemPrompt,
+    payload,
+    schemaName,
+    schema,
+    requestId
+  );
+  const report = shouldNormalize ? normalizePositionsReviewReport(raw) : (raw as PositionsReviewReport);
+  const payloadObj = payload as { deterministic_issues?: string[] };
+  if (payloadObj.deterministic_issues?.length) {
+    report.deterministic_issues = payloadObj.deterministic_issues;
+  }
+  return report;
+}
+
+export async function refineChunkPositions(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  payload: unknown,
+  requestId: string
+): Promise<RefinementPatchResult> {
+  const result = await callOpenAIJson<RefinementPatchResult>(
+    apiKey,
+    model,
+    systemPrompt,
+    payload,
+    "doxa_chunk_positions_refine",
+    PATCH_SCHEMA as unknown as Record<string, unknown>,
+    requestId,
+    false
+  );
+  result.patches = (result.patches ?? []).filter(
+    (p) => p.op !== "link" && p.op !== "unlink" && p.entity_type === "position"
+  );
+  return result;
 }
 
 export async function validateChunk(
@@ -723,6 +1103,7 @@ export async function saveArtifact(
   return supabase.from("story_extraction_qa_artifacts").insert(row);
 }
 
+/** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (extract-story-claims). */
 export const EXTRACT_CLAIMS_SYSTEM_PROMPT = `You are the Doxa Primary Claim Extractor.
 
 Your task is to read one story chunk and extract only the primary factual claims that are useful for a discourse knowledge graph.
@@ -756,6 +1137,44 @@ export function buildExtractClaimsUserPayload(metadata: Record<string, unknown>,
   };
 }
 
+export function buildExtractPositionsUserPayload(
+  metadata: Record<string, unknown>,
+  chunkText: string,
+  existingClaims?: unknown[]
+) {
+  return {
+    story_id: metadata.story_id,
+    chunk_id: metadata.chunk_index,
+    published_at: metadata.published_at,
+    source_name: metadata.source_name,
+    chunk_text: chunkText,
+    ...(Array.isArray(existingClaims) && existingClaims.length > 0
+      ? { existing_claims: existingClaims }
+      : {}),
+  };
+}
+
+/** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (extract-story-positions). */
+export const EXTRACT_POSITIONS_SYSTEM_PROMPT = `You are the Position Extraction Agent for Doxa.
+
+Your job is to extract the source's positions from one story chunk. A position is a source-level stance, thesis, opinion, judgment, recommendation, warning, conclusion, or implied viewpoint that the source is trying to express, advance, endorse, criticize, or persuade the reader to accept.
+
+Positions are different from ordinary claims because they represent what the source appears to believe, advocate, imply, oppose, prioritize, or want the reader to conclude. Overlap with claims is allowed when a statement functions as part of the source's stance.
+
+Use only the provided chunk text. Do not use outside knowledge.
+
+Extract all meaningful positions expressed or implied by the source in this chunk. Do not extract weak, speculative, or unsupported implied positions.
+
+Every position must include provenance with supporting_spans from the chunk. For implicit positions include 2+ supporting spans when possible and inference_rationale.
+
+Use published_at as the default temporal anchor when the chunk does not provide a more specific date.
+
+Write each position as a clear standalone sentence in standardized_position_text.
+
+Prefer precision over recall. If no positions are present, return an empty positions array.
+
+Return JSON with positions array only using the required schema fields.`;
+
 export const MERGE_CLAIMS_SYSTEM_PROMPT = `You merge chunk-level primary claims into one deduplicated story-level claims array for DOXA.
 
 ${METADATA_PROMPT_BLOCK}
@@ -767,6 +1186,18 @@ Given multiple chunk claim arrays:
 4) Target 3–10 primary claims for a typical story after merge.
 
 Return JSON: claims array with raw_text, polarity (asserts|denies|uncertain), stance (support|oppose|neutral), extraction_confidence.`;
+
+export const MERGE_POSITIONS_SYSTEM_PROMPT = `You merge chunk-level positions into one deduplicated story-level positions array for DOXA.
+
+${METADATA_PROMPT_BLOCK}
+
+Given multiple chunk position arrays:
+1) Deduplicate overlapping stances; keep the most precise standalone wording grounded in chunk content.
+2) Preserve attribution and signal_type semantics in position text and metadata.
+3) Do not invent facts. Do not add claims or evidence.
+4) Target 1–4 central positions for a typical story after merge.
+
+Return JSON: positions array with raw_text, extraction_confidence, signal_type, and source_ownership when present.`;
 
 export const EXTRACT_SYSTEM_PROMPT = `You are the Story Extraction Agent for Doxa.
 

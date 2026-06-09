@@ -68,7 +68,7 @@ export function StoryStagePage({ stageId }: { stageId: PipelineStageId }) {
 
   const headerActions = (
     <>
-      <StoryExtractionExportButtons payload={payload} />
+      <StoryExtractionExportButtons payload={payload} scope="story_stage" stageId={stageId} />
       {toolbar}
     </>
   )

@@ -2,7 +2,11 @@
 
 import type { HistoryEvent } from '@/lib/admin/history'
 import { formatHistoryActor, formatHistoryTimestamp } from '@/lib/admin/history'
-import { RecordLedgerCell, recordLedgerValueClass } from '@/components/admin/record/record-ledger-table'
+import {
+  RecordLedgerCell,
+  recordLedgerHeaderClass,
+  recordLedgerValueClass,
+} from '@/components/admin/record/record-ledger-table'
 import { cn } from '@/lib/utils'
 
 function formatModifiedAt(iso: string): string {
@@ -12,23 +16,18 @@ function formatModifiedAt(iso: string): string {
 const AUDIT_GRID =
   'grid grid-cols-[minmax(6.5rem,10.5rem)_minmax(0,1fr)] md:grid-cols-[minmax(6.5rem,10.5rem)_minmax(5rem,11rem)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(6.5rem,10.5rem)_minmax(5rem,11rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(4.5rem,9rem)] gap-x-4'
 
-const AUDIT_HEADER_CLASS =
-  'border-b border-[var(--record-section-header-border)] bg-[var(--record-section-header-bg)] px-3 py-2 text-xs font-medium text-[var(--record-section-header-fg)]'
-
 const AUDIT_ROW_CLASS = cn(AUDIT_GRID, 'min-w-0 items-center px-3 py-2 transition-colors hover:bg-white')
 
-export function AuditTimeline({ events }: { events: HistoryEvent[] }) {
-  if (events.length === 0) {
-    return (
-      <p className="text-xs text-muted">
-        No history recorded yet.
-      </p>
-    )
-  }
-
+export function AuditTimeline({
+  events,
+  emptyMessage = 'No records',
+}: {
+  events: HistoryEvent[]
+  emptyMessage?: string
+}) {
   return (
     <div className="min-w-0 w-full rounded-md border border-subtle text-sm">
-      <div className={cn(AUDIT_GRID, AUDIT_HEADER_CLASS)}>
+      <div className={cn(AUDIT_GRID, recordLedgerHeaderClass)}>
         <span className="min-w-0 truncate">Modified At</span>
         <span className="min-w-0 truncate">Field</span>
         <span className="hidden min-w-0 truncate md:block">Previous Value</span>
@@ -36,6 +35,11 @@ export function AuditTimeline({ events }: { events: HistoryEvent[] }) {
         <span className="hidden min-w-0 truncate lg:block">User</span>
       </div>
       <ol className="divide-y divide-subtle">
+        {events.length === 0 ? (
+          <li className={cn(AUDIT_GRID, 'px-3 py-3 text-xs text-muted')}>
+            <span className="col-span-full">{emptyMessage}</span>
+          </li>
+        ) : null}
         {events.map((event) => (
           <li key={event.id} className={AUDIT_ROW_CLASS}>
             <time

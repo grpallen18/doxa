@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { ChunkContentExtractionLayout } from '@/components/admin/stories/chunk-content-extraction-layout'
 import { ChunkExtractionExportButtons } from '@/components/admin/stories/chunk-extraction-export-buttons'
+import { ChunkQaHistorySection } from '@/components/admin/stories/chunk-qa-history-section'
 import { RecordAuditSection } from '@/components/admin/record/record-audit-section'
 import { EntityHeader } from '@/components/admin/record/entity-header'
 import { RecordEntityLinkBar } from '@/components/admin/record/record-entity-link-bar'
@@ -66,10 +67,12 @@ export function ChunkRecordPage() {
     return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
   }
 
-  const auditPath = `/api/admin/stories/${storyId}/chunks/${encodeURIComponent(data.chunk_friendly_id)}/audit`
+  const chunkApiBase = `/api/admin/stories/${storyId}/chunks/${encodeURIComponent(data.chunk_friendly_id)}`
+  const auditPath = `${chunkApiBase}/audit`
+  const qaHistoryPath = `${chunkApiBase}/qa-history`
 
   return (
-    <div className="w-full -mx-4 bg-surface px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 lg:-mx-10 lg:px-10">
+    <div className="w-full px-4 sm:px-6 md:px-8 lg:px-10">
       <RecordEntityLinkBar
         links={[
           {
@@ -86,6 +89,7 @@ export function ChunkRecordPage() {
       <EntityHeader
         layout="record"
         embedded
+        entityType="chunk"
         title={formatChunkLabel(
           data.chunk_index,
           data.chunk_count,
@@ -134,6 +138,8 @@ export function ChunkRecordPage() {
             chunkIndex={data.chunk_index}
           />
         </RecordSectionCard>
+
+        <ChunkQaHistorySection apiPath={qaHistoryPath} variant="panel" />
 
         <RecordAuditSection apiPath={auditPath} variant="panel" />
       </div>

@@ -22,7 +22,7 @@ function adminMaxWidth(pathname: string): 'default' | 'wide' | 'full' | 'content
 
 function adminShellClass(pathname: string): string | undefined {
   if (/^\/admin\/stories\/[^/]+/.test(pathname)) {
-    return 'min-h-full bg-surface'
+    return 'min-h-full bg-surface-canvas px-0 sm:px-0 md:px-0 lg:px-0'
   }
   return undefined
 }

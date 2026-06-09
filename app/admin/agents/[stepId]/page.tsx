@@ -1,22 +1,18 @@
 'use client'
 
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import type { AgentDetail, AgentRunSummary } from '@/lib/admin/agent-detail'
+import { AgentRecentRunsTable } from '@/components/admin/agents/agent-recent-runs-table'
+import { AgentPromptAuditTable } from '@/components/admin/agents/agent-prompt-audit-table'
 import { useRecordHub } from '@/components/admin/record/use-record-hub'
-import { EntityHeader } from '@/components/admin/record/entity-header'
 import { RecordSectionCard } from '@/components/admin/record/record-section-card'
 import { StatusBadge } from '@/components/admin/record/status-badge'
+import { AgentProfileHeader } from '@/components/admin/agents/agent-profile-header'
+import { AgentPromptSection } from '@/components/admin/agents/agent-prompt-section'
 
 type AgentApiResponse = {
   agent: AgentDetail
-  recentRuns: AgentRunSummary[]
   lastRun: AgentRunSummary | null
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 export default function AgentRecordPage() {
@@ -29,33 +25,29 @@ export default function AgentRecordPage() {
   if (loading) return <p className="p-4 text-sm text-muted">Loading agent…</p>
   if (error || !data) return <p className="p-4 text-sm text-destructive">{error ?? 'Not found'}</p>
 
-  const { agent, recentRuns, lastRun } = data
+  const { agent, lastRun } = data
+  const promptTitle =
+    agent.promptKind === 'llm' ? 'System prompt' : 'Prompt'
 
   return (
     <div className="space-y-4 p-4">
-      <EntityHeader
-        title={agent.label}
-        subtitle={`${agent.stageLabel} · ${agent.scope} scope`}
-        meta={[
-          { label: 'Step ID', value: <span className="font-mono text-[11px]">{agent.stepId}</span> },
-          { label: 'Deploy', value: <span className="font-mono text-[11px]">{agent.deployName}</span> },
-          {
-            label: 'Status',
-            value: (
+      <AgentProfileHeader agent={agent} lastRun={lastRun} />
+
+      <RecordSectionCard id="configuration" title="Agent configuration">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs font-medium text-muted">Deploy</dt>
+            <dd className="mt-0.5 font-mono text-xs">{agent.deployName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted">Catalog status</dt>
+            <dd className="mt-0.5">
               <StatusBadge
                 label={agent.manifestStatus}
                 variant={agent.manifestStatus === 'active' ? 'success' : 'danger'}
               />
-            ),
-          },
-          { label: 'Model', value: lastRun?.model_name ?? '—' },
-          { label: 'Last run', value: formatDate(lastRun?.started_at ?? null) },
-          { label: 'Optional step', value: agent.optional ? 'Yes' : 'No' },
-        ]}
-      />
-
-      <RecordSectionCard id="configuration" title="Agent configuration">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            </dd>
+          </div>
           <div>
             <dt className="text-xs font-medium text-muted">Department</dt>
             <dd className="mt-0.5">{agent.department ?? '—'}</dd>
@@ -64,6 +56,12 @@ export default function AgentRecordPage() {
             <dt className="text-xs font-medium text-muted">Workflow</dt>
             <dd className="mt-0.5">{agent.workflow ?? '—'}</dd>
           </div>
+          {agent.optional && (
+            <div>
+              <dt className="text-xs font-medium text-muted">Optional</dt>
+              <dd className="mt-0.5">Yes</dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs font-medium text-muted">Isolation params</dt>
             <dd className="mt-0.5 font-mono text-xs">{agent.isolationParams.join(', ') || '—'}</dd>
@@ -92,51 +90,19 @@ export default function AgentRecordPage() {
         </dl>
       </RecordSectionCard>
 
-      <RecordSectionCard id="prompt" title="Prompt (read-only)">
-        <p className="text-sm text-muted">
-          Prompts are embedded in the agent handler source. Editing and version history require a
-          future prompt store — not available in v1.
-        </p>
-        {agent.sourcePath && (
-          <p className="mt-2 font-mono text-xs text-muted">{agent.sourcePath}/handler.ts</p>
-        )}
+      <RecordSectionCard id="prompt" title={promptTitle}>
+        <AgentPromptSection stepId={stepId} agent={agent} />
       </RecordSectionCard>
 
       <RecordSectionCard id="recent-runs" title="Recent runs">
-        {recentRuns.length === 0 ? (
-          <p className="text-xs text-muted">No pipeline runs recorded for this deploy name.</p>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {recentRuns.map((run) => (
-              <li key={run.run_id} className="rounded-md border border-subtle px-3 py-2">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <StatusBadge label={run.status} variant={run.status === 'success' ? 'success' : 'danger'} />
-                  <time className="text-xs text-muted">{formatDate(run.started_at)}</time>
-                </div>
-                {run.model_name && (
-                  <p className="mt-1 text-xs text-muted">Model: {run.model_name}</p>
-                )}
-                {run.error && <p className="mt-1 text-xs text-destructive">{run.error}</p>}
-                {run.story_id && (
-                  <Link
-                    href={`/admin/stories/${run.story_id}`}
-                    className="mt-1 inline-block text-xs text-accent-primary hover:underline"
-                  >
-                    Related story
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <AgentRecentRunsTable stepId={stepId} />
       </RecordSectionCard>
 
-      <RecordSectionCard id="audit" title="Audit trail">
-        <p className="text-xs text-muted">
-          Prompt changes and configuration audit history deferred until admin_pipeline_actions or
-          equivalent exists.
-        </p>
-      </RecordSectionCard>
+      {agent.promptKind === 'llm' && (
+        <RecordSectionCard id="audit" title="Prompt audit trail">
+          <AgentPromptAuditTable stepId={stepId} />
+        </RecordSectionCard>
+      )}
     </div>
   )
 }

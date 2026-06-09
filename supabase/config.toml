@@ -335,6 +335,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.validate_chunk_claims]
 verify_jwt = false
+[functions.refine_chunk_claims]
+verify_jwt = false
 [functions.merge_story_claims]
 verify_jwt = false
 [functions.review_merged_extraction]

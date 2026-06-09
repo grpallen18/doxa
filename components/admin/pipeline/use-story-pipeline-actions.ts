@@ -9,8 +9,11 @@ import {
 import { usePipelineStepPoll } from '@/components/admin/pipeline/use-pipeline-step-poll'
 import {
   showPipelineError,
+  showPipelineInfo,
   showPipelineSuccess,
+  showPipelineWarning,
 } from '@/lib/admin/pipeline-toast'
+import type { PipelineWarning } from '@/lib/admin/pipeline-warnings'
 
 export function useStoryPipelineActions({
   storyId,
@@ -36,6 +39,24 @@ export function useStoryPipelineActions({
 
   const isBusy = runningStepId != null || revertingStepId != null
 
+  const syncPromptSchema = useCallback(async (stepId: string) => {
+    try {
+      const res = await fetch(`/api/admin/agents/${stepId}/prompt/sync-schema`, {
+        method: 'POST',
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        showPipelineError(json.error?.message ?? 'Failed to sync response schema')
+        return
+      }
+      showPipelineSuccess(
+        `Response schema synced from prompt OUTPUT (v${json.data?.promptVersionNumber ?? '?'}). Takes effect on the next run (within ~60s).`
+      )
+    } catch {
+      showPipelineError('Failed to sync response schema')
+    }
+  }, [])
+
   const runStep = useCallback(
     async (stepId: PipelineStepId) => {
       setStepError(null)
@@ -57,6 +78,18 @@ export function useStoryPipelineActions({
           cancelRun()
           return
         }
+
+        const data = json.data as {
+          prompt_version_number?: number | null
+          warnings?: PipelineWarning[]
+        } | null
+        if (data?.prompt_version_number != null) {
+          showPipelineInfo(`Running with prompt v${data.prompt_version_number}`)
+        }
+        for (const warning of data?.warnings ?? []) {
+          showPipelineWarning(warning, { onFixSchema: syncPromptSchema })
+        }
+
         void onRefresh()
       } catch {
         const message = 'Failed to invoke pipeline step'
@@ -65,7 +98,7 @@ export function useStoryPipelineActions({
         cancelRun()
       }
     },
-    [storyId, onRefresh, beginRun, cancelRun, setActionMessage]
+    [storyId, onRefresh, beginRun, cancelRun, setActionMessage, syncPromptSchema]
   )
 
   const revertStep = useCallback(

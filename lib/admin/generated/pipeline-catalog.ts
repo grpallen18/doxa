@@ -11,6 +11,11 @@ export type PipelineStepId =
   | "chunk-story-bodies"
   | "extract-story-claims"
   | "validate-chunk-claims"
+  | "refine-chunk-claims"
+  | "extract-story-positions"
+  | "validate-chunk-positions"
+  | "refine-chunk-positions"
+  | "merge-story-positions"
   | "merge-story-claims"
   | "review-merged-extraction"
   | "refine-merged-extraction"
@@ -31,6 +36,8 @@ export type PipelineInvokeOptions = {
   timeoutMs: number
 }
 
+export type PromptKind = 'llm' | 'none' | 'embeddings'
+
 export type PipelineCatalogStep = {
   id: PipelineStepId
   deployName: string
@@ -40,6 +47,8 @@ export type PipelineCatalogStep = {
   scope: string
   optional: boolean
   manifestStatus: string
+  promptKind: PromptKind
+  userPayloadDoc: string | null
   isolationParams: string[]
   invokeOptions: PipelineInvokeOptions
   inactiveNote: string | null
@@ -72,6 +81,11 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
       "chunk-story-bodies",
       "extract-story-claims",
       "validate-chunk-claims",
+      "refine-chunk-claims",
+      "extract-story-positions",
+      "validate-chunk-positions",
+      "refine-chunk-positions",
+      "merge-story-positions",
       "merge-story-claims",
       "review-merged-extraction",
       "refine-merged-extraction",
@@ -101,6 +115,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -120,6 +136,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": true,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -139,6 +157,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -158,6 +178,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -177,6 +199,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -196,6 +220,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": "JSON user message: story_id, title, source_name, published_at, chunk_text.\nBuilt by buildExtractClaimsUserPayload() in openai-qa.ts.",
     "isolationParams": [
       "story_id",
       "chunk_index"
@@ -216,6 +242,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": "JSON user message: story metadata, chunk_text, extraction_json (claims), deterministic_issues, materiality_warnings, attempt_number.",
     "isolationParams": [
       "story_id",
       "chunk_index"
@@ -223,6 +251,115 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "invokeOptions": {
       "usesMaxChunks": true,
       "maxChunks": 20,
+      "timeoutMs": 60000
+    },
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+  },
+  {
+    "id": "refine-chunk-claims",
+    "deployName": "refine_chunk_claims",
+    "label": "Refine chunk claims",
+    "stageId": "extraction",
+    "stageLabel": "Extraction",
+    "scope": "story",
+    "optional": true,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": "JSON user message: story metadata, chunk_text, extraction_json, review_report (findings from prior review).",
+    "isolationParams": [
+      "story_id",
+      "chunk_index"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": true,
+      "maxChunks": 20,
+      "timeoutMs": 60000
+    },
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+  },
+  {
+    "id": "extract-story-positions",
+    "deployName": "extract_story_positions",
+    "label": "Extract positions",
+    "stageId": "extraction",
+    "stageLabel": "Extraction",
+    "scope": "story",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": "JSON user message: story_id, chunk_id, published_at, source_name, chunk_text, optional existing_claims.\nBuilt by buildExtractPositionsUserPayload() in openai-qa.ts.",
+    "isolationParams": [
+      "story_id",
+      "chunk_index"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": true,
+      "maxChunks": 1,
+      "timeoutMs": 140000
+    },
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+  },
+  {
+    "id": "validate-chunk-positions",
+    "deployName": "validate_chunk_positions",
+    "label": "Review chunk positions",
+    "stageId": "extraction",
+    "stageLabel": "Extraction",
+    "scope": "story",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": "JSON user message: story metadata, chunk_text, positions_extraction_json, optional existing_claims, deterministic_issues, materiality_warnings, attempt_number.",
+    "isolationParams": [
+      "story_id",
+      "chunk_index"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": true,
+      "maxChunks": 20,
+      "timeoutMs": 60000
+    },
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+  },
+  {
+    "id": "refine-chunk-positions",
+    "deployName": "refine_chunk_positions",
+    "label": "Refine chunk positions",
+    "stageId": "extraction",
+    "stageLabel": "Extraction",
+    "scope": "story",
+    "optional": true,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": "JSON user message: story metadata, chunk_text, positions_extraction_json, review_report.",
+    "isolationParams": [
+      "story_id",
+      "chunk_index"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": true,
+      "maxChunks": 20,
+      "timeoutMs": 60000
+    },
+    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+  },
+  {
+    "id": "merge-story-positions",
+    "deployName": "merge_story_positions",
+    "label": "Merge story positions",
+    "stageId": "extraction",
+    "stageLabel": "Extraction",
+    "scope": "story",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
       "timeoutMs": 60000
     },
     "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
@@ -236,6 +373,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -255,6 +394,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -274,6 +415,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": true,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -293,6 +436,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -312,6 +457,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": false,
     "manifestStatus": "inactive",
+    "promptKind": "embeddings",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id",
       "story_claim_id"
@@ -332,6 +479,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": true,
     "manifestStatus": "inactive",
+    "promptKind": "embeddings",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id"
     ],
@@ -351,6 +500,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": true,
     "manifestStatus": "inactive",
+    "promptKind": "embeddings",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id",
       "story_position_id"
@@ -371,6 +522,8 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "scope": "story",
     "optional": true,
     "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
     "isolationParams": [
       "story_id",
       "story_claim_id"
@@ -392,6 +545,11 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "chunk_story_bodies",
   "extract_story_claims",
   "validate_chunk_claims",
+  "refine_chunk_claims",
+  "extract_story_positions",
+  "validate_chunk_positions",
+  "refine_chunk_positions",
+  "merge_story_positions",
   "merge_story_claims",
   "review_merged_extraction",
   "refine_merged_extraction",

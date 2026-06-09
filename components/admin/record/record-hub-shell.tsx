@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { EntityHeader, type EntityHeaderMetaItem } from '@/components/admin/record/entity-header'
+import type { EntityRecordKind } from '@/lib/admin/entity-record-icons'
 import { RecordSectionCard } from '@/components/admin/record/record-section-card'
 import { StatusBadge } from '@/components/admin/record/status-badge'
 import {
@@ -65,9 +66,11 @@ export function RecordHubShell({
   lifecycle,
   sections,
   auditApiPath,
+  entityType,
 }: {
   title: string
   subtitle?: string
+  entityType: EntityRecordKind
   meta: EntityHeaderMetaItem[]
   lifecycle?: { title: string; nodes: RecordLifecycleNode[] }
   sections: Array<{
@@ -80,7 +83,7 @@ export function RecordHubShell({
 }) {
   return (
     <div className="space-y-4 p-4">
-      <EntityHeader title={title} subtitle={subtitle} meta={meta} />
+      <EntityHeader title={title} subtitle={subtitle} meta={meta} entityType={entityType} />
       {lifecycle && (
         <RecordHubLifecyclePath title={lifecycle.title} nodes={lifecycle.nodes} />
       )}

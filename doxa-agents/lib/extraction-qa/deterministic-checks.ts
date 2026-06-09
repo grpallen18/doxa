@@ -1,6 +1,13 @@
+import {
+  attributionDriftDeterministicStrings,
+  collectAttributionDriftIssues,
+  mergeAttributionDriftIntoClaimsReview,
+} from "./attribution-drift.ts";
 import type {
   DeterministicChecksDetail,
   ExtractionJson,
+  ClaimsReviewReport,
+  PositionsReviewReport,
   ReviewReport,
   StrictPreValidationResult,
   ValidationReport,
@@ -14,7 +21,7 @@ import {
   temporalTokensInSource,
   verbatimContains,
 } from "./text-match.ts";
-import { isEmptyExtraction } from "./types.ts";
+import { isEmptyExtraction, isPositionsPipelineEmpty, MAX_VALIDATION_ATTEMPTS } from "./types.ts";
 import { hasSemanticLinks } from "./atom-schema.ts";
 
 export type DeterministicCheckResult = {
@@ -122,7 +129,7 @@ function validateLinkIndexes(extraction: ExtractionJson): { issues: string[]; de
 function validateProvenanceForAtoms(
   sourceText: string,
   extraction: ExtractionJson,
-  options: { claimsOnly?: boolean } = {}
+  options: { claimsOnly?: boolean; positionsOnly?: boolean } = {}
 ): { issues: string[]; blocking: string[]; detail: Partial<DeterministicChecksDetail> } {
   const issues: string[] = [];
   const blocking: string[] = [];
@@ -132,12 +139,14 @@ function validateProvenanceForAtoms(
 
   const atomLists: Array<{ label: string; key: keyof ExtractionJson }> = options.claimsOnly
     ? [{ label: "claim", key: "claims" }]
-    : [
-        { label: "claim", key: "claims" },
-        { label: "evidence", key: "evidence" },
-        { label: "position", key: "positions" },
-        { label: "event", key: "events" },
-      ];
+    : options.positionsOnly
+      ? [{ label: "position", key: "positions" }]
+      : [
+          { label: "claim", key: "claims" },
+          { label: "evidence", key: "evidence" },
+          { label: "position", key: "positions" },
+          { label: "event", key: "events" },
+        ];
 
   for (const { label, key } of atomLists) {
     const list = Array.isArray(extraction[key]) ? (extraction[key] as unknown[]) : [];
@@ -210,20 +219,21 @@ export type StrictPreValidationOptions = {
   enforceCompleteness?: boolean;
   atomsOnly?: boolean;
   claimsOnly?: boolean;
+  positionsOnly?: boolean;
 };
 
 export function getCompletenessIssues(
   extraction: ExtractionJson,
-  options: Pick<StrictPreValidationOptions, "claimsOnly"> = {}
+  options: Pick<StrictPreValidationOptions, "claimsOnly" | "positionsOnly"> = {}
 ): string[] {
   const issues: string[] = [];
   const claims = Array.isArray(extraction.claims) ? extraction.claims : [];
   const positions = Array.isArray(extraction.positions) ? extraction.positions : [];
   const events = Array.isArray(extraction.events) ? extraction.events : [];
 
-  if (claims.length === 0) return issues;
+  if (options.positionsOnly || options.claimsOnly) return issues;
 
-  if (options.claimsOnly) return issues;
+  if (claims.length === 0) return issues;
 
   if (claims.length >= 3 && positions.length === 0) {
     issues.push("missing_position: substantial extraction has no article position");
@@ -239,7 +249,7 @@ export function getCompletenessIssues(
 export function getMaterialityWarnings(
   sourceText: string,
   extraction: ExtractionJson,
-  options: Pick<StrictPreValidationOptions, "claimsOnly"> = {}
+  options: Pick<StrictPreValidationOptions, "claimsOnly" | "positionsOnly"> = {}
 ): string[] {
   const warnings: string[] = [];
   const claims = Array.isArray(extraction.claims) ? extraction.claims : [];
@@ -247,6 +257,13 @@ export function getMaterialityWarnings(
   const positions = Array.isArray(extraction.positions) ? extraction.positions : [];
   const events = Array.isArray(extraction.events) ? extraction.events : [];
   const chunkLen = sourceText.trim().length;
+
+  if (options.positionsOnly) {
+    if (chunkLen >= SUBSTANTIAL_CHUNK_MIN_CHARS && positions.length > 4) {
+      warnings.push(`materiality: ${positions.length} positions — prefer precision over recall`);
+    }
+    return warnings;
+  }
 
   if (chunkLen >= SUBSTANTIAL_CHUNK_MIN_CHARS && claims.length > 14) {
     warnings.push(`materiality: ${claims.length} claims may be excessive for chunk length (target ~3–10 per story)`);
@@ -276,13 +293,18 @@ export function runStrictPreValidation(
   const unsupported_dates_detected: string[] = [];
   let all_evidence_excerpts_verbatim = true;
   const atomsOnly = options.atomsOnly ?? !hasSemanticLinks(extraction);
+  const pipelineEmpty = options.positionsOnly
+    ? isPositionsPipelineEmpty(extraction)
+    : isEmptyExtraction(extraction);
 
   if (
     !options.skipEmptyCheck &&
-    isEmptyExtraction(extraction) &&
+    pipelineEmpty &&
     sourceText.trim().length > SUBSTANTIAL_CHUNK_MIN_CHARS
   ) {
-    const msg = "under_extraction_empty: substantial chunk has empty extraction";
+    const msg = options.positionsOnly
+      ? "under_extraction_empty: substantial chunk has empty positions extraction"
+      : "under_extraction_empty: substantial chunk has empty extraction";
     issues.push(msg);
     blocking_issues.push(msg);
     return {
@@ -293,7 +315,7 @@ export function runStrictPreValidation(
     };
   }
 
-  if (isEmptyExtraction(extraction)) {
+  if (pipelineEmpty) {
     return {
       passes: true,
       blocking_issues: [],
@@ -308,6 +330,7 @@ export function runStrictPreValidation(
   const events = Array.isArray(extraction.events) ? extraction.events : [];
 
   for (let i = 0; i < claims.length; i++) {
+    if (options.positionsOnly) break;
     const text = claimText(claims[i]);
     for (const token of extractStrictTemporalTokens(text)) {
       if (!temporalTokensInSource(token, sourceText)) {
@@ -332,6 +355,7 @@ export function runStrictPreValidation(
   }
 
   for (let i = 0; i < events.length; i++) {
+    if (options.positionsOnly) break;
     const summary = eventSummary(events[i]);
     for (const token of extractStrictTemporalTokens(summary)) {
       if (!temporalTokensInSource(token, sourceText)) {
@@ -355,6 +379,7 @@ export function runStrictPreValidation(
 
   const evidenceCheck = options.lenientEvidence ? fuzzyContains : verbatimContains;
   for (let i = 0; i < evidence.length; i++) {
+    if (options.positionsOnly) break;
     const ex = asRecord(evidence[i]);
     const excerpt = String(ex?.excerpt ?? "");
     if (excerpt && !evidenceCheck(sourceText, excerpt)) {
@@ -367,6 +392,7 @@ export function runStrictPreValidation(
 
   const provResult = validateProvenanceForAtoms(sourceText, extraction, {
     claimsOnly: options.claimsOnly,
+    positionsOnly: options.positionsOnly,
   });
   issues.push(...provResult.issues);
   blocking_issues.push(...provResult.blocking);
@@ -378,13 +404,19 @@ export function runStrictPreValidation(
     blocking_issues.push(...linkResult.issues);
   }
 
-  const completenessIssues = getCompletenessIssues(extraction, { claimsOnly: options.claimsOnly });
+  const completenessIssues = getCompletenessIssues(extraction, {
+    claimsOnly: options.claimsOnly,
+    positionsOnly: options.positionsOnly,
+  });
   for (const msg of completenessIssues) {
     issues.push(msg);
     if (options.enforceCompleteness) {
       blocking_issues.push(msg);
     }
   }
+
+  const attribution_issues = collectAttributionDriftIssues(extraction);
+  issues.push(...attributionDriftDeterministicStrings(attribution_issues));
 
   const deterministic_checks: DeterministicChecksDetail = {
     all_evidence_excerpts_verbatim,
@@ -404,6 +436,7 @@ export function runStrictPreValidation(
     blocking_issues,
     issues,
     deterministic_checks,
+    attribution_issues,
   };
 }
 
@@ -482,6 +515,231 @@ export function checkBlockingFindingsUnresolved(
 
     if (finding.type === "hallucinated_date" && afterText === beforeText && beforeText) {
       unresolved.push(`refiner_failed_blocking: hallucinated date not corrected — ${finding.description}`);
+    }
+  }
+
+  return unresolved;
+}
+
+const EMPTY_RECOMMENDED_PATCH = {
+  op: "none" as const,
+  entity_type: null,
+  entity_index: null,
+  replacement_text: null,
+  new_entity: null,
+  link: null,
+};
+
+export function buildDeterministicClaimsReviewReport(
+  strict: StrictPreValidationResult,
+  attemptNumber: number,
+  refineIfFixable = true
+): ClaimsReviewReport {
+  const blockingIssues = strict.blocking_issues.map((issue) => ({
+    severity: "blocking" as const,
+    claim_id: null,
+    claim_index: null,
+    issue_type: "deterministic" as const,
+    finding: issue,
+  }));
+
+  const recommended_action =
+    attemptNumber >= MAX_VALIDATION_ATTEMPTS
+      ? "reject"
+      : refineIfFixable
+        ? "needs_refinement"
+        : "reject";
+
+  const base: ClaimsReviewReport = {
+    issues: blockingIssues,
+    patches: [],
+    recommended_action,
+    passes_review: false,
+    summary: "Deterministic pre-checks failed. LLM review skipped.",
+    deterministic_issues: strict.issues,
+  };
+
+  return mergeAttributionDriftIntoClaimsReview(base, strict.attribution_issues ?? []);
+}
+
+export function buildDeterministicPositionsReviewReport(
+  strict: StrictPreValidationResult,
+  attemptNumber: number,
+  refineIfFixable = true
+): PositionsReviewReport {
+  const blockingIssues = strict.blocking_issues.map((issue) => ({
+    severity: "blocking" as const,
+    position_id: null,
+    position_index: null,
+    issue_type: "deterministic" as const,
+    finding: issue,
+  }));
+
+  const recommended_action =
+    attemptNumber >= MAX_VALIDATION_ATTEMPTS
+      ? "reject"
+      : refineIfFixable
+        ? "needs_refinement"
+        : "reject";
+
+  return {
+    issues: blockingIssues,
+    patches: [],
+    recommended_action,
+    passes_review: false,
+    summary: "Deterministic pre-checks failed. LLM review skipped.",
+    deterministic_issues: strict.issues,
+  };
+}
+
+export { mergeAttributionDriftIntoClaimsReview };
+
+/** @deprecated Use buildDeterministicClaimsReviewReport for claims-only review. */
+export function buildDeterministicReviewReport(
+  strict: StrictPreValidationResult,
+  attemptNumber: number,
+  refineIfFixable = true
+): ReviewReport {
+  const findings = strict.blocking_issues.map((issue) => ({
+    type: "schema_issue",
+    severity: "blocking" as const,
+    description: issue,
+    entity_type: null,
+    entity_index: null,
+    link_type: null,
+    unsupported_text: null,
+    source_excerpt: null,
+    recommended_patch: { ...EMPTY_RECOMMENDED_PATCH },
+  }));
+
+  const recommended_action =
+    attemptNumber >= MAX_VALIDATION_ATTEMPTS
+      ? "human_review"
+      : refineIfFixable
+        ? "refine"
+        : "human_review";
+
+  return {
+    findings,
+    recommended_action,
+    passes_review: false,
+    summary: "Deterministic pre-checks failed. LLM review skipped.",
+    deterministic_issues: strict.issues,
+  };
+}
+
+function claimTextByIdOrIndex(
+  extraction: ExtractionJson,
+  claimId: string | null,
+  claimIndex: number | null
+): string {
+  const claims = Array.isArray(extraction.claims) ? (extraction.claims as unknown[]) : [];
+  if (claimId) {
+    for (const item of claims) {
+      if (item === null || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      if (row.claim_id === claimId) return String(row.raw_text ?? "");
+    }
+  }
+  if (claimIndex !== null && claimIndex >= 0 && claimIndex < claims.length) {
+    return entityText(extraction, "claim", claimIndex);
+  }
+  return "";
+}
+
+export function checkBlockingClaimsReviewUnresolved(
+  reviewReport: ClaimsReviewReport | Record<string, unknown> | null | undefined,
+  before: ExtractionJson,
+  after: ExtractionJson,
+  _sourceText: string
+): string[] {
+  const unresolved: string[] = [];
+  const report = reviewReport as ClaimsReviewReport | null;
+  const issues = Array.isArray(report?.issues) ? report.issues : [];
+
+  for (const issue of issues) {
+    if (issue.severity !== "blocking") continue;
+    if (issue.issue_type !== "temporal" && issue.issue_type !== "grounding") continue;
+
+    const beforeText = claimTextByIdOrIndex(before, issue.claim_id, issue.claim_index);
+    const afterText = claimTextByIdOrIndex(after, issue.claim_id, issue.claim_index);
+    const patch = (report?.patches ?? []).find(
+      (p) =>
+        p.severity === "blocking" &&
+        (p.claim_ids.includes(issue.claim_id ?? "") ||
+          (issue.claim_index != null && p.claim_indexes.includes(issue.claim_index)))
+    );
+
+    if (patch?.action === "remove") {
+      const beforeLen = Array.isArray(before.claims) ? before.claims.length : 0;
+      const afterLen = Array.isArray(after.claims) ? after.claims.length : 0;
+      if (afterLen >= beforeLen && afterText === beforeText && beforeText) {
+        unresolved.push(`refiner_failed_blocking: claim not removed — ${issue.finding}`);
+      }
+      continue;
+    }
+
+    if (beforeText && afterText === beforeText) {
+      unresolved.push(`refiner_failed_blocking: blocking issue not corrected — ${issue.finding}`);
+    }
+  }
+
+  return unresolved;
+}
+
+function positionTextByIdOrIndex(
+  extraction: ExtractionJson,
+  positionId: string | null,
+  positionIndex: number | null
+): string {
+  const positions = Array.isArray(extraction.positions) ? (extraction.positions as unknown[]) : [];
+  if (positionId) {
+    for (const item of positions) {
+      if (item === null || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      if (row.position_id === positionId) return String(row.raw_text ?? "");
+    }
+  }
+  if (positionIndex !== null && positionIndex >= 0 && positionIndex < positions.length) {
+    return entityText(extraction, "position", positionIndex);
+  }
+  return "";
+}
+
+export function checkBlockingPositionsReviewUnresolved(
+  reviewReport: PositionsReviewReport | Record<string, unknown> | null | undefined,
+  before: ExtractionJson,
+  after: ExtractionJson,
+  _sourceText: string
+): string[] {
+  const unresolved: string[] = [];
+  const report = reviewReport as PositionsReviewReport | null;
+  const issues = Array.isArray(report?.issues) ? report.issues : [];
+
+  for (const issue of issues) {
+    if (issue.severity !== "blocking") continue;
+    if (issue.issue_type !== "temporal" && issue.issue_type !== "grounding") continue;
+
+    const beforeText = positionTextByIdOrIndex(before, issue.position_id, issue.position_index);
+    const afterText = positionTextByIdOrIndex(after, issue.position_id, issue.position_index);
+    const patch = (report?.patches ?? []).find(
+      (p) =>
+        p.severity === "blocking" &&
+        (p.position_ids.includes(issue.position_id ?? "") ||
+          (issue.position_index != null && p.position_indexes.includes(issue.position_index)))
+    );
+
+    if (patch?.action === "remove") {
+      const beforeLen = Array.isArray(before.positions) ? before.positions.length : 0;
+      const afterLen = Array.isArray(after.positions) ? after.positions.length : 0;
+      if (afterLen >= beforeLen && afterText === beforeText && beforeText) {
+        unresolved.push(`refiner_failed_blocking: position not removed — ${issue.finding}`);
+      }
+      continue;
+    }
+
+    if (beforeText && afterText === beforeText) {
+      unresolved.push(`refiner_failed_blocking: blocking issue not corrected — ${issue.finding}`);
     }
   }
 

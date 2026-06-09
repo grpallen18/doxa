@@ -174,10 +174,18 @@ export type StoryExtractionReviewPayload = {
     extraction_json: unknown
     extraction_qa_status: ExtractionQaStatus
     extraction_qa_standardization_report: unknown
+    extraction_qa_review_report: unknown
     extraction_qa_validation_report: unknown
     extraction_qa_refinement_count: number
     extraction_qa_validation_attempt_count: number
     extraction_qa_validated_at: string | null
+    positions_extraction_json: unknown
+    positions_qa_status: ExtractionQaStatus
+    positions_qa_review_report: unknown
+    positions_qa_validation_report: unknown
+    positions_qa_refinement_count: number
+    positions_qa_validation_attempt_count: number
+    positions_qa_validated_at: string | null
   }>
   qa_artifacts: Array<{
     id: string
@@ -186,6 +194,7 @@ export type StoryExtractionReviewPayload = {
     input_snapshot: unknown
     output_snapshot: unknown
     report: unknown
+    run_id: string | null
     created_at: string
   }>
 }
@@ -459,7 +468,7 @@ export async function fetchStoryExtractionReview(
     supabase
       .from('story_chunks')
       .select(
-        'chunk_index, friendly_id, content, extraction_json, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at'
+        'chunk_index, friendly_id, content, extraction_json, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_review_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at, positions_extraction_json, positions_qa_status, positions_qa_review_report, positions_qa_validation_report, positions_qa_refinement_count, positions_qa_validation_attempt_count, positions_qa_validated_at'
       )
       .eq('story_id', storyId)
       .order('chunk_index', { ascending: true }),
@@ -470,10 +479,10 @@ export async function fetchStoryExtractionReview(
       (table) =>
         supabase
           .from(table)
-          .select('id, stage, chunk_index, input_snapshot, output_snapshot, report, created_at')
+          .select('id, stage, chunk_index, input_snapshot, output_snapshot, report, run_id, created_at')
           .eq('story_id', storyId)
           .order('created_at', { ascending: false })
-          .limit(50)
+          .limit(200)
     ),
   ])
 
@@ -663,10 +672,18 @@ export async function fetchStoryExtractionReview(
       extraction_json: c.extraction_json,
       extraction_qa_status: (c.extraction_qa_status as ExtractionQaStatus) ?? null,
       extraction_qa_standardization_report: c.extraction_qa_standardization_report,
+      extraction_qa_review_report: c.extraction_qa_review_report,
       extraction_qa_validation_report: c.extraction_qa_validation_report,
       extraction_qa_refinement_count: Number(c.extraction_qa_refinement_count ?? 0),
       extraction_qa_validation_attempt_count: Number(c.extraction_qa_validation_attempt_count ?? 0),
       extraction_qa_validated_at: c.extraction_qa_validated_at as string | null,
+      positions_extraction_json: c.positions_extraction_json,
+      positions_qa_status: (c.positions_qa_status as ExtractionQaStatus) ?? null,
+      positions_qa_review_report: c.positions_qa_review_report,
+      positions_qa_validation_report: c.positions_qa_validation_report,
+      positions_qa_refinement_count: Number(c.positions_qa_refinement_count ?? 0),
+      positions_qa_validation_attempt_count: Number(c.positions_qa_validation_attempt_count ?? 0),
+      positions_qa_validated_at: c.positions_qa_validated_at as string | null,
     })),
     qa_artifacts: (artifactsRes ?? []).map((a) => ({
       id: a.id as string,
@@ -675,6 +692,7 @@ export async function fetchStoryExtractionReview(
       input_snapshot: a.input_snapshot,
       output_snapshot: a.output_snapshot,
       report: a.report,
+      run_id: (a.run_id as string | null) ?? null,
       created_at: a.created_at as string,
     })),
   }
