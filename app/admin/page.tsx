@@ -2,16 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Fragment, Suspense } from 'react'
+import { Fragment } from 'react'
 import {
   AdminDashboardWidget,
   AdminHealthCheckWidget,
 } from '@/components/admin/admin-dashboard-widget'
-import {
-  AdminPipelineSearchInput,
-  AdminPipelineSearchResults,
-  useAdminPipelineSearch,
-} from '@/components/admin/admin-pipeline-search'
 import { ADMIN_STATUS_PLACEHOLDER } from '@/lib/admin/admin-status-placeholder'
 import { cn } from '@/lib/utils'
 
@@ -45,7 +40,6 @@ const recentTopics = [
 ] as const
 
 function AdminCenterContent() {
-  const search = useAdminPipelineSearch()
   const pathname = usePathname()
 
   return (
@@ -82,21 +76,7 @@ function AdminCenterContent() {
           </nav>
         </div>
 
-        <div className="w-full">
-          <AdminPipelineSearchInput
-            query={search.query}
-            setQuery={search.setQuery}
-            className="h-9 w-full"
-          />
-        </div>
       </div>
-
-      <AdminPipelineSearchResults
-        query={search.query}
-        results={search.results}
-        loading={search.loading}
-        error={search.error}
-      />
 
       <section
         aria-label="Dashboard widgets"
@@ -150,9 +130,5 @@ function AdminCenterContent() {
 }
 
 export default function AdminCenterPage() {
-  return (
-    <Suspense fallback={null}>
-      <AdminCenterContent />
-    </Suspense>
-  )
+  return <AdminCenterContent />
 }

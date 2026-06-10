@@ -22,7 +22,14 @@ function adminMaxWidth(pathname: string): 'default' | 'wide' | 'full' | 'content
   return 'default'
 }
 
+function isAgentFlowRoute(pathname: string): boolean {
+  return /\/admin\/stories\/[^/]+\/agent-flow$/.test(pathname)
+}
+
 function adminShellClass(pathname: string): string | undefined {
+  if (isAgentFlowRoute(pathname)) {
+    return 'min-h-0 h-[calc(100svh-var(--header-height))] max-h-[calc(100svh-var(--header-height))] gap-0 bg-zinc-950 px-0 pb-0 pt-0 sm:px-0 md:px-0 lg:px-0 overflow-hidden'
+  }
   if (isEntityRecordRoute(pathname)) {
     return 'min-h-full bg-surface-canvas px-0 sm:px-0 md:px-0 lg:px-0'
   }

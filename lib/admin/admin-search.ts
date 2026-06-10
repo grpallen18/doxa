@@ -1,15 +1,26 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { deriveStageSummaries } from '@/lib/admin/pipeline-status'
 import { isStoryFriendlyId, isUuid, normalizeStoryFriendlyId, storyAdminHref } from '@/lib/admin/friendly-id'
-import { fetchStoryExtractionReview } from '@/lib/admin/story-extraction-review'
+
+export type AdminSearchEntityType = 'story' | 'claim' | 'position' | 'event' | 'agreement'
 
 export type AdminSearchResult = {
-  type: 'story' | 'claim' | 'position' | 'event' | 'agreement'
+  type: AdminSearchEntityType
   id: string
+  /** Display name for the record (story title, canonical text, cluster label, etc.). */
   title: string
-  subtitle: string | null
   href: string
-  stageBadge: string | null
+}
+
+const ENTITY_LABELS: Record<AdminSearchEntityType, string> = {
+  story: 'Story',
+  claim: 'Claim',
+  position: 'Position',
+  event: 'Event',
+  agreement: 'Agreement',
+}
+
+export function adminSearchEntityLabel(type: AdminSearchEntityType): string {
+  return ENTITY_LABELS[type]
 }
 
 export async function searchAdminRecords(
@@ -62,27 +73,14 @@ export async function searchAdminRecords(
   ])
 
   for (const row of storiesRes.data ?? []) {
-    let stageBadge: string | null = null
-    try {
-      const payload = await fetchStoryExtractionReview(supabase, row.story_id)
-      if (payload) {
-        const stages = deriveStageSummaries(payload)
-        const current = stages.find((s) => s.status === 'current' || s.status === 'blocked')
-        stageBadge = current?.label ?? (stages.every((s) => s.status === 'complete') ? 'Complete' : null)
-      }
-    } catch {
-      stageBadge = null
-    }
     results.push({
       type: 'story',
       id: (row.friendly_id as string) ?? row.story_id,
-      title: row.title,
-      subtitle: row.url,
+      title: row.title as string,
       href: storyAdminHref({
         story_id: row.story_id,
         friendly_id: row.friendly_id as string | undefined,
       }),
-      stageBadge,
     })
   }
 
@@ -90,10 +88,8 @@ export async function searchAdminRecords(
     results.push({
       type: 'claim',
       id: row.claim_id,
-      title: (row.canonical_text as string).slice(0, 120),
-      subtitle: 'Canonical claim',
+      title: row.canonical_text as string,
       href: `/admin/records/claims/${row.claim_id}`,
-      stageBadge: 'Canonical claim',
     })
   }
 
@@ -101,10 +97,8 @@ export async function searchAdminRecords(
     results.push({
       type: 'position',
       id: row.canonical_position_id,
-      title: (row.canonical_text as string).slice(0, 120),
-      subtitle: 'Canonical position',
+      title: row.canonical_text as string,
       href: `/admin/records/positions/${row.canonical_position_id}`,
-      stageBadge: 'Canonical position',
     })
   }
 
@@ -112,10 +106,8 @@ export async function searchAdminRecords(
     results.push({
       type: 'event',
       id: row.event_id,
-      title: (row.canonical_text as string).slice(0, 120),
-      subtitle: 'Canonical event',
+      title: row.canonical_text as string,
       href: `/admin/records/events/${row.event_id}`,
-      stageBadge: 'Canonical event',
     })
   }
 
@@ -123,10 +115,8 @@ export async function searchAdminRecords(
     results.push({
       type: 'agreement',
       id: row.agreement_cluster_id,
-      title: ((row.label ?? row.summary) as string | null)?.slice(0, 120) ?? 'Agreement cluster',
-      subtitle: 'Agreement cluster',
+      title: ((row.label ?? row.summary) as string | null) ?? 'Agreement cluster',
       href: `/admin/agreements/${row.agreement_cluster_id}`,
-      stageBadge: 'Agreement',
     })
   }
 

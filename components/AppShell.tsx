@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { useUserRole } from '@/hooks/use-user-role'
 import { useHeadroomHeader } from '@/hooks/use-headroom-header'
 import { ExploreSidebarNav } from '@/components/explore-sidebar-nav'
+import { AdminHeaderSearch } from '@/components/admin/admin-pipeline-search'
 import { HeaderSearch } from '@/components/header-search'
 import { HeaderAdminMenu } from '@/components/header-admin-menu'
 import { HeaderUserMenu } from '@/components/header-user-menu'
@@ -68,11 +69,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Belief, Mapped.
             </p>
           </div>
-          {!isAdmin && (
-            <div className="pointer-events-none absolute inset-y-0 left-1/2 flex w-full max-w-md -translate-x-1/2 items-center px-4">
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-y-0 left-1/2 flex w-full -translate-x-1/2 items-center px-4',
+              isAdmin ? 'max-w-xl' : 'max-w-md'
+            )}
+          >
+            {isAdmin ? (
+              <AdminHeaderSearch className="pointer-events-auto w-full" />
+            ) : (
               <HeaderSearch className="pointer-events-auto w-full" />
-            </div>
-          )}
+            )}
+          </div>
           <div className="ml-auto flex shrink-0 items-center gap-1 self-center">
             {role === 'admin' && <HeaderAdminMenu />}
             <HeaderUserMenu />

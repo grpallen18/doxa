@@ -1,6 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
 import { StoryExtractionExportButtons } from '@/components/admin/stories/story-extraction-export-buttons'
 import { useStoryReview } from '@/components/admin/stories/story-review-provider'
@@ -160,7 +162,12 @@ function StoryRecordPageContent({
               openSection === 'lifecycle-flowchart' || openSection?.startsWith('step-') === true
             }
             pipelineToolbar={
-              <StoryExtractionExportButtons payload={payload} scope="story_record" compact />
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" asChild>
+                  <Link href={`/admin/stories/${storyId}/agent-flow`}>Agent Flow</Link>
+                </Button>
+                <StoryExtractionExportButtons payload={payload} scope="story_record" compact />
+              </div>
             }
             onApproveQa={approveQa}
             approvingQa={approving}
