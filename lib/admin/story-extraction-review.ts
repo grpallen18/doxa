@@ -1,6 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
+import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { resolveStoryUuid } from '@/lib/admin/resolve-story-id'
+import {
+  fetchStoryStepLatestByStep,
+  fetchStoryStepRunHistory,
+  type StoryStepLatestRow,
+  type StoryStepRunHistoryRow,
+} from '@/lib/admin/story-step-runs'
 
 export type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
 
@@ -197,6 +204,8 @@ export type StoryExtractionReviewPayload = {
     run_id: string | null
     created_at: string
   }>
+  step_runs: Record<PipelineStepId, StoryStepLatestRow | null>
+  step_run_history: Partial<Record<PipelineStepId, StoryStepRunHistoryRow[]>>
 }
 
 export function deriveExtractionStatus(row: {
@@ -422,7 +431,7 @@ export async function fetchStoryExtractionReview(
     (storyRow.content_full as string | null) ??
     (storyRow.content_snippet as string | null)
 
-  const [claimsRes, evidenceRes, positionsRes, eventsRes, feedbackRows, chunksRes, artifactsRes] =
+  const [claimsRes, evidenceRes, positionsRes, eventsRes, feedbackRows, chunksRes, artifactsRes, stepRuns, stepRunHistory] =
     await Promise.all([
     supabase
       .from('story_claims')
@@ -484,6 +493,8 @@ export async function fetchStoryExtractionReview(
           .order('created_at', { ascending: false })
           .limit(200)
     ),
+    fetchStoryStepLatestByStep(supabase, storyId),
+    fetchStoryStepRunHistory(supabase, storyId),
   ])
 
   for (const res of [claimsRes, evidenceRes, positionsRes, eventsRes]) {
@@ -695,6 +706,8 @@ export async function fetchStoryExtractionReview(
       run_id: (a.run_id as string | null) ?? null,
       created_at: a.created_at as string,
     })),
+    step_runs: stepRuns,
+    step_run_history: stepRunHistory,
   }
 }
 

@@ -10,6 +10,10 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
+import { recordStoryStepRun, resolveStoryStepTrigger } from "../../../lib/story-step-runs.ts";
+
+const STEP_ID = "clean-scraped-content";
+const DEPLOY_NAME = "clean_scraped_content";
 
 const LARGE_CONTENT_THRESHOLD = 12_000;
 const VERY_LONG_CONTENT_THRESHOLD = 30_000;
@@ -195,6 +199,16 @@ export const handler = async (req: Request) => {
   );
 
   if (candidates.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No story_bodies to clean" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -244,8 +258,24 @@ export const handler = async (req: Request) => {
 
     if (updateErr) {
       console.error("[clean_scraped_content] story_bodies update error:", updateErr.message);
+      await recordStoryStepRun(supabase, {
+        storyId: row.story_id,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "failure",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        error: updateErr.message,
+      });
       return json({ error: updateErr.message }, 500);
     }
+    await recordStoryStepRun(supabase, {
+      storyId: row.story_id,
+      stepId: STEP_ID,
+      deployName: DEPLOY_NAME,
+      outcome: "success",
+      trigger: resolveStoryStepTrigger(singleStoryId),
+      meta: { content_length_clean: contentClean.length },
+    });
   }
 
   return json({

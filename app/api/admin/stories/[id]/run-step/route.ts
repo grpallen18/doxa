@@ -5,6 +5,7 @@ import { extractEdgeFunctionError, extractErrorMessage } from '@/lib/admin/story
 import { createAdminClient } from '@/lib/supabase/server'
 import { PIPELINE_STEPS, getInvokeOptions, resolveDeployName } from '@/lib/admin/story-pipeline-checklist'
 import { logStoryPipelineStepRun } from '@/lib/admin/story-audit'
+import { appendAdminStoryStepRunFailure } from '@/lib/admin/story-step-runs'
 import { fetchAgentPrompt } from '@/lib/admin/agent-prompt-store'
 import { checkAgentPromptSchemaMatch } from '@/lib/admin/agent-prompt-response-schema'
 import type { PipelineWarning } from '@/lib/admin/pipeline-warnings'
@@ -120,6 +121,20 @@ export async function POST(
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (!res.ok) {
       const message = extractEdgeFunctionError(data, res.status)
+      if (res.status >= 500) {
+        try {
+          await appendAdminStoryStepRunFailure(supabase, {
+            storyId: storyUuid,
+            stepId: stepDef?.id ?? stepInput,
+            deployName,
+            actorId: auth.user.id,
+            error: message,
+            meta: { http_status: res.status, edge_result: data },
+          })
+        } catch (stepRunError: unknown) {
+          console.error('[run-step] Failed to append story step run failure:', stepRunError)
+        }
+      }
       return NextResponse.json(
         { data: null, error: { message, deploy_name: deployName } },
         { status: res.status >= 500 ? 502 : res.status }
@@ -152,6 +167,18 @@ export async function POST(
     })
   } catch (error: unknown) {
     const message = extractErrorMessage(error)
+    try {
+      await appendAdminStoryStepRunFailure(supabase, {
+        storyId: storyUuid,
+        stepId: stepDef?.id ?? stepInput,
+        deployName,
+        actorId: auth.user.id,
+        error: message,
+        meta: { source: 'run-step_exception' },
+      })
+    } catch (stepRunError: unknown) {
+      console.error('[run-step] Failed to append story step run failure:', stepRunError)
+    }
     return NextResponse.json(
       { data: null, error: { message, deploy_name: deployName } },
       { status: 502 }

@@ -12,6 +12,14 @@ import {
   testScopeFields,
 } from "../../../../lib/pipeline-test-params.ts";
 import { isStoryQaPassed, loadQaPassedStoryIds } from "../../../../lib/extraction-qa/qa-gate.ts";
+import {
+  logCanonicalEntityStoryRuns,
+  recordStoryStepRun,
+  resolveStoryStepTrigger,
+} from "../../../../lib/story-step-runs.ts";
+
+const STEP_ID = "link-canonical-positions";
+const DEPLOY_NAME = "link_canonical_positions";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -188,6 +196,16 @@ export const handler = async (req: Request) => {
   }
 
   if (storyPositions.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No story_positions to link" },
+      });
+    }
     await maybeInvokeAssignRankedSubtopics(supabase, SUPABASE_URL, SERVICE_ROLE, dryRun);
     return json({
       ok: true,
@@ -202,6 +220,7 @@ export const handler = async (req: Request) => {
 
   let linked = 0;
   let created = 0;
+  const processedByStory = new Map<string, number>();
 
   for (const sp of storyPositions) {
     const rawText = (sp.raw_text ?? "").trim();
@@ -245,6 +264,7 @@ export const handler = async (req: Request) => {
         }
       }
       linked += 1;
+      processedByStory.set(sp.story_id, (processedByStory.get(sp.story_id) ?? 0) + 1);
     } else {
       const normalized = rawText.toLowerCase().trim().replace(/\s+/g, " ");
       let canonicalHash = await sha256Hex(normalized);
@@ -275,6 +295,7 @@ export const handler = async (req: Request) => {
               return json({ error: upErr.message }, 500);
             }
             created += 1;
+            processedByStory.set(sp.story_id, (processedByStory.get(sp.story_id) ?? 0) + 1);
             break;
           }
 
@@ -285,11 +306,32 @@ export const handler = async (req: Request) => {
           }
 
           console.error("[link_canonical_positions] Insert position error:", insErr.message);
+          if (!dryRun) {
+            await recordStoryStepRun(supabase, {
+              storyId: sp.story_id,
+              stepId: STEP_ID,
+              deployName: DEPLOY_NAME,
+              outcome: "failure",
+              trigger: resolveStoryStepTrigger(singleStoryId),
+              error: insErr.message,
+              meta: { story_position_id: sp.story_position_id },
+            });
+          }
           return json({ error: insErr.message }, 500);
         }
       }
     }
   }
+
+  await logCanonicalEntityStoryRuns(supabase, {
+    stepId: STEP_ID,
+    deployName: DEPLOY_NAME,
+    trigger: resolveStoryStepTrigger(singleStoryId),
+    kind: "positions",
+    storyIds: [...processedByStory.keys()],
+    processedByStory,
+    dryRun,
+  });
 
   await maybeInvokeAssignRankedSubtopics(supabase, SUPABASE_URL, SERVICE_ROLE, dryRun);
   return json({

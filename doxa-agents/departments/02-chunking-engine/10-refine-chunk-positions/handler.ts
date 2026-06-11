@@ -34,8 +34,15 @@ import {
   type RefinementPatchOp,
 } from "../../../lib/extraction-qa/types.ts";
 
+import {
+  logBatchChunkStepRuns,
+  recordStoryStepRun,
+  resolveStoryStepTrigger,
+} from "../../../lib/story-step-runs.ts";
+
 const DEFAULT_MAX = 5;
 const STEP_ID = "refine-chunk-positions";
+const DEPLOY_NAME = "refine_chunk_positions";
 
 function asPositionsExtractionJson(raw: unknown) {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { positions: [] };
@@ -131,6 +138,17 @@ export const handler = async (req: Request) => {
     chunks = chunks.slice(0, maxChunks);
 
     if (chunks.length === 0) {
+      if (!dryRun && singleStoryId) {
+        await recordStoryStepRun(supabase, {
+          storyId: singleStoryId,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "no_op",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          chunkIndex: chunkIndexParam >= 0 ? chunkIndexParam : null,
+          meta: { message: "No chunks ready for positions refine" },
+        });
+      }
       return json({
         ok: true,
         processed: 0,
@@ -161,6 +179,7 @@ export const handler = async (req: Request) => {
     }
 
     let processed = 0;
+    const processedChunks: Array<{ story_id: string; chunk_index: number }> = [];
     const requestId = `refine-positions-${Date.now()}`;
 
     for (const chunk of chunks) {
@@ -323,6 +342,37 @@ export const handler = async (req: Request) => {
       }
 
       processed += 1;
+      processedChunks.push({ story_id: chunk.story_id, chunk_index: chunk.chunk_index });
+    }
+
+    if (processed === 0 && !dryRun) {
+      const storyIds =
+        singleStoryId != null
+          ? [singleStoryId]
+          : [...new Set(chunks.map((c) => c.story_id))];
+      for (const storyId of storyIds) {
+        await recordStoryStepRun(supabase, {
+          storyId,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "no_op",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          pipelineRunId: runId,
+          chunkIndex: chunkIndexParam >= 0 ? chunkIndexParam : null,
+          meta: { message: "No chunks refined this invoke" },
+        });
+      }
+    } else {
+      await logBatchChunkStepRuns(supabase, {
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        lane: "positions",
+        pipelineRunId: runId,
+        chunkIndexParam: chunkIndexParam,
+        processedChunks,
+        dryRun,
+      });
     }
 
     if (!dryRun && runId) {

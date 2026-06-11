@@ -10,6 +10,14 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
+import {
+  recordStoryStepRun,
+  recordStoryStepRunsForBatch,
+  resolveStoryStepTrigger,
+} from "../../../lib/story-step-runs.ts";
+
+const STEP_ID = "chunk-story-bodies";
+const DEPLOY_NAME = "chunk_story_bodies";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,6 +94,16 @@ export const handler = async (req: Request) => {
       return json({ error: countErr.message }, 500);
     }
     if ((count ?? 0) > 0) {
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: singleStoryId,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "no_op",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          meta: { message: "Story already has story_chunks" },
+        });
+      }
       return json({
         ok: true,
         processed: 0,
@@ -108,6 +126,16 @@ export const handler = async (req: Request) => {
     }
     const contentClean = (bodyRow.content_clean ?? "").trim();
     if (!contentClean) {
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: singleStoryId,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "no_op",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          meta: { message: "No content_clean; run clean_scraped_content first" },
+        });
+      }
       return json({
         ok: true,
         processed: 0,
@@ -134,6 +162,16 @@ export const handler = async (req: Request) => {
   }
 
   if (unchunked.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No unchunked stories" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -144,6 +182,7 @@ export const handler = async (req: Request) => {
   }
 
   let totalChunks = 0;
+  const chunkedStoryIds: string[] = [];
 
   for (const row of unchunked) {
     const content = (row.content_clean ?? "").trim();
@@ -162,11 +201,37 @@ export const handler = async (req: Request) => {
 
       if (insertErr) {
         console.error("[chunk_story_bodies] Insert error for story", row.story_id, insertErr.message);
+        await recordStoryStepRun(supabase, {
+          storyId: row.story_id,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          error: insertErr.message,
+        });
         return json({ error: insertErr.message, story_id: row.story_id }, 500);
       }
     }
 
     totalChunks += rows.length;
+    if (rows.length > 0) chunkedStoryIds.push(row.story_id);
+  }
+
+  if (!dryRun && chunkedStoryIds.length > 0) {
+    await recordStoryStepRunsForBatch(
+      supabase,
+      {
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        trigger: resolveStoryStepTrigger(singleStoryId),
+      },
+      chunkedStoryIds.map((storyId) => ({
+        storyId,
+        processed: 1,
+        chunkIndices: [],
+        stepComplete: true,
+      }))
+    );
   }
 
   return json({

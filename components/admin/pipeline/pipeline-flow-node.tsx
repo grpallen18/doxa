@@ -46,6 +46,7 @@ export function PipelineFlowNode({
         manifestStatus={step.manifestStatus}
         inactiveNote={step.inactiveNote}
         stepComplete={stepComplete}
+        stepStatus={step.status}
         isRunning={isRunning || isReverting}
         className={cn(
           step.status === 'current' &&
@@ -69,7 +70,12 @@ export function PipelineFlowNode({
           onRevert={onRevert}
           compact
         />
-        <p className="whitespace-nowrap text-xs font-medium leading-none">{label}</p>
+        <div className="min-w-0">
+          <p className="whitespace-nowrap text-xs font-medium leading-none">{label}</p>
+          {step.progress ? (
+            <p className="truncate text-[10px] leading-tight text-muted">{step.progress}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   )

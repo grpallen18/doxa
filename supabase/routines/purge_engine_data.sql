@@ -24,6 +24,14 @@ BEGIN
     v_skipped := v_skipped || ARRAY['viz'];
   END IF;
 
+  -- required: story_step_runs
+  IF 'public.story_step_runs'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.story_step_runs RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'story_step_runs');
+  ELSE
+    v_skipped := array_append(v_skipped, 'story_step_runs');
+  END IF;
+
   -- required: story_history
   IF 'public.story_history'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.story_history RESTART IDENTITY CASCADE';

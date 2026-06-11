@@ -5,6 +5,7 @@ import { Bot, Check, Moon } from 'lucide-react'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { formatExportDate } from '@/lib/admin/record-export/shared'
 import { getStoryStepCompletedAt } from '@/lib/admin/story-step-metadata'
+import type { PipelineStepStatus } from '@/lib/admin/story-pipeline-checklist'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { StoryStepExportButtons } from '@/components/admin/stories/story-step-export-buttons'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ export function FlowAgentIcon({
   manifestStatus,
   inactiveNote,
   stepComplete,
+  stepStatus,
   isRunning,
   className,
 }: {
@@ -27,14 +29,16 @@ export function FlowAgentIcon({
   manifestStatus: string
   inactiveNote?: string | null
   stepComplete: boolean
+  stepStatus: PipelineStepStatus
   /** Step is executing via Run/Revert — shown in tooltip only. */
   isRunning?: boolean
   className?: string
 }) {
   const isAgentActive = manifestStatus === 'active'
   const completedAt = getStoryStepCompletedAt(stepId, payload)
+  const run = payload.step_runs?.[stepId]
   const statusHint = [
-    stepComplete ? 'Step complete' : 'Step incomplete',
+    run ? `Run log: ${run.outcome}` : stepComplete ? 'Step complete' : 'Step incomplete',
     isRunning ? 'Running' : 'Idle',
     isAgentActive ? 'Agent active' : (inactiveNote ?? 'Agent dormant'),
   ].join(' · ')
@@ -46,9 +50,13 @@ export function FlowAgentIcon({
           type="button"
           className={cn(
             'relative inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-80',
-            stepComplete
+            stepStatus === 'complete' || stepStatus === 'optional'
               ? 'bg-[var(--agent-icon-active-bg)] text-[var(--agent-icon-active-fg)]'
-              : 'bg-[var(--agent-icon-inactive-bg)] text-[var(--agent-icon-inactive-fg)]',
+              : stepStatus === 'current'
+                ? 'bg-[var(--pipeline-step-current-bg)] text-white'
+                : stepStatus === 'blocked'
+                  ? 'bg-destructive/15 text-destructive'
+                  : 'bg-[var(--agent-icon-inactive-bg)] text-[var(--agent-icon-inactive-fg)]',
             className
           )}
           title={statusHint}

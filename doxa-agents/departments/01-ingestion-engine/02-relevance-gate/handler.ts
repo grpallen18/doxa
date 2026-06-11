@@ -5,6 +5,14 @@
 // Optional body: { "story_id": "<uuid>" } — classify only that story (ignores lookback/max_stories).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  recordStoryStepRun,
+  recordStoryStepRunsForBatch,
+  resolveStoryStepTrigger,
+} from "../../../lib/story-step-runs.ts";
+
+const STEP_ID = "relevance-gate";
+const DEPLOY_NAME = "relevance_gate";
 
 type StoryRow = {
   story_id: string;
@@ -441,6 +449,16 @@ export const handler = async (req: Request) => {
       }));
 
     if (stories.length === 0) {
+      if (!dryRun && singleStoryId) {
+        await recordStoryStepRun(supabase, {
+          storyId: singleStoryId,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "no_op",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          meta: { message: "No stories to classify" },
+        });
+      }
       return json({
         ok: true,
         processed: noUrlDropped,
@@ -495,6 +513,20 @@ export const handler = async (req: Request) => {
               return json({ ok: false, error: upErr.message }, 500);
             }
           }
+          await recordStoryStepRunsForBatch(
+            supabase,
+            {
+              stepId: STEP_ID,
+              deployName: DEPLOY_NAME,
+              trigger: resolveStoryStepTrigger(singleStoryId),
+            },
+            fallback.map((row) => ({
+              storyId: row.story_id,
+              processed: 1,
+              chunkIndices: [],
+              blocked: true,
+            }))
+          );
         }
 
         return json({
@@ -567,6 +599,20 @@ export const handler = async (req: Request) => {
             return json({ ok: false, error: upErr.message }, 500);
           }
         }
+        await recordStoryStepRunsForBatch(
+          supabase,
+          {
+            stepId: STEP_ID,
+            deployName: DEPLOY_NAME,
+            trigger: resolveStoryStepTrigger(singleStoryId),
+          },
+          updates.map((row) => ({
+            storyId: row.story_id,
+            processed: 1,
+            chunkIndices: [],
+            stepComplete: true,
+          }))
+        );
       }
 
       const totalProcessed = updates.length + noUrlDropped;
@@ -594,6 +640,20 @@ export const handler = async (req: Request) => {
     if (!dryRun && claimedStoryIds.length > 0) {
       const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
       await supabase.from("stories").update({ relevance_claimed_at: null }).in("story_id", claimedStoryIds);
+      await recordStoryStepRunsForBatch(
+        supabase,
+        {
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          trigger: resolveStoryStepTrigger(singleStoryId),
+        },
+        claimedStoryIds.map((storyId) => ({
+          storyId,
+          processed: 0,
+          chunkIndices: [],
+          error: errorMsg,
+        }))
+      );
     }
     return json({ error: errorMsg }, 500);
   }

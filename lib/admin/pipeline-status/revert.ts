@@ -66,6 +66,16 @@ export function isReviewPendingActuallyRan(payload: StoryExtractionReviewPayload
   return tags.includes('unclear_after_review')
 }
 
+function isIngestionRevertScopeStepComplete(
+  stepId: PipelineStepId,
+  payload: StoryExtractionReviewPayload
+): boolean {
+  if (stepId === 'chunk-story-bodies') {
+    return isExtractionStepComplete('chunk-story-bodies', payload)
+  }
+  return isIngestionStepComplete(stepId, payload)
+}
+
 function latestIngestionRevertTip(payload: StoryExtractionReviewPayload): PipelineStepId | null {
   let lastCompleted: PipelineStepId | null = null
   for (const stepId of INGESTION_REVERT_SCOPE) {
@@ -73,7 +83,7 @@ function latestIngestionRevertTip(payload: StoryExtractionReviewPayload): Pipeli
       if (isReviewPendingActuallyRan(payload)) lastCompleted = stepId
       continue
     }
-    if (isIngestionStepComplete(stepId, payload)) {
+    if (isIngestionRevertScopeStepComplete(stepId, payload)) {
       lastCompleted = stepId
     }
   }

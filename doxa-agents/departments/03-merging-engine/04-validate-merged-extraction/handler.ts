@@ -24,9 +24,12 @@ import {
   json,
   type ReviewReport,
 } from "../../../lib/extraction-qa/types.ts";
+import { logMergeQaStoryRuns, recordStoryStepRun, resolveStoryStepTrigger } from "../../../lib/story-step-runs.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_MAX = 1;
+const STEP_ID = "validate-merged-extraction";
+const DEPLOY_NAME = "validate_merged_extraction";
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -68,10 +71,21 @@ export const handler = async (req: Request) => {
   if (singleStoryId) stories = stories.filter((s) => s.story_id === singleStoryId);
 
   if (stories.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No stories ready for merge validate" },
+      });
+    }
     return json({ ok: true, processed: 0, message: "No stories ready for merge validate", ...testScopeFields({ storyId: singleStoryId }) });
   }
 
   let processed = 0;
+  const processedStoryIds: string[] = [];
   const requestId = crypto.randomUUID();
   const now = new Date().toISOString();
 
@@ -155,7 +169,16 @@ export const handler = async (req: Request) => {
       });
     }
     processed++;
+    processedStoryIds.push(storyId);
   }
+
+  await logMergeQaStoryRuns(supabase, {
+    stepId: STEP_ID,
+    deployName: DEPLOY_NAME,
+    trigger: resolveStoryStepTrigger(singleStoryId),
+    storyIds: processedStoryIds,
+    dryRun,
+  });
 
   return json({ ok: true, processed, dry_run: dryRun, ...testScopeFields({ storyId: singleStoryId }) });
 };

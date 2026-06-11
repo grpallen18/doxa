@@ -110,6 +110,7 @@ export function buildVisionGraph({
             payload,
             step: stepState,
             running,
+            catalogStepId,
           }),
           iconVariant: resolveAgentIconVariant(spec),
           retries: 0,

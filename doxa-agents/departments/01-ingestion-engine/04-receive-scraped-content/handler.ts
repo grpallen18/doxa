@@ -3,6 +3,10 @@
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SCRAPE_SECRET.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { recordStoryStepRun } from "../../../lib/story-step-runs.ts";
+
+const STEP_ID = "scrape-story-content";
+const DEPLOY_NAME = "scrape_story_content";
 
 // This function is called only by our Cloudflare Worker using a shared secret.
 // Disable Supabase's built-in JWT check and do our own SCRAPE_SECRET check instead.
@@ -115,6 +119,14 @@ export const handler = async (req: Request) => {
         domain,
       });
       if (logErr) console.error("[receive_scraped_content] scrape_log insert error:", logErr.message);
+      await recordStoryStepRun(supabase, {
+        storyId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "success",
+        trigger: "callback",
+        meta: { has_content: true },
+      });
     }
     return json({ ok: true, story_id: storyId, dry_run: dryRun });
   }
@@ -141,6 +153,15 @@ export const handler = async (req: Request) => {
       domain,
     });
     if (logErr) console.error("[receive_scraped_content] scrape_log insert error:", logErr.message);
+    await recordStoryStepRun(supabase, {
+      storyId,
+      stepId: STEP_ID,
+      deployName: DEPLOY_NAME,
+      outcome: errorMsg ? "failure" : "skipped",
+      trigger: "callback",
+      meta: { scrape_skipped: true },
+      error: errorMsg,
+    });
   }
   return json({ ok: true, story_id: storyId, skipped: true, dry_run: dryRun });
 };

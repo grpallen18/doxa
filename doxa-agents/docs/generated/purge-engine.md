@@ -28,6 +28,7 @@ Initial install: migration `121_purge_engine_data.sql`.
 
 ## Truncate tables
 
+- `story_step_runs`
 - `story_history`
 - `story_chunks_history`
 - `claims_history`

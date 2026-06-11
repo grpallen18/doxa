@@ -12,6 +12,14 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
+import {
+  recordStoryStepRun,
+  recordStoryStepRunsForBatch,
+  resolveStoryStepTrigger,
+} from "../../../lib/story-step-runs.ts";
+
+const STEP_ID = "merge-story-claims";
+const DEPLOY_NAME = "merge_story_claims";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -139,6 +147,16 @@ export const handler = async (req: Request) => {
         .filter((id): id is string => typeof id === "string")
     );
     if (!readyIds.has(singleStoryId)) {
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: singleStoryId,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "no_op",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          meta: { message: "Story not ready to merge" },
+        });
+      }
       return json(
         {
           error:
@@ -161,6 +179,16 @@ export const handler = async (req: Request) => {
   }
 
   if (toProcess.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No stories ready to merge" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -223,11 +251,22 @@ export const handler = async (req: Request) => {
       mergeClaims = mergeResult.claims;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (!dryRun && runId) {
-        await supabase
-          .from("pipeline_runs")
-          .update({ status: "failed", ended_at: new Date().toISOString(), error: msg })
-          .eq("run_id", runId);
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          pipelineRunId: runId,
+          error: msg,
+        });
+        if (runId) {
+          await supabase
+            .from("pipeline_runs")
+            .update({ status: "failed", ended_at: new Date().toISOString(), error: msg })
+            .eq("run_id", runId);
+        }
       }
       return json({ error: msg, story_id: storyId }, 500);
     }
@@ -279,6 +318,17 @@ export const handler = async (req: Request) => {
 
     totalClaims += claimIds.length;
     processed += 1;
+    if (!dryRun) {
+      await recordStoryStepRun(supabase, {
+        storyId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "success",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        pipelineRunId: runId,
+        meta: { story_claims: claimIds.length, skipped_empty: skippedEmpty },
+      });
+    }
   }
 
   if (!dryRun && runId) {

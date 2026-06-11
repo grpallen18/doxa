@@ -12,6 +12,14 @@ import {
   testScopeFields,
 } from "../../../../lib/pipeline-test-params.ts";
 import { isStoryQaPassed, loadQaPassedStoryIds } from "../../../../lib/extraction-qa/qa-gate.ts";
+import {
+  logCanonicalEntityStoryRuns,
+  recordStoryStepRun,
+  resolveStoryStepTrigger,
+} from "../../../../lib/story-step-runs.ts";
+
+const STEP_ID = "link-canonical-claims";
+const DEPLOY_NAME = "link_canonical_claims";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -146,6 +154,16 @@ export const handler = async (req: Request) => {
   }
 
   if (storyClaims.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No story_claims to link" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -159,6 +177,7 @@ export const handler = async (req: Request) => {
 
   let linked = 0;
   let created = 0;
+  const processedByStory = new Map<string, number>();
 
   for (const sc of storyClaims) {
     const rawText = (sc.raw_text ?? "").trim();
@@ -170,6 +189,17 @@ export const handler = async (req: Request) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[link_canonical_claims] Embedding error:", msg);
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: sc.story_id,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          error: msg,
+          meta: { story_claim_id: sc.story_claim_id },
+        });
+      }
       return json({ error: msg, story_claim_id: sc.story_claim_id }, 500);
     }
 
@@ -182,6 +212,17 @@ export const handler = async (req: Request) => {
 
     if (rpcErr) {
       console.error("[link_canonical_claims] RPC error:", rpcErr.message);
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: sc.story_id,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          error: rpcErr.message,
+          meta: { story_claim_id: sc.story_claim_id },
+        });
+      }
       return json({ error: rpcErr.message, story_claim_id: sc.story_claim_id }, 500);
     }
 
@@ -198,10 +239,22 @@ export const handler = async (req: Request) => {
 
         if (upErr) {
           console.error("[link_canonical_claims] Update link error:", upErr.message);
+          if (!dryRun) {
+            await recordStoryStepRun(supabase, {
+              storyId: sc.story_id,
+              stepId: STEP_ID,
+              deployName: DEPLOY_NAME,
+              outcome: "failure",
+              trigger: resolveStoryStepTrigger(singleStoryId),
+              error: upErr.message,
+              meta: { story_claim_id: sc.story_claim_id },
+            });
+          }
           return json({ error: upErr.message }, 500);
         }
       }
       linked += 1;
+      processedByStory.set(sc.story_id, (processedByStory.get(sc.story_id) ?? 0) + 1);
     } else {
       const normalized = rawText.toLowerCase().trim().replace(/\s+/g, " ");
       let canonicalHash = await sha256Hex(normalized);
@@ -229,9 +282,21 @@ export const handler = async (req: Request) => {
 
             if (upErr) {
               console.error("[link_canonical_claims] Update new claim error:", upErr.message);
+              if (!dryRun) {
+                await recordStoryStepRun(supabase, {
+                  storyId: sc.story_id,
+                  stepId: STEP_ID,
+                  deployName: DEPLOY_NAME,
+                  outcome: "failure",
+                  trigger: resolveStoryStepTrigger(singleStoryId),
+                  error: upErr.message,
+                  meta: { story_claim_id: sc.story_claim_id },
+                });
+              }
               return json({ error: upErr.message }, 500);
             }
             created += 1;
+            processedByStory.set(sc.story_id, (processedByStory.get(sc.story_id) ?? 0) + 1);
             break;
           }
 
@@ -242,11 +307,32 @@ export const handler = async (req: Request) => {
           }
 
           console.error("[link_canonical_claims] Insert claim error:", insErr.message);
+          if (!dryRun) {
+            await recordStoryStepRun(supabase, {
+              storyId: sc.story_id,
+              stepId: STEP_ID,
+              deployName: DEPLOY_NAME,
+              outcome: "failure",
+              trigger: resolveStoryStepTrigger(singleStoryId),
+              error: insErr.message,
+              meta: { story_claim_id: sc.story_claim_id },
+            });
+          }
           return json({ error: insErr.message }, 500);
         }
       }
     }
   }
+
+  await logCanonicalEntityStoryRuns(supabase, {
+    stepId: STEP_ID,
+    deployName: DEPLOY_NAME,
+    trigger: resolveStoryStepTrigger(singleStoryId),
+    kind: "claims",
+    storyIds: [...processedByStory.keys()],
+    processedByStory,
+    dryRun,
+  });
 
   return json({
     ok: true,

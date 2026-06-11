@@ -33,6 +33,13 @@ export function PipelineStatusIcon({
         />
       )
     case 'current':
+      return (
+        <Circle
+          className={cn('shrink-0 text-[var(--pipeline-step-current-bg)]', iconClass)}
+          aria-hidden
+        />
+      )
+    case 'pending':
     default:
       return <Circle className={cn('shrink-0 text-muted/60', iconClass)} aria-hidden />
   }

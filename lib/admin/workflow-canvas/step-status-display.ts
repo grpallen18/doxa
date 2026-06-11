@@ -2,8 +2,13 @@ import {
   isIngestionStepExecuted,
   isReviewPendingOptional,
 } from '@/lib/admin/pipeline-status/ingestion'
+import {
+  getStoryStepRunRow,
+  mapStoryStepOutcomeToAgentDisplayStatus,
+} from '@/lib/admin/pipeline-step-run-display'
 import type { PipelineStepState } from '@/lib/admin/story-pipeline-checklist'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
+import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type {
   AgentDisplayStatus,
   VisionDecisionMode,
@@ -20,8 +25,9 @@ export function mapStepToDisplayStatus(
 
   switch (step.status) {
     case 'complete':
-    case 'optional':
       return 'Approved'
+    case 'optional':
+      return 'N/A'
     case 'running':
       return 'Running'
     case 'blocked':
@@ -40,7 +46,8 @@ export function mapDecisionResult(
 ): string {
   if (isRunning) return ''
   if (!step) return ''
-  if (step.status === 'complete' || step.status === 'optional') return 'Pass'
+  if (step.status === 'optional') return 'N/A'
+  if (step.status === 'complete') return 'Pass'
   if (step.status === 'blocked') return 'Fail'
   if (step.status === 'current') return 'Needs Refinement'
   return ''
@@ -81,6 +88,16 @@ export function mapApprovalDecisionResult(
   return ''
 }
 
+function agentStatusFromStepRun(
+  payload: StoryExtractionReviewPayload,
+  catalogStepId: PipelineStepId | undefined
+): string | null {
+  if (!catalogStepId) return null
+  const run = getStoryStepRunRow(payload, catalogStepId)
+  if (!run) return null
+  return mapStoryStepOutcomeToAgentDisplayStatus(run.outcome, catalogStepId)
+}
+
 export function mapAgentNodeStatus({
   nodeType,
   maturity,
@@ -88,6 +105,7 @@ export function mapAgentNodeStatus({
   payload,
   step,
   running,
+  catalogStepId,
 }: {
   nodeType: VisionNodeType
   maturity: VisionMaturity
@@ -95,9 +113,21 @@ export function mapAgentNodeStatus({
   payload: StoryExtractionReviewPayload
   step: PipelineStepState | undefined
   running: boolean
+  catalogStepId?: PipelineStepId
 }): string {
   if (running) return 'Running'
   if (maturity !== 'live') return 'Planned'
+
+  const logStatus = agentStatusFromStepRun(payload, catalogStepId ?? step?.id)
+  if (logStatus && !decisionMode) {
+    return logStatus
+  }
+
+  const decisionStepId = catalogStepId ?? step?.id
+  const decisionRun = decisionStepId ? getStoryStepRunRow(payload, decisionStepId) : null
+  if (decisionRun?.outcome === 'failure') {
+    return 'Failed'
+  }
 
   if (decisionMode === 'qualify') {
     return mapQualifyDecisionResult(payload, running) || mapStepToDisplayStatus(step, running)

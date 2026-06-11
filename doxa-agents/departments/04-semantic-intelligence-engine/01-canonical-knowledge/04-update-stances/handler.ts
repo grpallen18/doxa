@@ -12,6 +12,14 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../../lib/pipeline-test-params.ts";
+import {
+  logCanonicalEntityStoryRuns,
+  recordStoryStepRun,
+  resolveStoryStepTrigger,
+} from "../../../../lib/story-step-runs.ts";
+
+const STEP_ID = "update-stances";
+const DEPLOY_NAME = "update_stances";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -220,6 +228,16 @@ export const handler = async (req: Request) => {
   );
 
   if (toProcess.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No story_claims needing stance" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -231,6 +249,7 @@ export const handler = async (req: Request) => {
 
   const requestId = `update-stances-${Date.now()}`;
   let processed = 0;
+  const processedByStory = new Map<string, number>();
 
   for (const row of toProcess) {
     const rawText = (row.raw_text ?? "").trim();
@@ -248,6 +267,17 @@ export const handler = async (req: Request) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[update_stances] LLM error for", row.story_claim_id, msg);
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: row.story_id,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          error: msg,
+          meta: { story_claim_id: row.story_claim_id },
+        });
+      }
       return json({
         error: msg,
         story_claim_id: row.story_claim_id,
@@ -268,7 +298,18 @@ export const handler = async (req: Request) => {
     }
 
     processed += 1;
+    processedByStory.set(row.story_id, (processedByStory.get(row.story_id) ?? 0) + 1);
   }
+
+  await logCanonicalEntityStoryRuns(supabase, {
+    stepId: STEP_ID,
+    deployName: DEPLOY_NAME,
+    trigger: resolveStoryStepTrigger(singleStoryId),
+    kind: "stances",
+    storyIds: [...processedByStory.keys()],
+    processedByStory,
+    dryRun,
+  });
 
   return json({
     ok: true,

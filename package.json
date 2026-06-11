@@ -26,7 +26,8 @@
     "preview:extract-claims": "tsx scripts/preview-extract-claims.ts",
     "debug:preview-extract": "tsx scripts/debug-preview-extract.ts",
     "e2e:preview-claims": "tsx scripts/run-preview-claims-e2e.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:story-step-runs": "tsx scripts/test-story-step-runs.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

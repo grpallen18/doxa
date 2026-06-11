@@ -7,6 +7,10 @@ import {
 import { storyAdminHref } from '@/lib/admin/friendly-id'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
+  resolvePipelineStepProgressFromRunLog,
+  resolvePipelineStepStatusFromRunLog,
+} from '@/lib/admin/pipeline-step-run-display'
+import {
   canonicalSnapshot,
   canonicalStepProgress,
   getCanonicalNotRequiredMessage,
@@ -211,8 +215,6 @@ function isStepOptional(stepId: PipelineStepId, payload: StoryExtractionReviewPa
 function isPriorStepSatisfied(sid: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   if (isStepComplete(sid, payload)) return true
   if (isStepOptional(sid, payload)) return true
-  const def = PIPELINE_STEPS.find((s) => s.id === sid)
-  if (def?.optional) return true
   return false
 }
 
@@ -287,7 +289,7 @@ function linkEntitiesPrerequisitesMet(payload: StoryExtractionReviewPayload): bo
 function priorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   const extractionLane = getExtractionStepLane(stepId)
   if (extractionLane === 'shared') {
-    return priorStepsInOrder(stepId, stageStepIds('ingestion'), payload)
+    return isIngestionComplete(payload)
   }
   if (extractionLane === 'claims') {
     return extractionLanePriorStepsSatisfied(stepId, 'claims', payload)
@@ -338,6 +340,17 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
       priorOk &&
       !blockedGate &&
       payload.story.relevance_status === 'KEEP'
+    )
+  }
+
+  if (stepId === 'chunk-story-bodies') {
+    return (
+      !complete &&
+      !blocked &&
+      priorOk &&
+      !blockedGate &&
+      payload.story.relevance_status === 'KEEP' &&
+      payload.story.has_content_clean
     )
   }
 
@@ -454,10 +467,14 @@ export function derivePipelineChecklist(payload: StoryExtractionReviewPayload): 
     const complete = isStepComplete(def.id, payload)
     const blocked = isStepBlocked(def.id, payload)
     const optional = isStepOptional(def.id, payload)
-    const progress = stepProgress(def.id, payload)
+    const logStatus = resolvePipelineStepStatusFromRunLog(payload, def.id)
+    const logProgress = resolvePipelineStepProgressFromRunLog(payload, def.id)
+    const progress = logProgress ?? stepProgress(def.id, payload)
 
     let status: PipelineStepStatus
-    if (blocked && !complete) {
+    if (logStatus) {
+      status = logStatus
+    } else if (blocked && !complete) {
       status = 'blocked'
     } else if (complete) {
       status = 'complete'

@@ -11,6 +11,14 @@ import {
   testScopeFields,
 } from "../../../../lib/pipeline-test-params.ts";
 import { isStoryQaPassed, loadQaPassedStoryIds } from "../../../../lib/extraction-qa/qa-gate.ts";
+import {
+  logCanonicalEntityStoryRuns,
+  recordStoryStepRun,
+  resolveStoryStepTrigger,
+} from "../../../../lib/story-step-runs.ts";
+
+const STEP_ID = "link-canonical-events";
+const DEPLOY_NAME = "link_canonical_events";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -161,6 +169,16 @@ export const handler = async (req: Request) => {
   }
 
   if (storyEvents.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No story_events to link" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -175,6 +193,7 @@ export const handler = async (req: Request) => {
   const topicCache = new Map<string, string>();
   let linked = 0;
   let created = 0;
+  const processedByStory = new Map<string, number>();
 
   for (const se of storyEvents) {
     const summary = (se.event_summary ?? "").trim();
@@ -201,6 +220,17 @@ export const handler = async (req: Request) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[link_canonical_events] Embedding error:", msg);
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: se.story_id,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          error: msg,
+          meta: { story_event_id: se.story_event_id },
+        });
+      }
       return json({ error: msg, story_event_id: se.story_event_id }, 500);
     }
 
@@ -234,6 +264,7 @@ export const handler = async (req: Request) => {
         }
       }
       linked += 1;
+      processedByStory.set(se.story_id, (processedByStory.get(se.story_id) ?? 0) + 1);
     } else {
       const normalized = summary.toLowerCase().trim().replace(/\s+/g, " ");
       let canonicalHash = await sha256Hex(normalized);
@@ -275,6 +306,7 @@ export const handler = async (req: Request) => {
               return json({ error: upErr.message }, 500);
             }
             created += 1;
+            processedByStory.set(se.story_id, (processedByStory.get(se.story_id) ?? 0) + 1);
             break;
           }
 
@@ -285,11 +317,32 @@ export const handler = async (req: Request) => {
           }
 
           console.error("[link_canonical_events] Insert event error:", insErr.message);
+          if (!dryRun) {
+            await recordStoryStepRun(supabase, {
+              storyId: se.story_id,
+              stepId: STEP_ID,
+              deployName: DEPLOY_NAME,
+              outcome: "failure",
+              trigger: resolveStoryStepTrigger(singleStoryId),
+              error: insErr.message,
+              meta: { story_event_id: se.story_event_id },
+            });
+          }
           return json({ error: insErr.message }, 500);
         }
       }
     }
   }
+
+  await logCanonicalEntityStoryRuns(supabase, {
+    stepId: STEP_ID,
+    deployName: DEPLOY_NAME,
+    trigger: resolveStoryStepTrigger(singleStoryId),
+    kind: "events",
+    storyIds: [...processedByStory.keys()],
+    processedByStory,
+    dryRun,
+  });
 
   return json({
     ok: true,

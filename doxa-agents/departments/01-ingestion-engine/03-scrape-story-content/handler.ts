@@ -3,7 +3,11 @@
 // Optional body: { "story_id": "<uuid>" } — dispatch only that story (ignores batch claim).
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WORKER_SCRAPE_URL, SCRAPE_SECRET.
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { recordStoryStepRun, resolveStoryStepTrigger } from "../../../lib/story-step-runs.ts";
+
+const STEP_ID = "scrape-story-content";
+const DEPLOY_NAME = "scrape_story_content";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,16 +45,39 @@ function domainFromUrl(urlStr: string): string {
 
 type StoryDispatch = { story_id: string; url: string };
 
+async function logScrapeDispatch(
+  supabase: SupabaseClient,
+  storyId: string,
+  singleStory: boolean,
+  dryRun: boolean,
+  outcome: "looping" | "failure" | "no_op" | "skipped",
+  meta?: Record<string, unknown>
+) {
+  if (dryRun) return;
+  await recordStoryStepRun(supabase, {
+    storyId,
+    stepId: STEP_ID,
+    deployName: DEPLOY_NAME,
+    outcome,
+    trigger: resolveStoryStepTrigger(singleStory ? storyId : null),
+    meta,
+  });
+}
+
 async function dispatchToWorker(
   story: StoryDispatch,
   dryRun: boolean,
   singleStory: boolean,
   workerUrl: string,
-  scrapeSecret: string
+  scrapeSecret: string,
+  supabase: SupabaseClient
 ): Promise<Response> {
   const url = story.url.trim();
   const domain = domainFromUrl(url);
   if (!domain) {
+    await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "failure", {
+      message: "Could not parse domain from URL",
+    });
     return json({
       ok: true,
       dispatched: 0,
@@ -91,6 +118,10 @@ async function dispatchToWorker(
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.error("[scrape_story_content] Worker response:", res.status, errText.slice(0, 300));
+      await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "looping", {
+        worker_status: res.status,
+        note: "Worker non-OK; awaiting receive or stale release",
+      });
       return json({
         ok: true,
         dispatched: 1,
@@ -102,6 +133,9 @@ async function dispatchToWorker(
       });
     }
 
+    await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "looping", {
+      dispatched: 1,
+    });
     return json({
       ok: true,
       dispatched: 1,
@@ -114,6 +148,10 @@ async function dispatchToWorker(
     const msg = e instanceof Error ? e.message : String(e);
     const isAbort = e instanceof Error && e.name === "AbortError";
     console.warn("[scrape_story_content] Worker request:", isAbort ? "timeout" : msg);
+    await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "looping", {
+      worker_timeout: isAbort,
+      note: "Dispatch remains in-flight; receive or stale release will reconcile",
+    });
     return json({
       ok: true,
       dispatched: 1,
@@ -217,6 +255,16 @@ export const handler = async (req: Request) => {
   }
 
   if (!story?.story_id) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No stories ready for scrape" },
+      });
+    }
     return json({
       ok: true,
       dispatched: 0,
@@ -227,6 +275,9 @@ export const handler = async (req: Request) => {
   }
 
   if (!story.url) {
+    await logScrapeDispatch(supabase, story.story_id, Boolean(singleStoryId), dryRun, "no_op", {
+      message: "Story has no URL",
+    });
     return json({
       ok: true,
       dispatched: 0,
@@ -236,5 +287,12 @@ export const handler = async (req: Request) => {
     });
   }
 
-  return dispatchToWorker(story, dryRun, Boolean(singleStoryId), WORKER_SCRAPE_URL, SCRAPE_SECRET);
+  return dispatchToWorker(
+    story,
+    dryRun,
+    Boolean(singleStoryId),
+    WORKER_SCRAPE_URL,
+    SCRAPE_SECRET,
+    supabase
+  );
 };

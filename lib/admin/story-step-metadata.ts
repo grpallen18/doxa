@@ -1,6 +1,7 @@
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { getStepOutputSnapshot, isStepComplete } from '@/lib/admin/pipeline-status'
 import { STEP_QA_ARTIFACT_STAGES } from '@/lib/admin/pipeline-status/qa-lane-stages'
+import { getStoryStepRunCompletedAt } from '@/lib/admin/pipeline-step-run-display'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 
 function maxIso(dates: Array<string | null | undefined>): string | null {
@@ -33,6 +34,9 @@ export function getStoryStepCompletedAt(
   stepId: PipelineStepId,
   payload: StoryExtractionReviewPayload
 ): string | null {
+  const fromRunLog = getStoryStepRunCompletedAt(payload, stepId)
+  if (fromRunLog) return fromRunLog
+
   if (!isStepComplete(stepId, payload)) return null
 
   const { story, chunks } = payload

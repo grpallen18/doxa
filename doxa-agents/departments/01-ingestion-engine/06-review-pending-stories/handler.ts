@@ -10,6 +10,14 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
+import {
+  recordStoryStepRun,
+  recordStoryStepRunsForBatch,
+  resolveStoryStepTrigger,
+} from "../../../lib/story-step-runs.ts";
+
+const STEP_ID = "review-pending-stories";
+const DEPLOY_NAME = "review_pending_stories";
 
 const BODY_CONTENT_MAX_CHARS = 3000;
 
@@ -311,6 +319,16 @@ export const handler = async (req: Request) => {
     }));
 
   if (stories.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        meta: { message: "No PENDING stories with content_clean to review" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -371,6 +389,23 @@ export const handler = async (req: Request) => {
       }
     }
 
+    if (!dryRun) {
+      await recordStoryStepRunsForBatch(
+        supabase,
+        {
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          trigger: resolveStoryStepTrigger(singleStoryId),
+        },
+        stories.map((s) => ({
+          storyId: s.story_id,
+          processed: 1,
+          chunkIndices: [],
+          stepComplete: true,
+        }))
+      );
+    }
+
     return json({
       ok: true,
       processed: stories.length,
@@ -387,6 +422,20 @@ export const handler = async (req: Request) => {
     if (!dryRun) {
       const storyIds = stories.map((s) => s.story_id);
       await supabase.from("stories").update({ review_claimed_at: null }).in("story_id", storyIds);
+      await recordStoryStepRunsForBatch(
+        supabase,
+        {
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          trigger: resolveStoryStepTrigger(singleStoryId),
+        },
+        storyIds.map((storyId) => ({
+          storyId,
+          processed: 0,
+          chunkIndices: [],
+          error: msg,
+        }))
+      );
     }
     return json({ error: msg }, 500);
   }

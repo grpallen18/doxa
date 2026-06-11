@@ -48,3 +48,4 @@ export type AgentDisplayStatus =
   | 'Needs Review'
   | 'Refining'
   | 'Human Review'
+  | 'N/A'

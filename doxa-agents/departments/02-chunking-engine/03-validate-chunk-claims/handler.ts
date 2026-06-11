@@ -31,9 +31,15 @@ import {
   resolveClaimsReviewFailureStatus,
   type ClaimsReviewReport,
 } from "../../../lib/extraction-qa/types.ts";
+import {
+  logBatchChunkStepRuns,
+  recordStoryStepRun,
+  resolveStoryStepTrigger,
+} from "../../../lib/story-step-runs.ts";
 
 const DEFAULT_MAX = 5;
 const STEP_ID = "validate-chunk-claims";
+const DEPLOY_NAME = "validate_chunk_claims";
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -101,6 +107,17 @@ export const handler = async (req: Request) => {
   chunks = chunks.slice(0, maxChunks);
 
   if (chunks.length === 0) {
+    if (!dryRun && singleStoryId) {
+      await recordStoryStepRun(supabase, {
+        storyId: singleStoryId,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "no_op",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        chunkIndex: chunkIndexParam >= 0 ? chunkIndexParam : null,
+        meta: { message: "No chunks ready for claims review" },
+      });
+    }
     return json({
       ok: true,
       processed: 0,
@@ -131,6 +148,7 @@ export const handler = async (req: Request) => {
   }
 
   let processed = 0;
+  const processedChunks: Array<{ story_id: string; chunk_index: number }> = [];
   const requestId = `review-claims-${Date.now()}`;
   const now = new Date().toISOString();
 
@@ -295,18 +313,42 @@ export const handler = async (req: Request) => {
       }
 
       processed += 1;
+      processedChunks.push({ story_id: chunk.story_id, chunk_index: chunk.chunk_index });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[validate_chunk_claims] Error:", chunk.story_id, chunk.chunk_index, msg);
-      if (!dryRun && runId) {
-        await supabase
-          .from("pipeline_runs")
-          .update({ status: "failed", ended_at: new Date().toISOString(), error: msg })
-          .eq("run_id", runId);
+      if (!dryRun) {
+        await recordStoryStepRun(supabase, {
+          storyId: chunk.story_id,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          pipelineRunId: runId,
+          chunkIndex: chunk.chunk_index,
+          error: msg,
+        });
+        if (runId) {
+          await supabase
+            .from("pipeline_runs")
+            .update({ status: "failed", ended_at: new Date().toISOString(), error: msg })
+            .eq("run_id", runId);
+        }
       }
       return json({ error: msg, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
     }
   }
+
+  await logBatchChunkStepRuns(supabase, {
+    stepId: STEP_ID,
+    deployName: DEPLOY_NAME,
+    trigger: resolveStoryStepTrigger(singleStoryId),
+    lane: "claims",
+    pipelineRunId: runId,
+    chunkIndexParam: chunkIndexParam,
+    processedChunks,
+    dryRun,
+  });
 
   if (!dryRun && runId) {
     await supabase
