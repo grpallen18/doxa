@@ -1,0 +1,49 @@
+---
+description: Bugbot review and fix loop before finishing pipeline code changes
+globs: doxa-agents/**,supabase/functions/**,workers/**
+alwaysApply: true
+---
+
+# Pipeline review before finishing
+
+When this session edited pipeline logic, complete this workflow **before** telling the user the task is done. Do not wait for the user to ask.
+
+## When this applies
+
+Run the review loop if you changed any of:
+
+- `doxa-agents/**/handler.ts`
+- `supabase/functions/**/index.ts` (stubs or handler paths)
+- `workers/**` pipeline code
+- `schedule.sql` / `schedules.sql` next to a step
+
+Skip Bugbot for doc-only edits (`README.md`, `activation.yaml`, migrations with no handler changes) unless the user asked for review.
+
+## Order of operations
+
+1. **Librarian first** — `.cursor/hooks/librarian-stop.mjs` runs `npm run agents:refresh` on turn end. If a stop-hook `followup_message` reports refresh failure, fix handlers/READMEs/SQL and continue until refresh passes. Do not hand-edit `manifest.yaml` or `docs/generated/*`.
+2. **Bugbot review** — launch one `bugbot` subagent (`readonly: true`, `run_in_background: false`):
+
+```text
+Full Repository Path: <absolute repo path>
+Diff: uncommitted changes
+Custom Instructions: Focus on pipeline handlers, edge stubs, and schedule SQL touched this session. Flag logic bugs, missing error handling, and incorrect assumptions.
+```
+
+Use `branch changes` instead when the user is finishing a branch/PR review.
+
+3. **Fix material findings** — for each finding rated **Critical**, **High**, or **Major** (or equivalent top severities):
+   - Evaluate whether it is a real bug vs nitpick or false positive.
+   - Fix real bugs in code; skip style-only or speculative items.
+   - Do not expand scope beyond what the finding requires.
+4. **Re-review** — after fixes, launch Bugbot again on `uncommitted changes`. Repeat fix → review until there are no remaining material findings, or you hit **3 review rounds** (then summarize what's left for the user).
+5. **Finish** — only then mark the task complete. Briefly note review outcome in the final message (e.g. "Bugbot clean" or "Bugbot: fixed 2 issues, 1 low-severity suggestion left").
+
+## Hook failures vs Bugbot
+
+- **`agents:refresh` / validate failures** (from the librarian stop hook): fix immediately; the hook will re-prompt via `followup_message`.
+- **Bugbot findings**: you fix and re-run on your own; no user re-prompt needed for material issues.
+
+## If Bugbot cannot run
+
+Retry once with the same prompt shape. If it still fails, tell the user review did not complete and list the blocker. Do not claim the code was reviewed.

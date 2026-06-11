@@ -12,8 +12,9 @@ Read [doxa-agents/AGENTS.md](doxa-agents/AGENTS.md) when changing ingestion, pro
 
 1. Edit `doxa-agents/departments/**/handler.ts` (real logic). Update `schedule.sql` only if cron schedule or job changes.
 2. Update `supabase/functions/<deploy_name>/index.ts` stub only when adding a new function or changing handler path.
-3. Run `npm run agents:refresh` from repo root before finishing.
+3. **Librarian sync** — the `stop` hook runs `npm run agents:refresh` on turn end; fix validation errors if the hook follow-up reports failure. You can also run it manually when testing mid-turn.
 4. **Never hand-edit** `doxa-agents/manifest.yaml` or `doxa-agents/docs/generated/*`.
+5. **Before finishing** handler/stub/worker edits: run the Bugbot review-and-fix loop in [doxa-pipeline-review.mdc](doxa-pipeline-review.mdc).
 
 ## Chunking, merging, canonicalization vs topology
 

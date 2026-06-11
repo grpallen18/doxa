@@ -16,6 +16,8 @@ On every agent turn end, `.cursor/hooks/librarian-stop.mjs` runs when either:
 
 It executes `npm run agents:refresh` directly — no follow-up prompt on success.
 
+After refresh passes, agents editing pipeline handlers should run the Bugbot review-and-fix loop per `.cursor/rules/doxa-pipeline-review.mdc` before marking the task done.
+
 ## When refresh fails
 
 1. Fix handlers, stubs, or schedule SQL — **never edit manifest.yaml by hand**.
