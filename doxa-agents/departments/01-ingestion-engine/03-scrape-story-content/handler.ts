@@ -100,6 +100,10 @@ async function dispatchToWorker(
     );
   }
 
+  await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "looping", {
+    phase: "dispatch",
+  });
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), WORKER_ACCEPT_TIMEOUT_MS);
 
@@ -118,10 +122,6 @@ async function dispatchToWorker(
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.error("[scrape_story_content] Worker response:", res.status, errText.slice(0, 300));
-      await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "looping", {
-        worker_status: res.status,
-        note: "Worker non-OK; awaiting receive or stale release",
-      });
       return json({
         ok: true,
         dispatched: 1,
@@ -133,9 +133,6 @@ async function dispatchToWorker(
       });
     }
 
-    await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "looping", {
-      dispatched: 1,
-    });
     return json({
       ok: true,
       dispatched: 1,
@@ -148,10 +145,6 @@ async function dispatchToWorker(
     const msg = e instanceof Error ? e.message : String(e);
     const isAbort = e instanceof Error && e.name === "AbortError";
     console.warn("[scrape_story_content] Worker request:", isAbort ? "timeout" : msg);
-    await logScrapeDispatch(supabase, story.story_id, singleStory, dryRun, "looping", {
-      worker_timeout: isAbort,
-      note: "Dispatch remains in-flight; receive or stale release will reconcile",
-    });
     return json({
       ok: true,
       dispatched: 1,

@@ -1,9 +1,13 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import { useStoryReview } from '@/components/admin/stories/story-review-provider'
+import { storyAgentFlowHref } from '@/lib/admin/story-lifecycle'
+import { getVisionNodeIdForStep } from '@/lib/admin/workflow-canvas/vision-node-step-map'
 
 const SECTION_IDS = [
-  'lifecycle-flowchart',
   'story-info',
   'source-content',
   'chunks',
@@ -16,6 +20,8 @@ export function StoryAnchorScroll({
 }: {
   onSectionVisible?: (sectionId: string) => void
 }) {
+  const router = useRouter()
+  const { payload } = useStoryReview()
   const onSectionVisibleRef = useRef(onSectionVisible)
   onSectionVisibleRef.current = onSectionVisible
 
@@ -23,8 +29,15 @@ export function StoryAnchorScroll({
     const hash = window.location.hash.replace(/^#/, '')
     if (!hash) return
 
+    if (payload && (hash === 'lifecycle-flowchart' || hash.startsWith('step-'))) {
+      const stepId = hash.startsWith('step-') ? (hash.slice(5) as PipelineStepId) : null
+      const nodeId = stepId ? getVisionNodeIdForStep(stepId) : null
+      router.replace(storyAgentFlowHref(payload.story, { nodeId }))
+      return
+    }
+
     const resolvedHash = hash === 'source-content' ? 'story-info' : hash
-    if (SECTION_IDS.includes(hash) || hash.startsWith('step-')) {
+    if (SECTION_IDS.includes(hash)) {
       onSectionVisibleRef.current?.(resolvedHash)
     }
 
@@ -36,7 +49,7 @@ export function StoryAnchorScroll({
     }, 100)
 
     return () => window.clearTimeout(t)
-  }, [])
+  }, [payload, router])
 
   return null
 }

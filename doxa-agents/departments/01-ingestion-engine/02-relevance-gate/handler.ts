@@ -525,6 +525,7 @@ export const handler = async (req: Request) => {
               processed: 1,
               chunkIndices: [],
               blocked: true,
+              modelName: MODEL,
             }))
           );
         }
@@ -611,6 +612,7 @@ export const handler = async (req: Request) => {
             processed: 1,
             chunkIndices: [],
             stepComplete: true,
+            modelName: MODEL,
           }))
         );
       }

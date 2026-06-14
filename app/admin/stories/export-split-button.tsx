@@ -14,8 +14,11 @@ function downloadText(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(url)
 }
 
-const actionButtonClass =
+const actionButtonClassDefault =
   'flex h-full flex-1 items-center justify-center transition-colors hover:bg-[var(--accent-primary-soft)] hover:text-[var(--accent-primary)] active:bg-[var(--surface-section)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-primary)]'
+
+const actionButtonClassDark =
+  'flex h-full flex-1 items-center justify-center text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500/50'
 
 export function ExportSplitButton({
   label,
@@ -26,6 +29,7 @@ export function ExportSplitButton({
   downloadMimeType,
   compact = false,
   className,
+  variant = 'default',
 }: {
   label: string
   copyLabel: string
@@ -35,6 +39,7 @@ export function ExportSplitButton({
   downloadMimeType: string
   compact?: boolean
   className?: string
+  variant?: 'default' | 'dark'
 }) {
   const copy = async () => {
     try {
@@ -50,12 +55,18 @@ export function ExportSplitButton({
     toast.success(`${label} downloaded`)
   }
 
+  const isDark = variant === 'dark'
+  const actionButtonClass = isDark ? actionButtonClassDark : actionButtonClassDefault
+
   return (
     <div className={cn('relative', className)}>
       <div
         className={cn(
-          'group relative overflow-hidden rounded-md border border-input bg-background font-medium shadow-sm',
-          compact ? 'h-7 min-w-[3.25rem] text-[10px]' : 'h-8 min-w-[5.5rem] text-xs'
+          'group relative overflow-hidden rounded-md border font-medium shadow-sm',
+          compact ? 'h-7 min-w-[3.25rem] text-[10px]' : 'h-8 min-w-[5.5rem] text-xs',
+          isDark
+            ? 'border-white/10 bg-zinc-950/80 text-zinc-300 shadow-none'
+            : 'border-input bg-background'
         )}
       >
         <span
@@ -78,7 +89,7 @@ export function ExportSplitButton({
             type="button"
             title={downloadLabel}
             aria-label={downloadLabel}
-            className={cn(actionButtonClass, 'border-l border-input')}
+            className={cn(actionButtonClass, !isDark && 'border-l border-input', isDark && 'border-l border-white/10')}
             onClick={download}
           >
             <Download className="size-3.5" />

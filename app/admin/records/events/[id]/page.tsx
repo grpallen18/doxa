@@ -5,10 +5,7 @@ import type { EventRecordHub } from '@/lib/admin/record-hub/events'
 import { useRecordHub } from '@/components/admin/record/use-record-hub'
 import { ProvenanceStoryList, RecordHubShell } from '@/components/admin/record/record-hub-shell'
 import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-}
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 export default function CanonicalEventRecordPage() {
   const params = useParams()
@@ -39,8 +36,8 @@ export default function CanonicalEventRecordPage() {
       subtitle="Canonical event"
       meta={[
         { label: 'Event ID', value: <span className="font-mono text-[11px]">{data.event_id}</span> },
-        { label: 'Created', value: formatDate(data.created_at) },
-        { label: 'Updated', value: formatDate(data.updated_at) },
+        { label: 'Created', value: formatAdminDateTime(data.created_at) },
+        { label: 'Updated', value: formatAdminDateTime(data.updated_at) },
         { label: 'Actor', value: data.primary_actor ?? '—' },
         { label: 'Action', value: data.action ?? '—' },
         { label: 'Date', value: data.event_date ?? '—' },

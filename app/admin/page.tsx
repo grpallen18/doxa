@@ -7,6 +7,7 @@ import {
   AdminDashboardWidget,
   AdminHealthCheckWidget,
 } from '@/components/admin/admin-dashboard-widget'
+import { OpenAiModelConfigPanel } from '@/components/admin/openai-model-config-panel'
 import { ADMIN_STATUS_PLACEHOLDER } from '@/lib/admin/admin-status-placeholder'
 import { cn } from '@/lib/utils'
 
@@ -82,6 +83,8 @@ function AdminCenterContent() {
         aria-label="Dashboard widgets"
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
       >
+        <OpenAiModelConfigPanel />
+
         <AdminHealthCheckWidget metrics={[...healthMetrics]} className="sm:col-span-2" />
 
         <AdminDashboardWidget title="Recent stories" href="/admin/stories">

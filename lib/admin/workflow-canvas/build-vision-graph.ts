@@ -1,7 +1,8 @@
 import { MarkerType, type Edge, type Node } from '@xyflow/react'
 import { PIPELINE_STEPS } from '@/lib/admin/generated/pipeline-catalog'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
-import { getFlowNodeLabel } from '@/lib/admin/pipeline-flow-labels'
+import type { AgentDisplayNameMap } from '@/lib/admin/agent-display-names'
+import { resolveAgentDisplayName } from '@/lib/admin/agent-display-names'
 import type { PipelineChecklist, PipelineStepState } from '@/lib/admin/story-pipeline-checklist'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
@@ -36,10 +37,10 @@ function positionForNode(spec: VisionNodeSpec): { x: number; y: number } {
   return { x: spec.column * COL_WIDTH + 40, y }
 }
 
-function catalogLabel(stepId: PipelineStepId): string {
+function catalogLabel(stepId: PipelineStepId, displayNameOverrides?: AgentDisplayNameMap): string {
   const def = PIPELINE_STEPS.find((s) => s.id === stepId)
   const fallback = def?.label ?? stepId
-  return getFlowNodeLabel(stepId, fallback)
+  return resolveAgentDisplayName(stepId, fallback, displayNameOverrides)
 }
 
 function usesAgentPresentation(spec: VisionNodeSpec): boolean {
@@ -55,7 +56,8 @@ function resolveReactFlowType(spec: VisionNodeSpec): string {
 
 function resolveAgentIconVariant(
   spec: VisionNodeSpec
-): 'bot' | 'human' {
+): 'bot' | 'human' | 'cloud' {
+  if (spec.iconVariant) return spec.iconVariant
   if (spec.catalogStepId === 'review-pending-stories') return 'human'
   return 'bot'
 }
@@ -68,10 +70,12 @@ export function buildVisionGraph({
   checklist,
   isStepRunning,
   payload,
+  displayNameOverrides,
 }: {
   checklist: PipelineChecklist
   isStepRunning: (stepId: PipelineStepId) => boolean
   payload: StoryExtractionReviewPayload
+  displayNameOverrides?: AgentDisplayNameMap
 }): { nodes: Node[]; edges: Edge[] } {
   const stepById = new Map<PipelineStepId, PipelineStepState>()
   for (const step of checklist.steps) stepById.set(step.id, step)
@@ -81,7 +85,7 @@ export function buildVisionGraph({
     const stepState = catalogStepId ? stepById.get(catalogStepId) : undefined
     const running = catalogStepId ? isStepRunning(catalogStepId) : false
     const label = catalogStepId
-      ? catalogLabel(catalogStepId)
+      ? catalogLabel(catalogStepId, displayNameOverrides)
       : spec.visionLabel
 
     const baseData = {

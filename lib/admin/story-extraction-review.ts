@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { resolveStoryUuid } from '@/lib/admin/resolve-story-id'
 import {
@@ -52,6 +53,7 @@ export type StoryExtractionReviewPayload = {
     relevance_status: string | null
     relevance_score: number | null
     relevance_ran_at: string | null
+    relevance_model: string | null
     relevance_tags: string[] | null
     pending_review_ran_at: string | null
     scraped_at: string | null
@@ -398,7 +400,7 @@ export async function fetchStoryExtractionReview(
     .select(
       `story_id, friendly_id, title, url, author, published_at, fetched_at, created_at,
        content_snippet, content_full, relevance_status, relevance_score, relevance_ran_at,
-       relevance_tags, pending_review_ran_at,
+       relevance_model, relevance_tags, pending_review_ran_at,
        scraped_at, scrape_dispatched_at, scrape_skipped, scrape_fail_count,
        extraction_completed_at, extraction_skipped_empty, merged_at,
        extraction_qa_status, extraction_qa_review_report, extraction_qa_validation_report,
@@ -577,6 +579,7 @@ export async function fetchStoryExtractionReview(
       relevance_status: storyRow.relevance_status,
       relevance_score: storyRow.relevance_score,
       relevance_ran_at: storyRow.relevance_ran_at as string | null,
+      relevance_model: (storyRow.relevance_model as string | null) ?? null,
       relevance_tags: (storyRow.relevance_tags as string[] | null) ?? null,
       pending_review_ran_at: storyRow.pending_review_ran_at as string | null,
       scraped_at: storyRow.scraped_at as string | null,
@@ -750,11 +753,7 @@ export async function countEntitiesByStory(
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+  return formatAdminDateTime(iso)
 }
 
 function bullet(label: string, value: string | number | null | undefined) {

@@ -291,7 +291,7 @@ export const handler = async (req: Request) => {
         outcome: "success",
         trigger: resolveStoryStepTrigger(singleStoryId),
         pipelineRunId: runId,
-        meta: { story_positions: mergePositions.length },
+        meta: { story_positions: mergePositions.length, model_name: MODEL },
       });
     }
   }

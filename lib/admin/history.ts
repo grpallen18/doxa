@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PaginationParams } from '@/lib/admin/pagination'
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
+import { PIPELINE_STEPS, type PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import { REVERT_SCOPE_STEP_IDS } from '@/lib/admin/pipeline-status/revert'
 
 export type HistoryEventType =
   | 'field_change'
@@ -32,13 +35,7 @@ export function formatHistoryFieldName(field: string): string {
 }
 
 export function formatHistoryTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+  return formatAdminDateTime(iso)
 }
 
 function formatHistoryValue(value: unknown): string | null {
@@ -64,6 +61,124 @@ function parseDetailTransition(detail: string | null): {
   }
 }
 
+function pipelineStepLabel(stepId: string | null | undefined): string | null {
+  if (!stepId) return null
+  const step = PIPELINE_STEPS.find((s) => s.id === stepId)
+  return step?.label ?? formatPipelineStepId(stepId)
+}
+
+function pipelineStepLabelFromSummary(summary: string | null): string | null {
+  const stepName = stripPipelineStepOutcome(summary)
+  if (!stepName) return null
+  const byLabel = PIPELINE_STEPS.find(
+    (s) => s.label.localeCompare(stepName, undefined, { sensitivity: 'accent' }) === 0
+  )
+  if (byLabel) return byLabel.label
+  const normalized = stepName.toLowerCase().replace(/\s+/g, '-')
+  return pipelineStepLabel(normalized)
+}
+
+function priorRevertScopeStepId(stepId: string): string | null {
+  const idx = REVERT_SCOPE_STEP_IDS.indexOf(stepId as PipelineStepId)
+  if (idx <= 0) return null
+  return REVERT_SCOPE_STEP_IDS[idx - 1] ?? null
+}
+
+function formatPipelineStepId(stepId: string): string {
+  return formatHistoryFieldName(stepId.replace(/-/g, ' '))
+}
+
+function stripPipelineStepOutcome(summary: string | null): string | null {
+  if (!summary) return null
+  const idx = summary.indexOf(' · ')
+  return idx === -1 ? summary : summary.slice(0, idx) || null
+}
+
+function isPipelineStepHistoryLabel(label: string): boolean {
+  return (
+    label === 'Pipeline step run' ||
+    label === 'Pipeline step failed' ||
+    label === 'Pipeline step skipped' ||
+    label === 'Pipeline step reverted'
+  )
+}
+
+function parsePipelineStepHistoryMeta(
+  meta: Record<string, unknown>,
+  detail: string | null,
+  label: string
+): Pick<HistoryEvent, 'field' | 'previousValue' | 'newValue'> | null {
+  const fieldKey = typeof meta.field === 'string' ? meta.field : null
+  const isPipelineField = fieldKey?.toLowerCase() === 'pipeline step'
+  if (!isPipelineField && !isPipelineStepHistoryLabel(label)) return null
+
+  if (label === 'Pipeline step reverted') {
+    const revertedStepId =
+      (typeof meta.step_id === 'string' && meta.step_id) ||
+      (detail?.trim() ? detail.trim() : null)
+    const priorStepId =
+      (typeof meta.previous_step_id === 'string' && meta.previous_step_id) ||
+      (revertedStepId ? priorRevertScopeStepId(revertedStepId) : null)
+
+    return {
+      field: 'Pipeline Step',
+      previousValue:
+        pipelineStepLabel(revertedStepId) ??
+        pipelineStepLabelFromSummary(formatHistoryValue(meta.old)) ??
+        (formatHistoryValue(meta.old)
+          ? stripPipelineStepOutcome(formatHistoryValue(meta.old))
+          : null),
+      newValue:
+        pipelineStepLabel(priorStepId) ??
+        pipelineStepLabelFromSummary(formatHistoryValue(meta.new)) ??
+        (formatHistoryValue(meta.new)
+          ? stripPipelineStepOutcome(formatHistoryValue(meta.new))
+          : null),
+    }
+  }
+
+  const stepId = typeof meta.step_id === 'string' ? meta.step_id : null
+  const previousStepId =
+    typeof meta.previous_step_id === 'string' ? meta.previous_step_id : null
+
+  const previousValue =
+    pipelineStepLabel(previousStepId) ??
+    pipelineStepLabelFromSummary(formatHistoryValue(meta.old)) ??
+    (formatHistoryValue(meta.old)
+      ? stripPipelineStepOutcome(formatHistoryValue(meta.old))
+      : null)
+
+  const newValue =
+    pipelineStepLabel(stepId) ??
+    pipelineStepLabelFromSummary(formatHistoryValue(meta.new)) ??
+    (formatHistoryValue(meta.new)
+      ? stripPipelineStepOutcome(formatHistoryValue(meta.new))
+      : null)
+
+  return {
+    field: 'Pipeline Step',
+    previousValue,
+    newValue,
+  }
+}
+
+function enrichPipelineStepHistory(events: HistoryEvent[]): HistoryEvent[] {
+  return events.map((event, index) => {
+    if (event.field !== 'Pipeline Step' || event.previousValue) return event
+
+    for (let j = index + 1; j < events.length; j++) {
+      const older = events[j]
+      if (older.field !== 'Pipeline Step') continue
+      const previousStep = pipelineStepLabelFromSummary(older.newValue)
+      if (previousStep) {
+        return { ...event, previousValue: previousStep }
+      }
+    }
+
+    return event
+  })
+}
+
 function parseHistoryMeta(
   meta: Record<string, unknown> | null | undefined,
   detail: string | null,
@@ -73,6 +188,9 @@ function parseHistoryMeta(
   const fieldKey = typeof record.field === 'string' ? record.field : null
   let previousValue = formatHistoryValue(record.old)
   let newValue = formatHistoryValue(record.new)
+
+  const pipelineParsed = parsePipelineStepHistoryMeta(record, detail, label)
+  if (pipelineParsed) return pipelineParsed
 
   if (previousValue == null && 'had_extraction' in record) {
     previousValue = formatHistoryValue(record.had_extraction)
@@ -210,9 +328,10 @@ async function fetchHistoryTablePage(
     .range(pagination.offset, pagination.offset + pagination.limit - 1)
 
   if (error) throw error
+  const mapped = mapHistoryRows((data ?? []) as HistoryRow[])
   const events = await enrichHistoryActors(
     supabase,
-    mapHistoryRows((data ?? []) as HistoryRow[])
+    table === 'story_history' ? enrichPipelineStepHistory(mapped) : mapped
   )
   return { events, total: count ?? 0 }
 }

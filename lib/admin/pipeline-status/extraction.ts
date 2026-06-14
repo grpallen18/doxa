@@ -2,6 +2,7 @@ import { countPositionsInExtractionJson } from '@/lib/admin/chunk-extraction'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { ExtractionLaneId } from '@/lib/admin/pipeline-status/extraction-groups'
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
+import { formatChunksCreatedLabel } from '@/lib/admin/pipeline-step-run-display'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { PIPELINE_STEPS } from '@/lib/admin/generated/pipeline-catalog'
 
@@ -345,6 +346,8 @@ export function extractionStepProgress(
 ): string | null {
   const c = chunkQaCounts(payload)
   switch (stepId) {
+    case 'chunk-story-bodies':
+      return c.total > 0 ? formatChunksCreatedLabel(c.total) : null
     case 'extract-story-claims':
       return c.total > 0 ? `${c.withJson}/${c.total} chunks extracted` : null
     case 'extract-story-positions': {

@@ -320,9 +320,10 @@ export const handler = async (req: Request) => {
         lane: "claims",
         pipelineRunId: runId,
         chunkIndexParam: chunkIndexParam,
-        processedChunks,
-        dryRun,
-      });
+    processedChunks,
+    dryRun,
+    modelName: MODEL,
+  });
     }
 
     if (!dryRun && runId) {

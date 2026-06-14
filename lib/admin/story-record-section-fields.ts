@@ -1,13 +1,9 @@
 import type { RecordField } from '@/components/admin/record/record-field-grid'
+import { formatAdminDateTimeOrNull } from '@/lib/admin/format-datetime'
 import { qaStatusLabel } from '@/lib/admin/extraction-qa-types'
 import { derivePipelineChecklist } from '@/lib/admin/pipeline-status'
 import { POST_MERGE_STEP_IDS } from '@/lib/admin/story-lifecycle'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
-
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-}
 
 function reportPresent(value: unknown): string {
   return value != null ? 'Yes' : 'No'
@@ -79,7 +75,7 @@ export function validationReviewSectionFields(
     },
     {
       label: 'Validated at',
-      value: formatDate(story.extraction_qa_validated_at),
+      value: formatAdminDateTimeOrNull(story.extraction_qa_validated_at),
     },
     {
       label: 'Review report',
@@ -109,7 +105,7 @@ export function mergeResultsSectionFields(
     { label: 'Canonical positions', value: canonicalPositions },
     { label: 'Story events', value: events.length },
     { label: 'Canonical events', value: canonicalEvents },
-    { label: 'Merged at', value: formatDate(story.merged_at) },
+    { label: 'Merged at', value: formatAdminDateTimeOrNull(story.merged_at) },
   ]
 }
 
@@ -128,10 +124,10 @@ export function postMergeSectionFields(
       value: `${completeCount} of ${postMergeSteps.length}`,
     },
     { label: 'Extraction status', value: payload.story.extraction_status },
-    { label: 'Merged at', value: formatDate(payload.story.merged_at) },
+    { label: 'Merged at', value: formatAdminDateTimeOrNull(payload.story.merged_at) },
     {
       label: 'Extraction completed',
-      value: formatDate(payload.story.extraction_completed_at),
+      value: formatAdminDateTimeOrNull(payload.story.extraction_completed_at),
     },
   ]
 }

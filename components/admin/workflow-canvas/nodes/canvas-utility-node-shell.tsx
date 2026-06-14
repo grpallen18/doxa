@@ -2,6 +2,8 @@
 
 import type { ReactNode } from 'react'
 import { CanvasInvisibleHandles } from '@/components/admin/workflow-canvas/nodes/canvas-invisible-handles'
+import type { RunnableNodeHighlightTone } from '@/lib/admin/workflow-canvas/runnable-node-highlight'
+import { runnableHighlightClasses } from '@/lib/admin/workflow-canvas/runnable-node-highlight'
 import { cn } from '@/lib/utils'
 
 export function CanvasUtilityNodeShell({
@@ -12,6 +14,7 @@ export function CanvasUtilityNodeShell({
   selected,
   actions,
   tone = 'indigo',
+  runnableHighlight = null,
 }: {
   icon: ReactNode
   label: string
@@ -20,22 +23,25 @@ export function CanvasUtilityNodeShell({
   selected?: boolean
   actions?: ReactNode
   tone?: 'indigo' | 'rose'
+  runnableHighlight?: RunnableNodeHighlightTone | null
 }) {
   const isRose = tone === 'rose'
+  const highlight = runnableHighlightClasses(runnableHighlight)
 
   return (
     <div
       className={cn(
-        'w-56 rounded-xl border backdrop-blur-md overflow-hidden transition-all',
+        'w-56 rounded-xl border backdrop-blur-md overflow-hidden transition-[border-color,box-shadow] duration-300 ease-out',
+        highlight.borderClass,
         isRose
           ? 'bg-rose-950/20 shadow-[0_0_15px_rgba(244,63,94,0.05)]'
           : 'bg-indigo-950/20 shadow-[0_0_15px_rgba(99,102,241,0.05)]',
-        selected
+        selected && !runnableHighlight
           ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)]'
-          : isRose
-            ? 'border-rose-500/30'
-            : 'border-indigo-500/30'
+          : !highlight.borderClass &&
+              (isRose ? 'border-rose-500/30' : 'border-indigo-500/30')
       )}
+      style={highlight.boxShadow ? { boxShadow: highlight.boxShadow } : undefined}
     >
       <CanvasInvisibleHandles />
 

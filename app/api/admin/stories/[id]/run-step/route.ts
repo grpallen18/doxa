@@ -4,7 +4,6 @@ import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 import { extractEdgeFunctionError, extractErrorMessage } from '@/lib/admin/story-extraction-review'
 import { createAdminClient } from '@/lib/supabase/server'
 import { PIPELINE_STEPS, getInvokeOptions, resolveDeployName } from '@/lib/admin/story-pipeline-checklist'
-import { logStoryPipelineStepRun } from '@/lib/admin/story-audit'
 import { appendAdminStoryStepRunFailure } from '@/lib/admin/story-step-runs'
 import { fetchAgentPrompt } from '@/lib/admin/agent-prompt-store'
 import { checkAgentPromptSchemaMatch } from '@/lib/admin/agent-prompt-response-schema'
@@ -139,19 +138,6 @@ export async function POST(
         { data: null, error: { message, deploy_name: deployName } },
         { status: res.status >= 500 ? 502 : res.status }
       )
-    }
-
-    try {
-      await logStoryPipelineStepRun(supabase, {
-        storyId: storyUuid,
-        stepId: stepDef?.id ?? stepInput,
-        stepLabel: stepDef?.label ?? deployName,
-        deployName,
-        actorId: auth.user.id,
-        result: data,
-      })
-    } catch (auditError: unknown) {
-      console.error('[run-step] Failed to append story audit event:', auditError)
     }
 
     const resultPromptVersion =

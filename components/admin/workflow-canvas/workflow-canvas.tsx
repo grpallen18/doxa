@@ -46,8 +46,10 @@ import { CanvasMergeNode } from '@/components/admin/workflow-canvas/nodes/canvas
 import { CanvasPlaceholderNode } from '@/components/admin/workflow-canvas/nodes/canvas-placeholder-node'
 import { CanvasTerminalNode } from '@/components/admin/workflow-canvas/nodes/canvas-terminal-node'
 import { WorkflowCanvasControls } from '@/components/admin/workflow-canvas/workflow-canvas-controls'
+import { WorkflowCanvasCurrentSteps } from '@/components/admin/workflow-canvas/workflow-canvas-current-steps'
 import { WorkflowCanvasEdgeContextMenu } from '@/components/admin/workflow-canvas/workflow-canvas-edge-context-menu'
 import { useWorkflowCanvasLayout } from '@/components/admin/workflow-canvas/use-workflow-canvas-layout'
+import { useAgentDisplayNames } from '@/components/admin/agents/use-agent-display-names'
 import { WorkflowCanvasLayoutProvider } from '@/components/admin/workflow-canvas/workflow-canvas-layout-context'
 import { CanvasFloatingEdge } from '@/components/admin/workflow-canvas/edges/canvas-floating-edge'
 import { FIT_VIEW_OPTIONS } from '@/components/admin/workflow-canvas/workflow-canvas-constants'
@@ -100,6 +102,7 @@ function WorkflowCanvasInner({
     scheduleSaveEdgeAttachment,
     scheduleSaveEdgeMeta,
   } = useWorkflowCanvasLayout(isDraggingRef)
+  const { displayNames } = useAgentDisplayNames()
   const [edgeAttachments, setEdgeAttachments] = useState<WorkflowCanvasEdgeAttachments>({})
   const [edgeMeta, setEdgeMeta] = useState<WorkflowCanvasEdgeMetaMap>({})
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null)
@@ -114,8 +117,8 @@ function WorkflowCanvasInner({
   const lastRemoteSyncEpochRef = useRef(0)
 
   const baseGraph = useMemo(
-    () => buildVisionGraph({ checklist, isStepRunning, payload }),
-    [checklist, isStepRunning, payload]
+    () => buildVisionGraph({ checklist, isStepRunning, payload, displayNameOverrides: displayNames }),
+    [checklist, isStepRunning, payload, displayNames]
   )
 
   const graphWithSaved = useMemo(
@@ -454,6 +457,7 @@ function WorkflowCanvasInner({
             size={1}
             variant={BackgroundVariant.Dots}
           />
+          <WorkflowCanvasCurrentSteps checklist={checklist} />
           <WorkflowCanvasControls />
         </ReactFlow>
         <WorkflowCanvasEdgeContextMenu

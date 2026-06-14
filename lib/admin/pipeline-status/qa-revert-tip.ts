@@ -1,9 +1,9 @@
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
+import { isStepComplete } from '@/lib/admin/pipeline-status'
 import {
   isChunkClaimsReviewStarted,
   isChunkPositionsReviewStarted,
-  isExtractionStepComplete,
 } from '@/lib/admin/pipeline-status/extraction'
 import { QA_LANE_ARTIFACT_STAGES, type QaLaneId } from '@/lib/admin/pipeline-status/qa-lane-stages'
 import {
@@ -71,7 +71,7 @@ export function getLaneQaRevertTip(
   ) {
     return stages.validateStep
   }
-  if (isExtractionStepComplete(stages.extractStep, payload)) {
+  if (isStepComplete(stages.extractStep, payload)) {
     return stages.extractStep
   }
   return null

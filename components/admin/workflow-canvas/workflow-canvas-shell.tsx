@@ -38,6 +38,7 @@ export function WorkflowCanvasShell({
   const searchParams = useSearchParams()
   const focusNodeId = searchParams.get('node')
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(focusNodeId)
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const dismissInspectorRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -56,8 +57,10 @@ export function WorkflowCanvasShell({
       payload,
       pipelineActions,
       onSelectNode: handleSelectNode,
+      hoveredNodeId,
+      setHoveredNodeId,
     }),
-    [storyId, payload, pipelineActions, handleSelectNode]
+    [storyId, payload, pipelineActions, handleSelectNode, hoveredNodeId]
   )
 
   const storyTitle = payload.story.title ?? payload.story.url ?? storyId

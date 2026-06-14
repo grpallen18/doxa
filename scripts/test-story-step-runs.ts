@@ -13,6 +13,13 @@ import {
   inferBatchStoryOutcome,
   resolveStoryStepTrigger,
 } from '../doxa-agents/lib/story-step-runs.ts'
+import type { StoryExtractionReviewPayload } from '../lib/admin/story-extraction-review.ts'
+import {
+  resolveChecklistStepComplete,
+  resolveChecklistStepProgress,
+  resolveChecklistStepStatus,
+  formatStoryStepRunProgress,
+} from '../lib/admin/pipeline-step-run-display.ts'
 
 let passed = 0
 let failed = 0
@@ -62,6 +69,186 @@ const summaries = buildBatchSummariesFromProcessedChunks(
 assert('one summary row', summaries.length === 1)
 assert('processed count', summaries[0]?.processed === 2)
 assert('outcome looping via infer', inferBatchStoryOutcome(summaries[0]!) === 'looping')
+
+console.log('resolveChecklistStepStatus')
+const basePayload = {
+  step_runs: {},
+} as StoryExtractionReviewPayload
+
+assert(
+  'looping + domain complete => complete',
+  resolveChecklistStepStatus(
+    {
+      ...basePayload,
+      step_runs: {
+        'scrape-story-content': {
+          id: '1',
+          story_id: 's',
+          step_id: 'scrape-story-content',
+          deploy_name: 'scrape_story_content',
+          outcome: 'looping',
+          occurred_at: '2026-01-01',
+          ended_at: null,
+          trigger: 'cron',
+          pipeline_run_id: null,
+          chunk_index: null,
+          actor_id: null,
+          meta: {},
+          error: null,
+        },
+      },
+    } as StoryExtractionReviewPayload,
+    'scrape-story-content',
+    true
+  ) === 'complete'
+)
+assert(
+  'looping + domain incomplete => current',
+  resolveChecklistStepStatus(
+    {
+      ...basePayload,
+      step_runs: {
+        'scrape-story-content': {
+          id: '1',
+          story_id: 's',
+          step_id: 'scrape-story-content',
+          deploy_name: 'scrape_story_content',
+          outcome: 'looping',
+          occurred_at: '2026-01-01',
+          ended_at: null,
+          trigger: 'cron',
+          pipeline_run_id: null,
+          chunk_index: null,
+          actor_id: null,
+          meta: {},
+          error: null,
+        },
+      },
+    } as StoryExtractionReviewPayload,
+    'scrape-story-content',
+    false
+  ) === 'current'
+)
+assert(
+  'no_op + domain complete => complete',
+  resolveChecklistStepComplete(
+    {
+      ...basePayload,
+      step_runs: {
+        'scrape-story-content': {
+          id: '1',
+          story_id: 's',
+          step_id: 'scrape-story-content',
+          deploy_name: 'scrape_story_content',
+          outcome: 'no_op',
+          occurred_at: '2026-01-01',
+          ended_at: null,
+          trigger: 'cron',
+          pipeline_run_id: null,
+          chunk_index: null,
+          actor_id: null,
+          meta: {},
+          error: null,
+        },
+      },
+    } as StoryExtractionReviewPayload,
+    'scrape-story-content',
+    true
+  ) === true
+)
+assert(
+  'log failure => not complete',
+  resolveChecklistStepComplete(
+    {
+      ...basePayload,
+      step_runs: {
+        'scrape-story-content': {
+          id: '1',
+          story_id: 's',
+          step_id: 'scrape-story-content',
+          deploy_name: 'scrape_story_content',
+          outcome: 'failure',
+          occurred_at: '2026-01-01',
+          ended_at: null,
+          trigger: 'cron',
+          pipeline_run_id: null,
+          chunk_index: null,
+          actor_id: null,
+          meta: {},
+          error: null,
+        },
+      },
+    } as StoryExtractionReviewPayload,
+    'scrape-story-content',
+    true
+  ) === false
+)
+
+console.log('resolveChecklistStepProgress')
+assert(
+  'looping log + domain complete => no stale in-progress progress',
+  resolveChecklistStepProgress(
+    {
+      ...basePayload,
+      step_runs: {
+        'scrape-story-content': {
+          id: '1',
+          story_id: 's',
+          step_id: 'scrape-story-content',
+          deploy_name: 'scrape_story_content',
+          outcome: 'looping',
+          occurred_at: '2026-01-01',
+          ended_at: null,
+          trigger: 'cron',
+          pipeline_run_id: null,
+          chunk_index: null,
+          actor_id: null,
+          meta: { dispatched: 1 },
+          error: null,
+        },
+      },
+    } as StoryExtractionReviewPayload,
+    'scrape-story-content',
+    true
+  ) === null
+)
+
+console.log('formatStoryStepRunProgress chunk-story-bodies')
+const chunkRunBase = {
+  id: '1',
+  story_id: 's',
+  step_id: 'chunk-story-bodies',
+  deploy_name: 'chunk_story_bodies',
+  outcome: 'success' as const,
+  occurred_at: '2026-01-01',
+  ended_at: '2026-01-01',
+  trigger: 'admin' as const,
+  pipeline_run_id: null,
+  chunk_index: null,
+  actor_id: null,
+  error: null,
+}
+assert(
+  'meta chunks_created',
+  formatStoryStepRunProgress(
+    { ...chunkRunBase, meta: { chunks_created: 2, processed: 2 } },
+    { chunkCount: 2 }
+  ) === '2 chunks created'
+)
+assert(
+  'legacy meta falls back to chunkCount',
+  formatStoryStepRunProgress(
+    { ...chunkRunBase, meta: { processed: 1 } },
+    { chunkCount: 2 }
+  ) === '2 chunks created'
+)
+assert(
+  'singular chunk label',
+  formatStoryStepRunProgress(
+    { ...chunkRunBase, meta: { chunks_created: 1, processed: 1 } },
+    { chunkCount: 1 }
+  ) === '1 chunk created'
+)
 
 console.log('')
 if (failed > 0) {

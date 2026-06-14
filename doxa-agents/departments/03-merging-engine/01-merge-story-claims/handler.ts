@@ -326,7 +326,7 @@ export const handler = async (req: Request) => {
         outcome: "success",
         trigger: resolveStoryStepTrigger(singleStoryId),
         pipelineRunId: runId,
-        meta: { story_claims: claimIds.length, skipped_empty: skippedEmpty },
+        meta: { story_claims: claimIds.length, skipped_empty: skippedEmpty, model_name: MODEL },
       });
     }
   }

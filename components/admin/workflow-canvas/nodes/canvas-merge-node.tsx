@@ -5,6 +5,7 @@ import { GitMerge, Play, RotateCcw } from 'lucide-react'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { isStepRevertible } from '@/lib/admin/story-pipeline-checklist'
 import type { AgentDisplayStatus } from '@/lib/admin/workflow-canvas/types'
+import { resolveRunnableHighlightTone } from '@/lib/admin/workflow-canvas/runnable-node-highlight'
 import { useWorkflowCanvas } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { CanvasUtilityNodeShell } from '@/components/admin/workflow-canvas/nodes/canvas-utility-node-shell'
 
@@ -17,13 +18,17 @@ type MergeNodeData = {
   maturity?: string
 }
 
-export function CanvasMergeNode({ data, selected }: NodeProps) {
+export function CanvasMergeNode({ data, selected, id }: NodeProps) {
   const nodeData = data as MergeNodeData
   const { label, desc, catalogStepId, runnable, status, maturity } = nodeData
-  const { payload, pipelineActions } = useWorkflowCanvas()
+  const { payload, pipelineActions, hoveredNodeId } = useWorkflowCanvas()
   const stepId = catalogStepId
   const isRunning = stepId ? pipelineActions.isStepRunning(stepId) : false
+  const isReverting = stepId ? pipelineActions.revertingStepId === stepId : false
   const revertible = stepId ? isStepRevertible(stepId, payload) : false
+  const canRun = Boolean(runnable && !isRunning && !isReverting)
+  const isHoveredFromList = hoveredNodeId === id
+  const runnableHighlight = resolveRunnableHighlightTone(canRun, isHoveredFromList)
 
   const displayStatus = status || (maturity !== 'live' ? 'Planned' : undefined)
 
@@ -63,6 +68,7 @@ export function CanvasMergeNode({ data, selected }: NodeProps) {
       status={displayStatus}
       selected={selected}
       actions={actions}
+      runnableHighlight={runnableHighlight}
     />
   )
 }

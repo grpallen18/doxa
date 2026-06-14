@@ -1,5 +1,6 @@
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
+import { isStepComplete } from '@/lib/admin/pipeline-status'
 import { isCanonicalStepComplete } from '@/lib/admin/pipeline-status/canonical'
 import {
   isChunkClaimsReviewStarted,
@@ -7,7 +8,6 @@ import {
   isExtractionStepComplete,
 } from '@/lib/admin/pipeline-status/extraction'
 import { getExtractionStepLane } from '@/lib/admin/pipeline-status/extraction-groups'
-import { isIngestionStepComplete } from '@/lib/admin/pipeline-status/ingestion'
 import { getLaneQaRevertTip } from '@/lib/admin/pipeline-status/qa-revert-tip'
 
 const INGESTION_REVERT_SCOPE: PipelineStepId[] = [
@@ -70,10 +70,7 @@ function isIngestionRevertScopeStepComplete(
   stepId: PipelineStepId,
   payload: StoryExtractionReviewPayload
 ): boolean {
-  if (stepId === 'chunk-story-bodies') {
-    return isExtractionStepComplete('chunk-story-bodies', payload)
-  }
-  return isIngestionStepComplete(stepId, payload)
+  return isStepComplete(stepId, payload)
 }
 
 function latestIngestionRevertTip(payload: StoryExtractionReviewPayload): PipelineStepId | null {
@@ -212,7 +209,7 @@ export function isStepRevertible(
 export function getRevertStepDescription(stepId: PipelineStepId): string {
   switch (stepId) {
     case 'relevance-gate':
-      return 'Clears qualification (Keep/Drop/Pending) so the story can be qualified again.'
+      return 'Clears qualification (Keep/Drop/Pending). Blocked until downstream steps are reverted — the error lists what remains.'
     case 'review-pending-stories':
       return 'Returns the story to Pending qualification so pending review can run again.'
     case 'scrape-story-content':

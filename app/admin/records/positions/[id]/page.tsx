@@ -9,10 +9,7 @@ import {
   RecordHubShell,
 } from '@/components/admin/record/record-hub-shell'
 import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-}
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 export default function CanonicalPositionRecordPage() {
   const params = useParams()
@@ -54,8 +51,8 @@ export default function CanonicalPositionRecordPage() {
           label: 'Position ID',
           value: <span className="font-mono text-[11px]">{data.canonical_position_id}</span>,
         },
-        { label: 'Created', value: formatDate(data.created_at) },
-        { label: 'Updated', value: formatDate(data.updated_at) },
+        { label: 'Created', value: formatAdminDateTime(data.created_at) },
+        { label: 'Updated', value: formatAdminDateTime(data.updated_at) },
         { label: 'Primary topic', value: data.primary_topic_id ?? '—' },
       ]}
       lifecycle={lifecycle}

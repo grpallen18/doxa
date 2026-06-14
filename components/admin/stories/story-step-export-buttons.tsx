@@ -13,10 +13,12 @@ export function StoryStepExportButtons({
   stepId,
   payload,
   compact = true,
+  variant = 'default',
 }: {
   stepId: PipelineStepId
   payload: StoryExtractionReviewPayload
   compact?: boolean
+  variant?: 'default' | 'dark'
 }) {
   const markdown = useMemo(
     () => buildStoryStepExportMarkdown(stepId, payload),
@@ -29,6 +31,7 @@ export function StoryStepExportButtons({
     <div className="flex flex-wrap items-center gap-1">
       <ExportSplitButton
         compact={compact}
+        variant={variant}
         label=".MD"
         copyLabel="Copy markdown"
         downloadLabel="Download markdown"
@@ -38,6 +41,7 @@ export function StoryStepExportButtons({
       />
       <ExportSplitButton
         compact={compact}
+        variant={variant}
         label=".JSON"
         copyLabel="Copy JSON"
         downloadLabel="Download JSON"

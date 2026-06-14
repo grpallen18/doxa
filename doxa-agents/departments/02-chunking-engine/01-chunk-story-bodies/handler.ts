@@ -182,7 +182,10 @@ export const handler = async (req: Request) => {
   }
 
   let totalChunks = 0;
-  const chunkedStoryIds: string[] = [];
+  const chunkSummaries: Array<{
+    storyId: string;
+    chunksCreated: number;
+  }> = [];
 
   for (const row of unchunked) {
     const content = (row.content_clean ?? "").trim();
@@ -214,10 +217,10 @@ export const handler = async (req: Request) => {
     }
 
     totalChunks += rows.length;
-    if (rows.length > 0) chunkedStoryIds.push(row.story_id);
+    chunkSummaries.push({ storyId: row.story_id, chunksCreated: rows.length });
   }
 
-  if (!dryRun && chunkedStoryIds.length > 0) {
+  if (!dryRun && chunkSummaries.length > 0) {
     await recordStoryStepRunsForBatch(
       supabase,
       {
@@ -225,10 +228,11 @@ export const handler = async (req: Request) => {
         deployName: DEPLOY_NAME,
         trigger: resolveStoryStepTrigger(singleStoryId),
       },
-      chunkedStoryIds.map((storyId) => ({
+      chunkSummaries.map(({ storyId, chunksCreated }) => ({
         storyId,
-        processed: 1,
-        chunkIndices: [],
+        processed: chunksCreated,
+        chunksCreated,
+        chunkIndices: Array.from({ length: chunksCreated }, (_, i) => i),
         stepComplete: true,
       }))
     );

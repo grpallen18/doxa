@@ -6,6 +6,7 @@ import {
 import { derivePipelineChecklist } from '@/lib/admin/pipeline-status'
 import { storyAdminHref, type StoryAdminRef } from '@/lib/admin/friendly-id'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
+import { getVisionNodeIdForStep } from '@/lib/admin/workflow-canvas/vision-node-step-map'
 
 const canonicalStage = PIPELINE_STAGES.find((s) => s.id === 'canonical')
 const preCanonicalStages = PIPELINE_STAGES.filter((s) => s.id !== 'canonical')
@@ -36,8 +37,18 @@ export const LIFECYCLE_PHASES: Array<{
   },
 ]
 
+export function storyAgentFlowHref(
+  story: StoryAdminRef,
+  options?: { nodeId?: string | null }
+): string {
+  const base = `${storyAdminHref(story)}/agent-flow`
+  const nodeId = options?.nodeId?.trim()
+  if (!nodeId) return base
+  return `${base}?node=${encodeURIComponent(nodeId)}`
+}
+
 export function storyHubStepHref(story: StoryAdminRef, stepId: PipelineStepId): string {
-  return `${storyAdminHref(story)}#step-${stepId}`
+  return storyAgentFlowHref(story, { nodeId: getVisionNodeIdForStep(stepId) })
 }
 
 export function storyHubSectionHref(story: StoryAdminRef, sectionId: string): string {

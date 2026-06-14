@@ -6,5 +6,5 @@ export default async function StoryIngestionRedirectPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  redirect(`/admin/stories/${id}#step-relevance-gate`)
+  redirect(`/admin/stories/${id}/agent-flow?node=relevance-gate`)
 }

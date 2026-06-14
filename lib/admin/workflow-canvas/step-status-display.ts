@@ -2,10 +2,7 @@ import {
   isIngestionStepExecuted,
   isReviewPendingOptional,
 } from '@/lib/admin/pipeline-status/ingestion'
-import {
-  getStoryStepRunRow,
-  mapStoryStepOutcomeToAgentDisplayStatus,
-} from '@/lib/admin/pipeline-step-run-display'
+import { getStoryStepRunRow } from '@/lib/admin/pipeline-step-run-display'
 import type { PipelineStepState } from '@/lib/admin/story-pipeline-checklist'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
@@ -88,14 +85,12 @@ export function mapApprovalDecisionResult(
   return ''
 }
 
-function agentStatusFromStepRun(
-  payload: StoryExtractionReviewPayload,
-  catalogStepId: PipelineStepId | undefined
+function agentStatusFromChecklistStep(
+  step: PipelineStepState | undefined,
+  running: boolean
 ): string | null {
-  if (!catalogStepId) return null
-  const run = getStoryStepRunRow(payload, catalogStepId)
-  if (!run) return null
-  return mapStoryStepOutcomeToAgentDisplayStatus(run.outcome, catalogStepId)
+  if (!step || running) return null
+  return mapStepToDisplayStatus(step, running)
 }
 
 export function mapAgentNodeStatus({
@@ -118,9 +113,9 @@ export function mapAgentNodeStatus({
   if (running) return 'Running'
   if (maturity !== 'live') return 'Planned'
 
-  const logStatus = agentStatusFromStepRun(payload, catalogStepId ?? step?.id)
-  if (logStatus && !decisionMode) {
-    return logStatus
+  const checklistStatus = agentStatusFromChecklistStep(step, running)
+  if (checklistStatus && !decisionMode) {
+    return checklistStatus
   }
 
   const decisionStepId = catalogStepId ?? step?.id

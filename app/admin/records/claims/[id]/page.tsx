@@ -9,10 +9,7 @@ import {
   RecordHubShell,
 } from '@/components/admin/record/record-hub-shell'
 import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-}
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 export default function CanonicalClaimRecordPage() {
   const params = useParams()
@@ -49,8 +46,8 @@ export default function CanonicalClaimRecordPage() {
       subtitle="Canonical claim"
       meta={[
         { label: 'Claim ID', value: <span className="font-mono text-[11px]">{data.claim_id}</span> },
-        { label: 'Created', value: formatDate(data.created_at) },
-        { label: 'Updated', value: formatDate(data.updated_at) },
+        { label: 'Created', value: formatAdminDateTime(data.created_at) },
+        { label: 'Updated', value: formatAdminDateTime(data.updated_at) },
         { label: 'Subject', value: data.subject ?? '—' },
         { label: 'Predicate', value: data.predicate ?? '—' },
         { label: 'Object', value: data.object ?? '—' },

@@ -4,11 +4,13 @@ import {
   type PipelineStageId,
   type PipelineStepId,
 } from '@/lib/admin/generated/pipeline-catalog'
-import { storyAdminHref } from '@/lib/admin/friendly-id'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
-  resolvePipelineStepProgressFromRunLog,
-  resolvePipelineStepStatusFromRunLog,
+  isStoryStepRunInFlight,
+  resolveChecklistStepBlocked,
+  resolveChecklistStepComplete,
+  resolveChecklistStepProgress,
+  resolveChecklistStepStatus,
 } from '@/lib/admin/pipeline-step-run-display'
 import {
   canonicalSnapshot,
@@ -152,19 +154,27 @@ const CANONICAL_STEPS = new Set([
   'update-stances',
 ])
 
-export function isStepComplete(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+function isStepCompleteDomain(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   if (INGESTION_STEPS.has(stepId)) return isIngestionStepComplete(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return isExtractionStepComplete(stepId, payload)
   if (CANONICAL_STEPS.has(stepId)) return isCanonicalStepComplete(stepId, payload)
   return false
 }
 
-export function isStepBlocked(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+function isStepBlockedDomain(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   if (isStoryDropped(payload) && !isQualificationPipelineStep(stepId)) return true
   if (INGESTION_STEPS.has(stepId)) return isIngestionStepBlocked(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return isExtractionStepBlocked(stepId, payload)
   if (CANONICAL_STEPS.has(stepId)) return isCanonicalStepBlocked(stepId, payload)
   return false
+}
+
+export function isStepComplete(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  return resolveChecklistStepComplete(payload, stepId, isStepCompleteDomain(stepId, payload))
+}
+
+export function isStepBlocked(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  return resolveChecklistStepBlocked(payload, stepId, isStepBlockedDomain(stepId, payload))
 }
 
 export function getStepNotRequiredMessage(
@@ -319,9 +329,12 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
 
   if (isStoryDropped(payload) && !isQualificationPipelineStep(stepId)) return false
 
-  const complete = isStepComplete(stepId, payload)
-  const blocked = isStepBlocked(stepId, payload)
+  const domainComplete = isStepCompleteDomain(stepId, payload)
+  const complete = resolveChecklistStepComplete(payload, stepId, domainComplete)
+  const blocked = isStepBlockedDomain(stepId, payload)
   const priorOk = priorStepsSatisfied(stepId, payload)
+
+  if (isStoryStepRunInFlight(payload, stepId, domainComplete)) return false
   const extractionLane = getExtractionStepLane(stepId)
   const lanePipelineBlocked =
     extractionLane != null
@@ -464,11 +477,12 @@ export function derivePipelineChecklist(payload: StoryExtractionReviewPayload): 
   }
 
   const steps: PipelineStepState[] = PIPELINE_STEPS.map((def) => {
-    const complete = isStepComplete(def.id, payload)
-    const blocked = isStepBlocked(def.id, payload)
+    const domainComplete = isStepCompleteDomain(def.id, payload)
+    const complete = resolveChecklistStepComplete(payload, def.id, domainComplete)
+    const blocked = resolveChecklistStepBlocked(payload, def.id, isStepBlockedDomain(def.id, payload))
     const optional = isStepOptional(def.id, payload)
-    const logStatus = resolvePipelineStepStatusFromRunLog(payload, def.id)
-    const logProgress = resolvePipelineStepProgressFromRunLog(payload, def.id)
+    const logStatus = resolveChecklistStepStatus(payload, def.id, domainComplete)
+    const logProgress = resolveChecklistStepProgress(payload, def.id, domainComplete)
     const progress = logProgress ?? stepProgress(def.id, payload)
 
     let status: PipelineStepStatus
@@ -541,19 +555,6 @@ export function getStepOutputSnapshot(stepId: PipelineStepId, payload: StoryExtr
 
 export type StageSummaryStatus = 'complete' | 'current' | 'blocked' | 'pending'
 
-export type StageSummary = {
-  stageId: PipelineStageId
-  label: string
-  status: StageSummaryStatus
-  href: string
-}
-
-const STAGE_HUB_ANCHOR: Record<PipelineStageId, string> = {
-  ingestion: 'step-relevance-gate',
-  extraction: 'step-chunk-story-bodies',
-  canonical: 'lifecycle-flowchart',
-}
-
 export {
   getRevertBlockedReason,
   getRevertStepDescription,
@@ -562,42 +563,3 @@ export {
   isStepRevertible,
   REVERT_SCOPE_STEP_IDS,
 } from '@/lib/admin/pipeline-status/revert'
-
-export function deriveStageSummaries(
-  payload: StoryExtractionReviewPayload
-): StageSummary[] {
-  const hubBase = storyAdminHref(payload.story)
-  const checklist = derivePipelineChecklist(payload)
-  let foundCurrent = false
-
-  return PIPELINE_STAGES.map((stage) => {
-    const stageSteps = checklist.steps.filter((s) => s.stageId === stage.id)
-    const hasBlocked = stageSteps.some((s) => s.status === 'blocked')
-
-    let allDone: boolean
-    if (stage.id === 'extraction') {
-      allDone = isExtractionStageComplete(payload)
-    } else {
-      allDone = stageSteps.every((s) => s.status === 'complete' || s.status === 'optional')
-    }
-
-    let status: StageSummaryStatus
-    if (hasBlocked) {
-      status = 'blocked'
-    } else if (allDone && stageSteps.length > 0) {
-      status = 'complete'
-    } else if (!foundCurrent) {
-      status = 'current'
-      foundCurrent = true
-    } else {
-      status = 'pending'
-    }
-
-    return {
-      stageId: stage.id,
-      label: stage.label,
-      status,
-      href: `${hubBase}#${STAGE_HUB_ANCHOR[stage.id]}`,
-    }
-  })
-}

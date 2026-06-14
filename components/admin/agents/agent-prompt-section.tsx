@@ -24,10 +24,7 @@ import {
   showPipelineSuccess,
 } from '@/lib/admin/pipeline-toast'
 import { PromptSchemaSyncDialog } from '@/components/admin/agents/prompt-schema-sync-dialog'
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-}
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 export function AgentPromptSection({
   stepId,
@@ -269,7 +266,7 @@ export function AgentPromptSection({
 
       {responseSchema?.hasOverride && !schemaMismatch && responseSchema.updatedAt && (
         <p className="text-xs text-muted">
-          Response schema synced {formatDate(responseSchema.updatedAt)} (runtime override active).
+          Response schema synced {formatAdminDateTime(responseSchema.updatedAt)} (runtime override active).
         </p>
       )}
 

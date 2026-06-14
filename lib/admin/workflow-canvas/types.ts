@@ -27,6 +27,8 @@ export type VisionNodeSpec = {
   row: number
   /** Decision exit layout: qualify = Keep/Drop/Pending; approval = Keep/Drop. */
   decisionMode?: VisionDecisionMode
+  /** Agent card icon; cloud = Cloudflare worker dispatch (no LLM). */
+  iconVariant?: 'bot' | 'human' | 'cloud'
 }
 
 export type VisionEdgeSpec = {

@@ -9,7 +9,9 @@ export type WorkflowCanvasContextValue = {
   storyId: string
   payload: StoryExtractionReviewPayload
   pipelineActions: ReturnType<typeof useStoryPipelineActions>
-  onSelectNode: (nodeId: string) => void
+  onSelectNode: (nodeId: string | null) => void
+  hoveredNodeId: string | null
+  setHoveredNodeId: (nodeId: string | null) => void
 }
 
 const WorkflowCanvasContext = createContext<WorkflowCanvasContextValue | null>(null)

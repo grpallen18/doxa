@@ -178,6 +178,7 @@ export const handler = async (req: Request) => {
     trigger: resolveStoryStepTrigger(singleStoryId),
     storyIds: processedStoryIds,
     dryRun,
+    modelName: MODEL,
   });
 
   return json({ ok: true, processed, dry_run: dryRun, ...testScopeFields({ storyId: singleStoryId }) });

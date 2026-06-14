@@ -1,16 +1,13 @@
 'use client'
 
 import type { AgentPromptAuditEvent } from '@/lib/admin/agent-prompt-store'
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 import { EMBED_PAGE_SIZE, VIEW_ALL_PAGE_SIZE } from '@/lib/admin/pagination'
 import { PaginatedListFooter } from '@/components/admin/record/paginated-list-footer'
 import { usePaginatedList } from '@/components/admin/record/use-paginated-list'
 import { cn } from '@/lib/utils'
 
 const AUDIT_GRID = 'grid grid-cols-[minmax(0,1.25fr)_minmax(6.5rem,10rem)_minmax(0,1fr)] gap-x-4'
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-}
 
 export function AgentPromptAuditTable({
   stepId,
@@ -53,7 +50,7 @@ export function AgentPromptAuditTable({
           {items.map((event) => (
             <li key={event.actionId} className={cn(AUDIT_GRID, 'items-start px-3 py-2')}>
               <span className="font-mono text-xs">{event.actionType}</span>
-              <time className="text-xs tabular-nums text-muted">{formatDate(event.occurredAt)}</time>
+              <time className="text-xs tabular-nums text-muted">{formatAdminDateTime(event.occurredAt)}</time>
               <div className="min-w-0 space-y-1 text-xs text-muted">
                 {event.promptVersionId && (
                   <p className="font-mono text-[11px]">

@@ -342,6 +342,7 @@ export const handler = async (req: Request) => {
     storyIds: [...processedByStory.keys()],
     processedByStory,
     dryRun,
+    modelName: MODEL,
   });
 
   return json({

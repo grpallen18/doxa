@@ -89,7 +89,6 @@ export function CanvasFloatingEdge({
   target,
   markerEnd,
   style,
-  animated,
   selected,
 }: EdgeProps) {
   const edgeData = (data ?? {}) as WorkflowCanvasEdgeData
@@ -284,10 +283,9 @@ export function CanvasFloatingEdge({
         markerEnd={markerEnd}
         style={edgeStrokeStyle}
         interactionWidth={20}
-        className={animated ? 'animated' : undefined}
       />
       <EdgeLabelRenderer>
-        {(label || isEditing) && (
+        {label || isEditing ? (
           <div
             className="nodrag nopan pointer-events-auto absolute z-[900]"
             style={{
@@ -323,7 +321,7 @@ export function CanvasFloatingEdge({
               </span>
             )}
           </div>
-        )}
+        ) : null}
         {selected ? (
           <>
             <EdgeDragHandle

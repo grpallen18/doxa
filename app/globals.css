@@ -752,15 +752,6 @@ body {
     background-color: color-mix(in srgb, var(--destructive) 50%, transparent);
   }
 
-  .pipeline-checklist-btn-revert {
-    @apply border border-input bg-background text-destructive shadow-sm hover:bg-white hover:text-destructive;
-  }
-
-  .pipeline-checklist-btn-revert:hover:not(:disabled) {
-    background-color: #ffffff;
-    color: var(--destructive);
-  }
-
   .indicator-dot {
     width: 8px;
     height: 8px;
@@ -832,6 +823,19 @@ body {
       color var(--interactive-duration) ease,
       background-color var(--interactive-duration) ease;
   }
+}
+
+@keyframes canvas-running-bar-shuttle {
+  from {
+    left: 0;
+  }
+  to {
+    left: 75%;
+  }
+}
+
+.canvas-running-bar-shuttle {
+  animation: canvas-running-bar-shuttle 1.25s ease-in-out infinite alternate;
 }
 
 @keyframes step-detail-letter-fade-in {

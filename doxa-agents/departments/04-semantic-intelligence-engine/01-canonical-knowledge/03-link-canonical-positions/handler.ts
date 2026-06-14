@@ -331,6 +331,7 @@ export const handler = async (req: Request) => {
     storyIds: [...processedByStory.keys()],
     processedByStory,
     dryRun,
+    modelName: MODEL,
   });
 
   await maybeInvokeAssignRankedSubtopics(supabase, SUPABASE_URL, SERVICE_ROLE, dryRun);

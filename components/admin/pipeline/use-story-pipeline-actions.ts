@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
   getRevertStepDescription,
@@ -27,12 +27,10 @@ export function useStoryPipelineActions({
   const [stepError, setStepError] = useState<string | null>(null)
   const [revertingStepId, setRevertingStepId] = useState<PipelineStepId | null>(null)
   const [revertTarget, setRevertTarget] = useState<PipelineStepId | null>(null)
-  const [expanded, setExpanded] = useState<string[]>([])
   const {
     isStepRunning,
     actionMessage,
     setActionMessage,
-    revealTarget,
     beginRun,
     cancelRun,
   } = usePipelineStepPoll({ payload, onRefresh })
@@ -60,7 +58,6 @@ export function useStoryPipelineActions({
       setStepError(null)
       setActionMessage(null)
       beginRun(stepId)
-      setExpanded((prev) => (prev.includes(stepId) ? prev : [...prev, stepId]))
       try {
         const res = await fetch(`/api/admin/stories/${storyId}/run-step`, {
           method: 'POST',
@@ -144,22 +141,12 @@ export function useStoryPipelineActions({
     if (revertTarget) void revertStep(revertTarget)
   }, [revertTarget, revertStep])
 
-  useEffect(() => {
-    if (!revealTarget) return
-    setExpanded((prev) =>
-      prev.includes(revealTarget.stepId) ? prev : [...prev, revealTarget.stepId]
-    )
-  }, [revealTarget])
-
   return {
     isStepRunning,
     revertingStepId,
     revertTarget,
     stepError,
     actionMessage,
-    revealTarget,
-    expanded,
-    setExpanded,
     runStep,
     requestRevert,
     cancelRevert,

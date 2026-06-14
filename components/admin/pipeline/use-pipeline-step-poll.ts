@@ -8,8 +8,6 @@ import {
   isStepComplete,
   type PipelineStepId,
 } from '@/lib/admin/story-pipeline-checklist'
-import { pipelineStepHasDetailContent } from '@/components/admin/pipeline/pipeline-step-details'
-import { STEP_DETAIL_REVEAL_DURATION_MS } from '@/components/admin/pipeline/step-detail-reveal'
 import { showPipelineWarning } from '@/lib/admin/pipeline-toast'
 
 const POLL_INTERVAL_MS = 2000
@@ -31,9 +29,6 @@ export function usePipelineStepPoll({
 }) {
   const [runningStepIds, setRunningStepIds] = useState<PipelineStepId[]>([])
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [revealTarget, setRevealTarget] = useState<{ stepId: PipelineStepId; epoch: number } | null>(
-    null
-  )
   const pollCountRef = useRef(0)
   const runBaselinesRef = useRef<Map<PipelineStepId, StepRunBaseline>>(new Map())
   const payloadRefreshCountsRef = useRef<Map<PipelineStepId, number>>(new Map())
@@ -82,7 +77,6 @@ export function usePipelineStepPoll({
     if (runningStepIds.length === 0) return
 
     const finished: PipelineStepId[] = []
-    let latestReveal: { stepId: PipelineStepId; epoch: number } | null = null
 
     for (const stepId of runningStepIds) {
       const baseline = runBaselinesRef.current.get(stepId)
@@ -103,9 +97,6 @@ export function usePipelineStepPoll({
 
       if ((terminal && snapshotChanged) || becameTerminal || rerunSettled) {
         finished.push(stepId)
-        if (snapshotChanged && pipelineStepHasDetailContent(stepId, payload)) {
-          latestReveal = { stepId, epoch: Date.now() }
-        }
       }
     }
 
@@ -116,15 +107,8 @@ export function usePipelineStepPoll({
       payloadRefreshCountsRef.current.delete(stepId)
     }
     setRunningStepIds((prev) => prev.filter((id) => !finished.includes(id)))
-    if (latestReveal) setRevealTarget(latestReveal)
     setActionMessage(null)
   }, [payload, runningStepIds])
-
-  useEffect(() => {
-    if (!revealTarget) return
-    const timeoutId = setTimeout(() => setRevealTarget(null), STEP_DETAIL_REVEAL_DURATION_MS + 150)
-    return () => clearTimeout(timeoutId)
-  }, [revealTarget])
 
   const beginRun = useCallback(
     (stepId: PipelineStepId) => {
@@ -135,7 +119,6 @@ export function usePipelineStepPoll({
       })
       payloadRefreshCountsRef.current.set(stepId, 0)
       setRunningStepIds((prev) => (prev.includes(stepId) ? prev : [...prev, stepId]))
-      setRevealTarget(null)
       setActionMessage(null)
     },
     [payload]
@@ -157,7 +140,6 @@ export function usePipelineStepPoll({
     isStepRunning,
     actionMessage,
     setActionMessage,
-    revealTarget,
     beginRun,
     cancelRun,
     stopPolling,

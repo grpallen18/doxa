@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { ChunkQaHistoryPayload, ChunkQaHistoryEvent } from '@/lib/admin/chunk-qa-history'
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 import {
   FocusAccordion,
   FocusAccordionItem,
@@ -12,16 +13,6 @@ import { RecordLedgerCell, recordLedgerValueClass } from '@/components/admin/rec
 import { RecordSectionCard } from '@/components/admin/record/record-section-card'
 import { ClaimsReviewReportDisplay } from '@/components/admin/extraction/claims-review-report'
 import { cn } from '@/lib/utils'
-
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function eventTitle(event: ChunkQaHistoryEvent): string {
   if (event.kind === 'review') {
@@ -270,7 +261,7 @@ export function ChunkQaHistorySection({
                       <span className="font-medium">{eventTitle(event)}</span>
                       <span className="text-muted">{eventStatusLine(event)}</span>
                       <span className="ml-auto shrink-0 tabular-nums text-muted">
-                        {formatTimestamp(event.created_at)}
+                        {formatAdminDateTime(event.created_at)}
                       </span>
                     </span>
                   </AccordionTrigger>

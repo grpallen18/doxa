@@ -3,8 +3,6 @@
 import Link from 'next/link'
 import { useCallback, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
-import { StoryExtractionExportButtons } from '@/components/admin/stories/story-extraction-export-buttons'
 import { useStoryReview } from '@/components/admin/stories/story-review-provider'
 import { StoryAnchorScroll } from '@/components/admin/stories/story-anchor-scroll'
 import { EntityHeader } from '@/components/admin/record/entity-header'
@@ -18,15 +16,10 @@ import {
   extractedAtomsSectionFields,
 } from '@/lib/admin/story-record-section-fields'
 import { ChunksTable } from '@/components/admin/stories/chunks-table'
-import { StoryLifecycleFlowchart } from '@/components/admin/stories/story-lifecycle-flowchart'
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-}
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 export function StoryRecordPage() {
-  const { storyId, payload, refresh } = useStoryReview()
+  const { storyId, payload } = useStoryReview()
 
   if (!payload) return null
 
@@ -34,7 +27,6 @@ export function StoryRecordPage() {
     <StoryRecordPageContent
       storyId={storyId}
       payload={payload}
-      refresh={refresh}
     />
   )
 }
@@ -42,34 +34,11 @@ export function StoryRecordPage() {
 function StoryRecordPageContent({
   storyId,
   payload,
-  refresh,
 }: {
   storyId: string
   payload: NonNullable<ReturnType<typeof useStoryReview>['payload']>
-  refresh: (silent?: boolean) => Promise<void>
 }) {
-  const [approving, setApproving] = useState(false)
   const [openSection, setOpenSection] = useState<string | null>(null)
-
-  const pipelineActions = useStoryPipelineActions({
-    storyId,
-    payload,
-    onRefresh: async () => refresh(true),
-  })
-
-  const approveQa = useCallback(async () => {
-    setApproving(true)
-    try {
-      const res = await fetch(`/api/admin/stories/${storyId}/qa-override`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ include_chunks: true }),
-      })
-      if (res.ok) await refresh(true)
-    } finally {
-      setApproving(false)
-    }
-  }, [storyId, refresh])
 
   const { story } = payload
 
@@ -86,7 +55,17 @@ function StoryRecordPageContent({
     <RecordPageFrame>
       <StoryAnchorScroll onSectionVisible={handleSectionVisible} />
 
-      <EntityHeader layout="record" embedded entityType="story" title={story.title} />
+      <EntityHeader
+        layout="record"
+        embedded
+        entityType="story"
+        title={story.title}
+        actions={
+          <Button variant="outline" size="sm" className="h-8" asChild>
+            <Link href={`/admin/stories/${storyId}/agent-flow`}>Agent Flow</Link>
+          </Button>
+        }
+      />
       <RecordEntityLinkBar
         links={[
           {
@@ -102,77 +81,55 @@ function StoryRecordPageContent({
         ]}
       />
 
-      <div className="flex flex-col gap-6 pt-4 lg:flex-row lg:items-start lg:gap-8">
-        <div className="min-w-0 flex-1 flex flex-col gap-4">
-      <RecordSectionCard
-        id="story-info"
-        title="Story info"
-        variant="panel"
-        forceOpen={openSection === 'story-info' || openSection === 'source-content'}
-      >
-        <StoryInfoLayout
-          author={story.author}
-          publishedAt={formatDate(story.published_at)}
-          ingestedAt={formatDate(story.fetched_at)}
-          friendlyId={story.friendly_id}
-          storyUuid={story.story_id}
-          relevanceStatus={story.relevance_status}
-          relevanceScore={story.relevance_score}
-          scrapeFailCount={story.scrape_fail_count}
-          hasContentClean={story.has_content_clean}
-          chunkCount={payload.chunks.length}
-          articleText={story.article_text}
-          highlightSpan={null}
-        />
-      </RecordSectionCard>
-
-      <RecordSectionCard
-        id="chunks"
-        title={`Chunks (${payload.chunks.length})`}
-        variant="panel"
-        forceOpen={openSection === 'chunks'}
-      >
-        <ChunksTable
-          story={{ story_id: story.story_id, friendly_id: story.friendly_id }}
-          chunks={payload.chunks}
-        />
-      </RecordSectionCard>
-
-      <RecordSectionCard
-        id="extracted-atoms"
-        title="Extracted atoms"
-        variant="panel"
-        forceOpen={openSection === 'extracted-atoms'}
-      >
-        <RecordFieldGrid fields={extractedAtomsFields} />
-      </RecordSectionCard>
-
-      <RecordAuditSection
-        apiPath={`/api/admin/stories/${storyId}/audit`}
-        title="History"
-        variant="panel"
-      />
-        </div>
-
-        <aside className="w-fit max-w-full shrink-0">
-          <StoryLifecycleFlowchart
-            payload={payload}
-            pipelineActions={pipelineActions}
-            forceOpen={
-              openSection === 'lifecycle-flowchart' || openSection?.startsWith('step-') === true
-            }
-            pipelineToolbar={
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" asChild>
-                  <Link href={`/admin/stories/${storyId}/agent-flow`}>Agent Flow</Link>
-                </Button>
-                <StoryExtractionExportButtons payload={payload} scope="story_record" compact />
-              </div>
-            }
-            onApproveQa={approveQa}
-            approvingQa={approving}
+      <div className="flex flex-col gap-4 pt-4">
+        <RecordSectionCard
+          id="story-info"
+          title="Story info"
+          variant="panel"
+          forceOpen={openSection === 'story-info' || openSection === 'source-content'}
+        >
+          <StoryInfoLayout
+            author={story.author}
+            publishedAt={formatAdminDateTime(story.published_at)}
+            ingestedAt={formatAdminDateTime(story.fetched_at)}
+            friendlyId={story.friendly_id}
+            storyUuid={story.story_id}
+            relevanceStatus={story.relevance_status}
+            relevanceScore={story.relevance_score}
+            scrapeFailCount={story.scrape_fail_count}
+            hasContentClean={story.has_content_clean}
+            chunkCount={payload.chunks.length}
+            articleText={story.article_text}
+            highlightSpan={null}
           />
-        </aside>
+        </RecordSectionCard>
+
+        <RecordSectionCard
+          id="chunks"
+          title={`Chunks (${payload.chunks.length})`}
+          variant="panel"
+          forceOpen={openSection === 'chunks'}
+        >
+          <ChunksTable
+            story={{ story_id: story.story_id, friendly_id: story.friendly_id }}
+            chunks={payload.chunks}
+          />
+        </RecordSectionCard>
+
+        <RecordSectionCard
+          id="extracted-atoms"
+          title="Extracted atoms"
+          variant="panel"
+          forceOpen={openSection === 'extracted-atoms'}
+        >
+          <RecordFieldGrid fields={extractedAtomsFields} />
+        </RecordSectionCard>
+
+        <RecordAuditSection
+          apiPath={`/api/admin/stories/${storyId}/audit`}
+          title="History"
+          variant="panel"
+        />
       </div>
     </RecordPageFrame>
   )

@@ -4,6 +4,7 @@ import { type NodeProps } from '@xyflow/react'
 import { Play, RotateCcw, Split } from 'lucide-react'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { isStepRevertible } from '@/lib/admin/story-pipeline-checklist'
+import { resolveRunnableHighlightTone } from '@/lib/admin/workflow-canvas/runnable-node-highlight'
 import { useWorkflowCanvas } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { CanvasUtilityNodeShell } from '@/components/admin/workflow-canvas/nodes/canvas-utility-node-shell'
 
@@ -17,13 +18,17 @@ type DecisionNodeData = {
   maturity?: string
 }
 
-export function CanvasDecisionNode({ data, selected }: NodeProps) {
+export function CanvasDecisionNode({ data, selected, id }: NodeProps) {
   const nodeData = data as DecisionNodeData
   const { label, desc, result, status, catalogStepId, runnable, maturity } = nodeData
-  const { payload, pipelineActions } = useWorkflowCanvas()
+  const { payload, pipelineActions, hoveredNodeId } = useWorkflowCanvas()
   const stepId = catalogStepId
   const isRunning = stepId ? pipelineActions.isStepRunning(stepId) : false
+  const isReverting = stepId ? pipelineActions.revertingStepId === stepId : false
   const revertible = stepId ? isStepRevertible(stepId, payload) : false
+  const canRun = Boolean(runnable && !isRunning && !isReverting)
+  const isHoveredFromList = hoveredNodeId === id
+  const runnableHighlight = resolveRunnableHighlightTone(canRun, isHoveredFromList)
 
   const displayStatus =
     result || status || (maturity !== 'live' ? 'Planned' : undefined)
@@ -64,6 +69,7 @@ export function CanvasDecisionNode({ data, selected }: NodeProps) {
       status={displayStatus}
       selected={selected}
       actions={actions}
+      runnableHighlight={runnableHighlight}
     />
   )
 }

@@ -15,15 +15,11 @@ import type { ChunkRecord } from '@/lib/admin/chunk-record'
 import { formatChunkLabel } from '@/lib/admin/chunk-record'
 import { storyAdminHref } from '@/lib/admin/friendly-id'
 import { qaStatusLabel, type ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 function qaStatusDisplay(status: string | null | undefined): string {
   if (!status) return '—'
   return qaStatusLabel(status as ExtractionQaStatus)
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 export function ChunkRecordPage() {
@@ -117,7 +113,7 @@ export function ChunkRecordPage() {
                   : null}
               </RecordFieldRow>
               <RecordFieldRow label="Validated at">
-                {formatDate(data.extraction_qa_validated_at)}
+                {formatAdminDateTime(data.extraction_qa_validated_at)}
               </RecordFieldRow>
               <RecordFieldRow label="Refinement cycles">
                 {data.extraction_qa_refinement_count}

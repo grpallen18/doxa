@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import type { AgentRunSummary } from '@/lib/admin/agent-detail'
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 import { EMBED_PAGE_SIZE, VIEW_ALL_PAGE_SIZE } from '@/lib/admin/pagination'
 import { PaginatedListFooter } from '@/components/admin/record/paginated-list-footer'
 import { usePaginatedList } from '@/components/admin/record/use-paginated-list'
@@ -11,9 +12,19 @@ import { cn } from '@/lib/utils'
 const RUNS_GRID =
   'grid grid-cols-[minmax(5.5rem,7rem)_minmax(0,1fr)_minmax(0,1.25fr)] gap-x-4'
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+function runStatusVariant(status: string): 'success' | 'danger' | 'warning' | 'muted' | 'default' {
+  const normalized = status.toLowerCase()
+  if (normalized === 'completed' || normalized === 'success' || normalized === 'no_op') {
+    return 'success'
+  }
+  if (normalized === 'failed' || normalized === 'failure' || normalized === 'error') {
+    return 'danger'
+  }
+  if (normalized === 'running' || normalized === 'looping' || normalized === 'in_progress') {
+    return 'warning'
+  }
+  if (normalized === 'skipped') return 'muted'
+  return 'default'
 }
 
 export function AgentRecentRunsTable({
@@ -51,18 +62,32 @@ export function AgentRecentRunsTable({
         <ol className="divide-y divide-subtle">
           {items.length === 0 ? (
             <li className={cn(RUNS_GRID, 'px-3 py-3 text-xs text-muted')}>
-              <span className="col-span-full">No pipeline runs recorded for this agent.</span>
+              <span className="col-span-full">No runs recorded for this agent.</span>
             </li>
           ) : null}
           {items.map((run) => (
             <li key={run.run_id} className={cn(RUNS_GRID, 'items-start px-3 py-2')}>
-              <StatusBadge
-                label={run.status}
-                variant={run.status === 'completed' || run.status === 'success' ? 'success' : 'danger'}
-              />
-              <time className="text-xs tabular-nums text-muted">{formatDate(run.started_at)}</time>
+              <StatusBadge label={run.status} variant={runStatusVariant(run.status)} />
+              <time
+                className="text-xs tabular-nums text-muted"
+                dateTime={run.started_at}
+                title={run.started_at}
+              >
+                {formatAdminDateTime(run.started_at)}
+              </time>
               <div className="min-w-0 space-y-1 text-xs">
-                {run.model_name && <p className="text-muted">Model: {run.model_name}</p>}
+                {run.model_name ? (
+                  <p
+                    className="text-muted"
+                    title={
+                      run.model_names.length > 1
+                        ? run.model_names.join(', ')
+                        : undefined
+                    }
+                  >
+                    Model: {run.model_name}
+                  </p>
+                ) : null}
                 {run.error && <p className="text-destructive">{run.error}</p>}
                 {run.story_id && (
                   <Link

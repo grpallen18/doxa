@@ -17,8 +17,13 @@ export function PaginatedListFooter({
   onPageChange: (page: number) => void
   viewAllHref?: string
 }) {
-  const showPager = (pagination?.total ?? 0) > 0 && totalPages > 1
-  const showViewAll = viewAllHref && (pagination?.total ?? 0) > (pagination?.limit ?? 0)
+  const total = pagination?.total ?? 0
+  const showPager = total > 0 && totalPages > 1
+  const showViewAll = viewAllHref && total > (pagination?.limit ?? 0)
+
+  if (total === 0) {
+    return null
+  }
 
   if (!showPager && !showViewAll && pagination) {
     return (
@@ -29,7 +34,7 @@ export function PaginatedListFooter({
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
       <p className="text-xs text-muted">
-        {pagination ? paginationLabel(pagination) : 'No records'}
+        {pagination ? paginationLabel(pagination) : null}
       </p>
       <div className="flex items-center gap-2">
         {showPager && (

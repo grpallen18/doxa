@@ -371,6 +371,7 @@ export const handler = async (req: Request) => {
     chunkIndexParam: chunkIndexParam,
     processedChunks,
     dryRun,
+    modelName: MODEL,
   });
 
   if (!dryRun && runId) {

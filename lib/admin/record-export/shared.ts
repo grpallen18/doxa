@@ -1,11 +1,12 @@
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
+
 export function bullet(label: string, value: string | number | null | undefined): string {
   const v = value === null || value === undefined || value === '' ? '—' : String(value)
   return `- ${label}: ${v}`
 }
 
 export function formatExportDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+  return formatAdminDateTime(iso)
 }
 
 export type ChunkQaExport = {

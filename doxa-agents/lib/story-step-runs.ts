@@ -21,10 +21,14 @@ export type BatchStoryStepSummary = {
   storyId: string;
   processed: number;
   chunkIndices: number[];
+  /** Text chunks inserted for this story (chunk-story-bodies). */
+  chunksCreated?: number;
   stepComplete?: boolean;
   blocked?: boolean;
   skipped?: boolean;
   error?: string | null;
+  modelName?: string | null;
+  modelNames?: string[];
 };
 
 export function resolveStoryStepTrigger(singleStoryId: string | null): StoryStepTrigger {
@@ -89,9 +93,12 @@ export async function recordStoryStepRunsForBatch(
         meta: {
           processed: summary.processed,
           chunk_indices: summary.chunkIndices,
+          ...(summary.chunksCreated != null ? { chunks_created: summary.chunksCreated } : {}),
           step_complete: summary.stepComplete ?? false,
           blocked: summary.blocked ?? false,
           skipped: summary.skipped ?? false,
+          ...(summary.modelName ? { model_name: summary.modelName } : {}),
+          ...(summary.modelNames?.length ? { model_names: summary.modelNames } : {}),
         },
       })
     )
@@ -222,6 +229,8 @@ export async function logBatchChunkStepRuns(
     chunkIndexParam?: number | null;
     processedChunks: Array<{ story_id: string; chunk_index: number }>;
     dryRun: boolean;
+    modelName?: string | null;
+    modelNames?: string[];
   }
 ): Promise<void> {
   if (params.dryRun) return;
@@ -250,7 +259,12 @@ export async function logBatchChunkStepRuns(
         params.chunkIndexParam != null && params.chunkIndexParam >= 0
           ? params.chunkIndexParam
           : null,
-      meta: { processed, chunk_indices: chunkIndices },
+      meta: {
+        processed,
+        chunk_indices: chunkIndices,
+        ...(params.modelName ? { model_name: params.modelName } : {}),
+        ...(params.modelNames?.length ? { model_names: params.modelNames } : {}),
+      },
     });
   }
 }
@@ -263,6 +277,8 @@ export async function logMergeQaStoryRuns(
     trigger: StoryStepTrigger;
     storyIds: string[];
     dryRun: boolean;
+    modelName?: string | null;
+    modelNames?: string[];
   }
 ): Promise<void> {
   if (params.dryRun) return;
@@ -274,7 +290,11 @@ export async function logMergeQaStoryRuns(
       deployName: params.deployName,
       outcome,
       trigger: params.trigger,
-      meta: { processed: 1 },
+      meta: {
+        processed: 1,
+        ...(params.modelName ? { model_name: params.modelName } : {}),
+        ...(params.modelNames?.length ? { model_names: params.modelNames } : {}),
+      },
     });
   }
 }
@@ -328,6 +348,8 @@ export async function logCanonicalEntityStoryRuns(
     storyIds: string[];
     processedByStory?: Map<string, number>;
     dryRun: boolean;
+    modelName?: string | null;
+    modelNames?: string[];
   }
 ): Promise<void> {
   if (params.dryRun) return;
@@ -345,7 +367,11 @@ export async function logCanonicalEntityStoryRuns(
       deployName: params.deployName,
       outcome: processed === 0 ? "no_op" : outcome,
       trigger: params.trigger,
-      meta: { processed },
+      meta: {
+        processed,
+        ...(params.modelName ? { model_name: params.modelName } : {}),
+        ...(params.modelNames?.length ? { model_names: params.modelNames } : {}),
+      },
     });
   }
 }

@@ -14,7 +14,6 @@ export type {
 } from '@/lib/admin/pipeline-status'
 export {
   derivePipelineChecklist,
-  deriveStageSummaries,
   getBlockedReason,
   getQualifyTimelineStatus,
   getRevertBlockedReason,
@@ -29,7 +28,7 @@ export {
   isStepRevertible,
   REVERT_SCOPE_STEP_IDS,
 } from '@/lib/admin/pipeline-status'
-export type { StageSummary, StageSummaryStatus } from '@/lib/admin/pipeline-status'
+export type { StageSummaryStatus } from '@/lib/admin/pipeline-status'
 export { EXTRACTION_STEP_GROUPS } from '@/lib/admin/pipeline-status'
 export {
   CLAIMS_LANE_STEP_IDS,

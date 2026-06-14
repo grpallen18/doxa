@@ -2,15 +2,16 @@ import type { VisionEdgeSpec, VisionNodeSpec } from '@/lib/admin/workflow-canvas
 
 const COL = {
   ingest: 0,
-  gate: 1,
-  chunk: 2,
-  extract: 3,
-  review: 4,
-  mergeLane: 5,
-  mergeHub: 6,
-  mergeQa: 7,
-  canonical: 8,
-  downstream: 9,
+  scrape: 1,
+  gate: 2,
+  chunk: 3,
+  extract: 4,
+  review: 5,
+  mergeLane: 6,
+  mergeHub: 7,
+  mergeQa: 8,
+  canonical: 9,
+  downstream: 10,
 } as const
 
 export const VISION_FLOW_NODES: VisionNodeSpec[] = [
@@ -45,6 +46,17 @@ export const VISION_FLOW_NODES: VisionNodeSpec[] = [
     lane: 'main',
     column: COL.ingest,
     row: 2,
+  },
+  {
+    id: 'scrape-story-content',
+    visionLabel: 'Scrape story',
+    nodeType: 'agent',
+    maturity: 'live',
+    catalogStepId: 'scrape-story-content',
+    iconVariant: 'cloud',
+    lane: 'main',
+    column: COL.scrape,
+    row: 0,
   },
   {
     id: 'clean-scraped-content',
@@ -244,11 +256,12 @@ export const VISION_FLOW_NODES: VisionNodeSpec[] = [
 ]
 
 export const VISION_FLOW_EDGES: VisionEdgeSpec[] = [
-  { id: 'e-gate-keep', source: 'relevance-gate', target: 'clean-scraped-content', sourceHandle: 'pass', kind: 'pass' },
+  { id: 'e-gate-keep', source: 'relevance-gate', target: 'scrape-story-content', sourceHandle: 'pass', kind: 'pass' },
   { id: 'e-gate-drop', source: 'relevance-gate', target: 'vision:stop', sourceHandle: 'fail', kind: 'fail' },
   { id: 'e-gate-pending', source: 'relevance-gate', target: 'review-pending-stories', sourceHandle: 'pending', kind: 'neutral' },
-  { id: 'e-pending-keep', source: 'review-pending-stories', target: 'clean-scraped-content', sourceHandle: 'pass', kind: 'pass' },
+  { id: 'e-pending-keep', source: 'review-pending-stories', target: 'scrape-story-content', sourceHandle: 'pass', kind: 'pass' },
   { id: 'e-pending-drop', source: 'review-pending-stories', target: 'vision:stop', sourceHandle: 'fail', kind: 'fail' },
+  { id: 'e-scrape-clean', source: 'scrape-story-content', target: 'clean-scraped-content', kind: 'pass' },
   { id: 'e-clean-chunk', source: 'clean-scraped-content', target: 'chunk-story-bodies', kind: 'pass' },
   { id: 'e-chunk-c', source: 'chunk-story-bodies', target: 'extract-story-claims', kind: 'pass' },
   { id: 'e-chunk-p', source: 'chunk-story-bodies', target: 'extract-story-positions', kind: 'pass' },

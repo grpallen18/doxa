@@ -6,6 +6,7 @@ import { useRecordHub } from '@/components/admin/record/use-record-hub'
 import { RecordHubShell } from '@/components/admin/record/record-hub-shell'
 import { RecordPageError, RecordPageLoading } from '@/components/admin/record/record-page-frame'
 import { StatusBadge } from '@/components/admin/record/status-badge'
+import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 type ControversyDetail = {
   controversy_cluster_id: string
@@ -27,10 +28,6 @@ type ControversyDetail = {
     agreement_cluster_id: string
   }>
   topics: Array<{ topic_id: string; title: string; slug: string }>
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 export default function ControversyRecordPage() {
@@ -73,7 +70,7 @@ export default function ControversyRecordPage() {
           value: <span className="font-mono text-[11px]">{data.controversy_cluster_id}</span>,
         },
         { label: 'Status', value: <StatusBadge label={data.status} /> },
-        { label: 'Created', value: formatDate(data.created_at) },
+        { label: 'Created', value: formatAdminDateTime(data.created_at) },
       ]}
       lifecycle={lifecycle}
       sections={[
