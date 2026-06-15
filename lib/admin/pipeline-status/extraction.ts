@@ -4,7 +4,6 @@ import type { ExtractionLaneId } from '@/lib/admin/pipeline-status/extraction-gr
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
 import { formatChunksCreatedLabel } from '@/lib/admin/pipeline-step-run-display'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
-import { PIPELINE_STEPS } from '@/lib/admin/generated/pipeline-catalog'
 
 type TimelineStepStatus = 'complete' | 'current' | 'pending' | 'blocked'
 
@@ -223,26 +222,19 @@ function isMergeQaBlocked(payload: StoryExtractionReviewPayload): boolean {
 }
 
 export function isExtractionPipelineBlocked(payload: StoryExtractionReviewPayload): boolean {
-  return isChunkQaBlocked(payload) || isMergeQaBlocked(payload)
+  return isChunkQaBlocked(payload)
 }
 
-/** Parallel lanes: claims QA must not block positions steps (and vice versa). */
 export function isExtractionLanePipelineBlocked(
   laneId: ExtractionLaneId,
   payload: StoryExtractionReviewPayload
 ): boolean {
-  if (laneId === 'positions') {
-    return isPositionsChunkQaBlocked(payload) || isMergeQaBlocked(payload)
-  }
-  if (laneId === 'claims' || laneId === 'merge-qa') {
-    return isChunkQaBlocked(payload) || isMergeQaBlocked(payload)
-  }
-  return isExtractionPipelineBlocked(payload)
+  if (laneId === 'claims') return isChunkQaBlocked(payload)
+  return false
 }
 
 export function getExtractionBlockedReason(payload: StoryExtractionReviewPayload): string | null {
   if (isChunkQaBlocked(payload)) return 'Chunk claims validation needs human review'
-  if (isMergeQaBlocked(payload)) return 'Merged extraction QA needs human review'
   return null
 }
 
@@ -289,7 +281,6 @@ export function isExtractionStepComplete(
   stepId: PipelineStepId,
   payload: StoryExtractionReviewPayload
 ): boolean {
-  const qa = payload.story.extraction_qa_status
   const counts = chunkQaCounts(payload)
 
   switch (stepId) {
@@ -297,28 +288,8 @@ export function isExtractionStepComplete(
       return counts.total > 0
     case 'extract-story-claims':
       return isExtractComplete(payload)
-    case 'extract-story-positions':
-      return isPositionsExtractComplete(payload)
     case 'validate-chunk-claims':
       return isChunkClaimsReviewComplete(payload)
-    case 'validate-chunk-positions':
-      return isChunkPositionsReviewComplete(payload)
-    case 'refine-chunk-claims':
-      return isChunkClaimsRefineSatisfied(payload)
-    case 'refine-chunk-positions':
-      return isChunkPositionsRefineSatisfied(payload)
-    case 'merge-story-claims':
-      return payload.story.merged_at != null
-    case 'merge-story-positions':
-      return payload.positions.length > 0
-    case 'review-merged-extraction':
-      return payload.story.merged_at != null && qa != null && qa !== 'pending'
-    case 'refine-merged-extraction':
-      return (
-        isExtractionStepComplete('review-merged-extraction', payload) && qa !== 'needs_refinement'
-      )
-    case 'validate-merged-extraction':
-      return isMergeValidated(payload)
     default:
       return false
   }
@@ -329,14 +300,6 @@ export function isExtractionStepBlocked(
   payload: StoryExtractionReviewPayload
 ): boolean {
   if (stepId === 'validate-chunk-claims' && isChunkQaBlocked(payload)) return true
-  if (stepId === 'validate-chunk-positions' && isPositionsChunkQaBlocked(payload)) return true
-  if (stepId === 'validate-merged-extraction' && isMergeQaBlocked(payload)) return true
-  if (stepId === 'merge-story-claims' && !isChunkReviewApproved(payload) && isExtractComplete(payload)) {
-    return isChunkQaBlocked(payload)
-  }
-  if (stepId === 'merge-story-positions' && !isChunkPositionsReviewApproved(payload) && isPositionsExtractComplete(payload)) {
-    return isPositionsChunkQaBlocked(payload)
-  }
   return false
 }
 
@@ -350,119 +313,28 @@ export function extractionStepProgress(
       return c.total > 0 ? formatChunksCreatedLabel(c.total) : null
     case 'extract-story-claims':
       return c.total > 0 ? `${c.withJson}/${c.total} chunks extracted` : null
-    case 'extract-story-positions': {
-      const p = positionsChunkQaCounts(payload)
-      return p.total > 0 ? `${p.withJson}/${p.total} chunks with positions` : null
-    }
     case 'validate-chunk-claims': {
       const reviewed = c.withJson - c.pendingValidate
       return c.withJson > 0 ? `${reviewed}/${c.withJson} chunks reviewed` : null
     }
-    case 'validate-chunk-positions': {
-      const p = positionsChunkQaCounts(payload)
-      const reviewed = p.withJson - p.pendingValidate
-      return p.withJson > 0 ? `${reviewed}/${p.withJson} chunks reviewed` : null
-    }
-    case 'refine-chunk-claims':
-      return c.needsRefinement > 0 ? `${c.needsRefinement} chunk(s) need refinement` : null
-    case 'refine-chunk-positions': {
-      const p = positionsChunkQaCounts(payload)
-      if (p.needsRefinement > 0) {
-        return `${p.needsRefinement} chunk(s) need positions refinement`
-      }
-      const atLimit = payload.chunks.filter(
-        (c) =>
-          c.positions_extraction_json != null &&
-          c.positions_qa_status === 'needs_refinement' &&
-          ((c.positions_qa_refinement_count ?? 0) >= 3 ||
-            (c.positions_qa_validation_attempt_count ?? 0) >= 3)
-      ).length
-      return atLimit > 0 ? `${atLimit} chunk(s) hit refine/review attempt limit` : null
-    }
-    case 'merge-story-claims':
-      if (!isChunkReviewApproved(payload) && isExtractComplete(payload)) {
-        return 'Requires all chunks passed review before merge'
-      }
-      return null
-    case 'merge-story-positions':
-      if (!isChunkPositionsReviewApproved(payload) && isPositionsExtractComplete(payload)) {
-        return 'Requires all chunks passed positions review before merge'
-      }
-      return null
-    case 'review-merged-extraction':
-    case 'refine-merged-extraction':
-    case 'validate-merged-extraction':
-      if (payload.story.merged_at == null) return 'Run merge first'
-      return payload.story.extraction_qa_status
-        ? `Merge QA: ${payload.story.extraction_qa_status.replace(/_/g, ' ')}`
-        : null
     default:
       return null
   }
 }
 
-export function isRefineOptional(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
-  if (stepId === 'refine-chunk-claims') {
-    return isChunkClaimsRefineSatisfied(payload)
-  }
-  if (stepId === 'refine-chunk-positions') {
-    return isChunkPositionsRefineSatisfied(payload)
-  }
-  if (stepId === 'refine-merged-extraction') {
-    return (
-      payload.story.extraction_qa_status !== 'needs_refinement' &&
-      isExtractionStepComplete('review-merged-extraction', payload)
-    )
-  }
-  const def = PIPELINE_STEPS.find((s) => s.id === stepId)
-  if (def?.optional) {
-    return isExtractionStepComplete('validate-merged-extraction', payload)
-  }
+export function isRefineOptional(_stepId: PipelineStepId, _payload: StoryExtractionReviewPayload): boolean {
   return false
 }
 
 export function getExtractionNotRequiredMessage(
-  stepId: PipelineStepId,
-  payload: StoryExtractionReviewPayload
+  _stepId: PipelineStepId,
+  _payload: StoryExtractionReviewPayload
 ): string | null {
-  if (stepId === 'refine-chunk-claims' && isRefineOptional(stepId, payload)) {
-    return 'Chunk review did not request refinement — this loop step is not required.'
-  }
-  if (stepId === 'refine-chunk-positions' && isRefineOptional(stepId, payload)) {
-    return 'Positions review did not request refinement — this loop step is not required.'
-  }
-  if (stepId === 'refine-merged-extraction' && isRefineOptional(stepId, payload)) {
-    return 'Merge review did not request refinement — this loop step is not required.'
-  }
-  if (!isExtractionStepComplete(stepId, payload)) return null
-
-  switch (stepId) {
-    case 'refine-merged-extraction': {
-      const hasRefineOutput =
-        (payload.story.extraction_qa_refinement_count ?? 0) > 0 ||
-        payload.qa_artifacts.some((a) => a.stage === 'merge_refine')
-      if (!hasRefineOutput && isRefineOptional(stepId, payload)) {
-        return 'No merge refinement necessary — loop step completed.'
-      }
-      return null
-    }
-    default:
-      return null
-  }
+  return null
 }
 
 export function canRunExtractionWhenBlocked(stepId: PipelineStepId): boolean {
-  return (
-    stepId === 'extract-story-claims' ||
-    stepId === 'extract-story-positions' ||
-    stepId === 'validate-chunk-claims' ||
-    stepId === 'refine-chunk-claims' ||
-    stepId === 'validate-chunk-positions' ||
-    stepId === 'refine-chunk-positions' ||
-    stepId === 'validate-merged-extraction' ||
-    stepId === 'review-merged-extraction' ||
-    stepId === 'refine-merged-extraction'
-  )
+  return stepId === 'extract-story-claims' || stepId === 'validate-chunk-claims'
 }
 
 export function extractionSnapshot(stepId: PipelineStepId, payload: StoryExtractionReviewPayload) {

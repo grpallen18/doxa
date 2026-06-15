@@ -72,6 +72,14 @@ BEGIN
     v_skipped := array_append(v_skipped, 'positions_history');
   END IF;
 
+  -- required: chunk_claim_versions
+  IF 'public.chunk_claim_versions'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.chunk_claim_versions RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'chunk_claim_versions');
+  ELSE
+    v_skipped := array_append(v_skipped, 'chunk_claim_versions');
+  END IF;
+
   -- required: story_extraction_qa_artifacts
   IF 'public.story_extraction_qa_artifacts'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.story_extraction_qa_artifacts RESTART IDENTITY CASCADE';

@@ -3,14 +3,20 @@ import { requireAdmin } from '@/lib/auth'
 import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 import { extractEdgeFunctionError, extractErrorMessage } from '@/lib/admin/story-extraction-review'
 import { createAdminClient } from '@/lib/supabase/server'
-import { PIPELINE_STEPS, getInvokeOptions, resolveDeployName } from '@/lib/admin/story-pipeline-checklist'
+import {
+  PIPELINE_STEPS,
+  getInvokeOptions,
+  resolveDeployName,
+  type PipelineStepId,
+} from '@/lib/admin/story-pipeline-checklist'
 import { appendAdminStoryStepRunFailure } from '@/lib/admin/story-step-runs'
 import { fetchAgentPrompt } from '@/lib/admin/agent-prompt-store'
 import { checkAgentPromptSchemaMatch } from '@/lib/admin/agent-prompt-response-schema'
 import type { PipelineWarning } from '@/lib/admin/pipeline-warnings'
 import { edgeFunctionHeaders } from '@/lib/supabase/edge-function-auth'
+import { isChunkParallelStep } from '@/lib/admin/pipeline-status/extraction-groups'
 
-/** Admin: invoke one pipeline edge function for a story. */
+/** Admin: invoke one pipeline edge function for a story (optional single chunk). */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -36,11 +42,11 @@ export async function POST(
     )
   }
 
-  let body: { step?: string } = {}
+  let body: { step?: string; chunk_index?: number } = {}
   try {
     const raw = await request.json()
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      body = raw as { step?: string }
+      body = raw as { step?: string; chunk_index?: number }
     }
   } catch {
     body = {}
@@ -68,10 +74,39 @@ export async function POST(
   const { storyUuid } = resolved
 
   const stepDef = PIPELINE_STEPS.find((step) => step.deployName === deployName)
+  const stepId = (stepDef?.id ?? stepInput) as PipelineStepId
+
+  const chunkIndex =
+    body.chunk_index !== undefined && body.chunk_index !== null
+      ? Number(body.chunk_index)
+      : null
+
+  if (isChunkParallelStep(stepId)) {
+    if (chunkIndex == null || !Number.isInteger(chunkIndex) || chunkIndex < 0) {
+      return NextResponse.json(
+        {
+          data: null,
+          error: {
+            message: `chunk_index is required for chunk-layer step: ${stepId}. Open the chunk workflow to run this step.`,
+          },
+        },
+        { status: 400 }
+      )
+    }
+  } else if (chunkIndex != null) {
+    return NextResponse.json(
+      { data: null, error: { message: 'chunk_index is only valid for chunk-layer steps' } },
+      { status: 400 }
+    )
+  }
+
   const invokeOptions = getInvokeOptions(deployName)
   const invokeBody: Record<string, unknown> = { story_id: storyUuid }
   if (invokeOptions.usesMaxChunks && invokeOptions.maxChunks != null) {
     invokeBody.max_chunks = invokeOptions.maxChunks
+  }
+  if (chunkIndex != null) {
+    invokeBody.chunk_index = chunkIndex
   }
 
   const warnings: PipelineWarning[] = []
@@ -118,9 +153,12 @@ export async function POST(
     })
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    const debugTrace = data.debug_trace
+    const chunkDebugTrace = data.chunk_debug_trace
     if (!res.ok) {
       const message = extractEdgeFunctionError(data, res.status)
-      if (res.status >= 500) {
+      const errorCode = typeof data.error_code === 'string' ? data.error_code : undefined
+      if (res.status >= 500 || res.status === 422) {
         try {
           await appendAdminStoryStepRunFailure(supabase, {
             storyId: storyUuid,
@@ -128,14 +166,31 @@ export async function POST(
             deployName,
             actorId: auth.user.id,
             error: message,
-            meta: { http_status: res.status, edge_result: data },
+            chunkIndex,
+            meta: {
+              http_status: res.status,
+              edge_result: data,
+              ...(errorCode ? { error_code: errorCode } : {}),
+              ...(debugTrace ? { debug_trace: debugTrace } : {}),
+              ...(chunkDebugTrace ? { chunk_debug_trace: chunkDebugTrace } : {}),
+              ...(chunkIndex != null ? { chunk_index: chunkIndex } : {}),
+            },
           })
         } catch (stepRunError: unknown) {
           console.error('[run-step] Failed to append story step run failure:', stepRunError)
         }
       }
       return NextResponse.json(
-        { data: null, error: { message, deploy_name: deployName } },
+        {
+          data: null,
+          error: {
+            message,
+            deploy_name: deployName,
+            ...(errorCode ? { error_code: errorCode } : {}),
+            ...(debugTrace ? { debug_trace: debugTrace } : {}),
+            ...(chunkDebugTrace ? { chunk_debug_trace: chunkDebugTrace } : {}),
+          },
+        },
         { status: res.status >= 500 ? 502 : res.status }
       )
     }
@@ -147,6 +202,7 @@ export async function POST(
         deploy_name: deployName,
         result: data,
         prompt_version_number: resultPromptVersion,
+        chunk_index: chunkIndex,
         warnings,
       },
       error: null,
@@ -160,7 +216,11 @@ export async function POST(
         deployName,
         actorId: auth.user.id,
         error: message,
-        meta: { source: 'run-step_exception' },
+        chunkIndex,
+        meta: {
+          source: 'run-step_exception',
+          ...(chunkIndex != null ? { chunk_index: chunkIndex } : {}),
+        },
       })
     } catch (stepRunError: unknown) {
       console.error('[run-step] Failed to append story step run failure:', stepRunError)

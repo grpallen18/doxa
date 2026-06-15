@@ -23,6 +23,17 @@ const DEFAULT_SCHEMAS: Record<string, { schema: Record<string, unknown>; name: s
   },
 };
 
+const OPENAI_SCHEMA_NAMES: Record<string, string> = {
+  "validate-chunk-claims": "doxa_chunk_claims_review",
+  "refine-chunk-claims": "doxa_chunk_claims_refine",
+  "validate-chunk-positions": "doxa_chunk_positions_review",
+  "refine-chunk-positions": "doxa_chunk_positions_refine",
+};
+
+function schemaNameForStep(stepId: string): string {
+  return OPENAI_SCHEMA_NAMES[stepId] ?? stepId.replace(/-/g, "_");
+}
+
 export type ActiveResponseSchema = {
   schema: Record<string, unknown>;
   schemaName: string;
@@ -56,7 +67,7 @@ export async function loadActiveResponseSchema(
   if (override && typeof override === "object") {
     const entry: CacheEntry = {
       schema: override,
-      schemaName: stepId.replace(/-/g, "_"),
+      schemaName: schemaNameForStep(stepId),
       source: "db_override",
       fetchedAt: Date.now(),
     };

@@ -14,6 +14,13 @@ export {
   buildStoryStageExportPayload,
 } from '@/lib/admin/record-export/story-stage'
 export {
+  buildChunkStepExportJson,
+  buildChunkStepExportMarkdown,
+  buildChunkStepExportPayload,
+  chunkStepExportBasename,
+  isChunkStepExportable,
+} from '@/lib/admin/record-export/chunk-step'
+export {
   buildStoryStepExportJson,
   buildStoryStepExportMarkdown,
   buildStoryStepExportPayload,

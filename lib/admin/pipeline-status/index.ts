@@ -13,13 +13,6 @@ import {
   resolveChecklistStepStatus,
 } from '@/lib/admin/pipeline-step-run-display'
 import {
-  canonicalSnapshot,
-  canonicalStepProgress,
-  getCanonicalNotRequiredMessage,
-  isCanonicalStepBlocked,
-  isCanonicalStepComplete,
-} from '@/lib/admin/pipeline-status/canonical'
-import {
   canRunExtractionWhenBlocked,
   extractionSnapshot,
   extractionStepProgress,
@@ -32,15 +25,11 @@ import {
   isExtractionStepComplete,
   isChunkClaimsReviewComplete,
   isChunkClaimsReviewStarted,
-  isChunkPositionsReviewApproved,
-  isChunkPositionsReviewStarted,
   isChunkReviewApproved,
-  isMergeValidated,
-  isPositionsLaneStarted,
-  isRefineOptional,
 } from '@/lib/admin/pipeline-status/extraction'
 
 export {
+  CHUNK_PARALLEL_STEP_IDS,
   CLAIMS_LANE_STEP_IDS,
   EXTRACTION_PARALLEL_LANES,
   EXTRACTION_SHARED_STEP_IDS,
@@ -48,26 +37,23 @@ export {
   EXTRACTION_TIMELINE_HIDDEN_STEPS,
   getExtractionLaneStepIds,
   getExtractionStepLane,
+  isChunkParallelStep,
   MERGE_QA_STEP_IDS,
   POSITIONS_LANE_STEP_IDS,
 } from '@/lib/admin/pipeline-status/extraction-groups'
 import {
+  CHUNK_PARALLEL_STEP_IDS,
   CLAIMS_LANE_STEP_IDS,
   getExtractionLaneStepIds,
   getExtractionStepLane,
-  MERGE_QA_STEP_IDS,
-  POSITIONS_LANE_STEP_IDS,
+  isChunkParallelStep,
 } from '@/lib/admin/pipeline-status/extraction-groups'
-import { linkEntitiesPrerequisiteStepIds } from '@/lib/admin/pipeline-flow-layout'
+import { chunkParallelStepProgress } from '@/lib/admin/pipeline-status/chunk-parallel-progress'
 import {
-  isChunkAwaitingFirstReview,
-  isChunkPendingRereviewAfterRefine,
-  laneHasChunksNeedingRefinement,
-  laneHasChunksPendingRereview,
-  laneHasChunksReadyToRefine,
-  refineLanePriorOk,
-} from '@/lib/admin/pipeline-status/qa-lane-state'
-import { isStepRevertible } from '@/lib/admin/pipeline-status/revert'
+  chunkStepProgressLabel,
+  isChunkStepDomainComplete,
+  isChunkStepRunnable,
+} from '@/lib/admin/pipeline-status/chunk-step-runnable'
 export {
   extractTimelineDetail,
   getExtractTimelineStatus,
@@ -125,6 +111,10 @@ export type PipelineChecklist = {
   isPipelineBlocked: boolean
 }
 
+export type PipelineChecklistScope =
+  | { scope: 'story' }
+  | { scope: 'chunk'; chunkIndex: number }
+
 const INGESTION_STEPS = new Set([
   'relevance-gate',
   'scrape-story-content',
@@ -135,29 +125,12 @@ const INGESTION_STEPS = new Set([
 const EXTRACTION_STEPS = new Set([
   'chunk-story-bodies',
   'extract-story-claims',
-  'extract-story-positions',
   'validate-chunk-claims',
-  'validate-chunk-positions',
-  'refine-chunk-claims',
-  'refine-chunk-positions',
-  'merge-story-claims',
-  'merge-story-positions',
-  'review-merged-extraction',
-  'refine-merged-extraction',
-  'validate-merged-extraction',
-])
-
-const CANONICAL_STEPS = new Set([
-  'link-canonical-claims',
-  'link-canonical-events',
-  'link-canonical-positions',
-  'update-stances',
 ])
 
 function isStepCompleteDomain(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   if (INGESTION_STEPS.has(stepId)) return isIngestionStepComplete(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return isExtractionStepComplete(stepId, payload)
-  if (CANONICAL_STEPS.has(stepId)) return isCanonicalStepComplete(stepId, payload)
   return false
 }
 
@@ -165,7 +138,6 @@ function isStepBlockedDomain(stepId: PipelineStepId, payload: StoryExtractionRev
   if (isStoryDropped(payload) && !isQualificationPipelineStep(stepId)) return true
   if (INGESTION_STEPS.has(stepId)) return isIngestionStepBlocked(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return isExtractionStepBlocked(stepId, payload)
-  if (CANONICAL_STEPS.has(stepId)) return isCanonicalStepBlocked(stepId, payload)
   return false
 }
 
@@ -183,8 +155,7 @@ export function getStepNotRequiredMessage(
 ): string | null {
   return (
     getIngestionNotRequiredMessage(stepId, payload) ??
-    getExtractionNotRequiredMessage(stepId, payload) ??
-    getCanonicalNotRequiredMessage(stepId, payload)
+    getExtractionNotRequiredMessage(stepId, payload)
   )
 }
 
@@ -203,23 +174,13 @@ function stepProgress(stepId: PipelineStepId, payload: StoryExtractionReviewPayl
   }
   if (INGESTION_STEPS.has(stepId)) return ingestionStepProgress(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return extractionStepProgress(stepId, payload)
-  if (CANONICAL_STEPS.has(stepId)) return canonicalStepProgress(stepId, payload)
   return null
 }
 
 function isStepOptional(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
   if (stepId === 'review-pending-stories') return isReviewPendingOptional(payload)
-  if (
-    stepId === 'refine-chunk-claims' ||
-    stepId === 'refine-chunk-positions' ||
-    stepId === 'refine-merged-extraction'
-  ) {
-    return isRefineOptional(stepId, payload)
-  }
-  if (stepId === 'merge-story-positions' && !isPositionsLaneStarted(payload)) return true
   const def = PIPELINE_STEPS.find((s) => s.id === stepId)
-  if (def?.optional && isMergeValidated(payload)) return true
-  return false
+  return def?.optional === true
 }
 
 function isPriorStepSatisfied(sid: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
@@ -259,41 +220,11 @@ function extractionUpstreamReady(payload: StoryExtractionReviewPayload): boolean
 
 function extractionLanePriorStepsSatisfied(
   stepId: PipelineStepId,
-  laneId: 'claims' | 'positions' | 'merge-qa',
+  laneId: 'claims',
   payload: StoryExtractionReviewPayload
 ): boolean {
   if (!extractionUpstreamReady(payload)) return false
-
-  if (laneId === 'merge-qa') {
-    if (!isPriorStepSatisfied('merge-story-claims', payload)) return false
-    if (isPositionsLaneStarted(payload) && !isPriorStepSatisfied('merge-story-positions', payload)) {
-      return false
-    }
-    return priorStepsInOrder(stepId, [...MERGE_QA_STEP_IDS], payload)
-  }
-
   return priorStepsInOrder(stepId, [...getExtractionLaneStepIds(laneId)], payload)
-}
-
-function allRequiredExtractionComplete(payload: StoryExtractionReviewPayload): boolean {
-  const requiredSteps: PipelineStepId[] = [
-    'chunk-story-bodies',
-    ...CLAIMS_LANE_STEP_IDS,
-    ...MERGE_QA_STEP_IDS,
-  ]
-  if (isPositionsLaneStarted(payload)) {
-    requiredSteps.push(...POSITIONS_LANE_STEP_IDS)
-  }
-  return requiredSteps.every((sid) => isPriorStepSatisfied(sid, payload))
-}
-
-function canonicalPriorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
-  if (!allRequiredExtractionComplete(payload)) return false
-  return priorStepsInOrder(stepId, stageStepIds('canonical'), payload)
-}
-
-function linkEntitiesPrerequisitesMet(payload: StoryExtractionReviewPayload): boolean {
-  return linkEntitiesPrerequisiteStepIds().every((sid) => isPriorStepSatisfied(sid, payload))
 }
 
 function priorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
@@ -304,17 +235,8 @@ function priorStepsSatisfied(stepId: PipelineStepId, payload: StoryExtractionRev
   if (extractionLane === 'claims') {
     return extractionLanePriorStepsSatisfied(stepId, 'claims', payload)
   }
-  if (extractionLane === 'positions') {
-    return extractionLanePriorStepsSatisfied(stepId, 'positions', payload)
-  }
-  if (extractionLane === 'merge-qa') {
-    return extractionLanePriorStepsSatisfied(stepId, 'merge-qa', payload)
-  }
   if (INGESTION_STEPS.has(stepId) || stepId === 'relevance-gate') {
     return ingestionPriorStepsSatisfied(stepId, payload)
-  }
-  if (CANONICAL_STEPS.has(stepId)) {
-    return canonicalPriorStepsSatisfied(stepId, payload)
   }
   return priorStepsInOrder(stepId, PIPELINE_STEPS.map((s) => s.id), payload)
 }
@@ -323,7 +245,9 @@ function canRunWhenBlocked(stepId: PipelineStepId): boolean {
   return canRunExtractionWhenBlocked(stepId)
 }
 
-function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+function isStoryStepRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {
+  if (isChunkParallelStep(stepId)) return false
+
   const def = PIPELINE_STEPS.find((s) => s.id === stepId)
   if (!def) return false
 
@@ -367,102 +291,52 @@ function isRunnable(stepId: PipelineStepId, payload: StoryExtractionReviewPayloa
     )
   }
 
-  if (stepId === 'merge-story-claims') {
-    return (
-      !complete &&
-      !blocked &&
-      priorOk &&
-      !blockedGate &&
-      isChunkReviewApproved(payload)
-    )
-  }
-
-  if (stepId === 'merge-story-positions') {
-    return (
-      !complete &&
-      !blocked &&
-      priorOk &&
-      !blockedGate &&
-      isChunkPositionsReviewApproved(payload)
-    )
-  }
-
-  if (stepId === 'refine-chunk-claims' || stepId === 'refine-chunk-positions') {
-    const lane = stepId === 'refine-chunk-claims' ? 'claims' : 'positions'
-    if (laneHasChunksReadyToRefine(lane, payload)) {
-      return refineLanePriorOk(lane, payload) && !blockedGate && !blocked
-    }
-    if (laneHasChunksNeedingRefinement(lane, payload)) {
-      return false
-    }
-    return (
-      !complete &&
-      !blocked &&
-      priorOk &&
-      !blockedGate &&
-      !isRefineOptional(stepId, payload)
-    )
-  }
-
-  if (stepId === 'validate-chunk-claims' || stepId === 'validate-chunk-positions') {
-    const lane = stepId === 'validate-chunk-claims' ? 'claims' : 'positions'
-    const awaitingReview =
-      laneHasChunksPendingRereview(lane, payload) ||
-      payload.chunks.some((chunk) => {
-        if (lane === 'positions') {
-          return (
-            chunk.positions_extraction_json != null &&
-            (chunk.positions_qa_status == null ||
-              chunk.positions_qa_status === 'pending' ||
-              chunk.positions_qa_status === 'needs_human_review')
-          )
-        }
-        return (
-          chunk.extraction_json != null &&
-          (chunk.extraction_qa_status == null ||
-            chunk.extraction_qa_status === 'pending' ||
-            chunk.extraction_qa_status === 'needs_human_review')
-        )
-      })
-    const canRun =
-      (!complete || awaitingReview) &&
-      priorOk &&
-      !blockedGate &&
-      (awaitingReview || !blocked)
-    if (!canRun) return false
-    if (laneHasChunksNeedingRefinement(lane, payload)) {
-      return payload.chunks.some((chunk) => isChunkAwaitingFirstReview(lane, chunk))
-    }
-    if (isStepRevertible(stepId, payload)) {
-      return payload.chunks.some(
-        (chunk) =>
-          isChunkAwaitingFirstReview(lane, chunk) ||
-          isChunkPendingRereviewAfterRefine(lane, chunk)
-      )
-    }
-    return true
-  }
-
-  if (stepId === 'validate-merged-extraction') {
-    return (
-      !complete &&
-      !blocked &&
-      priorOk &&
-      !blockedGate &&
-      linkEntitiesPrerequisitesMet(payload)
-    )
-  }
-
   return (
     !complete &&
     !blocked &&
     priorOk &&
     !blockedGate &&
-    !(def.optional && !isMergeValidated(payload))
+    !def.optional
   )
 }
 
-export function derivePipelineChecklist(payload: StoryExtractionReviewPayload): PipelineChecklist {
+function isChunkScopeStepRunnable(
+  stepId: PipelineStepId,
+  payload: StoryExtractionReviewPayload,
+  chunkIndex: number
+): boolean {
+  if (!isChunkParallelStep(stepId)) return false
+
+  const chunk = payload.chunks.find((c) => c.chunk_index === chunkIndex)
+  if (!chunk) return false
+
+  const domainComplete = isStepCompleteDomain(stepId, payload)
+  if (isStoryStepRunInFlight(payload, stepId, domainComplete, chunkIndex)) return false
+
+  return isChunkStepRunnable(stepId, chunk, payload)
+}
+
+function scopedStepProgress(
+  stepId: PipelineStepId,
+  payload: StoryExtractionReviewPayload,
+  options: PipelineChecklistScope,
+  chunkIndex?: number
+): string | null {
+  if (options.scope === 'story' && isChunkParallelStep(stepId)) {
+    return chunkParallelStepProgress(stepId, payload)
+  }
+  if (options.scope === 'chunk' && chunkIndex != null && isChunkParallelStep(stepId)) {
+    const chunk = payload.chunks.find((c) => c.chunk_index === chunkIndex)
+    if (!chunk) return null
+    return chunkStepProgressLabel(stepId, chunk)
+  }
+  return stepProgress(stepId, payload)
+}
+
+export function derivePipelineChecklist(
+  payload: StoryExtractionReviewPayload,
+  options: PipelineChecklistScope = { scope: 'story' }
+): PipelineChecklist {
   const blockedReason = getBlockedReason(payload)
   const pipelineBlocked = isPipelineBlocked(payload)
 
@@ -471,19 +345,40 @@ export function derivePipelineChecklist(payload: StoryExtractionReviewPayload): 
 
   function statusLaneKey(stepId: PipelineStepId): string {
     const lane = getExtractionStepLane(stepId)
-    if (lane === 'claims' || lane === 'positions' || lane === 'merge-qa') return lane
+    if (lane === 'claims') return lane
     if (lane === 'shared') return 'extraction-shared'
     return 'global'
   }
 
   const steps: PipelineStepState[] = PIPELINE_STEPS.map((def) => {
+    const chunkRow =
+      options.scope === 'chunk'
+        ? payload.chunks.find((c) => c.chunk_index === options.chunkIndex)
+        : undefined
+    const chunkScopedComplete =
+      chunkRow != null && isChunkParallelStep(def.id)
+        ? isChunkStepDomainComplete(def.id, chunkRow)
+        : null
     const domainComplete = isStepCompleteDomain(def.id, payload)
-    const complete = resolveChecklistStepComplete(payload, def.id, domainComplete)
-    const blocked = resolveChecklistStepBlocked(payload, def.id, isStepBlockedDomain(def.id, payload))
+    const chunkScoped = options.scope === 'chunk'
+    const complete = chunkScopedComplete ?? (chunkScoped
+      ? domainComplete
+      : resolveChecklistStepComplete(payload, def.id, domainComplete))
+    const blocked = chunkScoped
+      ? isStepBlockedDomain(def.id, payload)
+      : resolveChecklistStepBlocked(payload, def.id, isStepBlockedDomain(def.id, payload))
     const optional = isStepOptional(def.id, payload)
-    const logStatus = resolveChecklistStepStatus(payload, def.id, domainComplete)
-    const logProgress = resolveChecklistStepProgress(payload, def.id, domainComplete)
-    const progress = logProgress ?? stepProgress(def.id, payload)
+    const logStatus =
+      chunkScoped || (options.scope === 'story' && isChunkParallelStep(def.id))
+        ? null
+        : resolveChecklistStepStatus(payload, def.id, domainComplete)
+    const logProgress =
+      chunkScoped || (options.scope === 'story' && isChunkParallelStep(def.id))
+        ? null
+        : resolveChecklistStepProgress(payload, def.id, domainComplete)
+    const chunkIndex = options.scope === 'chunk' ? options.chunkIndex : undefined
+    const progress =
+      logProgress ?? scopedStepProgress(def.id, payload, options, chunkIndex)
 
     let status: PipelineStepStatus
     if (logStatus) {
@@ -521,7 +416,10 @@ export function derivePipelineChecklist(payload: StoryExtractionReviewPayload): 
       stageLabel: def.stageLabel,
       status,
       progress,
-      runnable: isRunnable(def.id, payload),
+      runnable:
+        options.scope === 'chunk'
+          ? isChunkScopeStepRunnable(def.id, payload, options.chunkIndex)
+          : isStoryStepRunnable(def.id, payload),
       manifestStatus: def.manifestStatus,
       inactiveNote: def.inactiveNote,
     }
@@ -545,7 +443,6 @@ export function isStepDoneAfterRun(
 function snapshotForStep(stepId: PipelineStepId, payload: StoryExtractionReviewPayload) {
   if (INGESTION_STEPS.has(stepId)) return ingestionSnapshot(stepId, payload)
   if (EXTRACTION_STEPS.has(stepId)) return extractionSnapshot(stepId, payload)
-  if (CANONICAL_STEPS.has(stepId)) return canonicalSnapshot(stepId, payload)
   return { stepId }
 }
 
@@ -556,9 +453,25 @@ export function getStepOutputSnapshot(stepId: PipelineStepId, payload: StoryExtr
 export type StageSummaryStatus = 'complete' | 'current' | 'blocked' | 'pending'
 
 export {
+  CHUNK_LANE_PHASE_LABELS,
+  chunkLanePhaseLabel,
+  chunkNeedsAction,
+  deriveChunkLanePhase,
+  type ChunkLanePhase,
+} from '@/lib/admin/pipeline-status/chunk-phase'
+
+export {
+  chunkHasRefineArtifact,
+  getChunkLaneQaRevertTip,
+  getChunkRefineRecoveryMessage,
+} from '@/lib/admin/pipeline-status/chunk-revert-tip'
+
+export {
+  getChunkStepRevertBlockedReason,
   getRevertBlockedReason,
   getRevertStepDescription,
   getRevertibleStepId,
+  isChunkStepRevertible,
   isReviewPendingActuallyRan,
   isStepRevertible,
   REVERT_SCOPE_STEP_IDS,

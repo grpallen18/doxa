@@ -113,6 +113,7 @@ export type ClaimsReviewReport = {
   patches: ClaimsReviewPatch[];
   deterministic_issues?: string[];
   attempt_number?: number;
+  reviewed_claim_version_id?: string;
 };
 
 function reviewFailureHasRefinableFindings(

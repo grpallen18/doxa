@@ -2,29 +2,30 @@
 
 import { useEffect, useState, type TransitionEvent } from 'react'
 import Link from 'next/link'
-import { Edit3, History, X } from 'lucide-react'
+import { History, X } from 'lucide-react'
 import type { AgentDetail, AgentRunSummary } from '@/lib/admin/agent-detail'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
-import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 import {
   formatAgentRunSubtitle,
   resolveStoryStepRunModelLabel,
 } from '@/lib/admin/run-models'
 import {
   derivePipelineChecklist,
+  getChunkRefineRecoveryMessage,
+  getChunkStepRevertBlockedReason,
+  isChunkStepRevertible,
   isStepRevertible,
   type PipelineStepState,
 } from '@/lib/admin/story-pipeline-checklist'
+import { isChunkParallelStep } from '@/lib/admin/pipeline-status/extraction-groups'
 import { getVisionNodeById } from '@/lib/admin/workflow-canvas/vision-flow-layout'
 import {
   isScrapeWorkerStep,
   scrapeWorkerSubtitle,
 } from '@/lib/admin/workflow-canvas/scrape-worker-step'
-import {
-  ScrapeWorkerHistoryPanel,
-  ScrapeWorkerOverviewPanel,
-} from '@/components/admin/workflow-canvas/workflow-canvas-scrape-panel'
+import { ScrapeWorkerOverviewPanel } from '@/components/admin/workflow-canvas/workflow-canvas-scrape-panel'
+import { WorkflowCanvasStepAuditLog } from '@/components/admin/workflow-canvas/workflow-canvas-step-audit-log'
 import { isCatalogStepId } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { CanvasStepActionButtons } from '@/components/admin/workflow-canvas/canvas-step-action-buttons'
 import {
@@ -32,10 +33,9 @@ import {
   resolveStepIconVariant,
 } from '@/components/admin/workflow-canvas/canvas-step-icon'
 import { StoryStepExportButtons } from '@/components/admin/stories/story-step-export-buttons'
-import type { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
+import type { WorkflowPipelineActions } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { resolveAgentDisplayName } from '@/lib/admin/agent-display-names'
 import { useAgentDisplayNames } from '@/components/admin/agents/use-agent-display-names'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type AgentApiResponse = {
@@ -55,11 +55,13 @@ export function WorkflowCanvasInspector({
   onClose,
   payload,
   pipelineActions,
+  chunkIndex,
 }: {
   selectedNodeId: string | null
   onClose: () => void
   payload: StoryExtractionReviewPayload
-  pipelineActions: ReturnType<typeof useStoryPipelineActions>
+  pipelineActions: WorkflowPipelineActions
+  chunkIndex?: number
 }) {
   const [panelNodeId, setPanelNodeId] = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
@@ -103,6 +105,7 @@ export function WorkflowCanvasInspector({
           selectedNodeId={panelNodeId}
           payload={payload}
           pipelineActions={pipelineActions}
+          chunkIndex={chunkIndex}
           onClose={onClose}
         />
       </aside>
@@ -130,48 +133,55 @@ function WorkflowCanvasInspectorBody({
   selectedNodeId,
   payload,
   pipelineActions,
+  chunkIndex,
   onClose,
 }: {
   selectedNodeId: string
   payload: StoryExtractionReviewPayload
-  pipelineActions: ReturnType<typeof useStoryPipelineActions>
+  pipelineActions: WorkflowPipelineActions
+  chunkIndex?: number
   onClose: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'prompt' | 'history'>('prompt')
   const [agentData, setAgentData] = useState<AgentApiResponse | null>(null)
-  const [runs, setRuns] = useState<AgentRunSummary[]>([])
   const [loading, setLoading] = useState(false)
   const { displayNames } = useAgentDisplayNames()
 
   const visionNode = getVisionNodeById(selectedNodeId)
-  const catalogStepId =
-    visionNode?.catalogStepId ??
-    (isCatalogStepId(selectedNodeId) ? selectedNodeId : null)
+  const catalogStepId: PipelineStepId | null =
+    visionNode?.catalogStepId && isCatalogStepId(visionNode.catalogStepId)
+      ? visionNode.catalogStepId
+      : isCatalogStepId(selectedNodeId)
+        ? selectedNodeId
+        : null
 
-  const checklist = derivePipelineChecklist(payload)
+  const checklist =
+    chunkIndex != null
+      ? derivePipelineChecklist(payload, { scope: 'chunk', chunkIndex })
+      : derivePipelineChecklist(payload)
   const stepState: PipelineStepState | undefined = catalogStepId
     ? checklist.steps.find((s) => s.id === catalogStepId)
     : undefined
+  const chunk =
+    chunkIndex != null ? payload.chunks.find((c) => c.chunk_index === chunkIndex) : undefined
+  const chunkLayerOnly =
+    chunkIndex == null && catalogStepId != null && isChunkParallelStep(catalogStepId)
   const isScrapeStep = isScrapeWorkerStep(catalogStepId)
 
   useEffect(() => {
     setActiveTab('prompt')
     if (!catalogStepId || isScrapeStep) {
       setAgentData(null)
-      setRuns([])
       return
     }
 
     let cancelled = false
     setLoading(true)
-    void Promise.all([
-      fetch(`/api/admin/agents/${catalogStepId}`).then((r) => r.json()),
-      fetch(`/api/admin/agents/${catalogStepId}/runs?limit=5`).then((r) => r.json()),
-    ])
-      .then(([agentJson, runsJson]) => {
+    void fetch(`/api/admin/agents/${catalogStepId}`)
+      .then((r) => r.json())
+      .then((agentJson) => {
         if (cancelled) return
         setAgentData(agentJson.data ?? null)
-        setRuns(runsJson.data?.runs ?? [])
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -240,9 +250,22 @@ function WorkflowCanvasInspectorBody({
   const label =
     agentData?.displayName ??
     resolveAgentDisplayName(catalogStepId, stepState.label, displayNames)
-  const revertible = isStepRevertible(catalogStepId, payload)
+  const revertible =
+    chunk && catalogStepId
+      ? isChunkStepRevertible(catalogStepId, chunk, payload)
+      : catalogStepId
+        ? isStepRevertible(catalogStepId, payload)
+        : false
   const isRunning = pipelineActions.isStepRunning(catalogStepId)
   const isReverting = pipelineActions.revertingStepId === catalogStepId
+  const refineRecoveryMessage =
+    chunk && chunkIndex != null
+      ? getChunkRefineRecoveryMessage(catalogStepId, chunk, payload)
+      : null
+  const revertBlockedReason =
+    chunk && chunkIndex != null && !revertible
+      ? getChunkStepRevertBlockedReason(catalogStepId, chunk, payload)
+      : null
 
   return (
     <>
@@ -315,6 +338,7 @@ function WorkflowCanvasInspectorBody({
           <StoryStepExportButtons
             stepId={catalogStepId}
             payload={payload}
+            chunkIndex={chunkIndex}
             variant="dark"
           />
         </div>
@@ -330,73 +354,59 @@ function WorkflowCanvasInspectorBody({
             <div className="space-y-4">
               <dl className="grid gap-2 text-sm">
                 <div>
-                  <dt className="text-xs text-zinc-500">Deploy</dt>
+                  <dt className="text-xs text-zinc-500">Procedure Name:</dt>
                   <dd className="font-mono text-xs text-zinc-300">{stepState.deployName}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-zinc-500">Stage</dt>
-                  <dd className="text-zinc-300">{stepState.stageLabel}</dd>
                 </div>
                 {stepState.progress ? (
                   <div>
-                    <dt className="text-xs text-zinc-500">Progress</dt>
+                    <dt className="text-xs text-zinc-500">Status:</dt>
                     <dd className="text-zinc-300">{stepState.progress}</dd>
                   </div>
                 ) : null}
               </dl>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full border-white/10 bg-transparent text-zinc-300"
-                asChild
-              >
-                <Link href={`/admin/agents/${catalogStepId}`}>
-                  <Edit3 className="mr-2 h-4 w-4" />
-                  Edit prompt
-                </Link>
-              </Button>
             </div>
           )
         ) : null}
 
-        {activeTab === 'history' && !loading ? (
-          isScrapeStep ? (
-            <ScrapeWorkerHistoryPanel payload={payload} />
-          ) : (
-            <ul className="space-y-2 text-sm">
-              {runs.length === 0 ? (
-                <li className="text-zinc-500">No recent runs</li>
-              ) : (
-                runs.map((run) => (
-                  <li
-                    key={run.run_id}
-                    className="rounded-md border border-white/5 bg-zinc-950/40 px-3 py-2"
-                  >
-                    <p className="text-zinc-200">{run.status}</p>
-                    <p className="mt-0.5 text-xs text-zinc-500">
-                      {formatAdminDateTime(run.started_at)}
-                      {run.model_name ? ` · ${run.model_name}` : ''}
-                    </p>
-                    {run.error ? <p className="mt-1 text-xs text-rose-400">{run.error}</p> : null}
-                  </li>
-                ))
-              )}
-            </ul>
-          )
+        {activeTab === 'history' && catalogStepId ? (
+          <WorkflowCanvasStepAuditLog
+            storyId={payload.story.story_id}
+            stepId={catalogStepId}
+            chunkIndex={chunkIndex}
+            runs={(payload.step_run_history?.[catalogStepId] ?? []).filter(
+              (run) => chunkIndex == null || run.chunk_index === chunkIndex
+            )}
+          />
         ) : null}
       </div>
 
-      <footer className="mt-auto flex shrink-0 justify-center border-t border-white/10 p-4">
-        <CanvasStepActionButtons
-          stepId={catalogStepId}
-          runnable={stepState.runnable}
-          revertible={revertible}
-          isRunning={isRunning}
-          isReverting={isReverting}
-          onRun={pipelineActions.runStep}
-          onRevert={pipelineActions.requestRevert}
-          size="md"
-        />
+      <footer className="mt-auto flex shrink-0 flex-col gap-3 border-t border-white/10 p-4">
+        {refineRecoveryMessage ? (
+          <p className="text-center text-xs leading-relaxed text-amber-300/90">
+            {refineRecoveryMessage}
+          </p>
+        ) : null}
+        {revertBlockedReason ? (
+          <p className="text-center text-xs leading-relaxed text-amber-300/90">
+            {revertBlockedReason}
+          </p>
+        ) : null}
+        {chunkLayerOnly ? (
+          <p className="text-center text-xs text-zinc-500">
+            Open chunk workflows from the toolbar to run or revert this step.
+          </p>
+        ) : (
+          <CanvasStepActionButtons
+            stepId={catalogStepId}
+            runnable={stepState.runnable}
+            revertible={revertible}
+            isRunning={isRunning}
+            isReverting={isReverting}
+            onRun={pipelineActions.runStep}
+            onRevert={pipelineActions.requestRevert}
+            size="md"
+          />
+        )}
       </footer>
     </>
   )

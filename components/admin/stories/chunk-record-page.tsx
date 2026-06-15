@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { ChunkContentExtractionLayout } from '@/components/admin/stories/chunk-content-extraction-layout'
 import { ChunkExtractionExportButtons } from '@/components/admin/stories/chunk-extraction-export-buttons'
 import { ChunkQaHistorySection } from '@/components/admin/stories/chunk-qa-history-section'
+import { OrphanedClaimVersionsPanel } from '@/components/admin/stories/orphaned-claim-versions-panel'
 import { RecordAuditSection } from '@/components/admin/record/record-audit-section'
 import { EntityHeader } from '@/components/admin/record/entity-header'
 import { RecordEntityLinkBar } from '@/components/admin/record/record-entity-link-bar'
@@ -67,6 +68,7 @@ export function ChunkRecordPage() {
   const chunkApiBase = `/api/admin/stories/${storyId}/chunks/${encodeURIComponent(data.chunk_friendly_id)}`
   const auditPath = `${chunkApiBase}/audit`
   const qaHistoryPath = `${chunkApiBase}/qa-history`
+  const orphanedVersionsPath = `${chunkApiBase}/orphaned-claim-versions`
 
   return (
     <RecordPageFrame>
@@ -137,6 +139,8 @@ export function ChunkRecordPage() {
         </RecordSectionCard>
 
         <ChunkQaHistorySection apiPath={qaHistoryPath} variant="panel" />
+
+        <OrphanedClaimVersionsPanel apiPath={orphanedVersionsPath} variant="panel" alwaysShow />
 
         <RecordAuditSection apiPath={auditPath} title="History" variant="panel" />
       </RecordPageBody>

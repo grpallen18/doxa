@@ -156,6 +156,52 @@ export async function getChunkLaneCompletionHints(
   return { total, withJson, blocked, terminalComplete };
 }
 
+export async function resolveSingleChunkStepOutcome(
+  supabase: SupabaseClient,
+  storyId: string,
+  lane: ChunkLane,
+  stepId: string,
+  chunkIndex: number
+): Promise<StoryStepOutcome> {
+  const jsonKey = lane === "claims" ? "extraction_json" : "positions_extraction_json";
+  const statusKey = lane === "claims" ? "extraction_qa_status" : "positions_qa_status";
+  const refinementKey =
+    lane === "claims" ? "extraction_qa_refinement_count" : "positions_qa_refinement_count";
+
+  const { data: chunk, error } = await supabase
+    .from("story_chunks")
+    .select(`${jsonKey}, ${statusKey}, ${refinementKey}`)
+    .eq("story_id", storyId)
+    .eq("chunk_index", chunkIndex)
+    .maybeSingle();
+
+  if (error || !chunk) return "failure";
+
+  const row = chunk as Record<string, unknown>;
+  const status = row[statusKey] as string | null;
+  const refinementCount = Number(row[refinementKey] ?? 0);
+
+  if (stepId === "extract-story-claims" || stepId === "extract-story-positions") {
+    return row[jsonKey] != null ? "success" : "failure";
+  }
+
+  if (stepId === "validate-chunk-claims" || stepId === "validate-chunk-positions") {
+    if (status === "passed" || status === "atoms_passed") return "success";
+    if (status === "needs_refinement" || status === "pending") return "success";
+    if (status === "needs_human_review") return "success";
+    return "looping";
+  }
+
+  if (stepId === "refine-chunk-claims" || stepId === "refine-chunk-positions") {
+    if (status === "needs_human_review") return "success";
+    if (status === "pending" && refinementCount > 0) return "success";
+    if (status === "needs_refinement") return "failure";
+    return "success";
+  }
+
+  return "success";
+}
+
 export async function resolveChunkStepOutcome(
   supabase: SupabaseClient,
   storyId: string,
@@ -231,6 +277,7 @@ export async function logBatchChunkStepRuns(
     dryRun: boolean;
     modelName?: string | null;
     modelNames?: string[];
+    debugTrace?: Record<string, unknown> | null;
   }
 ): Promise<void> {
   if (params.dryRun) return;
@@ -241,13 +288,25 @@ export async function logBatchChunkStepRuns(
   for (const storyId of storiesProcessed) {
     const chunkIndices = grouped.get(storyId) ?? [];
     const processed = chunkIndices.length;
-    const outcome = await resolveChunkStepOutcome(
-      supabase,
-      storyId,
-      params.lane,
-      params.stepId,
-      processed
-    );
+    const outcome =
+      params.chunkIndexParam != null &&
+      params.chunkIndexParam >= 0 &&
+      processed === 1 &&
+      chunkIndices[0] === params.chunkIndexParam
+        ? await resolveSingleChunkStepOutcome(
+            supabase,
+            storyId,
+            params.lane,
+            params.stepId,
+            params.chunkIndexParam
+          )
+        : await resolveChunkStepOutcome(
+            supabase,
+            storyId,
+            params.lane,
+            params.stepId,
+            processed
+          );
     await recordStoryStepRun(supabase, {
       storyId,
       stepId: params.stepId,
@@ -264,6 +323,7 @@ export async function logBatchChunkStepRuns(
         chunk_indices: chunkIndices,
         ...(params.modelName ? { model_name: params.modelName } : {}),
         ...(params.modelNames?.length ? { model_names: params.modelNames } : {}),
+        ...(params.debugTrace ? { debug_trace: params.debugTrace } : {}),
       },
     });
   }

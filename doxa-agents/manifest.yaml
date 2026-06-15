@@ -123,89 +123,6 @@ steps:
     secrets:
       - OPENAI_API_KEY
     verify_jwt: false
-  - id: extract-story-positions
-    department: 02-chunking-engine
-    workflow: extract-story-positions
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/08-extract-story-positions
-    deploy_name: extract_story_positions
-    secrets:
-      - OPENAI_API_KEY
-  - id: link-chunk-entities
-    department: 02-chunking-engine
-    workflow: link-chunk-entities
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/06-link-chunk-entities
-    deploy_name: link_chunk_entities
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    cron:
-      job_name: link-chunk-entities-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/02-chunking-engine/06-link-chunk-entities/schedule.sql
-      body: '{"max_chunks":5}'
-  - id: refine-chunk-claims
-    department: 02-chunking-engine
-    workflow: refine-chunk-claims
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/04-refine-chunk-claims
-    deploy_name: refine_chunk_claims
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_CHUNK_QA
-      - OPENAI_MODEL_EXTRACT
-    verify_jwt: false
-  - id: refine-chunk-extraction
-    department: 02-chunking-engine
-    workflow: refine-chunk-extraction
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/04-refine-chunk-extraction
-    deploy_name: refine_chunk_extraction
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_CHUNK_QA
-      - OPENAI_MODEL_EXTRACT
-    cron:
-      job_name: refine-chunk-extraction-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/02-chunking-engine/04-refine-chunk-extraction/schedule.sql
-      body: "{}"
-  - id: refine-chunk-positions
-    department: 02-chunking-engine
-    workflow: refine-chunk-positions
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/10-refine-chunk-positions
-    deploy_name: refine_chunk_positions
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_CHUNK_QA
-      - OPENAI_MODEL_EXTRACT
-  - id: standardize-chunk-extraction
-    department: 02-chunking-engine
-    workflow: standardize-chunk-extraction
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/03-standardize-chunk-extraction
-    deploy_name: standardize_chunk_extraction
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_CHUNK_QA
-      - OPENAI_MODEL_EXTRACT
-    cron:
-      job_name: standardize-chunk-extraction-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/02-chunking-engine/03-standardize-chunk-extraction/schedule.sql
-      body: "{}"
   - id: validate-chunk-claims
     department: 02-chunking-engine
     workflow: validate-chunk-claims
@@ -219,361 +136,6 @@ steps:
       - OPENAI_MODEL_CHUNK_QA
       - OPENAI_MODEL_EXTRACT
     verify_jwt: false
-  - id: validate-chunk-extraction
-    department: 02-chunking-engine
-    workflow: validate-chunk-extraction
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/05-validate-chunk-extraction
-    deploy_name: validate_chunk_extraction
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_CHUNK_QA
-      - OPENAI_MODEL_EXTRACT
-    cron:
-      job_name: validate-chunk-extraction-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/02-chunking-engine/05-validate-chunk-extraction/schedule.sql
-      body: "{}"
-  - id: validate-chunk-positions
-    department: 02-chunking-engine
-    workflow: validate-chunk-positions
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/02-chunking-engine/09-validate-chunk-positions
-    deploy_name: validate_chunk_positions
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_CHUNK_QA
-      - OPENAI_MODEL_EXTRACT
-  - id: merge-story-claims
-    department: 03-merging-engine
-    workflow: merge-story-claims
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/03-merging-engine/01-merge-story-claims
-    deploy_name: merge_story_claims
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
-  - id: merge-story-positions
-    department: 03-merging-engine
-    workflow: merge-story-positions
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/03-merging-engine/02-merge-story-positions
-    deploy_name: merge_story_positions
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-  - id: refine-merged-extraction
-    department: 03-merging-engine
-    workflow: refine-merged-extraction
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/03-merging-engine/03-refine-merged-extraction
-    deploy_name: refine_merged_extraction
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
-    cron:
-      job_name: refine-merged-extraction-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/03-merging-engine/03-refine-merged-extraction/schedule.sql
-      body: "{}"
-  - id: review-merged-extraction
-    department: 03-merging-engine
-    workflow: review-merged-extraction
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/03-merging-engine/02-review-merged-extraction
-    deploy_name: review_merged_extraction
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
-    cron:
-      job_name: review-merged-extraction-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/03-merging-engine/02-review-merged-extraction/schedule.sql
-      body: "{}"
-  - id: validate-merged-extraction
-    department: 03-merging-engine
-    workflow: validate-merged-extraction
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/03-merging-engine/04-validate-merged-extraction
-    deploy_name: validate_merged_extraction
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
-    cron:
-      job_name: validate-merged-extraction-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/03-merging-engine/04-validate-merged-extraction/schedule.sql
-      body: "{}"
-  - id: link-canonical-claims
-    department: 04-semantic-intelligence-engine
-    workflow: 01-canonical-knowledge
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims
-    deploy_name: link_canonical_claims
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-      - SIMILARITY_THRESHOLD
-    verify_jwt: false
-    cron:
-      job_name: link-canonical-claims-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims/schedule.sql
-      body: "{}"
-  - id: link-canonical-events
-    department: 04-semantic-intelligence-engine
-    workflow: 01-canonical-knowledge
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events
-    deploy_name: link_canonical_events
-    secrets:
-      - EVENT_SIMILARITY_THRESHOLD
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-    verify_jwt: false
-    cron:
-      job_name: link-canonical-events-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events/schedule.sql
-      body: "{}"
-  - id: link-canonical-positions
-    department: 04-semantic-intelligence-engine
-    workflow: 01-canonical-knowledge
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/01-canonical-knowledge/03-link-canonical-positions
-    deploy_name: link_canonical_positions
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-      - SIMILARITY_THRESHOLD
-    verify_jwt: false
-    cron:
-      job_name: link-canonical-positions-every-2min
-      schedule: "*/2 * * * *"
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
-      body: "{}"
-    invokes:
-      - assign-ranked-subtopics
-  - id: update-stances
-    department: 04-semantic-intelligence-engine
-    workflow: 01-canonical-knowledge
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances
-    deploy_name: update_stances
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
-    cron:
-      job_name: update-stance-every-20min
-      schedule: "*/20 * * * *"
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances/schedule.sql
-      body: "{}"
-  - id: assign-ranked-subtopics
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/01-assign-ranked-subtopics
-    deploy_name: assign_ranked_subtopics
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-    invoked_by:
-      - link-canonical-positions
-  - id: generate-position-pair-candidates
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/02-generate-position-pair-candidates
-    deploy_name: generate_position_pair_candidates
-    cron:
-      job_name: generate-position-pair-candidates-every-10min
-      schedule: "*/10 * * * *"
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
-      body: "{}"
-  - id: classify-position-relationships
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/03-classify-position-relationships
-    deploy_name: classify_position_relationships
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    cron:
-      job_name: classify-position-relationships-every-15min
-      schedule: "*/15 * * * *"
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
-      body: "{}"
-  - id: build-agreement-clusters
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/04-build-agreement-clusters
-    deploy_name: build_agreement_clusters
-    verify_jwt: false
-  - id: generate-agreement-cluster-candidates
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/05-generate-agreement-cluster-candidates
-    deploy_name: generate_agreement_cluster_candidates
-    verify_jwt: false
-  - id: classify-agreement-cluster-relationships
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/06-classify-agreement-cluster-relationships
-    deploy_name: classify_agreement_cluster_relationships
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
-  - id: build-controversy-clusters
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/07-build-controversy-clusters
-    deploy_name: build_controversy_clusters
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-    verify_jwt: false
-  - id: topology-pipeline
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/08-topology-pipeline
-    deploy_name: topology_pipeline
-    verify_jwt: false
-    cron:
-      job_name: topology-pipeline-periodic
-      schedule: 0 2 1,15 * *
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
-      body: '{"skip_summaries_viewpoints": true}'
-  - id: generate-agreement-summaries
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/09-generate-agreement-summaries
-    deploy_name: generate_agreement_summaries
-    secrets:
-      - DRIFT_THRESHOLD
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-    cron:
-      job_name: generate-agreement-summaries-every-6h
-      schedule: 0 */6 * * *
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
-      body: "{}"
-  - id: generate-viewpoints
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/10-generate-viewpoints
-    deploy_name: generate_viewpoints
-    secrets:
-      - DRIFT_THRESHOLD
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-    verify_jwt: false
-    cron:
-      job_name: generate-viewpoints-every-6h
-      schedule: 30 */6 * * *
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
-      body: "{}"
-  - id: refresh-topology-candidates
-    department: 04-semantic-intelligence-engine
-    workflow: 02-debate-topology
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/02-debate-topology/11-refresh-topology-candidates
-    deploy_name: refresh_topology_candidates
-    cron:
-      job_name: refresh-topology-candidates-daily
-      schedule: 0 3 * * *
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
-      body: "{}"
-  - id: seed-subtopic-embeddings
-    department: 04-semantic-intelligence-engine
-    workflow: 03-governance
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/03-governance/01-seed-subtopic-embeddings
-    deploy_name: seed_subtopic_embeddings
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-  - id: process-topic
-    department: 04-semantic-intelligence-engine
-    workflow: 03-governance
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/03-governance/02-process-topic
-    deploy_name: process_topic
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_EMBEDDING_MODEL
-      - OPENAI_MODEL
-    invoked_by:
-      - app
-  - id: review-link-suggestion
-    department: 04-semantic-intelligence-engine
-    workflow: 03-governance
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine/03-governance/03-review-link-suggestion
-    deploy_name: review_link_suggestion
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    invoked_by:
-      - app
-  - id: orphan-cleanup-weekly
-    department: 04-semantic-intelligence-engine
-    workflow: semantic-intelligence-engine
-    kind: rpc
-    status: inactive
-    source: doxa-agents/departments/04-semantic-intelligence-engine
-    cron:
-      job_name: orphan-cleanup-weekly
-      schedule: 0 4 * * 0
-      sql: doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql
   - id: discord-daily-health
     department: 05-business-operations
     workflow: discord-daily-health
@@ -638,6 +200,152 @@ steps:
     status: inactive
     source: doxa-agents/departments/05-business-operations/maintenance/03-clustering-cleanup-unschedule
     description: One-time unschedule of deprecated crons
+  - id: standardize-chunk-extraction
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/03-standardize-chunk-extraction
+    deploy_name: standardize_chunk_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+  - id: refine-chunk-claims
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/04-refine-chunk-claims
+    deploy_name: refine_chunk_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+    verify_jwt: false
+  - id: refine-chunk-extraction
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/04-refine-chunk-extraction
+    deploy_name: refine_chunk_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+  - id: validate-chunk-extraction
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/05-validate-chunk-extraction
+    deploy_name: validate_chunk_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+  - id: link-chunk-entities
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/06-link-chunk-entities
+    deploy_name: link_chunk_entities
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+  - id: extract-story-positions
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/08-extract-story-positions
+    deploy_name: extract_story_positions
+    secrets:
+      - OPENAI_API_KEY
+  - id: validate-chunk-positions
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/09-validate-chunk-positions
+    deploy_name: validate_chunk_positions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+  - id: refine-chunk-positions
+    department: legacy
+    workflow: 02-chunking-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/02-chunking-engine/10-refine-chunk-positions
+    deploy_name: refine_chunk_positions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+  - id: merge-story-claims
+    department: legacy
+    workflow: 03-merging-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/03-merging-engine/01-merge-story-claims
+    deploy_name: merge_story_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: merge-story-positions
+    department: legacy
+    workflow: 03-merging-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/03-merging-engine/02-merge-story-positions
+    deploy_name: merge_story_positions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+  - id: review-merged-extraction
+    department: legacy
+    workflow: 03-merging-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/03-merging-engine/02-review-merged-extraction
+    deploy_name: review_merged_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: refine-merged-extraction
+    department: legacy
+    workflow: 03-merging-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/03-merging-engine/03-refine-merged-extraction
+    deploy_name: refine_merged_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: validate-merged-extraction
+    department: legacy
+    workflow: 03-merging-engine
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/03-merging-engine/04-validate-merged-extraction
+    deploy_name: validate_merged_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
   - id: aggregate-position-pair-scores
     department: legacy
     workflow: aggregate-position-pair-scores
@@ -706,3 +414,200 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
+  - id: link-canonical-claims
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 01-canonical-knowledge
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/01-canonical-knowledge/01-link-canonical-claims
+    deploy_name: link_canonical_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+      - SIMILARITY_THRESHOLD
+    verify_jwt: false
+  - id: link-canonical-events
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 01-canonical-knowledge
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/01-canonical-knowledge/02-link-canonical-events
+    deploy_name: link_canonical_events
+    secrets:
+      - EVENT_SIMILARITY_THRESHOLD
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: link-canonical-positions
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 01-canonical-knowledge
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/01-canonical-knowledge/03-link-canonical-positions
+    deploy_name: link_canonical_positions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+      - SIMILARITY_THRESHOLD
+    verify_jwt: false
+    invokes:
+      - assign-ranked-subtopics
+  - id: update-stances
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 01-canonical-knowledge
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/01-canonical-knowledge/04-update-stances
+    deploy_name: update_stances
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: assign-ranked-subtopics
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/01-assign-ranked-subtopics
+    deploy_name: assign_ranked_subtopics
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+    invoked_by:
+      - link-canonical-positions
+  - id: generate-position-pair-candidates
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/02-generate-position-pair-candidates
+    deploy_name: generate_position_pair_candidates
+  - id: classify-position-relationships
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/03-classify-position-relationships
+    deploy_name: classify_position_relationships
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+  - id: build-agreement-clusters
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/04-build-agreement-clusters
+    deploy_name: build_agreement_clusters
+    verify_jwt: false
+  - id: generate-agreement-cluster-candidates
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/05-generate-agreement-cluster-candidates
+    deploy_name: generate_agreement_cluster_candidates
+    verify_jwt: false
+  - id: classify-agreement-cluster-relationships
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/06-classify-agreement-cluster-relationships
+    deploy_name: classify_agreement_cluster_relationships
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: build-controversy-clusters
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/07-build-controversy-clusters
+    deploy_name: build_controversy_clusters
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: topology-pipeline
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/08-topology-pipeline
+    deploy_name: topology_pipeline
+    verify_jwt: false
+  - id: generate-agreement-summaries
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/09-generate-agreement-summaries
+    deploy_name: generate_agreement_summaries
+    secrets:
+      - DRIFT_THRESHOLD
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+  - id: generate-viewpoints
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/10-generate-viewpoints
+    deploy_name: generate_viewpoints
+    secrets:
+      - DRIFT_THRESHOLD
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: refresh-topology-candidates
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 02-debate-topology
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/02-debate-topology/11-refresh-topology-candidates
+    deploy_name: refresh_topology_candidates
+  - id: seed-subtopic-embeddings
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 03-governance
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/03-governance/01-seed-subtopic-embeddings
+    deploy_name: seed_subtopic_embeddings
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+  - id: process-topic
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 03-governance
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/03-governance/02-process-topic
+    deploy_name: process_topic
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_EMBEDDING_MODEL
+      - OPENAI_MODEL
+    invoked_by:
+      - app
+  - id: review-link-suggestion
+    department: legacy/04-semantic-intelligence-engine
+    workflow: 03-governance
+    kind: edge_function
+    status: deprecated
+    source: doxa-agents/departments/legacy/04-semantic-intelligence-engine/03-governance/03-review-link-suggestion
+    deploy_name: review_link_suggestion
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    invoked_by:
+      - app

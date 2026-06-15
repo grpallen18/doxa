@@ -1,9 +1,8 @@
-import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { isMergeValidated } from '@/lib/admin/pipeline-status/extraction'
 
 export function isCanonicalStepComplete(
-  stepId: PipelineStepId,
+  stepId: string,
   payload: StoryExtractionReviewPayload
 ): boolean {
   if (!isMergeValidated(payload)) return false
@@ -26,7 +25,7 @@ export function isCanonicalStepComplete(
 }
 
 export function isCanonicalStepBlocked(
-  stepId: PipelineStepId,
+  stepId: string,
   payload: StoryExtractionReviewPayload
 ): boolean {
   if (payload.story.extraction_qa_status === 'needs_human_review') {
@@ -41,7 +40,7 @@ export function isCanonicalStepBlocked(
 }
 
 export function canonicalStepProgress(
-  stepId: PipelineStepId,
+  stepId: string,
   payload: StoryExtractionReviewPayload
 ): string | null {
   if (!isMergeValidated(payload)) return null
@@ -71,7 +70,7 @@ export function canonicalStepProgress(
 }
 
 export function getCanonicalNotRequiredMessage(
-  stepId: PipelineStepId,
+  stepId: string,
   payload: StoryExtractionReviewPayload
 ): string | null {
   if (!isCanonicalStepComplete(stepId, payload)) return null
@@ -97,7 +96,7 @@ export function getCanonicalNotRequiredMessage(
   }
 }
 
-export function canonicalSnapshot(stepId: PipelineStepId, payload: StoryExtractionReviewPayload) {
+export function canonicalSnapshot(stepId: string, payload: StoryExtractionReviewPayload) {
   return {
     stepId,
     claims: payload.claims.map((x) => ({

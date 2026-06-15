@@ -16,11 +16,13 @@ import {
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { derivePipelineChecklist } from '@/lib/admin/story-pipeline-checklist'
 import type { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
+import { ChunkWorkflowDrawer } from '@/components/admin/workflow-canvas/chunk-workflow-drawer'
 import { WorkflowCanvasProvider } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { WorkflowCanvas, ReactFlowProvider } from '@/components/admin/workflow-canvas/workflow-canvas'
 import { WorkflowCanvasToolbar } from '@/components/admin/workflow-canvas/workflow-canvas-toolbar'
 import { WorkflowCanvasInspector } from '@/components/admin/workflow-canvas/workflow-canvas-inspector'
 import { WorkflowCanvasConsole } from '@/components/admin/workflow-canvas/workflow-canvas-console'
+import { isStepComplete } from '@/lib/admin/story-pipeline-checklist'
 
 export function WorkflowCanvasShell({
   storyId,
@@ -39,6 +41,7 @@ export function WorkflowCanvasShell({
   const focusNodeId = searchParams.get('node')
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(focusNodeId)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+  const [chunkDrawerOpen, setChunkDrawerOpen] = useState(false)
   const dismissInspectorRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -46,6 +49,8 @@ export function WorkflowCanvasShell({
   }, [focusNodeId])
 
   const checklist = useMemo(() => derivePipelineChecklist(payload), [payload])
+  const chunksReady =
+    isStepComplete('chunk-story-bodies', payload) && payload.chunks.some((c) => c.content)
 
   const handleSelectNode = useCallback((id: string | null) => {
     setSelectedNodeId(id)
@@ -56,9 +61,11 @@ export function WorkflowCanvasShell({
       storyId,
       payload,
       pipelineActions,
+      canvasScope: 'story' as const,
       onSelectNode: handleSelectNode,
       hoveredNodeId,
       setHoveredNodeId,
+      onOpenChunkWorkflows: () => setChunkDrawerOpen(true),
     }),
     [storyId, payload, pipelineActions, handleSelectNode, hoveredNodeId]
   )
@@ -69,7 +76,12 @@ export function WorkflowCanvasShell({
     <WorkflowCanvasProvider value={contextValue}>
       <div className="workflow-canvas-dark flex h-full min-h-0 flex-col overflow-hidden bg-zinc-950 text-zinc-200 font-sans">
         <ReactFlowProvider>
-          <WorkflowCanvasToolbar storyTitle={storyTitle} storyId={storyId} />
+          <WorkflowCanvasToolbar
+            storyTitle={storyTitle}
+            storyId={storyId}
+            chunksReady={chunksReady}
+            onOpenChunkWorkflows={() => setChunkDrawerOpen(true)}
+          />
 
           {checklist.isPipelineBlocked && checklist.blockedReason ? (
             <div className="mx-4 mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs shrink-0">
@@ -94,6 +106,7 @@ export function WorkflowCanvasShell({
                 selectedNodeId={selectedNodeId}
                 onSelectNode={handleSelectNode}
                 focusNodeId={focusNodeId}
+                graphMode="story"
                 onRegisterDismissInspector={(dismiss) => {
                   dismissInspectorRef.current = dismiss
                 }}
@@ -102,51 +115,51 @@ export function WorkflowCanvasShell({
 
             <WorkflowCanvasInspector
               selectedNodeId={selectedNodeId}
-              onClose={() => dismissInspectorRef.current?.()}
+              onClose={() => setSelectedNodeId(null)}
               payload={payload}
               pipelineActions={pipelineActions}
             />
           </main>
+
+          <WorkflowCanvasConsole storyId={storyId} />
         </ReactFlowProvider>
-
-        <WorkflowCanvasConsole storyId={storyId} />
-
-        <AlertDialog
-          open={pipelineActions.revertTarget != null}
-          onOpenChange={(open) => {
-            if (!open) pipelineActions.cancelRevert()
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Revert this step?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {pipelineActions.revertTarget
-                  ? pipelineActions.getRevertStepDescription(pipelineActions.revertTarget)
-                  : 'This will undo the latest completed step.'}{' '}
-                Only the latest completed step can be reverted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={pipelineActions.revertingStepId != null}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                className={buttonVariants({ variant: 'destructive' })}
-                disabled={
-                  pipelineActions.revertingStepId != null || pipelineActions.revertTarget == null
-                }
-                onClick={(e) => {
-                  e.preventDefault()
-                  pipelineActions.confirmRevert()
-                }}
-              >
-                {pipelineActions.revertingStepId != null ? 'Reverting…' : 'Confirm revert'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      <ChunkWorkflowDrawer
+        open={chunkDrawerOpen}
+        onOpenChange={setChunkDrawerOpen}
+        storyId={storyId}
+        payload={payload}
+      />
+
+      <AlertDialog
+        open={pipelineActions.revertTarget != null}
+        onOpenChange={(open) => {
+          if (!open) pipelineActions.cancelRevert()
+        }}
+      >
+        <AlertDialogContent className="workflow-canvas-dark border-white/10 bg-zinc-900 text-zinc-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert pipeline step?</AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              {pipelineActions.revertTarget
+                ? pipelineActions.getRevertStepDescription(pipelineActions.revertTarget)
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 bg-transparent text-zinc-200 hover:bg-white/10">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: 'destructive' })}
+              onClick={() => pipelineActions.confirmRevert()}
+            >
+              Revert
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </WorkflowCanvasProvider>
   )
 }

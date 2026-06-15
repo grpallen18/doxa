@@ -19,7 +19,7 @@ export type VisionNodeSpec = {
   visionLabel: string
   nodeType: VisionNodeType
   maturity: VisionMaturity
-  catalogStepId?: PipelineStepId
+  catalogStepId?: PipelineStepId | string
   handlerPath?: string
   roadmapNote?: string
   lane?: VisionLane

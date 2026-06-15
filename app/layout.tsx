@@ -12,9 +12,11 @@ export const metadata: Metadata = {
   description: 'A meta-news platform that structures political narratives from multiple perspectives',
   icons: {
     icon: [
+      { url: '/favicon-light.png' },
       { url: '/favicon-light.png', media: '(prefers-color-scheme: light)' },
       { url: '/favicon-dark.png', media: '(prefers-color-scheme: dark)' },
     ],
+    shortcut: '/favicon.ico',
     apple: '/apple-touch-icon.png',
   },
 }

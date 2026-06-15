@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
-import { fetchStoryAuditEvents } from '@/lib/admin/story-audit'
+import { fetchStoryAuditEvents, fetchStoryStepPipelineAuditEvents } from '@/lib/admin/story-audit'
 import { resolveStoryIdParam } from '@/lib/admin/resolve-admin-story-route'
 import { paginatedApiPayload, parseAuditListParams } from '@/lib/admin/api-pagination'
 
@@ -26,14 +26,31 @@ export async function GET(
     if ('response' in resolved) return resolved.response
 
     const viewAll = request.nextUrl.searchParams.get('view') === 'all'
+    const stepId = request.nextUrl.searchParams.get('step_id')
+    const chunkIndexParam = request.nextUrl.searchParams.get('chunk_index')
+    const chunkIndex =
+      chunkIndexParam != null && chunkIndexParam.trim() !== ''
+        ? Number(chunkIndexParam)
+        : undefined
     const { limit, offset } = parseAuditListParams(
       request.nextUrl.searchParams,
       viewAll ? 'view_all' : 'embed'
     )
-    const { events, total } = await fetchStoryAuditEvents(supabase, resolved.storyUuid, {
-      limit,
-      offset,
-    })
+    const { events, total } = stepId
+      ? await fetchStoryStepPipelineAuditEvents(
+          supabase,
+          resolved.storyUuid,
+          stepId,
+          {
+            limit,
+            offset,
+          },
+          Number.isFinite(chunkIndex) ? { chunkIndex } : undefined
+        )
+      : await fetchStoryAuditEvents(supabase, resolved.storyUuid, {
+          limit,
+          offset,
+        })
     return NextResponse.json({
       data: paginatedApiPayload(events, limit, offset, total),
       error: null,

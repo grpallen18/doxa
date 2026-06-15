@@ -58,34 +58,11 @@ export function getStoryStepCompletedAt(
         latestQaArtifactAt(payload, qaStages ?? []),
         story.extraction_completed_at,
       ])
-    case 'extract-story-positions':
-      return latestQaArtifactAt(payload, qaStages ?? [])
     case 'validate-chunk-claims':
       return maxIso([
         latestQaArtifactAt(payload, qaStages ?? []),
         ...chunks.map((c) => c.extraction_qa_validated_at),
       ])
-    case 'validate-chunk-positions':
-      return maxIso([
-        latestQaArtifactAt(payload, qaStages ?? []),
-        ...chunks.map((c) => c.positions_qa_validated_at),
-      ])
-    case 'refine-chunk-claims':
-    case 'refine-chunk-positions':
-      return latestQaArtifactAt(payload, qaStages ?? [])
-    case 'merge-story-claims':
-    case 'merge-story-positions':
-      return story.merged_at
-    case 'review-merged-extraction':
-    case 'refine-merged-extraction':
-      return latestQaArtifactAt(payload, qaStages ?? [])
-    case 'validate-merged-extraction':
-      return maxIso([story.extraction_qa_validated_at, latestQaArtifactAt(payload, qaStages ?? [])])
-    case 'link-canonical-claims':
-    case 'link-canonical-events':
-    case 'link-canonical-positions':
-    case 'update-stances':
-      return story.extraction_qa_validated_at
     default:
       return qaStages ? latestQaArtifactAt(payload, qaStages) : null
   }

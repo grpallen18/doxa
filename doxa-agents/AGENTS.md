@@ -6,14 +6,14 @@ Pipeline agents for ingesting stories, extracting structured knowledge from text
 
 ```text
 01 Ingestion          → stories + clean bodies
-02 Chunking           → chunk, extract, chunk QA
-03 Merging            → merge to story_*, merge QA
-04 Canonicalization   → link story_* rows to global claims, events, positions
-04 Position intel.    → relate canonical positions (pairs, topology, viewpoints)
+02 Chunking (active)  → chunk, extract claims, chunk QA review
+03–04 (archived)      → merge, canonicalization, topology — under departments/legacy/
 05 Ops                → health, maintenance
 ```
 
-**Important:** Positions are **extracted from article text** in `02-extract-story-entities`, then **canonicalized** in `03-link-canonical-positions`. Agents `05-classify-position-pairs` onward operate on **canonical** positions—not raw article text.
+**Admin runnable catalog** ends at `validate-chunk-claims`. Downstream steps remain on the **agent-flow canvas** as roadmap placeholders (not runnable). Handlers live under [departments/legacy](departments/legacy/) until re-enabled.
+
+**Important:** Positions are **extracted from article text** in legacy `extract-story-entities`, then **canonicalized** in legacy `link-canonical-positions`. Topology agents operate on **canonical** positions—not raw article text.
 
 ## What you edit manually
 
@@ -52,37 +52,46 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 | Department | Path | Purpose |
 |------------|------|---------|
 | 01 Ingestion | [departments/01-ingestion-engine](departments/01-ingestion-engine) | NewsAPI, relevance, scrape, clean |
-| 02 Chunking | [departments/02-chunking-engine](departments/02-chunking-engine) | Chunk, extract, chunk QA |
-| 03 Merging | [departments/03-merging-engine](departments/03-merging-engine) | Merge to `story_*`, merge QA |
-| 04 Semantic intelligence | [departments/04-semantic-intelligence-engine](departments/04-semantic-intelligence-engine) | Canonicalization + position relationships |
+| 02 Chunking | [departments/02-chunking-engine](departments/02-chunking-engine) | **Active:** chunk, extract claims, chunk QA review |
 | 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, atlas, maintenance |
-| Legacy | [departments/legacy](departments/legacy) | Deprecated claim-cluster engine |
+| Legacy | [departments/legacy](departments/legacy) | Archived merge, canonicalization, topology, multi-atom chunk steps |
 
-### 02 Chunking (detail)
+### 02 Chunking (active)
+
+**Runnable path:** `chunk-story-bodies` → `extract-story-claims` → `validate-chunk-claims` (human review loop).
+
+Refine/merge/canonical steps are archived under [departments/legacy/02-chunking-engine](departments/legacy/02-chunking-engine/), [legacy/03-merging-engine](departments/legacy/03-merging-engine/), and [legacy/04-semantic-intelligence-engine](departments/legacy/04-semantic-intelligence-engine/).
+
+### Legacy (archived detail)
+
+**Claims refine loop (inactive):** `refine-chunk-claims` → re-review via `validate-chunk-claims`.
+
+**Positions track (inactive):** `extract-story-positions` → `validate-chunk-positions` → `refine-chunk-positions` → `merge-story-positions`.
+
+**Legacy multi-atom path (inactive):**
 
 | Agent | Deploy | Notes |
 |-------|--------|--------|
-| [01-chunk-story-bodies](departments/02-chunking-engine/01-chunk-story-bodies/) | `chunk_story_bodies` | Split clean text into chunks |
-| [02-extract-story-entities](departments/02-chunking-engine/02-extract-story-entities/) | `extract_story_entities` | Claims, evidence, **positions**, events |
-| [03-standardize-chunk-extraction](departments/02-chunking-engine/03-standardize-chunk-extraction/) | `standardize_chunk_extraction` | Taxonomy, dedupe, materiality |
-| [04-refine-chunk-extraction](departments/02-chunking-engine/04-refine-chunk-extraction/) | `refine_chunk_extraction` | Chunk QA patch (max 3 cycles) |
-| [05-validate-chunk-extraction](departments/02-chunking-engine/05-validate-chunk-extraction/) | `validate_chunk_extraction` | Production judge → `atoms_passed` |
-| [06-link-chunk-entities](departments/02-chunking-engine/06-link-chunk-entities/) | `link_chunk_entities` | Semantic links after validation |
+| [legacy/extract-story-entities](departments/legacy/extract-story-entities/) | `extract_story_entities` | Full atom extract |
+| [legacy/02-chunking-engine/03-standardize-chunk-extraction](departments/legacy/02-chunking-engine/03-standardize-chunk-extraction/) | `standardize_chunk_extraction` | Skips claims-first chunks |
+| [legacy/02-chunking-engine/04-refine-chunk-extraction](departments/legacy/02-chunking-engine/04-refine-chunk-extraction/) | `refine_chunk_extraction` | Legacy refine loop |
+| [legacy/02-chunking-engine/05-validate-chunk-extraction](departments/legacy/02-chunking-engine/05-validate-chunk-extraction/) | `validate_chunk_extraction` | Production judge → `atoms_passed` |
+| [legacy/02-chunking-engine/06-link-chunk-entities](departments/legacy/02-chunking-engine/06-link-chunk-entities/) | `link_chunk_entities` | Semantic links after validation |
 
-### 03 Merging (detail)
+### Legacy merging (inactive)
 
 | Agent | Deploy | Notes |
 |-------|--------|--------|
-| [01-merge-story-entities](departments/03-merging-engine/01-merge-story-entities/) | `merge_story_entities` | Merges chunk extractions to `story_*` |
-| [02-review-merged-extraction](departments/03-merging-engine/02-review-merged-extraction/) | `review_merged_extraction` | Merge QA reviewer |
-| [03-refine-merged-extraction](departments/03-merging-engine/03-refine-merged-extraction/) | `refine_merged_extraction` | Merge QA patch (max 1 cycle) |
-| [04-validate-merged-extraction](departments/03-merging-engine/04-validate-merged-extraction/) | `validate_merged_extraction` | Merge QA judge; gates canonical linkers |
+| [legacy/03-merging-engine/01-merge-story-entities](departments/legacy/03-merging-engine/01-merge-story-entities/) | `merge_story_entities` | Merges chunk extractions to `story_*` |
+| [legacy/03-merging-engine/02-review-merged-extraction](departments/legacy/03-merging-engine/02-review-merged-extraction/) | `review_merged_extraction` | Merge QA reviewer |
+| [legacy/03-merging-engine/03-refine-merged-extraction](departments/legacy/03-merging-engine/03-refine-merged-extraction/) | `refine_merged_extraction` | Merge QA patch (max 1 cycle) |
+| [legacy/03-merging-engine/04-validate-merged-extraction](departments/legacy/03-merging-engine/04-validate-merged-extraction/) | `validate_merged_extraction` | Merge QA judge; gates canonical linkers |
 
 Step ids and deploy names align: `extract-story-entities` → `extract_story_entities`, `merge-story-entities` → `merge_story_entities`.
 
-## Canonicalization
+## Canonicalization (archived)
 
-Runs after merge, as agents `01`–`04` under [04-semantic-intelligence-engine](departments/04-semantic-intelligence-engine/):
+Runs after merge under [legacy/04-semantic-intelligence-engine](departments/legacy/04-semantic-intelligence-engine/):
 
 | Step | Input | Output |
 |------|--------|--------|
@@ -95,9 +104,9 @@ Canonical linkers run on cron after merge QA passes (`stories.extraction_qa_stat
 
 Positions follow the same pattern as claims: **extract at story level → canonicalize by embedding similarity**—not deferred to position-intelligence.
 
-## Debate topology (not extraction)
+## Debate topology (archived — not extraction)
 
-Layered pipeline under [04-semantic-intelligence-engine/02-debate-topology](departments/04-semantic-intelligence-engine/02-debate-topology/):
+Layered pipeline under [legacy/04-semantic-intelligence-engine/02-debate-topology](departments/legacy/04-semantic-intelligence-engine/02-debate-topology/):
 
 1. **Candidates** — `generate-position-pair-candidates`, `generate-agreement-cluster-candidates`
 2. **Classification** — `classify-position-relationships`, `classify-agreement-cluster-relationships`

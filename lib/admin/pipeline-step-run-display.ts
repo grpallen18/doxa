@@ -118,10 +118,36 @@ export function isStoryStepRunLogFailed(run: StoryStepLatestRow | null): boolean
 export function isStoryStepRunInFlight(
   payload: StoryExtractionReviewPayload,
   stepId: PipelineStepId,
-  domainComplete: boolean
+  domainComplete: boolean,
+  chunkIndex?: number
 ): boolean {
   const run = getStoryStepRunRow(payload, stepId)
-  return run?.outcome === 'looping' && !domainComplete
+  if (run?.outcome !== 'looping' || domainComplete) return false
+  if (chunkIndex != null && run.chunk_index != null && run.chunk_index !== chunkIndex) {
+    return false
+  }
+  return true
+}
+
+/** Edge invoke finished for this chunk — UI can stop spinning even if the lane is still mid-loop. */
+export function isChunkStepRunInvokeSettled(
+  payload: StoryExtractionReviewPayload,
+  stepId: PipelineStepId,
+  chunkIndex: number,
+  startedAtMs: number
+): boolean {
+  const run = getStoryStepRunRow(payload, stepId)
+  if (!run || run.chunk_index !== chunkIndex) return false
+
+  const runAt = new Date(run.occurred_at).getTime()
+  if (!Number.isFinite(runAt) || runAt < startedAtMs - 5_000) return false
+
+  if (run.outcome === 'success' || run.outcome === 'failure' || run.outcome === 'no_op') {
+    return true
+  }
+
+  // A fresh looping row means the handler returned but the lane did not advance (partial refine).
+  return run.outcome === 'looping'
 }
 
 /** Checklist complete: terminal log success, or domain when log is absent / non-terminal. */

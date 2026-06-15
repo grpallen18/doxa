@@ -9,6 +9,8 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 **Reset pipeline data (keeps sources, throttle, pipeline_runs):** after migration `121_purge_engine_data.sql`, run `SELECT public.purge_engine_data();` — table list in [doxa-agents/ops/purge-engine-tables.yaml](../doxa-agents/ops/purge-engine-tables.yaml), routine in [routines/purge_engine_data.sql](routines/purge_engine_data.sql).
 
+**Reset all stories to post-ingestion (keep scrape/clean, delete chunks + extraction):** after migration `180_reset_all_stories_post_ingestion.sql`, run `SELECT public.reset_all_stories_post_ingestion();` — per-story: `SELECT public.reset_story_post_ingestion('<story_id>');`
+
 **Note:** The data dictionary below describes the **target schema** for the pipeline/ingestion model. Migrations 010 and 011 refactor topics and add the new tables; seed_new_schema.sql populates them.
 
 ---

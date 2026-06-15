@@ -15,12 +15,11 @@ import { ClaimsReviewReportDisplay } from '@/components/admin/extraction/claims-
 import { cn } from '@/lib/utils'
 
 function eventTitle(event: ChunkQaHistoryEvent): string {
-  if (event.kind === 'review') {
-    const n = event.cycle_number != null ? ` #${event.cycle_number}` : ''
-    return `Review${n}`
-  }
-  const n = event.cycle_number != null ? ` #${event.cycle_number}` : ''
-  return `Refine${n}`
+  const base =
+    event.kind === 'review'
+      ? `Review${event.cycle_number != null ? ` #${event.cycle_number}` : ''}`
+      : `Refine${event.cycle_number != null ? ` #${event.cycle_number}` : ''}`
+  return event.reverted ? `${base} (reverted)` : base
 }
 
 function eventStatusLine(event: ChunkQaHistoryEvent): string {
@@ -246,6 +245,9 @@ export function ChunkQaHistorySection({
       ) : null}
       {!loading && !error && payload && events.length > 0 ? (
         <div className="space-y-6">
+          {payload.version_timeline ? (
+            <p className="text-xs text-muted font-mono">{payload.version_timeline}</p>
+          ) : null}
           <section>
             <h3 className="mb-2 text-xs font-medium text-muted">Claim versions across refinements</h3>
             <ClaimVersionMatrix payload={payload} />

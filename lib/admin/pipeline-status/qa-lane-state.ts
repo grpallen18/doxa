@@ -1,3 +1,4 @@
+import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import {
   QA_LANE_ARTIFACT_STAGES,
@@ -113,5 +114,5 @@ export function refineLanePriorOk(
   payload: StoryExtractionReviewPayload
 ): boolean {
   const stages = QA_LANE_ARTIFACT_STAGES[lane]
-  return isExtractionStepComplete(stages.extractStep, payload)
+  return isExtractionStepComplete(stages.extractStep as PipelineStepId, payload)
 }

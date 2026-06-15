@@ -13,6 +13,7 @@ import {
 import { mapAgentNodeStatus } from '@/lib/admin/workflow-canvas/step-status-display'
 import type { VisionNodeSpec } from '@/lib/admin/workflow-canvas/types'
 import { VISION_FLOW_EDGES, VISION_FLOW_NODES } from '@/lib/admin/workflow-canvas/vision-flow-layout'
+import { isChunkParallelStep } from '@/lib/admin/pipeline-status/extraction-groups'
 
 const COL_WIDTH = 300
 const ROW_HEIGHT = 230
@@ -63,7 +64,9 @@ function resolveAgentIconVariant(
 }
 
 function isInDevelopment(spec: VisionNodeSpec): boolean {
-  return spec.maturity === 'partial' || spec.maturity === 'placeholder'
+  if (spec.maturity === 'partial' || spec.maturity === 'placeholder') return true
+  if (spec.catalogStepId && !PIPELINE_STEPS.some((s) => s.id === spec.catalogStepId)) return true
+  return false
 }
 
 export function buildVisionGraph({
@@ -71,33 +74,51 @@ export function buildVisionGraph({
   isStepRunning,
   payload,
   displayNameOverrides,
+  nodeSpecs = VISION_FLOW_NODES,
+  edgeSpecs = VISION_FLOW_EDGES,
+  canvasScope = 'story',
 }: {
   checklist: PipelineChecklist
   isStepRunning: (stepId: PipelineStepId) => boolean
   payload: StoryExtractionReviewPayload
   displayNameOverrides?: AgentDisplayNameMap
+  nodeSpecs?: VisionNodeSpec[]
+  edgeSpecs?: typeof VISION_FLOW_EDGES
+  canvasScope?: 'story' | 'chunk'
 }): { nodes: Node[]; edges: Edge[] } {
   const stepById = new Map<PipelineStepId, PipelineStepState>()
   for (const step of checklist.steps) stepById.set(step.id, step)
 
-  const nodes: Node[] = VISION_FLOW_NODES.map((spec) => {
-    const catalogStepId = spec.catalogStepId
+  const nodeIds = new Set(nodeSpecs.map((spec) => spec.id))
+
+  const nodes: Node[] = nodeSpecs.map((spec) => {
+    const rawCatalogStepId = spec.catalogStepId
+    const catalogStepId =
+      rawCatalogStepId &&
+      (PIPELINE_STEPS as readonly { id: string }[]).some((s) => s.id === rawCatalogStepId)
+        ? (rawCatalogStepId as PipelineStepId)
+        : undefined
     const stepState = catalogStepId ? stepById.get(catalogStepId) : undefined
     const running = catalogStepId ? isStepRunning(catalogStepId) : false
     const label = catalogStepId
       ? catalogLabel(catalogStepId, displayNameOverrides)
       : spec.visionLabel
+    const chunkLayerOnly =
+      canvasScope === 'story' && catalogStepId != null && isChunkParallelStep(catalogStepId)
 
+    const inDevelopment = isInDevelopment(spec)
     const baseData = {
       visionLabel: spec.visionLabel,
       label,
       desc: spec.roadmapNote ?? stepState?.progress ?? '',
       maturity: spec.maturity,
-      catalogStepId: catalogStepId ?? null,
+      catalogStepId: rawCatalogStepId ?? null,
       handlerPath: spec.handlerPath ?? null,
       roadmapNote: spec.roadmapNote ?? null,
-      runnable: stepState?.runnable ?? false,
+      runnable: inDevelopment ? false : chunkLayerOnly ? false : (stepState?.runnable ?? false),
       manifestStatus: stepState?.manifestStatus ?? null,
+      chunkLayerOnly,
+      inDevelopment,
     }
 
     if (usesAgentPresentation(spec)) {
@@ -118,7 +139,7 @@ export function buildVisionGraph({
           }),
           iconVariant: resolveAgentIconVariant(spec),
           retries: 0,
-          inDevelopment: isInDevelopment(spec),
+          inDevelopment,
           developmentNote: spec.roadmapNote ?? undefined,
         },
       }
@@ -159,7 +180,9 @@ export function buildVisionGraph({
 
   const greenStyle = EDGE_COLOR_STYLES.green
 
-  const edges: Edge[] = VISION_FLOW_EDGES.map((spec) => {
+  const edges: Edge[] = edgeSpecs
+    .filter((spec) => nodeIds.has(spec.source) && nodeIds.has(spec.target))
+    .map((spec) => {
     const defaultLabel = defaultLabelForEdge(spec)
     return {
       id: spec.id,

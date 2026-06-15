@@ -82,6 +82,18 @@ function objectSchemaFromExample(example: Record<string, unknown>): Record<strin
   }
 }
 
+/** OpenAI structured-output schema names (distinct from catalog step / deploy ids). */
+const OPENAI_SCHEMA_NAMES: Record<string, string> = {
+  'validate-chunk-claims': 'doxa_chunk_claims_review',
+  'refine-chunk-claims': 'doxa_chunk_claims_refine',
+  'validate-chunk-positions': 'doxa_chunk_positions_review',
+  'refine-chunk-positions': 'doxa_chunk_positions_refine',
+}
+
+export function openAiSchemaNameForStep(stepId: string): string {
+  return OPENAI_SCHEMA_NAMES[stepId] ?? stepId.replace(/-/g, '_')
+}
+
 export function buildOpenAiSchemaFromPrompt(
   stepId: string,
   systemPrompt: string
@@ -108,7 +120,7 @@ export function buildOpenAiSchemaFromPrompt(
     props.recommended_action = { type: 'string', enum: actions }
   }
 
-  const schemaName = stepId.replace(/-/g, '_')
+  const schemaName = openAiSchemaNameForStep(stepId)
 
   return { ok: true, schema, schemaName }
 }

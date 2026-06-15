@@ -115,7 +115,7 @@ export async function fetchStoryStepRunHistory(
 
       if (error) {
         console.error(`[story-step-runs] fetch history failed step=${stepId}:`, error.message)
-        return [stepId, []] as const
+        return [stepId, [] as StoryStepRunHistoryRow[]] as const
       }
 
       const rows = (data ?? []).map((row) =>
@@ -140,6 +140,7 @@ export async function appendAdminStoryStepRunFailure(
     deployName: string
     actorId: string
     error: string
+    chunkIndex?: number | null
     meta?: Record<string, unknown>
   }
 ): Promise<void> {
@@ -150,7 +151,7 @@ export async function appendAdminStoryStepRunFailure(
     p_outcome: 'failure',
     p_trigger: 'admin',
     p_pipeline_run_id: null,
-    p_chunk_index: null,
+    p_chunk_index: input.chunkIndex ?? null,
     p_actor_id: input.actorId,
     p_meta: input.meta ?? {},
     p_error: input.error,

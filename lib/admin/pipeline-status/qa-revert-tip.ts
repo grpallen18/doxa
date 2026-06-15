@@ -59,7 +59,7 @@ export function getLaneQaRevertTip(
   const stages = QA_LANE_ARTIFACT_STAGES[lane]
 
   if (laneHasChunksPendingRereview(lane, payload) || shouldTipRefineRevert(lane, payload)) {
-    return stages.refineStep
+    return stages.validateStep as PipelineStepId
   }
 
   const reviewStarted =
@@ -69,10 +69,10 @@ export function getLaneQaRevertTip(
     reviewStarted ||
     latestArtifactCreatedAt(payload, stages.review)
   ) {
-    return stages.validateStep
+    return stages.validateStep as PipelineStepId
   }
-  if (isStepComplete(stages.extractStep, payload)) {
-    return stages.extractStep
+  if (isStepComplete(stages.extractStep as PipelineStepId, payload)) {
+    return stages.extractStep as PipelineStepId
   }
   return null
 }

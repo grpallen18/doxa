@@ -19,8 +19,11 @@ export {
   getRevertBlockedReason,
   getRevertStepDescription,
   getRevertibleStepId,
+  getChunkStepRevertBlockedReason,
+  getChunkRefineRecoveryMessage,
   getStepNotRequiredMessage,
   getStepOutputSnapshot,
+  isChunkStepRevertible,
   isPipelineBlocked,
   isStepBlocked,
   isStepComplete,
@@ -28,9 +31,11 @@ export {
   isStepRevertible,
   REVERT_SCOPE_STEP_IDS,
 } from '@/lib/admin/pipeline-status'
+export type { PipelineChecklistScope } from '@/lib/admin/pipeline-status'
 export type { StageSummaryStatus } from '@/lib/admin/pipeline-status'
 export { EXTRACTION_STEP_GROUPS } from '@/lib/admin/pipeline-status'
 export {
+  CHUNK_PARALLEL_STEP_IDS,
   CLAIMS_LANE_STEP_IDS,
   EXTRACTION_PARALLEL_LANES,
   EXTRACTION_SHARED_STEP_IDS,

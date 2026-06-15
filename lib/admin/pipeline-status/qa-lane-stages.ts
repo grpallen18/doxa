@@ -2,14 +2,17 @@ import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 
 export type QaLaneId = 'claims' | 'positions'
 
+type LaneStepIds = {
+  validateStep: string
+  refineStep: string
+  extractStep: string
+}
+
 export const QA_LANE_ARTIFACT_STAGES: Record<
   QaLaneId,
-  {
+  LaneStepIds & {
     review: readonly string[]
     refine: readonly string[]
-    validateStep: PipelineStepId
-    refineStep: PipelineStepId
-    extractStep: PipelineStepId
     refinementCountKey: 'extraction_qa_refinement_count' | 'positions_qa_refinement_count'
     validationAttemptCountKey:
       | 'extraction_qa_validation_attempt_count'
@@ -48,11 +51,4 @@ export const QA_LANE_ARTIFACT_STAGES: Record<
 export const STEP_QA_ARTIFACT_STAGES: Partial<Record<PipelineStepId, readonly string[]>> = {
   'extract-story-claims': ['chunk_extract_claims', 'chunk_extract'],
   'validate-chunk-claims': QA_LANE_ARTIFACT_STAGES.claims.review,
-  'refine-chunk-claims': QA_LANE_ARTIFACT_STAGES.claims.refine,
-  'extract-story-positions': ['chunk_extract_positions'],
-  'validate-chunk-positions': QA_LANE_ARTIFACT_STAGES.positions.review,
-  'refine-chunk-positions': QA_LANE_ARTIFACT_STAGES.positions.refine,
-  'review-merged-extraction': ['merge_review'],
-  'refine-merged-extraction': ['merge_refine'],
-  'validate-merged-extraction': ['merge_validate'],
 }

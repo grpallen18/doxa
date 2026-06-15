@@ -11,24 +11,10 @@ export type PipelineStepId =
   | "chunk-story-bodies"
   | "extract-story-claims"
   | "validate-chunk-claims"
-  | "refine-chunk-claims"
-  | "extract-story-positions"
-  | "validate-chunk-positions"
-  | "refine-chunk-positions"
-  | "merge-story-positions"
-  | "merge-story-claims"
-  | "review-merged-extraction"
-  | "refine-merged-extraction"
-  | "validate-merged-extraction"
-  | "link-canonical-claims"
-  | "link-canonical-events"
-  | "link-canonical-positions"
-  | "update-stances"
 
 export type PipelineStageId =
   | "ingestion"
   | "extraction"
-  | "canonical"
 
 export type PipelineInvokeOptions = {
   usesMaxChunks: boolean
@@ -80,27 +66,7 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
     "stepIds": [
       "chunk-story-bodies",
       "extract-story-claims",
-      "validate-chunk-claims",
-      "refine-chunk-claims",
-      "extract-story-positions",
-      "validate-chunk-positions",
-      "refine-chunk-positions",
-      "merge-story-positions",
-      "merge-story-claims",
-      "review-merged-extraction",
-      "refine-merged-extraction",
-      "validate-merged-extraction"
-    ]
-  },
-  {
-    "id": "canonical",
-    "label": "Canonicalization",
-    "scope": "story",
-    "stepIds": [
-      "link-canonical-claims",
-      "link-canonical-events",
-      "link-canonical-positions",
-      "update-stances"
+      "validate-chunk-claims"
     ]
   }
 ]
@@ -125,7 +91,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
   },
   {
     "id": "review-pending-stories",
@@ -146,7 +112,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
   },
   {
     "id": "scrape-story-content",
@@ -188,7 +154,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
   },
   {
     "id": "chunk-story-bodies",
@@ -209,7 +175,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
   },
   {
     "id": "extract-story-claims",
@@ -231,7 +197,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": 1,
       "timeoutMs": 140000
     },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
   },
   {
     "id": "validate-chunk-claims",
@@ -251,289 +217,9 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "invokeOptions": {
       "usesMaxChunks": true,
       "maxChunks": 20,
-      "timeoutMs": 60000
+      "timeoutMs": 150000
     },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "refine-chunk-claims",
-    "deployName": "refine_chunk_claims",
-    "label": "Refine chunk claims",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": true,
-    "manifestStatus": "inactive",
-    "promptKind": "llm",
-    "userPayloadDoc": "JSON user message: story metadata, chunk_text, extraction_json, review_report (findings from prior review).",
-    "isolationParams": [
-      "story_id",
-      "chunk_index"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": true,
-      "maxChunks": 20,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "extract-story-positions",
-    "deployName": "extract_story_positions",
-    "label": "Extract positions",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "promptKind": "llm",
-    "userPayloadDoc": "JSON user message: story_id, chunk_id, published_at, source_name, chunk_text, optional existing_claims.\nBuilt by buildExtractPositionsUserPayload() in openai-qa.ts.",
-    "isolationParams": [
-      "story_id",
-      "chunk_index"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": true,
-      "maxChunks": 1,
-      "timeoutMs": 140000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "validate-chunk-positions",
-    "deployName": "validate_chunk_positions",
-    "label": "Review chunk positions",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "promptKind": "llm",
-    "userPayloadDoc": "JSON user message: story metadata, chunk_text, positions_extraction_json, optional existing_claims, deterministic_issues, materiality_warnings, attempt_number.",
-    "isolationParams": [
-      "story_id",
-      "chunk_index"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": true,
-      "maxChunks": 20,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "refine-chunk-positions",
-    "deployName": "refine_chunk_positions",
-    "label": "Refine chunk positions",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": true,
-    "manifestStatus": "inactive",
-    "promptKind": "llm",
-    "userPayloadDoc": "JSON user message: story metadata, chunk_text, positions_extraction_json, review_report.",
-    "isolationParams": [
-      "story_id",
-      "chunk_index"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": true,
-      "maxChunks": 20,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "merge-story-positions",
-    "deployName": "merge_story_positions",
-    "label": "Merge story positions",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "promptKind": "none",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "merge-story-claims",
-    "deployName": "merge_story_claims",
-    "label": "Merge story claims",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "promptKind": "none",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "review-merged-extraction",
-    "deployName": "review_merged_extraction",
-    "label": "Review merged extraction",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "promptKind": "none",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "refine-merged-extraction",
-    "deployName": "refine_merged_extraction",
-    "label": "Refine merged extraction",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": true,
-    "manifestStatus": "inactive",
-    "promptKind": "none",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "validate-merged-extraction",
-    "deployName": "validate_merged_extraction",
-    "label": "Approve merged extraction",
-    "stageId": "extraction",
-    "stageLabel": "Extraction",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "promptKind": "none",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "link-canonical-claims",
-    "deployName": "link_canonical_claims",
-    "label": "Link canonical claims",
-    "stageId": "canonical",
-    "stageLabel": "Canonicalization",
-    "scope": "story",
-    "optional": false,
-    "manifestStatus": "inactive",
-    "promptKind": "embeddings",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id",
-      "story_claim_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "link-canonical-events",
-    "deployName": "link_canonical_events",
-    "label": "Link canonical events",
-    "stageId": "canonical",
-    "stageLabel": "Canonicalization",
-    "scope": "story",
-    "optional": true,
-    "manifestStatus": "inactive",
-    "promptKind": "embeddings",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "link-canonical-positions",
-    "deployName": "link_canonical_positions",
-    "label": "Link canonical positions",
-    "stageId": "canonical",
-    "stageLabel": "Canonicalization",
-    "scope": "story",
-    "optional": true,
-    "manifestStatus": "inactive",
-    "promptKind": "embeddings",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id",
-      "story_position_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": false,
-      "maxChunks": null,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
-  },
-  {
-    "id": "update-stances",
-    "deployName": "update_stances",
-    "label": "Update stances",
-    "stageId": "canonical",
-    "stageLabel": "Canonicalization",
-    "scope": "story",
-    "optional": true,
-    "manifestStatus": "inactive",
-    "promptKind": "none",
-    "userPayloadDoc": null,
-    "isolationParams": [
-      "story_id",
-      "story_claim_id"
-    ],
-    "invokeOptions": {
-      "usesMaxChunks": true,
-      "maxChunks": 20,
-      "timeoutMs": 60000
-    },
-    "inactiveNote": "Not active in activation.yaml — Activate cron in Supabase when ready."
+    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
   }
 ]
 
@@ -545,19 +231,6 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "chunk_story_bodies",
   "extract_story_claims",
   "validate_chunk_claims",
-  "refine_chunk_claims",
-  "extract_story_positions",
-  "validate_chunk_positions",
-  "refine_chunk_positions",
-  "merge_story_positions",
-  "merge_story_claims",
-  "review_merged_extraction",
-  "refine_merged_extraction",
-  "validate_merged_extraction",
-  "link_canonical_claims",
-  "link_canonical_events",
-  "link_canonical_positions",
-  "update_stances",
 ])
 
 const STEP_BY_ID = new Map<PipelineStepId, PipelineCatalogStep>(

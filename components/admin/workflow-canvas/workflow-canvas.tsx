@@ -33,6 +33,7 @@ import type { PipelineChecklist } from '@/lib/admin/story-pipeline-checklist'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { buildVisionGraph } from '@/lib/admin/workflow-canvas/build-vision-graph'
+import { buildChunkVisionGraph } from '@/lib/admin/workflow-canvas/build-chunk-vision-graph'
 import type { WorkflowCanvasPositions } from '@/lib/admin/workflow-canvas/layout'
 import { applyEdgeMetaToEdges } from '@/lib/admin/workflow-canvas/merge-edge-meta'
 import {
@@ -75,6 +76,7 @@ function WorkflowCanvasInner({
   onSelectNode,
   focusNodeId,
   onRegisterDismissInspector,
+  graphMode = 'story',
 }: {
   checklist: PipelineChecklist
   payload: StoryExtractionReviewPayload
@@ -83,6 +85,7 @@ function WorkflowCanvasInner({
   onSelectNode: (id: string | null) => void
   focusNodeId: string | null
   onRegisterDismissInspector?: (dismiss: (() => void) | null) => void
+  graphMode?: 'story' | 'chunk'
 }) {
   const { setCenter, fitView } = useReactFlow()
   const store = useStoreApi()
@@ -117,8 +120,22 @@ function WorkflowCanvasInner({
   const lastRemoteSyncEpochRef = useRef(0)
 
   const baseGraph = useMemo(
-    () => buildVisionGraph({ checklist, isStepRunning, payload, displayNameOverrides: displayNames }),
-    [checklist, isStepRunning, payload, displayNames]
+    () =>
+      graphMode === 'chunk'
+        ? buildChunkVisionGraph({
+            checklist,
+            isStepRunning,
+            payload,
+            displayNameOverrides: displayNames,
+          })
+        : buildVisionGraph({
+            checklist,
+            isStepRunning,
+            payload,
+            displayNameOverrides: displayNames,
+            canvasScope: 'story',
+          }),
+    [checklist, isStepRunning, payload, displayNames, graphMode]
   )
 
   const graphWithSaved = useMemo(
@@ -483,6 +500,7 @@ export function WorkflowCanvas(props: {
   onSelectNode: (id: string | null) => void
   focusNodeId: string | null
   onRegisterDismissInspector?: (dismiss: (() => void) | null) => void
+  graphMode?: 'story' | 'chunk'
 }) {
   return <WorkflowCanvasInner {...props} />
 }

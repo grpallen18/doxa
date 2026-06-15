@@ -23,7 +23,7 @@ function adminMaxWidth(pathname: string): 'default' | 'wide' | 'full' | 'content
 }
 
 function isAgentFlowRoute(pathname: string): boolean {
-  return /\/admin\/stories\/[^/]+\/agent-flow$/.test(pathname)
+  return /\/admin\/stories\/[^/]+\/(agent-flow|chunks\/[^/]+\/agent-flow)$/.test(pathname)
 }
 
 function adminShellClass(pathname: string): string | undefined {

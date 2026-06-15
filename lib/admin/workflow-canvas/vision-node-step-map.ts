@@ -1,11 +1,15 @@
-import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import { PIPELINE_STEPS, type PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { PipelineChecklist } from '@/lib/admin/story-pipeline-checklist'
 import { VISION_FLOW_NODES } from '@/lib/admin/workflow-canvas/vision-flow-layout'
 
+const catalogStepIdSet = new Set(PIPELINE_STEPS.map((step) => step.id))
+
 const stepIdToNodeId = new Map<PipelineStepId, string>(
-  VISION_FLOW_NODES.flatMap((node) =>
-    node.catalogStepId ? [[node.catalogStepId, node.id] as const] : []
-  )
+  VISION_FLOW_NODES.flatMap((node) => {
+    const stepId = node.catalogStepId
+    if (!stepId || !catalogStepIdSet.has(stepId as PipelineStepId)) return []
+    return [[stepId as PipelineStepId, node.id] as const]
+  })
 )
 
 export function getVisionNodeIdForStep(stepId: PipelineStepId): string | null {

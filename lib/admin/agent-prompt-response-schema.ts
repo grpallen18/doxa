@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   buildOpenAiSchemaFromPrompt,
+  openAiSchemaNameForStep,
   specFromOpenAiSchema,
 } from '@/lib/admin/prompt-schema-builder'
 import type { EnforcedOutputSpec } from '@/lib/admin/agent-prompt-schema-match'

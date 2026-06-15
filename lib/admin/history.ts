@@ -99,7 +99,8 @@ function isPipelineStepHistoryLabel(label: string): boolean {
     label === 'Pipeline step run' ||
     label === 'Pipeline step failed' ||
     label === 'Pipeline step skipped' ||
-    label === 'Pipeline step reverted'
+    label === 'Pipeline step reverted' ||
+    label === 'Chunk pipeline step reverted'
   )
 }
 
@@ -112,24 +113,36 @@ function parsePipelineStepHistoryMeta(
   const isPipelineField = fieldKey?.toLowerCase() === 'pipeline step'
   if (!isPipelineField && !isPipelineStepHistoryLabel(label)) return null
 
-  if (label === 'Pipeline step reverted') {
+  if (label === 'Pipeline step reverted' || label === 'Chunk pipeline step reverted') {
     const revertedStepId =
       (typeof meta.step_id === 'string' && meta.step_id) ||
       (detail?.trim() ? detail.trim() : null)
     const priorStepId =
       (typeof meta.previous_step_id === 'string' && meta.previous_step_id) ||
       (revertedStepId ? priorRevertScopeStepId(revertedStepId) : null)
+    const chunkIndex =
+      typeof meta.chunk_index === 'number'
+        ? meta.chunk_index
+        : typeof meta.chunk_index === 'string' && meta.chunk_index.trim()
+          ? Number(meta.chunk_index)
+          : null
+    const chunkSuffix =
+      chunkIndex != null && Number.isFinite(chunkIndex) ? ` (chunk ${chunkIndex})` : ''
 
     return {
       field: 'Pipeline Step',
       previousValue:
-        pipelineStepLabel(revertedStepId) ??
+        (pipelineStepLabel(revertedStepId)
+          ? `${pipelineStepLabel(revertedStepId)}${chunkSuffix}`
+          : null) ??
         pipelineStepLabelFromSummary(formatHistoryValue(meta.old)) ??
         (formatHistoryValue(meta.old)
           ? stripPipelineStepOutcome(formatHistoryValue(meta.old))
           : null),
       newValue:
-        pipelineStepLabel(priorStepId) ??
+        (pipelineStepLabel(priorStepId)
+          ? `${pipelineStepLabel(priorStepId)}${chunkSuffix}`
+          : null) ??
         pipelineStepLabelFromSummary(formatHistoryValue(meta.new)) ??
         (formatHistoryValue(meta.new)
           ? stripPipelineStepOutcome(formatHistoryValue(meta.new))
@@ -342,6 +355,72 @@ export async function fetchStoryHistory(
   pagination: PaginationParams
 ): Promise<HistoryPageResult> {
   return fetchHistoryTablePage(supabase, 'story_history', { story_id: storyId }, pagination)
+}
+
+function rowChunkIndex(row: HistoryRow): number | null {
+  const raw = row.meta?.chunk_index
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string' && raw.trim()) {
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function filterStepPipelineHistoryRows(
+  rows: HistoryRow[],
+  chunkIndex?: number
+): HistoryRow[] {
+  if (chunkIndex == null) {
+    return rows.filter((row) => row.label !== 'Chunk pipeline step reverted')
+  }
+
+  return rows.filter((row) => {
+    if (row.label !== 'Chunk pipeline step reverted') return false
+    return rowChunkIndex(row) === chunkIndex
+  })
+}
+
+export async function fetchStoryStepPipelineHistory(
+  supabase: SupabaseClient,
+  storyId: string,
+  stepId: string,
+  pagination: PaginationParams,
+  options?: { chunkIndex?: number }
+): Promise<HistoryPageResult> {
+  const pipelineLabels =
+    options?.chunkIndex != null
+      ? [
+          'Pipeline step run',
+          'Pipeline step failed',
+          'Pipeline step skipped',
+          'Chunk pipeline step reverted',
+        ]
+      : [
+          'Pipeline step run',
+          'Pipeline step failed',
+          'Pipeline step skipped',
+          'Pipeline step reverted',
+        ]
+
+  let query = supabase
+    .from('story_history')
+    .select('id, occurred_at, event_type, label, detail, meta, actor_id, source', {
+      count: 'exact',
+    })
+    .eq('story_id', storyId)
+    .eq('detail', stepId)
+    .in('label', pipelineLabels)
+
+  const { data, error, count } = await query
+    .order('occurred_at', { ascending: false })
+    .range(pagination.offset, pagination.offset + pagination.limit - 1)
+
+  if (error) throw error
+  const rows = filterStepPipelineHistoryRows((data ?? []) as HistoryRow[], options?.chunkIndex)
+  const mapped = mapHistoryRows(rows)
+  const events = await enrichHistoryActors(supabase, enrichPipelineStepHistory(mapped))
+  return { events, total: options?.chunkIndex != null ? rows.length : (count ?? 0) }
 }
 
 export async function fetchStoryChunksHistory(

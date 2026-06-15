@@ -11,6 +11,10 @@ import {
   saveArtifact,
 } from "../../../lib/extraction-qa/openai-qa.ts";
 import { ensureStableClaimIds } from "../../../lib/extraction-qa/claim-ids.ts";
+import {
+  deleteClaimVersionsForChunk,
+  insertClaimVersion,
+} from "../../../lib/extraction-qa/claim-versions.ts";
 import { attachClaimsFromRawText } from "../../../lib/extraction-qa/span-compute.ts";
 import {
   loadStoryMetadataBatch,
@@ -293,10 +297,13 @@ export const handler = async (req: Request) => {
         const extractionJson = { claims: result.claims };
         const now = new Date().toISOString();
 
+        await deleteClaimVersionsForChunk(supabase, chunk.story_id, chunk.chunk_index);
+
         const { error: updateErr } = await supabase
           .from("story_chunks")
           .update({
             extraction_json: extractionJson,
+            active_claim_version_id: null,
             extraction_completed_at: now,
             extraction_qa_status: "pending",
             extraction_qa_review_report: null,
@@ -324,11 +331,44 @@ export const handler = async (req: Request) => {
           return json({ error: updateErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
         }
 
+        const versionId = await insertClaimVersion(supabase, {
+          storyId: chunk.story_id,
+          chunkIndex: chunk.chunk_index,
+          versionNumber: 0,
+          source: "extractor",
+          claimsJson: extractionJson,
+          runId: runId,
+        });
+
+        const { error: pointerErr } = await supabase
+          .from("story_chunks")
+          .update({ active_claim_version_id: versionId })
+          .eq("story_id", chunk.story_id)
+          .eq("chunk_index", chunk.chunk_index);
+
+        if (pointerErr) {
+          await supabase.from("chunk_claim_versions").delete().eq("id", versionId);
+          console.error("[extract_story_claims] Pointer error:", pointerErr.message);
+          await recordStoryStepRun(supabase, {
+            storyId: chunk.story_id,
+            stepId: STEP_ID,
+            deployName: DEPLOY_NAME,
+            outcome: "failure",
+            trigger: resolveStoryStepTrigger(singleStoryId),
+            pipelineRunId: runId,
+            chunkIndex: chunk.chunk_index,
+            error: pointerErr.message,
+          });
+          return json({ error: pointerErr.message, story_id: chunk.story_id, chunk_index: chunk.chunk_index }, 500);
+        }
+
         const { error: artifactErr } = await saveArtifact(supabase, {
           story_id: chunk.story_id,
           chunk_index: chunk.chunk_index,
           stage: "chunk_extract_claims",
           output_snapshot: extractionJson,
+          claim_version_id: versionId,
+          run_id: runId,
         });
         if (artifactErr) {
           console.error("[extract_story_claims] Artifact error:", artifactErr.message);

@@ -147,8 +147,6 @@ export function buildStoryStageExportPayload(
       return ingestionPayload(payload)
     case 'extraction':
       return extractionPayload(payload)
-    case 'canonical':
-      return canonicalPayload(payload)
     default:
       return ingestionPayload(payload)
   }

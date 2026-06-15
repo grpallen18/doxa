@@ -11,38 +11,7 @@ supabase functions deploy review_pending_stories
 supabase functions deploy scrape_story_content
 supabase functions deploy chunk_story_bodies
 supabase functions deploy extract_story_claims
-supabase functions deploy extract_story_positions
-supabase functions deploy link_chunk_entities
-supabase functions deploy refine_chunk_claims
-supabase functions deploy refine_chunk_extraction
-supabase functions deploy refine_chunk_positions
-supabase functions deploy standardize_chunk_extraction
 supabase functions deploy validate_chunk_claims
-supabase functions deploy validate_chunk_extraction
-supabase functions deploy validate_chunk_positions
-supabase functions deploy merge_story_claims
-supabase functions deploy merge_story_positions
-supabase functions deploy refine_merged_extraction
-supabase functions deploy review_merged_extraction
-supabase functions deploy validate_merged_extraction
-supabase functions deploy link_canonical_claims
-supabase functions deploy link_canonical_events
-supabase functions deploy link_canonical_positions
-supabase functions deploy update_stances
-supabase functions deploy assign_ranked_subtopics
-supabase functions deploy generate_position_pair_candidates
-supabase functions deploy classify_position_relationships
-supabase functions deploy build_agreement_clusters
-supabase functions deploy generate_agreement_cluster_candidates
-supabase functions deploy classify_agreement_cluster_relationships
-supabase functions deploy build_controversy_clusters
-supabase functions deploy topology_pipeline
-supabase functions deploy generate_agreement_summaries
-supabase functions deploy generate_viewpoints
-supabase functions deploy refresh_topology_candidates
-supabase functions deploy seed_subtopic_embeddings
-supabase functions deploy process_topic
-supabase functions deploy review_link_suggestion
 supabase functions deploy discord_daily_health
 supabase functions deploy generate_atlas_map
 ```
@@ -57,12 +26,16 @@ supabase functions deploy review_pending_stories --no-verify-jwt
 supabase functions deploy scrape_story_content --no-verify-jwt
 supabase functions deploy chunk_story_bodies --no-verify-jwt
 supabase functions deploy extract_story_claims --no-verify-jwt
-supabase functions deploy refine_chunk_claims --no-verify-jwt
 supabase functions deploy validate_chunk_claims --no-verify-jwt
+supabase functions deploy refine_chunk_claims --no-verify-jwt
 supabase functions deploy merge_story_claims --no-verify-jwt
-supabase functions deploy refine_merged_extraction --no-verify-jwt
 supabase functions deploy review_merged_extraction --no-verify-jwt
+supabase functions deploy refine_merged_extraction --no-verify-jwt
 supabase functions deploy validate_merged_extraction --no-verify-jwt
+supabase functions deploy aggregate_position_pair_scores --no-verify-jwt
+supabase functions deploy build_position_clusters --no-verify-jwt
+supabase functions deploy classify_claim_pairs --no-verify-jwt
+supabase functions deploy generate_position_summaries --no-verify-jwt
 supabase functions deploy link_canonical_claims --no-verify-jwt
 supabase functions deploy link_canonical_events --no-verify-jwt
 supabase functions deploy link_canonical_positions --no-verify-jwt
@@ -73,10 +46,6 @@ supabase functions deploy classify_agreement_cluster_relationships --no-verify-j
 supabase functions deploy build_controversy_clusters --no-verify-jwt
 supabase functions deploy topology_pipeline --no-verify-jwt
 supabase functions deploy generate_viewpoints --no-verify-jwt
-supabase functions deploy aggregate_position_pair_scores --no-verify-jwt
-supabase functions deploy build_position_clusters --no-verify-jwt
-supabase functions deploy classify_claim_pairs --no-verify-jwt
-supabase functions deploy generate_position_summaries --no-verify-jwt
 ```
 
 _Generated from manifest.yaml._

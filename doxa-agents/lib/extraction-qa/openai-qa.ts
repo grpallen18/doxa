@@ -1045,7 +1045,8 @@ export async function reviewChunkClaims(
     schema: Record<string, unknown>;
     schemaName?: string;
     normalize?: boolean;
-  }
+  },
+  timeoutMs?: number
 ): Promise<ClaimsReviewReport> {
   const schema = responseSchema?.schema ?? (CLAIMS_REVIEW_SCHEMA as unknown as Record<string, unknown>);
   const schemaName = responseSchema?.schemaName ?? "doxa_chunk_claims_review";
@@ -1058,7 +1059,9 @@ export async function reviewChunkClaims(
     payload,
     schemaName,
     schema,
-    requestId
+    requestId,
+    true,
+    timeoutMs
   );
   const report = shouldNormalize ? normalizeClaimsReviewReport(raw) : (raw as ClaimsReviewReport);
   const payloadObj = payload as { deterministic_issues?: string[] };
@@ -1073,7 +1076,8 @@ export async function refineChunkClaims(
   model: string,
   systemPrompt: string,
   payload: unknown,
-  requestId: string
+  requestId: string,
+  timeoutMs?: number
 ): Promise<RefinementPatchResult> {
   const result = await callOpenAIJson<RefinementPatchResult>(
     apiKey,
@@ -1083,7 +1087,8 @@ export async function refineChunkClaims(
     "doxa_chunk_claims_refine",
     PATCH_SCHEMA as unknown as Record<string, unknown>,
     requestId,
-    false
+    false,
+    timeoutMs
   );
   result.patches = (result.patches ?? []).filter(
     (p) => p.op !== "link" && p.op !== "unlink" && p.entity_type === "claim"
@@ -1288,7 +1293,13 @@ export async function refineMerged(
 }
 
 export async function saveArtifact(
-  supabase: { from: (t: string) => { insert: (r: unknown) => Promise<{ error: { message: string } | null }> } },
+  supabase: {
+    from: (t: string) => {
+      insert: (r: unknown) => {
+        select: (cols: string) => { single: () => Promise<{ data: { id?: string } | null; error: { message: string } | null }> };
+      };
+    };
+  },
   row: {
     story_id: string;
     chunk_index?: number | null;
@@ -1297,9 +1308,16 @@ export async function saveArtifact(
     output_snapshot?: unknown;
     report?: unknown;
     run_id?: string | null;
+    claim_version_id?: string | null;
+    input_claim_version_id?: string | null;
+    output_claim_version_id?: string | null;
   }
-) {
-  return supabase.from("story_extraction_qa_artifacts").insert(row);
+): Promise<{ data: { id: string } | null; error: { message: string } | null }> {
+  return supabase
+    .from("story_extraction_qa_artifacts")
+    .insert(row)
+    .select("id")
+    .single() as Promise<{ data: { id: string } | null; error: { message: string } | null }>;
 }
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (extract-story-claims). */

@@ -1,7 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
+import {
+  fetchStoryClaimVersions,
+  mapClaimVersionsForExport,
+  type ChunkClaimVersionSummary,
+  type ClaimVersionExportRow,
+} from '@/lib/admin/chunk-qa-history'
 import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
+import {
+  deriveChunkLanePhase,
+  chunkLanePhaseLabel,
+  type ChunkLanePhase,
+} from '@/lib/admin/pipeline-status/chunk-phase'
 import { resolveStoryUuid } from '@/lib/admin/resolve-story-id'
 import {
   fetchStoryStepLatestByStep,
@@ -181,6 +192,10 @@ export type StoryExtractionReviewPayload = {
     friendly_id: string
     content: string | null
     extraction_json: unknown
+    active_claim_version_id: string | null
+    claim_version_count: number
+    claim_version_lineage: ClaimVersionExportRow[]
+    claim_versions: ChunkClaimVersionSummary[]
     extraction_qa_status: ExtractionQaStatus
     extraction_qa_standardization_report: unknown
     extraction_qa_review_report: unknown
@@ -195,6 +210,10 @@ export type StoryExtractionReviewPayload = {
     positions_qa_refinement_count: number
     positions_qa_validation_attempt_count: number
     positions_qa_validated_at: string | null
+    claims_lane_phase: ChunkLanePhase
+    claims_lane_phase_label: string
+    positions_lane_phase: ChunkLanePhase
+    positions_lane_phase_label: string
   }>
   qa_artifacts: Array<{
     id: string
@@ -205,6 +224,7 @@ export type StoryExtractionReviewPayload = {
     report: unknown
     run_id: string | null
     created_at: string
+    reverted_at: string | null
   }>
   step_runs: Record<PipelineStepId, StoryStepLatestRow | null>
   step_run_history: Partial<Record<PipelineStepId, StoryStepRunHistoryRow[]>>
@@ -433,7 +453,7 @@ export async function fetchStoryExtractionReview(
     (storyRow.content_full as string | null) ??
     (storyRow.content_snippet as string | null)
 
-  const [claimsRes, evidenceRes, positionsRes, eventsRes, feedbackRows, chunksRes, artifactsRes, stepRuns, stepRunHistory] =
+  const [claimsRes, evidenceRes, positionsRes, eventsRes, feedbackRows, chunksRes, artifactsRes, claimVersionsAll, stepRuns, stepRunHistory] =
     await Promise.all([
     supabase
       .from('story_claims')
@@ -479,7 +499,7 @@ export async function fetchStoryExtractionReview(
     supabase
       .from('story_chunks')
       .select(
-        'chunk_index, friendly_id, content, extraction_json, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_review_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at, positions_extraction_json, positions_qa_status, positions_qa_review_report, positions_qa_validation_report, positions_qa_refinement_count, positions_qa_validation_attempt_count, positions_qa_validated_at'
+        'chunk_index, friendly_id, content, extraction_json, active_claim_version_id, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_review_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at, positions_extraction_json, positions_qa_status, positions_qa_review_report, positions_qa_validation_report, positions_qa_refinement_count, positions_qa_validation_attempt_count, positions_qa_validated_at'
       )
       .eq('story_id', storyId)
       .order('chunk_index', { ascending: true }),
@@ -490,11 +510,12 @@ export async function fetchStoryExtractionReview(
       (table) =>
         supabase
           .from(table)
-          .select('id, stage, chunk_index, input_snapshot, output_snapshot, report, run_id, created_at')
+          .select('id, stage, chunk_index, input_snapshot, output_snapshot, report, run_id, created_at, reverted_at')
           .eq('story_id', storyId)
           .order('created_at', { ascending: false })
           .limit(200)
     ),
+    fetchStoryClaimVersions(supabase, storyId),
     fetchStoryStepLatestByStep(supabase, storyId),
     fetchStoryStepRunHistory(supabase, storyId),
   ])
@@ -562,6 +583,26 @@ export async function fetchStoryExtractionReview(
   for (const link of eventEvidence) {
     increment(evidenceEventCount, link.evidence_id)
     increment(eventEvidenceCount, link.story_event_id)
+  }
+
+  const claimVersionsByChunk = new Map<number, ClaimVersionExportRow[]>()
+  const claimVersionRowsByChunk = new Map<number, ChunkClaimVersionSummary[]>()
+  for (const version of claimVersionsAll) {
+    const chunkIndex = version.chunk_index
+    if (chunkIndex == null) continue
+    const exportList = claimVersionsByChunk.get(chunkIndex) ?? []
+    exportList.push(...mapClaimVersionsForExport([version]))
+    claimVersionsByChunk.set(chunkIndex, exportList)
+    const rowList = claimVersionRowsByChunk.get(chunkIndex) ?? []
+    rowList.push(version)
+    claimVersionRowsByChunk.set(chunkIndex, rowList)
+  }
+
+  const claimVersionCounts = new Map<number, number>()
+  for (const version of claimVersionsAll) {
+    const chunkIndex = version.chunk_index
+    if (chunkIndex == null) continue
+    claimVersionCounts.set(chunkIndex, (claimVersionCounts.get(chunkIndex) ?? 0) + 1)
   }
 
   return {
@@ -679,26 +720,49 @@ export async function fetchStoryExtractionReview(
       chunk_index: (f as { chunk_index?: number | null }).chunk_index ?? null,
       created_at: f.created_at,
     })),
-    chunks: (chunksRes.data ?? []).map((c) => ({
-      chunk_index: c.chunk_index as number,
-      friendly_id: c.friendly_id as string,
-      content: c.content as string | null,
-      extraction_json: c.extraction_json,
-      extraction_qa_status: (c.extraction_qa_status as ExtractionQaStatus) ?? null,
-      extraction_qa_standardization_report: c.extraction_qa_standardization_report,
-      extraction_qa_review_report: c.extraction_qa_review_report,
-      extraction_qa_validation_report: c.extraction_qa_validation_report,
-      extraction_qa_refinement_count: Number(c.extraction_qa_refinement_count ?? 0),
-      extraction_qa_validation_attempt_count: Number(c.extraction_qa_validation_attempt_count ?? 0),
-      extraction_qa_validated_at: c.extraction_qa_validated_at as string | null,
-      positions_extraction_json: c.positions_extraction_json,
-      positions_qa_status: (c.positions_qa_status as ExtractionQaStatus) ?? null,
-      positions_qa_review_report: c.positions_qa_review_report,
-      positions_qa_validation_report: c.positions_qa_validation_report,
-      positions_qa_refinement_count: Number(c.positions_qa_refinement_count ?? 0),
-      positions_qa_validation_attempt_count: Number(c.positions_qa_validation_attempt_count ?? 0),
-      positions_qa_validated_at: c.positions_qa_validated_at as string | null,
-    })),
+    chunks: (chunksRes.data ?? []).map((c) => {
+      const chunkRow = {
+        chunk_index: c.chunk_index as number,
+        friendly_id: c.friendly_id as string,
+        content: c.content as string | null,
+        extraction_json: c.extraction_json,
+        active_claim_version_id: (c.active_claim_version_id as string | null) ?? null,
+        claim_version_count: claimVersionCounts.get(c.chunk_index as number) ?? 0,
+        claim_version_lineage: claimVersionsByChunk.get(c.chunk_index as number) ?? [],
+        claim_versions: claimVersionRowsByChunk.get(c.chunk_index as number) ?? [],
+        extraction_qa_status: (c.extraction_qa_status as ExtractionQaStatus) ?? null,
+        extraction_qa_standardization_report: c.extraction_qa_standardization_report,
+        extraction_qa_review_report: c.extraction_qa_review_report,
+        extraction_qa_validation_report: c.extraction_qa_validation_report,
+        extraction_qa_refinement_count: Number(c.extraction_qa_refinement_count ?? 0),
+        extraction_qa_validation_attempt_count: Number(
+          c.extraction_qa_validation_attempt_count ?? 0
+        ),
+        extraction_qa_validated_at: c.extraction_qa_validated_at as string | null,
+        positions_extraction_json: c.positions_extraction_json,
+        positions_qa_status: (c.positions_qa_status as ExtractionQaStatus) ?? null,
+        positions_qa_review_report: c.positions_qa_review_report,
+        positions_qa_validation_report: c.positions_qa_validation_report,
+        positions_qa_refinement_count: Number(c.positions_qa_refinement_count ?? 0),
+        positions_qa_validation_attempt_count: Number(
+          c.positions_qa_validation_attempt_count ?? 0
+        ),
+        positions_qa_validated_at: c.positions_qa_validated_at as string | null,
+        claims_lane_phase: 'not_started' as ChunkLanePhase,
+        claims_lane_phase_label: '',
+        positions_lane_phase: 'not_started' as ChunkLanePhase,
+        positions_lane_phase_label: '',
+      }
+      const claimsPhase = deriveChunkLanePhase('claims', chunkRow)
+      const positionsPhase = deriveChunkLanePhase('positions', chunkRow)
+      return {
+        ...chunkRow,
+        claims_lane_phase: claimsPhase,
+        claims_lane_phase_label: chunkLanePhaseLabel('claims', chunkRow),
+        positions_lane_phase: positionsPhase,
+        positions_lane_phase_label: chunkLanePhaseLabel('positions', chunkRow),
+      }
+    }),
     qa_artifacts: (artifactsRes ?? []).map((a) => ({
       id: a.id as string,
       stage: a.stage as string,
@@ -708,6 +772,7 @@ export async function fetchStoryExtractionReview(
       report: a.report,
       run_id: (a.run_id as string | null) ?? null,
       created_at: a.created_at as string,
+      reverted_at: (a.reverted_at as string | null) ?? null,
     })),
     step_runs: stepRuns,
     step_run_history: stepRunHistory,

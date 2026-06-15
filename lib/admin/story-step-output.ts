@@ -94,12 +94,6 @@ export function getStoryStepExportOutput(
   switch (stepId) {
     case 'extract-story-claims':
       return buildExtractStoryClaimsOutput(payload)
-    case 'extract-story-positions':
-      return buildExtractStoryPositionsOutput(payload)
-    case 'validate-chunk-positions':
-      return buildValidateChunkPositionsOutput(payload)
-    case 'refine-chunk-positions':
-      return buildRefineChunkPositionsOutput(payload)
     default:
       return null
   }

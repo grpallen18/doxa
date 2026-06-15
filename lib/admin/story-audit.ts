@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   appendStoryHistory,
   fetchStoryHistory,
+  fetchStoryStepPipelineHistory,
   type HistoryEvent,
   type HistoryEventType,
   type HistoryPageResult,
@@ -17,6 +18,16 @@ export async function fetchStoryAuditEvents(
   pagination: PaginationParams
 ): Promise<HistoryPageResult> {
   return fetchStoryHistory(supabase, storyId, pagination)
+}
+
+export async function fetchStoryStepPipelineAuditEvents(
+  supabase: SupabaseClient,
+  storyId: string,
+  stepId: string,
+  pagination: PaginationParams,
+  options?: { chunkIndex?: number }
+): Promise<HistoryPageResult> {
+  return fetchStoryStepPipelineHistory(supabase, storyId, stepId, pagination, options)
 }
 
 export async function appendStoryAuditEvent(

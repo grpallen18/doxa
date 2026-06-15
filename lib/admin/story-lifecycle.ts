@@ -8,15 +8,11 @@ import { storyAdminHref, type StoryAdminRef } from '@/lib/admin/friendly-id'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { getVisionNodeIdForStep } from '@/lib/admin/workflow-canvas/vision-node-step-map'
 
-const canonicalStage = PIPELINE_STAGES.find((s) => s.id === 'canonical')
-const preCanonicalStages = PIPELINE_STAGES.filter((s) => s.id !== 'canonical')
-
-export const STORY_LIFECYCLE_STEP_IDS: PipelineStepId[] = preCanonicalStages.flatMap(
+export const STORY_LIFECYCLE_STEP_IDS: PipelineStepId[] = PIPELINE_STAGES.flatMap(
   (s) => s.stepIds as PipelineStepId[]
 )
 
-export const POST_MERGE_STEP_IDS: PipelineStepId[] = (canonicalStage?.stepIds ??
-  []) as PipelineStepId[]
+export const POST_MERGE_STEP_IDS: PipelineStepId[] = []
 
 export const LIFECYCLE_PHASES: Array<{
   id: string
@@ -45,6 +41,13 @@ export function storyAgentFlowHref(
   const nodeId = options?.nodeId?.trim()
   if (!nodeId) return base
   return `${base}?node=${encodeURIComponent(nodeId)}`
+}
+
+export function chunkAgentFlowHref(
+  story: StoryAdminRef,
+  chunk: { friendly_id: string }
+): string {
+  return `${storyAdminHref(story)}/chunks/${encodeURIComponent(chunk.friendly_id)}/agent-flow`
 }
 
 export function storyHubStepHref(story: StoryAdminRef, stepId: PipelineStepId): string {

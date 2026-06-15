@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { claimRowKey, ensureStableClaimIds } from '@/lib/admin/chunk-claim-ids'
 
 const CLAIMS_QA_STAGES = [
+  'chunk_extract_claims',
   'chunk_review_claims',
   'chunk_refine_claims',
   'chunk_review',
@@ -39,11 +40,24 @@ export type ClaimVersionRow = {
   versions: ClaimVersionCell[]
 }
 
+export type ChunkClaimVersionSummary = {
+  id: string
+  chunk_index?: number
+  version_number: number
+  source: 'extractor' | 'refiner'
+  parent_version_id: string | null
+  created_from_review_artifact_id?: string | null
+  review_outcome: string | null
+  created_at: string
+  claims_json: unknown
+}
+
 export type ChunkQaHistoryEvent = {
   id: string
   kind: 'review' | 'refine'
   stage: string
   created_at: string
+  reverted: boolean
   run_id: string | null
   prompt_version_number: number | null
   prompt_step_id: string | null
@@ -61,6 +75,16 @@ export type ChunkQaHistoryPayload = {
   events: ChunkQaHistoryEvent[]
   claim_version_matrix: ClaimVersionRow[]
   version_labels: string[]
+  version_timeline: string
+  claim_versions: ChunkClaimVersionSummary[]
+}
+
+export type ClaimVersionExportRow = {
+  version_number: number
+  source: string
+  review_outcome: string | null
+  parent_version_id: string | null
+  created_at: string
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -189,30 +213,23 @@ function reviewMetaFromReport(report: unknown): { summary: string | null; passes
   }
 }
 
-export function buildClaimVersionMatrix(
-  events: ChunkQaHistoryEvent[]
+function versionLabel(versionNumber: number, source: string): string {
+  if (versionNumber === 0) return 'v0 extractor'
+  return `v${versionNumber} refiner`
+}
+
+export function buildClaimVersionMatrixFromVersions(
+  versions: ChunkClaimVersionSummary[],
+  context: SnapshotContext
 ): { rows: ClaimVersionRow[]; version_labels: string[] } {
-  const refineEvents = events.filter((e) => e.kind === 'refine')
-  const firstReview = events.find((e) => e.kind === 'review')
-
-  const baseline =
-    firstReview?.claims_after ??
-    refineEvents[0]?.claims_before ??
-    []
-
-  const versionColumns: ClaimSnapshot[][] = [baseline]
-  for (const event of refineEvents) {
-    versionColumns.push(event.claims_after)
-  }
-
-  if (versionColumns.every((col) => col.length === 0)) {
+  if (versions.length === 0) {
     return { rows: [], version_labels: [] }
   }
 
-  const version_labels = versionColumns.map((_, i) => {
-    if (i === 0) return firstReview ? 'At first review' : 'Before first refine'
-    return `After refine ${i}`
-  })
+  const versionColumns = versions.map((v) =>
+    extractClaimsFromSnapshot(v.claims_json, context)
+  )
+  const version_labels = versions.map((v) => versionLabel(v.version_number, v.source))
 
   const claimOrder: string[] = []
   const seen = new Set<string>()
@@ -225,7 +242,7 @@ export function buildClaimVersionMatrix(
   }
 
   const rows: ClaimVersionRow[] = claimOrder.map((claimId) => {
-    const versions: ClaimVersionCell[] = versionColumns.map((col, versionIndex) => {
+    const versionsCells: ClaimVersionCell[] = versionColumns.map((col, versionIndex) => {
       const cell = col.find((claim) => claim.claim_id === claimId) ?? null
       const prevCell =
         versionIndex > 0
@@ -249,17 +266,129 @@ export function buildClaimVersionMatrix(
     })
 
     const labelClaim =
-      versions.find((cell) => cell.raw_text)?.raw_text ??
-      claimId
+      versionsCells.find((cell) => cell.raw_text)?.raw_text ?? claimId
 
     return {
       row_key: claimId,
       label: labelClaim.slice(0, 80),
-      versions,
+      versions: versionsCells,
     }
   })
 
   return { rows, version_labels }
+}
+
+export function buildClaimVersionMatrix(
+  events: ChunkQaHistoryEvent[],
+  versions: ChunkClaimVersionSummary[],
+  context: SnapshotContext
+): { rows: ClaimVersionRow[]; version_labels: string[] } {
+  if (versions.length > 0) {
+    return buildClaimVersionMatrixFromVersions(versions, context)
+  }
+
+  const refineEvents = events.filter((e) => e.kind === 'refine')
+  const firstReview = events.find((e) => e.kind === 'review')
+
+  const baseline =
+    firstReview?.claims_after ?? refineEvents[0]?.claims_before ?? []
+
+  const versionColumns: ClaimSnapshot[][] = [baseline]
+  for (const event of refineEvents) {
+    versionColumns.push(event.claims_after)
+  }
+
+  if (versionColumns.every((col) => col.length === 0)) {
+    return { rows: [], version_labels: [] }
+  }
+
+  const version_labels = versionColumns.map((_, i) => {
+    if (i === 0) return firstReview ? 'v0 extractor' : 'v0 extractor'
+    return `v${i} refiner`
+  })
+
+  const claimOrder: string[] = []
+  const seen = new Set<string>()
+  for (const col of versionColumns) {
+    for (const claim of col) {
+      if (seen.has(claim.claim_id)) continue
+      seen.add(claim.claim_id)
+      claimOrder.push(claim.claim_id)
+    }
+  }
+
+  const rows: ClaimVersionRow[] = claimOrder.map((claimId) => {
+    const versionsCells: ClaimVersionCell[] = versionColumns.map((col, versionIndex) => {
+      const cell = col.find((claim) => claim.claim_id === claimId) ?? null
+      const prevCell =
+        versionIndex > 0
+          ? versionColumns[versionIndex - 1].find((claim) => claim.claim_id === claimId) ?? null
+          : null
+      const changed =
+        versionIndex > 0 &&
+        (cell == null ||
+          prevCell == null ||
+          prevCell.raw_text !== cell.raw_text ||
+          prevCell.polarity !== cell.polarity ||
+          prevCell.stance !== cell.stance)
+      return {
+        version: versionIndex,
+        label: version_labels[versionIndex] ?? `v${versionIndex}`,
+        raw_text: cell?.raw_text ?? null,
+        polarity: cell?.polarity ?? null,
+        stance: cell?.stance ?? null,
+        changed,
+      }
+    })
+
+    const labelClaim =
+      versionsCells.find((cell) => cell.raw_text)?.raw_text ?? claimId
+
+    return {
+      row_key: claimId,
+      label: labelClaim.slice(0, 80),
+      versions: versionsCells,
+    }
+  })
+
+  return { rows, version_labels }
+}
+
+export function buildVersionTimeline(
+  versions: ChunkClaimVersionSummary[],
+  events: ChunkQaHistoryEvent[]
+): string {
+  if (versions.length === 0) return ''
+
+  const parts: string[] = []
+  for (let i = 0; i < versions.length; i++) {
+    const v = versions[i]
+    parts.push(versionLabel(v.version_number, v.source))
+
+    const nextCreatedAt = versions[i + 1]?.created_at
+    const reviewsInWindow = events.filter(
+      (e) =>
+        e.kind === 'review' &&
+        e.created_at >= v.created_at &&
+        (nextCreatedAt == null || e.created_at < nextCreatedAt)
+    )
+
+    for (const review of reviewsInWindow) {
+      parts.push(review.review_passes ? 'review passed' : 'review failed')
+    }
+
+    if (v.review_outcome === 'passed' && reviewsInWindow.length === 0) {
+      parts.push('review passed')
+    } else if (
+      v.review_outcome === 'needs_refinement' &&
+      reviewsInWindow.length === 0 &&
+      i === versions.length - 1
+    ) {
+      parts.push('review failed')
+    }
+  }
+
+  return parts.join(' → ')
 }
 
 function mapArtifactToEvent(
@@ -271,6 +400,7 @@ function mapArtifactToEvent(
     report: unknown
     run_id: string | null
     created_at: string
+    reverted_at?: string | null
     pipeline_runs?: {
       model_name: string | null
       prompt_version_id: string | null
@@ -297,6 +427,7 @@ function mapArtifactToEvent(
       kind,
       stage,
       created_at: row.created_at,
+      reverted: row.reverted_at != null,
       run_id: row.run_id,
       prompt_version_number: prompt?.version_number ?? null,
       prompt_step_id: prompt?.step_id ?? null,
@@ -318,6 +449,7 @@ function mapArtifactToEvent(
     kind,
     stage,
     created_at: row.created_at,
+    reverted: row.reverted_at != null,
     run_id: row.run_id,
     prompt_version_number: prompt?.version_number ?? null,
     prompt_step_id: prompt?.step_id ?? null,
@@ -332,15 +464,80 @@ function mapArtifactToEvent(
   }
 }
 
+function mapClaimVersionRow(raw: Record<string, unknown>): ChunkClaimVersionSummary {
+  const source = str(raw.source)
+  return {
+    id: String(raw.id),
+    chunk_index: typeof raw.chunk_index === 'number' ? raw.chunk_index : undefined,
+    version_number: Number(raw.version_number),
+    source: source === 'refiner' ? 'refiner' : 'extractor',
+    parent_version_id: str(raw.parent_version_id),
+    created_from_review_artifact_id: str(raw.created_from_review_artifact_id),
+    review_outcome: str(raw.review_outcome),
+    created_at: String(raw.created_at),
+    claims_json: raw.claims_json,
+  }
+}
+
+export function mapClaimVersionsForExport(
+  versions: ChunkClaimVersionSummary[]
+): ClaimVersionExportRow[] {
+  return versions.map((v) => ({
+    version_number: v.version_number,
+    source: v.source,
+    review_outcome: v.review_outcome,
+    parent_version_id: v.parent_version_id,
+    created_at: v.created_at,
+  }))
+}
+
+export async function fetchChunkClaimVersions(
+  supabase: SupabaseClient,
+  storyId: string,
+  chunkIndex: number
+): Promise<ChunkClaimVersionSummary[]> {
+  const { data, error } = await supabase
+    .from('chunk_claim_versions')
+    .select(
+      'id, version_number, source, parent_version_id, created_from_review_artifact_id, review_outcome, created_at, claims_json'
+    )
+    .eq('story_id', storyId)
+    .eq('chunk_index', chunkIndex)
+    .order('version_number', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []).map((row) => mapClaimVersionRow(row as Record<string, unknown>))
+}
+
+export async function fetchStoryClaimVersions(
+  supabase: SupabaseClient,
+  storyId: string
+): Promise<ChunkClaimVersionSummary[]> {
+  const { data, error } = await supabase
+    .from('chunk_claim_versions')
+    .select(
+      'id, story_id, chunk_index, version_number, source, parent_version_id, created_from_review_artifact_id, review_outcome, created_at, claims_json'
+    )
+    .eq('story_id', storyId)
+    .order('chunk_index', { ascending: true })
+    .order('version_number', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []).map((row) => mapClaimVersionRow(row as Record<string, unknown>))
+}
+
 export async function fetchChunkQaHistory(
   supabase: SupabaseClient,
   storyId: string,
   chunkIndex: number
 ): Promise<ChunkQaHistoryPayload> {
-  const { data, error } = await supabase
-    .from('story_extraction_qa_artifacts')
-    .select(
-      `
+  const context = { storyId, chunkIndex }
+
+  const [artifactsRes, versions] = await Promise.all([
+    supabase
+      .from('story_extraction_qa_artifacts')
+      .select(
+        `
       id,
       stage,
       chunk_index,
@@ -349,6 +546,7 @@ export async function fetchChunkQaHistory(
       report,
       run_id,
       created_at,
+      reverted_at,
       pipeline_runs (
         model_name,
         prompt_version_id,
@@ -358,15 +556,17 @@ export async function fetchChunkQaHistory(
         )
       )
     `
-    )
-    .eq('story_id', storyId)
-    .eq('chunk_index', chunkIndex)
-    .in('stage', [...CLAIMS_QA_STAGES])
-    .order('created_at', { ascending: true })
+      )
+      .eq('story_id', storyId)
+      .eq('chunk_index', chunkIndex)
+      .in('stage', [...CLAIMS_QA_STAGES])
+      .order('created_at', { ascending: true }),
+    fetchChunkClaimVersions(supabase, storyId, chunkIndex),
+  ])
 
-  if (error) throw error
+  if (artifactsRes.error) throw artifactsRes.error
 
-  const events = (data ?? [])
+  const events = (artifactsRes.data ?? [])
     .map((raw) => {
       const row = raw as Record<string, unknown>
       const runRaw = row.pipeline_runs
@@ -385,6 +585,7 @@ export async function fetchChunkQaHistory(
           report: row.report,
           run_id: typeof row.run_id === 'string' ? row.run_id : null,
           created_at: String(row.created_at),
+          reverted_at: typeof row.reverted_at === 'string' ? row.reverted_at : null,
           pipeline_runs: run
             ? {
                 model_name: str(run.model_name),
@@ -399,16 +600,20 @@ export async function fetchChunkQaHistory(
               }
             : null,
         },
-        { storyId, chunkIndex }
+        context
       )
     })
     .filter((e): e is ChunkQaHistoryEvent => e != null)
 
-  const { rows, version_labels } = buildClaimVersionMatrix(events)
+  const activeEvents = events.filter((e) => !e.reverted)
+  const { rows, version_labels } = buildClaimVersionMatrix(activeEvents, versions, context)
+  const version_timeline = buildVersionTimeline(versions, activeEvents)
 
   return {
     events,
     claim_version_matrix: rows,
     version_labels,
+    version_timeline,
+    claim_versions: versions,
   }
 }
