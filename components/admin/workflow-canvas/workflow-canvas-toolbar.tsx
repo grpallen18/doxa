@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Activity, ArrowLeft, Layers } from 'lucide-react'
+import { Activity, ArrowLeft, FileText, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { storyAgentFlowHref } from '@/lib/admin/story-lifecycle'
 
@@ -13,6 +13,7 @@ export function WorkflowCanvasToolbar({
   chunkLabel,
   backHref,
   backLabel = 'Story',
+  chunkPageHref,
 }: {
   storyTitle: string
   storyId: string
@@ -21,6 +22,7 @@ export function WorkflowCanvasToolbar({
   chunkLabel?: string
   backHref?: string
   backLabel?: string
+  chunkPageHref?: string
 }) {
   return (
     <header className="h-12 border-b border-white/10 bg-zinc-950/80 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-20">
@@ -41,6 +43,19 @@ export function WorkflowCanvasToolbar({
             {backLabel}
           </Link>
         </Button>
+        {chunkPageHref ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-zinc-400 hover:text-zinc-200"
+            asChild
+          >
+            <Link href={chunkPageHref}>
+              <FileText className="w-4 h-4 mr-1" />
+              Chunk page
+            </Link>
+          </Button>
+        ) : null}
         <div className="hidden sm:flex items-center gap-2 bg-white/5 rounded-md px-3 py-1 border border-white/5 text-sm min-w-0">
           <span className="text-zinc-400 shrink-0">{chunkLabel ? 'Chunk:' : 'Story:'}</span>
           <span className="text-zinc-200 truncate">{chunkLabel ?? storyTitle}</span>

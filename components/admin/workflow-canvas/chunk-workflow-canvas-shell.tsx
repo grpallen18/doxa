@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { derivePipelineChecklist } from '@/lib/admin/story-pipeline-checklist'
+import { chunkAdminHref } from '@/lib/admin/chunk-record'
 import { storyAgentFlowHref } from '@/lib/admin/story-lifecycle'
 import type { ChunkPipelineActions } from '@/components/admin/pipeline/use-chunk-pipeline-actions'
 import { WorkflowCanvasProvider } from '@/components/admin/workflow-canvas/workflow-canvas-context'
@@ -83,10 +84,12 @@ export function ChunkWorkflowCanvasShell({
 
   const storyTitle = payload.story.title ?? payload.story.url ?? storyId
   const lifecycleRepairPath = `/api/admin/stories/${storyId}/chunks/${encodeURIComponent(chunkFriendlyId)}/orphaned-claim-versions`
-  const backHref = storyAgentFlowHref(
-    { story_id: payload.story.story_id, friendly_id: payload.story.friendly_id },
-    { nodeId: 'chunk-story-bodies' }
-  )
+  const storyRef = {
+    story_id: payload.story.story_id,
+    friendly_id: payload.story.friendly_id,
+  }
+  const backHref = storyAgentFlowHref(storyRef, { nodeId: 'chunk-story-bodies' })
+  const chunkPageHref = chunkAdminHref(storyRef, { friendly_id: chunkFriendlyId })
 
   return (
     <WorkflowCanvasProvider value={contextValue}>
@@ -98,6 +101,7 @@ export function ChunkWorkflowCanvasShell({
             chunkLabel={chunkFriendlyId}
             backHref={backHref}
             backLabel="Story flow"
+            chunkPageHref={chunkPageHref}
           />
 
           {showUndoHumanApproval ? (
