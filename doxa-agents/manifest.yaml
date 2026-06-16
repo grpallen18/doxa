@@ -100,6 +100,18 @@ steps:
       schedule: "*/2 * * * *"
       sql: doxa-agents/departments/01-ingestion-engine/03-scrape-story-content/schedule.sql
       body: "{}"
+  - id: approve-chunk-claims
+    department: 02-chunking-engine
+    workflow: approve-chunk-claims
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/05-approve-chunk-claims
+    deploy_name: approve_chunk_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
   - id: chunk-story-bodies
     department: 02-chunking-engine
     workflow: chunk-story-bodies
@@ -123,6 +135,19 @@ steps:
     secrets:
       - OPENAI_API_KEY
     verify_jwt: false
+  - id: refine-chunk-claims
+    department: 02-chunking-engine
+    workflow: refine-chunk-claims
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/02-chunking-engine/04-refine-chunk-claims
+    deploy_name: refine_chunk_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MODEL_CHUNK_QA
+      - OPENAI_MODEL_EXTRACT
+    verify_jwt: false
   - id: validate-chunk-claims
     department: 02-chunking-engine
     workflow: validate-chunk-claims
@@ -135,6 +160,28 @@ steps:
       - OPENAI_MODEL
       - OPENAI_MODEL_CHUNK_QA
       - OPENAI_MODEL_EXTRACT
+    verify_jwt: false
+  - id: merge-story-claims
+    department: 03-merging-engine
+    workflow: merge-story-claims
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-merging-engine/01-merge-story-claims
+    deploy_name: merge_story_claims
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: review-merged-extraction
+    department: 03-merging-engine
+    workflow: review-merged-extraction
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/03-merging-engine/02-review-merged-extraction
+    deploy_name: review_merged_extraction
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
     verify_jwt: false
   - id: discord-daily-health
     department: 05-business-operations
@@ -212,19 +259,6 @@ steps:
       - OPENAI_MODEL
       - OPENAI_MODEL_CHUNK_QA
       - OPENAI_MODEL_EXTRACT
-  - id: refine-chunk-claims
-    department: legacy
-    workflow: 02-chunking-engine
-    kind: edge_function
-    status: deprecated
-    source: doxa-agents/departments/legacy/02-chunking-engine/04-refine-chunk-claims
-    deploy_name: refine_chunk_claims
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-      - OPENAI_MODEL_CHUNK_QA
-      - OPENAI_MODEL_EXTRACT
-    verify_jwt: false
   - id: refine-chunk-extraction
     department: legacy
     workflow: 02-chunking-engine
@@ -292,17 +326,6 @@ steps:
       - OPENAI_MODEL
       - OPENAI_MODEL_CHUNK_QA
       - OPENAI_MODEL_EXTRACT
-  - id: merge-story-claims
-    department: legacy
-    workflow: 03-merging-engine
-    kind: edge_function
-    status: deprecated
-    source: doxa-agents/departments/legacy/03-merging-engine/01-merge-story-claims
-    deploy_name: merge_story_claims
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
   - id: merge-story-positions
     department: legacy
     workflow: 03-merging-engine
@@ -313,17 +336,6 @@ steps:
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
-  - id: review-merged-extraction
-    department: legacy
-    workflow: 03-merging-engine
-    kind: edge_function
-    status: deprecated
-    source: doxa-agents/departments/legacy/03-merging-engine/02-review-merged-extraction
-    deploy_name: review_merged_extraction
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
   - id: refine-merged-extraction
     department: legacy
     workflow: 03-merging-engine

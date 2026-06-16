@@ -367,6 +367,20 @@ function rowChunkIndex(row: HistoryRow): number | null {
   return null
 }
 
+function rowChunkIndices(row: HistoryRow): number[] {
+  const raw = row.meta?.chunk_indices
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((value) => (typeof value === 'number' ? value : Number(value)))
+    .filter((value) => Number.isFinite(value))
+}
+
+export function rowMatchesChunkHistory(row: HistoryRow, chunkIndex: number): boolean {
+  const direct = rowChunkIndex(row)
+  if (direct != null) return direct === chunkIndex
+  return rowChunkIndices(row).includes(chunkIndex)
+}
+
 function filterStepPipelineHistoryRows(
   rows: HistoryRow[],
   chunkIndex?: number
@@ -376,8 +390,17 @@ function filterStepPipelineHistoryRows(
   }
 
   return rows.filter((row) => {
-    if (row.label !== 'Chunk pipeline step reverted') return false
-    return rowChunkIndex(row) === chunkIndex
+    if (row.label === 'Chunk pipeline step reverted') {
+      return rowChunkIndex(row) === chunkIndex
+    }
+    if (
+      row.label === 'Pipeline step run' ||
+      row.label === 'Pipeline step failed' ||
+      row.label === 'Pipeline step skipped'
+    ) {
+      return rowMatchesChunkHistory(row, chunkIndex)
+    }
+    return false
   })
 }
 

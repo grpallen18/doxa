@@ -11,10 +11,15 @@ export type PipelineStepId =
   | "chunk-story-bodies"
   | "extract-story-claims"
   | "validate-chunk-claims"
+  | "refine-chunk-claims"
+  | "approve-chunk-claims"
+  | "merge-story-claims"
+  | "review-merged-extraction"
 
 export type PipelineStageId =
   | "ingestion"
   | "extraction"
+  | "merging"
 
 export type PipelineInvokeOptions = {
   usesMaxChunks: boolean
@@ -66,7 +71,18 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
     "stepIds": [
       "chunk-story-bodies",
       "extract-story-claims",
-      "validate-chunk-claims"
+      "validate-chunk-claims",
+      "refine-chunk-claims",
+      "approve-chunk-claims"
+    ]
+  },
+  {
+    "id": "merging",
+    "label": "Merging",
+    "scope": "story",
+    "stepIds": [
+      "merge-story-claims",
+      "review-merged-extraction"
     ]
   }
 ]
@@ -91,7 +107,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
+    "inactiveNote": "Not active in activation.yaml"
   },
   {
     "id": "review-pending-stories",
@@ -112,7 +128,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
+    "inactiveNote": "Not active in activation.yaml"
   },
   {
     "id": "scrape-story-content",
@@ -154,7 +170,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
+    "inactiveNote": "Not active in activation.yaml"
   },
   {
     "id": "chunk-story-bodies",
@@ -175,7 +191,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 60000
     },
-    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
+    "inactiveNote": "Not active in activation.yaml"
   },
   {
     "id": "extract-story-claims",
@@ -197,7 +213,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": 1,
       "timeoutMs": 140000
     },
-    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
+    "inactiveNote": "Not active in activation.yaml"
   },
   {
     "id": "validate-chunk-claims",
@@ -219,7 +235,93 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": 20,
       "timeoutMs": 150000
     },
-    "inactiveNote": "Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/."
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "refine-chunk-claims",
+    "deployName": "refine_chunk_claims",
+    "label": "Refine chunk claims",
+    "stageId": "extraction",
+    "stageLabel": "Extraction",
+    "scope": "story",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id",
+      "chunk_index"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": true,
+      "maxChunks": 20,
+      "timeoutMs": 150000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "approve-chunk-claims",
+    "deployName": "approve_chunk_claims",
+    "label": "Approve chunk claims",
+    "stageId": "extraction",
+    "stageLabel": "Extraction",
+    "scope": "story",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id",
+      "chunk_index"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": true,
+      "maxChunks": 20,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "merge-story-claims",
+    "deployName": "merge_story_claims",
+    "label": "Merge story claims",
+    "stageId": "merging",
+    "stageLabel": "Merging",
+    "scope": "story",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "review-merged-extraction",
+    "deployName": "review_merged_extraction",
+    "label": "Review merged extraction",
+    "stageId": "merging",
+    "stageLabel": "Merging",
+    "scope": "story",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "llm",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 150000
+    },
+    "inactiveNote": "Not active in activation.yaml"
   }
 ]
 
@@ -231,6 +333,10 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "chunk_story_bodies",
   "extract_story_claims",
   "validate_chunk_claims",
+  "refine_chunk_claims",
+  "approve_chunk_claims",
+  "merge_story_claims",
+  "review_merged_extraction",
 ])
 
 const STEP_BY_ID = new Map<PipelineStepId, PipelineCatalogStep>(

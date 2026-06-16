@@ -1,6 +1,5 @@
 # Admin pipeline catalog overlay — merged with manifest.yaml at npm run agents:pipeline-catalog.
 # Defines story-scoped stage groupings, labels, isolation params, and invoke options for the admin UI.
-# Downstream steps remain on the agent-flow canvas as roadmap placeholders (not in this catalog).
 
 version: 1
 
@@ -51,5 +50,36 @@ stages:
           uses_max_chunks: true
           max_chunks: 20
           timeout_ms: 150000
+      - id: refine-chunk-claims
+        label: Refine chunk claims
+        prompt_kind: llm
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 20
+          timeout_ms: 150000
+      - id: approve-chunk-claims
+        label: Approve chunk claims
+        prompt_kind: llm
+        isolation_params: [story_id, chunk_index]
+        invoke_options:
+          uses_max_chunks: true
+          max_chunks: 20
+          timeout_ms: 120000
 
-inactive_note: Runnable pipeline paused after chunk claims review. Later steps are roadmap-only on the agent-flow canvas until rebuilt from legacy/.
+  - id: merging
+    label: Merging
+    scope: story
+    steps:
+      - id: merge-story-claims
+        label: Merge story claims
+        prompt_kind: llm
+        isolation_params: [story_id]
+        invoke_options:
+          timeout_ms: 120000
+      - id: review-merged-extraction
+        label: Review merged extraction
+        prompt_kind: llm
+        isolation_params: [story_id]
+        invoke_options:
+          timeout_ms: 150000

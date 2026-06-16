@@ -10,12 +10,12 @@ import {
   callOpenAIJson,
   saveArtifact,
 } from "../../../lib/extraction-qa/openai-qa.ts";
-import { ensureStableClaimIds } from "../../../lib/extraction-qa/claim-ids.ts";
+import { EMPTY_CLAIMS_MERGE_ELIGIBILITY } from "../../../lib/extraction-qa/claim-merge-state.ts";
 import {
   deleteClaimVersionsForChunk,
   insertClaimVersion,
 } from "../../../lib/extraction-qa/claim-versions.ts";
-import { attachClaimsFromRawText } from "../../../lib/extraction-qa/span-compute.ts";
+import { normalizeChunkClaims } from "../../../lib/extraction-qa/normalize-claims.ts";
 import {
   loadStoryMetadataBatch,
   metadataPayload,
@@ -103,13 +103,9 @@ async function callOpenAIClaims(
     `OpenAI extract (${model})`
   );
 
-  const claimsRaw = (Array.isArray(parsed?.claims) ? parsed.claims : []).map((c) => ({
-    raw_text: String(c?.raw_text ?? c?.claim_text ?? "").trim(),
-  })).filter((c) => c.raw_text.length > 0);
-
-  const attached = attachClaimsFromRawText(claimsRaw, storyId, chunkIndex, content);
-  const claims = await ensureStableClaimIds(attached, storyId, chunkIndex);
-  return { claims };
+  const claimsRaw = Array.isArray(parsed?.claims) ? parsed.claims : [];
+  const normalized = await normalizeChunkClaims(claimsRaw, storyId, chunkIndex, content);
+  return { claims: normalized.claims };
 }
 
 export const handler = async (req: Request) => {
@@ -312,6 +308,7 @@ export const handler = async (req: Request) => {
             extraction_qa_refinement_count: 0,
             extraction_qa_validation_attempt_count: 0,
             extraction_qa_validated_at: null,
+            claims_merge_eligibility: EMPTY_CLAIMS_MERGE_ELIGIBILITY,
           })
           .eq("story_id", chunk.story_id)
           .eq("chunk_index", chunk.chunk_index);

@@ -14,6 +14,8 @@ export const EXTRACTION_SHARED_STEP_IDS = ['chunk-story-bodies'] as const satisf
 export const CLAIMS_LANE_STEP_IDS = [
   'extract-story-claims',
   'validate-chunk-claims',
+  'refine-chunk-claims',
+  'approve-chunk-claims',
 ] as const satisfies readonly PipelineStepId[]
 
 /** Archived lanes — kept as empty for type compatibility where imports remain. */
@@ -27,6 +29,8 @@ export const EXTRACTION_TIMELINE_HIDDEN_STEPS = ['review-pending-stories'] as co
 export const CHUNK_PARALLEL_STEP_IDS = [
   'extract-story-claims',
   'validate-chunk-claims',
+  'refine-chunk-claims',
+  'approve-chunk-claims',
 ] as const satisfies readonly PipelineStepId[]
 
 export function isChunkParallelStep(stepId: PipelineStepId): boolean {
@@ -49,7 +53,7 @@ export const EXTRACTION_STEP_GROUPS: ExtractionStepGroup[] = [
   {
     id: 'claims',
     label: 'Claims',
-    description: 'Extract and review primary claims per chunk.',
+    description: 'Extract, review, refine, and approve primary claims per chunk.',
     stepIds: [...CLAIMS_LANE_STEP_IDS],
   },
 ]

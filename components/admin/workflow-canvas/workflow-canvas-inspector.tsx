@@ -36,6 +36,8 @@ import { StoryStepExportButtons } from '@/components/admin/stories/story-step-ex
 import type { WorkflowPipelineActions } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { resolveAgentDisplayName } from '@/lib/admin/agent-display-names'
 import { useAgentDisplayNames } from '@/components/admin/agents/use-agent-display-names'
+import { mergeEligibilitySnapshot } from '@/lib/admin/claims-merge-eligibility'
+import { chunkLanePhaseLabel, laneForChunkStep } from '@/lib/admin/pipeline-status/chunk-phase'
 import { cn } from '@/lib/utils'
 
 type AgentApiResponse = {
@@ -363,6 +365,15 @@ function WorkflowCanvasInspectorBody({
                     <dd className="text-zinc-300">{stepState.progress}</dd>
                   </div>
                 ) : null}
+                {chunk && catalogStepId && laneForChunkStep(catalogStepId) === 'claims' ? (
+                  <>
+                    <div>
+                      <dt className="text-xs text-zinc-500">Chunk lane phase:</dt>
+                      <dd className="text-zinc-300">{chunkLanePhaseLabel('claims', chunk)}</dd>
+                    </div>
+                    <ChunkParkingSummary chunk={chunk} />
+                  </>
+                ) : null}
               </dl>
             </div>
           )
@@ -409,5 +420,39 @@ function WorkflowCanvasInspectorBody({
         )}
       </footer>
     </>
+  )
+}
+
+function ChunkParkingSummary({
+  chunk,
+}: {
+  chunk: StoryExtractionReviewPayload['chunks'][number]
+}) {
+  const merge = mergeEligibilitySnapshot(chunk.claims_merge_eligibility)
+  if (
+    merge.parked_count === 0 &&
+    merge.repair_queue_ids.length === 0 &&
+    merge.pending_approval_ids.length === 0 &&
+    merge.rejected_final_count === 0
+  ) {
+    return null
+  }
+
+  return (
+    <div className="col-span-full space-y-1 rounded-md border border-white/10 bg-zinc-950/50 px-3 py-2">
+      <p className="text-xs font-medium text-zinc-400">Claim parking</p>
+      <ul className="space-y-0.5 text-xs text-zinc-300">
+        <li>Parked: {merge.parked_count}</li>
+        {merge.repair_queue_ids.length > 0 ? (
+          <li>Repair queue: {merge.repair_queue_ids.join(', ')}</li>
+        ) : null}
+        {merge.pending_approval_ids.length > 0 ? (
+          <li>Pending approval: {merge.pending_approval_ids.join(', ')}</li>
+        ) : null}
+        {merge.rejected_final_count > 0 ? (
+          <li>Rejected final: {merge.rejected_final_count}</li>
+        ) : null}
+      </ul>
+    </div>
   )
 }

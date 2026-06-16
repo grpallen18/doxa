@@ -126,6 +126,8 @@ const EXTRACTION_STEPS = new Set([
   'chunk-story-bodies',
   'extract-story-claims',
   'validate-chunk-claims',
+  'refine-chunk-claims',
+  'approve-chunk-claims',
 ])
 
 function isStepCompleteDomain(stepId: PipelineStepId, payload: StoryExtractionReviewPayload): boolean {

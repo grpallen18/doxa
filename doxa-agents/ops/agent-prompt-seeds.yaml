@@ -11,6 +11,9 @@ seeds:
   refine-chunk-claims:
     system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
     export_name: CHUNK_CLAIMS_REFINE_SYSTEM
+  approve-chunk-claims:
+    system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
+    export_name: CHUNK_CLAIMS_APPROVE_SYSTEM
   extract-story-positions:
     system_prompt_file: doxa-agents/lib/extraction-qa/openai-qa.ts
     export_name: EXTRACT_POSITIONS_SYSTEM_PROMPT

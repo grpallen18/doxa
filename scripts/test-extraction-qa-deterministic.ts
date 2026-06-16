@@ -16,9 +16,18 @@ import {
 } from "../doxa-agents/lib/extraction-qa/span-compute.ts";
 import type { ExtractionJson, ReviewReport } from "../doxa-agents/lib/extraction-qa/types.ts";
 import {
+  applyClaimsReviewResolvedStatus,
   MAX_VALIDATION_ATTEMPTS,
+  resolveClaimsReviewFailureStatus,
   resolveValidationFailureStatus,
 } from "../doxa-agents/lib/extraction-qa/types.ts";
+import {
+  collectSpanGroundingMismatchIssues,
+  detectSpanGroundingMismatch,
+  mergeSpanGroundingIntoClaimsReview,
+} from "../doxa-agents/lib/extraction-qa/span-grounding.ts";
+import { ensureClaimAudit } from "../doxa-agents/lib/extraction-qa/claim-merge-state.ts";
+import { normalizeChunkClaims } from "../doxa-agents/lib/extraction-qa/normalize-claims.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -410,23 +419,148 @@ console.log("attribution drift");
   }
 }
 
-console.log("oman fixture excerpt gates");
+console.log("claims review workflow status");
 
-if (existsSync(join(process.cwd(), "docs", "sample_extraction.json"))) {
-  const fixturePath = join(process.cwd(), "docs", "sample_extraction.json");
-  const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
-    chunks: Array<{ content: string; extraction_json: ExtractionJson }>;
+{
+  const refinableReport = {
+    issues: [{ severity: "blocking" as const, claim_id: "c1", claim_index: 0, issue_type: "grounding", finding: "x" }],
+    patches: [],
   };
-  const chunk = fixture.chunks[0];
-  const enforced = applyProvenanceSpans(
-    enforceVerbatimExcerpts(chunk.extraction_json, chunk.content),
-    chunk.content
+  assert(
+    "reject with refinable issues resolves to needs_refinement",
+    resolveClaimsReviewFailureStatus(1, "reject", refinableReport) === "needs_refinement"
   );
-  const pre = runStrictPreValidation(chunk.content, enforced, { atomsOnly: true });
-  assert("oman candidate excerpts pass verbatim + span checks", pre.passes);
-} else {
-  console.log("  skip oman fixture (sample_extraction.json not present)");
+  assert(
+    "reject without refinable issues stays needs_human_review",
+    resolveClaimsReviewFailureStatus(1, "reject", { issues: [], patches: [] }) === "needs_human_review"
+  );
+
+  const synced = applyClaimsReviewResolvedStatus(
+    {
+      passes_review: false,
+      recommended_action: "reject",
+      summary: "bad",
+      issues: [],
+      patches: [],
+    },
+    "needs_refinement"
+  );
+  assert("resolved status written", synced.resolved_status === "needs_refinement");
+  assert("recommended_action synced", synced.recommended_action === "needs_refinement");
 }
 
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed > 0 ? 1 : 0);
+console.log("span grounding mismatch");
+
+{
+  const chunk =
+    "President Trump called on Pulte to shrink ODNI. He can serve in the role for 210 days. Trump spoke at the White House.";
+  const finding = detectSpanGroundingMismatch(
+    chunk,
+    "Trump said that Pulte can serve in the role for 210 days.",
+    "President Trump called on Pulte to shrink ODNI."
+  );
+  assert("210-day wrong excerpt detected", finding != null);
+
+  const issues = collectSpanGroundingMismatchIssues(chunk, {
+    claims: [
+      {
+        claim_id: "claim-210-days",
+        raw_text: "Trump said that Pulte can serve in the role for 210 days.",
+        source_excerpt: "President Trump called on Pulte to shrink ODNI.",
+      },
+    ],
+    evidence: [],
+    positions: [],
+    events: [],
+  });
+  assert("structured span_grounding_mismatch issue", issues[0]?.issue_type === "span_grounding_mismatch");
+
+  const duplicateString = `span_grounding_mismatch: claim 1 (claim-210-days): ${issues[0]?.finding ?? ""}`;
+  const merged = mergeSpanGroundingIntoClaimsReview(
+    {
+      issues: [],
+      deterministic_issues: [duplicateString, "other_issue: foo"],
+      recommended_action: "validate",
+      passes_review: true,
+    },
+    issues
+  );
+  assert(
+    "deterministic_issues deduped for span_grounding_mismatch",
+    (merged.deterministic_issues ?? []).filter((entry) => entry.startsWith("span_grounding_mismatch:"))
+      .length === 1
+  );
+  assert(
+    "other deterministic issues preserved",
+    (merged.deterministic_issues ?? []).includes("other_issue: foo")
+  );
+}
+
+console.log("claim audit reconciliation");
+
+{
+  const claims = [{ claim_id: "c1", raw_text: "A claim." }];
+  const audit = ensureClaimAudit(claims, {
+    passes_review: false,
+    recommended_action: "needs_refinement",
+    summary: "",
+    issues: [
+      {
+        severity: "blocking",
+        claim_id: "c1",
+        claim_index: 0,
+        issue_type: "span_grounding_mismatch",
+        finding: "wrong excerpt",
+      },
+    ],
+    patches: [],
+    claim_audit: [{ claim_id: "c1", verdict: "pass" }],
+  });
+  assert("audit upgraded from pass to needs_repair", audit[0]?.verdict === "needs_repair");
+}
+
+console.log("normalize preserves refiner excerpt");
+
+void normalizeChunkClaims(
+  [
+    {
+      claim_id: "c1",
+      raw_text: "Trump said that Pulte can serve in the role for 210 days.",
+      source_excerpt: "He can serve in the role for 210 days.",
+    },
+  ],
+  "story-1",
+  0,
+  "President Trump called on Pulte to shrink ODNI. He can serve in the role for 210 days.",
+  { preserveClaimIds: true }
+).then((result) => {
+  assert(
+    "refiner verbatim excerpt kept",
+    String(result.claims[0]?.source_excerpt).includes("210 days")
+  );
+  assert(
+    "wrong excerpt not used",
+    !String(result.claims[0]?.source_excerpt).includes("ODNI")
+  );
+
+  console.log("oman fixture excerpt gates");
+
+  if (existsSync(join(process.cwd(), "docs", "sample_extraction.json"))) {
+    const fixturePath = join(process.cwd(), "docs", "sample_extraction.json");
+    const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
+      chunks: Array<{ content: string; extraction_json: ExtractionJson }>;
+    };
+    const chunk = fixture.chunks[0];
+    const enforced = applyProvenanceSpans(
+      enforceVerbatimExcerpts(chunk.extraction_json, chunk.content),
+      chunk.content
+    );
+    const pre = runStrictPreValidation(chunk.content, enforced, { atomsOnly: true });
+    assert("oman candidate excerpts pass verbatim + span checks", pre.passes);
+  } else {
+    console.log("  skip oman fixture (sample_extraction.json not present)");
+  }
+
+  console.log(`\n${passed} passed, ${failed} failed`);
+  process.exit(failed > 0 ? 1 : 0);
+});

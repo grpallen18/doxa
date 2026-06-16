@@ -4,6 +4,7 @@ export type ExtractionQaStatus =
   | "standardized"
   | "needs_refinement"
   | "refined"
+  | "awaiting_approval"
   | "atoms_passed"
   | "passed"
   | "needs_human_review";
@@ -72,6 +73,7 @@ export function resolveReviewFailureStatus(
 
 export const CLAIMS_REVIEW_ISSUE_TYPES = [
   "grounding",
+  "span_grounding_mismatch",
   "attribution",
   "materiality",
   "duplicate",
@@ -105,12 +107,26 @@ export type ClaimsReviewPatch = {
   source_grounding: string;
 };
 
+export type ClaimAuditVerdict = "pass" | "needs_repair" | "reject_final";
+
+export type ClaimAuditEntry = {
+  claim_id: string;
+  verdict: ClaimAuditVerdict;
+  reason?: string;
+};
+
+export type ClaimsReviewResolvedStatus = "passed" | "needs_refinement" | "needs_human_review";
+
 export type ClaimsReviewReport = {
   passes_review: boolean;
   recommended_action: "validate" | "needs_refinement" | "reject";
+  /** Workflow status after server resolution — mirrors extraction_qa_status. */
+  resolved_status?: ClaimsReviewResolvedStatus;
   summary: string;
   issues: ClaimsReviewIssue[];
   patches: ClaimsReviewPatch[];
+  claim_audit?: ClaimAuditEntry[];
+  refinement_instruction?: string;
   deterministic_issues?: string[];
   attempt_number?: number;
   reviewed_claim_version_id?: string;
@@ -133,14 +149,38 @@ export function resolveClaimsReviewFailureStatus(
 ): ExtractionQaStatus {
   if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
   if (recommendedAction === "needs_refinement") return "needs_refinement";
-  if (recommendedAction === "reject") return "needs_human_review";
   if (
     report &&
     reviewFailureHasRefinableFindings(report.issues ?? [], report.patches ?? [])
   ) {
     return "needs_refinement";
   }
+  if (recommendedAction === "reject") return "needs_human_review";
   return "needs_human_review";
+}
+
+export function applyClaimsReviewResolvedStatus(
+  report: ClaimsReviewReport,
+  finalStatus: ClaimsReviewResolvedStatus
+): ClaimsReviewReport {
+  const synced: ClaimsReviewReport = {
+    ...report,
+    resolved_status: finalStatus,
+  };
+
+  if (finalStatus === "passed") {
+    synced.recommended_action = "validate";
+    synced.passes_review = true;
+    return synced;
+  }
+
+  synced.passes_review = false;
+  if (finalStatus === "needs_refinement") {
+    synced.recommended_action = "needs_refinement";
+  } else {
+    synced.recommended_action = "reject";
+  }
+  return synced;
 }
 
 export function chunkClaimsReviewPasses(report: ClaimsReviewReport): boolean {
@@ -336,6 +376,7 @@ export type StrictPreValidationResult = {
   issues: string[];
   deterministic_checks: DeterministicChecksDetail;
   attribution_issues?: ClaimsReviewIssue[];
+  span_grounding_issues?: ClaimsReviewIssue[];
 };
 
 export type ValidationScores = {

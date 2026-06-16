@@ -86,6 +86,7 @@ function objectSchemaFromExample(example: Record<string, unknown>): Record<strin
 const OPENAI_SCHEMA_NAMES: Record<string, string> = {
   'validate-chunk-claims': 'doxa_chunk_claims_review',
   'refine-chunk-claims': 'doxa_chunk_claims_refine',
+  'approve-chunk-claims': 'doxa_chunk_claims_approve',
   'validate-chunk-positions': 'doxa_chunk_positions_review',
   'refine-chunk-positions': 'doxa_chunk_positions_refine',
 }

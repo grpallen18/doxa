@@ -28,7 +28,6 @@ Flat agents at this level (pre-topology claim-cluster engine):
 |------|--------|--------|
 | aggregate-position-pair-scores | aggregate_position_pair_scores | deprecated |
 | standardize-chunk-extraction | standardize_chunk_extraction | deprecated |
-| refine-chunk-claims | refine_chunk_claims | deprecated |
 | refine-chunk-extraction | refine_chunk_extraction | deprecated |
 | validate-chunk-extraction | validate_chunk_extraction | deprecated |
 | link-chunk-entities | link_chunk_entities | deprecated |
@@ -36,9 +35,7 @@ Flat agents at this level (pre-topology claim-cluster engine):
 | validate-chunk-positions | validate_chunk_positions | deprecated |
 | refine-chunk-positions | refine_chunk_positions | deprecated |
 | build-position-clusters | build_position_clusters | deprecated |
-| merge-story-claims | merge_story_claims | deprecated |
 | merge-story-positions | merge_story_positions | deprecated |
-| review-merged-extraction | review_merged_extraction | deprecated |
 | refine-merged-extraction | refine_merged_extraction | deprecated |
 | validate-merged-extraction | validate_merged_extraction | deprecated |
 | classify-claim-pairs | classify_claim_pairs | deprecated |

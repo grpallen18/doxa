@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { HistoryEvent } from '@/lib/admin/history'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
@@ -48,6 +48,11 @@ export function WorkflowCanvasStepAuditLog({
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState(0)
+  const skipRunsBumpRef = useRef(true)
+
+  useEffect(() => {
+    skipRunsBumpRef.current = true
+  }, [stepId, chunkIndex])
 
   const loadAuditLog = useCallback(async (signal: AbortSignal) => {
     const params = new URLSearchParams({
@@ -107,6 +112,19 @@ export function WorkflowCanvasStepAuditLog({
       ),
     [events, runs]
   )
+
+  const runsRevision = useMemo(
+    () => runs.map((run) => `${run.id}:${run.occurred_at}:${run.outcome}`).join('|'),
+    [runs]
+  )
+
+  useEffect(() => {
+    if (skipRunsBumpRef.current) {
+      skipRunsBumpRef.current = false
+      return
+    }
+    setRefreshToken((token) => token + 1)
+  }, [runsRevision])
 
   const handleRefresh = () => {
     setRefreshToken((token) => token + 1)

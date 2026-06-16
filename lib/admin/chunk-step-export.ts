@@ -26,6 +26,7 @@ export type ChunkStepOutcome =
 export type ChunkStepNextAction =
   | 'run_review'
   | 'run_refiner'
+  | 'run_approver'
   | 'merge_ready'
   | 'human_review'
   | 'stop_max_retries'
@@ -35,10 +36,24 @@ export type ChunkStepNextAction =
 export const CHUNK_EXPORT_STEP_KEYS: Partial<Record<PipelineStepId, string>> = {
   'extract-story-claims': 'chunk.claims.extract',
   'validate-chunk-claims': 'chunk.claims.review',
+  'refine-chunk-claims': 'chunk.claims.refine',
+  'approve-chunk-claims': 'chunk.claims.approve',
 }
 
 type ChunkRow = StoryExtractionReviewPayload['chunks'][number]
 type QaArtifact = StoryExtractionReviewPayload['qa_artifacts'][number]
+
+function artifactInputClaimVersionId(artifact: QaArtifact): string | null {
+  return artifact.input_claim_version_id ?? str(asRecord(artifact.report)?.input_claim_version_id)
+}
+
+function artifactOutputClaimVersionId(artifact: QaArtifact): string | null {
+  return artifact.output_claim_version_id ?? str(asRecord(artifact.report)?.output_claim_version_id)
+}
+
+function artifactSourceReviewId(artifact: QaArtifact): string | null {
+  return str(asRecord(artifact.report)?.source_review_artifact_id)
+}
 
 export type ChunkReviewExport = {
   review_id: string
@@ -115,6 +130,7 @@ export function deriveChunkStepOutcome(lane: QaLaneId, chunk: ChunkRow): ChunkSt
   const status = chunk[stages.qaStatusKey]
   if (status === 'passed' || status === 'atoms_passed') return 'passed'
   if (status === 'needs_refinement') return 'needs_refinement'
+  if (status === 'awaiting_approval') return 'needs_refinement'
   if (status === 'needs_human_review') return 'needs_human_review'
   return null
 }
@@ -135,6 +151,7 @@ export function deriveChunkStepNextAction(
 
   if (phase === 'awaiting_review') return 'run_review'
   if (phase === 'awaiting_refine') return 'run_refiner'
+  if (phase === 'awaiting_approval') return 'run_approver'
   if (phase === 'complete') return 'merge_ready'
 
   if (phase === 'needs_human') {
@@ -155,6 +172,7 @@ function laneArtifactStages(lane: QaLaneId): readonly string[] {
   return [
     ...stages.review,
     ...stages.refine,
+    ...stages.approve,
     'chunk_extract_claims',
     'chunk_extract',
     'chunk_extract_positions',
@@ -191,6 +209,10 @@ function isRefineArtifactStage(stage: string, lane: QaLaneId): boolean {
 export function reviewOutcomeFromReport(report: unknown): ChunkStepOutcome {
   const row = asRecord(report)
   if (!row) return null
+  const resolved = str(row.resolved_status)
+  if (resolved === 'passed' || resolved === 'needs_refinement' || resolved === 'needs_human_review') {
+    return resolved
+  }
   if (row.passes_review === true) return 'passed'
   const action = str(row.recommended_action)
   if (action === 'needs_refinement' || action === 'refine') return 'needs_refinement'
@@ -451,26 +473,32 @@ export function buildChunkRefinementsExport(
     .filter((artifact) => isRefineArtifactStage(artifact.stage, lane))
     .map((artifact) => {
       const report = asRecord(artifact.report)
-      const inputVersionId = str(report?.input_claim_version_id) ?? null
-      const sourceReview = inputVersionId
-        ? reviews.find((review) => review.reviewed_version_id === inputVersionId) ?? null
-        : null
+      const inputVersionId = artifactInputClaimVersionId(artifact)
+      const outputVersionId = artifactOutputClaimVersionId(artifact)
+      const sourceReview =
+        (inputVersionId
+          ? reviews.find((review) => review.reviewed_version_id === inputVersionId) ?? null
+          : null) ??
+        (artifactSourceReviewId(artifact)
+          ? reviews.find((review) => review.review_id === artifactSourceReviewId(artifact)) ?? null
+          : null)
 
       return {
         refinement_id: artifact.id,
         refinement_round:
           typeof report?.refinement_cycle === 'number' ? report.refinement_cycle : null,
         input_version_id: inputVersionId,
-        output_version_id: str(report?.output_claim_version_id) ?? null,
-        source_review_id: sourceReview?.review_id ?? null,
+        output_version_id: outputVersionId,
+        source_review_id: sourceReview?.review_id ?? artifactSourceReviewId(artifact),
         created_at: artifact.created_at,
       }
     })
 }
 
-function filterVisibleClaimVersions(
+export function filterVisibleClaimVersions(
   versions: ChunkClaimVersionSummary[],
-  refinements: ChunkRefinementExport[]
+  refinements: ChunkRefinementExport[],
+  activeClaimVersionId: string | null = null
 ): ChunkClaimVersionSummary[] {
   const refinedOutputIds = new Set(
     refinements.map((refinement) => refinement.output_version_id).filter(Boolean) as string[]
@@ -478,6 +506,7 @@ function filterVisibleClaimVersions(
 
   return versions.filter((version) => {
     if (version.source === 'extractor') return true
+    if (version.id === activeClaimVersionId) return true
     return refinedOutputIds.has(version.id)
   })
 }
@@ -527,11 +556,18 @@ export function resolveExportActiveVersionId(params: {
   }
 
   const active = chunk.active_claim_version_id
-  if (active && visibleVersions.some((version) => version.id === active)) {
-    return active
+  const allVersions = chunk.claim_versions ?? []
+  if (active && allVersions.some((version) => version.id === active)) {
+    if (visibleVersions.some((version) => version.id === active)) {
+      return active
+    }
+    const postRefinePhases: ChunkLanePhase[] = ['awaiting_approval', 'merge_ready', 'complete']
+    if (postRefinePhases.includes(phase)) {
+      return active
+    }
   }
 
-  return visibleVersions.at(-1)?.id ?? null
+  return visibleVersions.at(-1)?.id ?? active ?? null
 }
 
 export function buildClaimVersionsExport(params: {
@@ -901,7 +937,11 @@ export function assembleChunkLaneLifecycle(params: {
   const refinements = buildChunkRefinementsExport(laneArtifacts, lane, reviews)
 
   const allVersions = chunk.claim_versions ?? []
-  const visibleVersions = filterVisibleClaimVersions(allVersions, refinements)
+  const visibleVersions = filterVisibleClaimVersions(
+    allVersions,
+    refinements,
+    chunk.active_claim_version_id
+  )
   const hiddenRefinerVersionCount = allVersions.filter(
     (version) => version.source === 'refiner' && !visibleVersions.some((row) => row.id === version.id)
   ).length

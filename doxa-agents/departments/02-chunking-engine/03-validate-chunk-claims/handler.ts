@@ -12,13 +12,23 @@ import {
   mergeAttributionDriftIntoClaimsReview,
   runStrictPreValidation,
 } from "../../../lib/extraction-qa/deterministic-checks.ts";
-import { ensureStableClaimIds } from "../../../lib/extraction-qa/claim-ids.ts";
+import { mergeSpanGroundingIntoClaimsReview } from "../../../lib/extraction-qa/span-grounding.ts";
+import {
+  assembleMergeClaims,
+  ensureClaimAudit,
+  parkAllClaims,
+  partitionAfterReview,
+  parseClaimsMergeEligibility,
+  repairQueueClaimIds,
+  seedRepairQueueFromAudit,
+} from "../../../lib/extraction-qa/claim-merge-state.ts";
 import {
   getActiveClaimVersion,
   setClaimVersionReviewOutcome,
   updateClaimVersionClaims,
   type ClaimVersionReviewOutcome,
 } from "../../../lib/extraction-qa/claim-versions.ts";
+import { normalizeChunkClaims } from "../../../lib/extraction-qa/normalize-claims.ts";
 import { resolveChunkQaModel } from "../../../lib/extraction-qa/chunk-qa-model.ts";
 import { reviewChunkClaims, saveArtifact } from "../../../lib/extraction-qa/openai-qa.ts";
 import { loadStoryMetadata, metadataPayload } from "../../../lib/extraction-qa/story-metadata.ts";
@@ -28,6 +38,7 @@ import {
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
 import {
+  applyClaimsReviewResolvedStatus,
   asExtractionJson,
   clampInt,
   chunkClaimsReviewPasses,
@@ -36,6 +47,7 @@ import {
   json,
   resolveClaimsReviewFailureStatus,
   type ClaimsReviewReport,
+  type ClaimsReviewResolvedStatus,
 } from "../../../lib/extraction-qa/types.ts";
 import { PipelineDebugTrace } from "../../../lib/pipeline-debug-trace.ts";
 import {
@@ -233,20 +245,15 @@ export const handler = async (req: Request) => {
           activeVersion?.claims_json ?? chunk.extraction_json
         );
         const reviewedClaimVersionId = activeVersion?.id ?? null;
-        const claimsWithIds = await ensureStableClaimIds(
-          (Array.isArray(extractionRaw.claims) ? extractionRaw.claims : []) as Array<
-            Record<string, unknown>
-          >,
+        const normalizedPreReview = await normalizeChunkClaims(
+          Array.isArray(extractionRaw.claims) ? extractionRaw.claims : [],
           chunk.story_id,
-          chunk.chunk_index
+          chunk.chunk_index,
+          sourceText,
+          { preserveClaimIds: true }
         );
-        const extraction = { ...extractionRaw, claims: claimsWithIds };
-        const backfilledClaimIds = (Array.isArray(extractionRaw.claims) ? extractionRaw.claims : []).some(
-          (claim) =>
-            claim == null ||
-            typeof claim !== "object" ||
-            typeof (claim as Record<string, unknown>).claim_id !== "string"
-        );
+        const extraction = { claims: normalizedPreReview.claims };
+        const backfilledClaimIds = normalizedPreReview.claims.length > 0;
         const metadata = await loadStoryMetadata(supabase, chunk.story_id, chunk.chunk_index);
 
         const { data: chunkMeta } = await supabase
@@ -332,6 +339,10 @@ export const handler = async (req: Request) => {
               reviewReport,
               strictPre.attribution_issues ?? []
             );
+            reviewReport = mergeSpanGroundingIntoClaimsReview(
+              reviewReport,
+              strictPre.span_grounding_issues ?? []
+            );
           }
         }
 
@@ -363,6 +374,56 @@ export const handler = async (req: Request) => {
         if (reviewedClaimVersionId) {
           reviewReport.reviewed_claim_version_id = reviewedClaimVersionId;
         }
+        reviewReport.claim_audit = ensureClaimAudit(extraction.claims, reviewReport);
+
+        let mergeState = parseClaimsMergeEligibility(
+          dryRun
+            ? (chunk as { claims_merge_eligibility?: unknown }).claims_merge_eligibility
+            : (
+                await supabase
+                  .from("story_chunks")
+                  .select("claims_merge_eligibility")
+                  .eq("story_id", chunk.story_id)
+                  .eq("chunk_index", chunk.chunk_index)
+                  .single()
+              ).data?.claims_merge_eligibility
+        );
+
+        let mergeMeta = {
+          source_version_id: reviewedClaimVersionId ?? "",
+          artifact_id: "",
+        };
+
+        for (const drop of normalizedPreReview.dropped) {
+          if (!drop.claim_id) continue;
+          mergeState = {
+            ...mergeState,
+            rejected_final: [
+              ...mergeState.rejected_final,
+              {
+                claim_id: drop.claim_id,
+                reason: drop.reason,
+                artifact_id: mergeMeta.artifact_id,
+              },
+            ],
+          };
+        }
+
+        if (chunkClaimsReviewPasses(reviewReport)) {
+          mergeState = parkAllClaims(mergeState, extraction.claims, mergeMeta);
+        } else {
+          mergeState = partitionAfterReview(mergeState, extraction.claims, reviewReport, mergeMeta);
+          mergeState = seedRepairQueueFromAudit(mergeState, reviewReport.claim_audit ?? []);
+          if (finalStatus === "needs_refinement" && repairQueueClaimIds(mergeState).length === 0) {
+            finalStatus = "needs_human_review";
+            validatedAt = now;
+          }
+        }
+
+        reviewReport = applyClaimsReviewResolvedStatus(
+          reviewReport,
+          finalStatus as ClaimsReviewResolvedStatus
+        );
 
         const versionReviewOutcome: ClaimVersionReviewOutcome | null = chunkClaimsReviewPasses(reviewReport)
           ? "passed"
@@ -373,10 +434,6 @@ export const handler = async (req: Request) => {
               : null;
 
         if (!dryRun) {
-          if (backfilledClaimIds && reviewedClaimVersionId) {
-            await updateClaimVersionClaims(supabase, reviewedClaimVersionId, extraction);
-          }
-
           const { data: savedArtifact, error: artifactErr } = await saveArtifact(supabase, {
             story_id: chunk.story_id,
             chunk_index: chunk.chunk_index,
@@ -418,6 +475,21 @@ export const handler = async (req: Request) => {
             claim_version_id: reviewedClaimVersionId,
           });
 
+          if (savedArtifact?.id) {
+            mergeMeta.artifact_id = savedArtifact.id;
+            mergeState = {
+              ...mergeState,
+              parked: mergeState.parked.map((entry) =>
+                entry.artifact_id ? entry : { ...entry, artifact_id: savedArtifact.id }
+              ),
+              rejected_final: mergeState.rejected_final.map((entry) =>
+                entry.artifact_id ? entry : { ...entry, artifact_id: savedArtifact.id }
+              ),
+            };
+          }
+
+          const mergeProjection = assembleMergeClaims(mergeState);
+
           const chunkUpdate: Record<string, unknown> = {
             extraction_qa_status: finalStatus,
             extraction_qa_review_report: reviewReport,
@@ -430,13 +502,13 @@ export const handler = async (req: Request) => {
             },
             extraction_qa_validation_attempt_count: nextAttemptCount,
             extraction_qa_validated_at: validatedAt,
+            claims_merge_eligibility: mergeState,
+            extraction_json: mergeProjection,
           };
 
           if (backfilledClaimIds && reviewedClaimVersionId) {
-            chunkUpdate.extraction_json = extraction;
+            await updateClaimVersionClaims(supabase, reviewedClaimVersionId, extraction);
             chunkUpdate.active_claim_version_id = reviewedClaimVersionId;
-          } else if (backfilledClaimIds) {
-            chunkUpdate.extraction_json = extraction;
           }
 
           const { error: updateErr } = await supabase

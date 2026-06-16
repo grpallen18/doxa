@@ -9,9 +9,13 @@ supabase functions deploy receive_scraped_content
 supabase functions deploy relevance_gate
 supabase functions deploy review_pending_stories
 supabase functions deploy scrape_story_content
+supabase functions deploy approve_chunk_claims
 supabase functions deploy chunk_story_bodies
 supabase functions deploy extract_story_claims
+supabase functions deploy refine_chunk_claims
 supabase functions deploy validate_chunk_claims
+supabase functions deploy merge_story_claims
+supabase functions deploy review_merged_extraction
 supabase functions deploy discord_daily_health
 supabase functions deploy generate_atlas_map
 ```
@@ -26,8 +30,8 @@ supabase functions deploy review_pending_stories --no-verify-jwt
 supabase functions deploy scrape_story_content --no-verify-jwt
 supabase functions deploy chunk_story_bodies --no-verify-jwt
 supabase functions deploy extract_story_claims --no-verify-jwt
-supabase functions deploy validate_chunk_claims --no-verify-jwt
 supabase functions deploy refine_chunk_claims --no-verify-jwt
+supabase functions deploy validate_chunk_claims --no-verify-jwt
 supabase functions deploy merge_story_claims --no-verify-jwt
 supabase functions deploy review_merged_extraction --no-verify-jwt
 supabase functions deploy refine_merged_extraction --no-verify-jwt

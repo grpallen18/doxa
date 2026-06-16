@@ -170,6 +170,8 @@ function buildManifest(): Manifest {
   const deployToId = new Map<string, string>();
 
   for (const handlerFile of walkFiles(DEPARTMENTS_ROOT, /^handler\.ts$/)) {
+    const handlerNorm = handlerFile.replace(/\\/g, '/');
+    const isLegacy = handlerNorm.includes('/legacy/');
     const info = parseHandlerPath(handlerFile);
     if (!info) continue;
 
@@ -193,6 +195,12 @@ function buildManifest(): Manifest {
     if (secrets.length) step.secrets = secrets;
     if (deployName && verifyJwtDisabled.has(deployName)) step.verify_jwt = false;
     if (deployName === 'receive_scraped_content') step.verify_jwt = false;
+
+    const existing = stepsById.get(info.id);
+    if (existing) {
+      const existingLegacy = Boolean(existing.source?.includes('/legacy/'));
+      if (isLegacy && !existingLegacy) continue;
+    }
 
     const cron = findCronForHandler(info, sqlFiles, deployName);
     if (cron) step.cron = cron;

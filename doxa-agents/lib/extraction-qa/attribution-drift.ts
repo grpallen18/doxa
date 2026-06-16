@@ -223,10 +223,24 @@ export function mergeAttributionDriftIntoClaimsReview<
     ? report.deterministic_issues
     : [];
 
+  const attributionKeys = new Set(
+    attributionIssues.map(
+      (issue) => `${issue.claim_id ?? ""}:${issue.claim_index ?? ""}:attribution`
+    )
+  );
+  const filteredExisting = existingIssues.filter((issue) => {
+    if (issue.issue_type !== "attribution") return true;
+    const key = `${issue.claim_id ?? ""}:${issue.claim_index ?? ""}:attribution`;
+    return !attributionKeys.has(key);
+  });
+  const filteredDeterministic = existingDeterministic.filter(
+    (entry) => !entry.startsWith("attribution_drift:")
+  );
+
   const merged: T = {
     ...report,
-    issues: [...attributionIssues, ...existingIssues],
-    deterministic_issues: [...existingDeterministic, ...driftStrings],
+    issues: [...attributionIssues, ...filteredExisting],
+    deterministic_issues: [...filteredDeterministic, ...driftStrings],
   };
 
   if (attributionIssues.length > 0) {

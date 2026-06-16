@@ -42,10 +42,17 @@ export function isChunkClaimsRefineDone(chunk: ChunkQaRow): boolean {
   if (chunk.extraction_json == null) return false
   const status = chunk.extraction_qa_status
   if (status === 'needs_refinement') return false
+  if (status === 'awaiting_approval') return true
   if (status == null || status === 'pending') {
     return (chunk.extraction_qa_refinement_count ?? 0) > 0
   }
   return true
+}
+
+/** Approval step is done for this chunk (merge-ready). */
+export function isChunkClaimsApprovalDone(chunk: ChunkQaRow): boolean {
+  if (chunk.extraction_json == null) return false
+  return isChunkClaimsValidatedStatus(chunk.extraction_qa_status)
 }
 
 /** Both review and refine stages are complete for this chunk. */
@@ -67,7 +74,8 @@ export function chunkQaCounts(payload: StoryExtractionReviewPayload) {
   const passed = extracted.filter((c) => c.extraction_qa_status === 'passed').length
   const needsHuman = extracted.filter((c) => c.extraction_qa_status === 'needs_human_review').length
   const needsRefinement = extracted.filter((c) => c.extraction_qa_status === 'needs_refinement').length
-  return { total, withJson, pendingValidate, validated, passed, needsHuman, needsRefinement }
+  const awaitingApproval = extracted.filter((c) => c.extraction_qa_status === 'awaiting_approval').length
+  return { total, withJson, pendingValidate, validated, passed, needsHuman, needsRefinement, awaitingApproval }
 }
 
 export function positionsChunkQaCounts(payload: StoryExtractionReviewPayload) {
@@ -181,16 +189,20 @@ export function isChunkClaimsRefineSatisfied(payload: StoryExtractionReviewPaylo
   return extracted.every(isChunkClaimsRefineDone)
 }
 
-/** Review chunk claims done for this story — every extracted chunk has been reviewed at least once. */
+/** Approval satisfied: every extracted chunk is merge-ready (passed). */
+export function isChunkClaimsApprovalSatisfied(payload: StoryExtractionReviewPayload): boolean {
+  if (!isExtractComplete(payload)) return false
+  const extracted = payload.chunks.filter((c) => c.extraction_json != null)
+  return extracted.every(isChunkClaimsApprovalDone)
+}
+
+/** Review chunk claims done — every extracted chunk has completed review (not pending first review). */
 export function isChunkClaimsReviewComplete(payload: StoryExtractionReviewPayload): boolean {
   if (!isExtractComplete(payload)) return false
   const extracted = payload.chunks.filter((c) => c.extraction_json != null)
   if (extracted.length === 0) return false
-  return !extracted.some(
-    (c) =>
-      c.extraction_qa_status == null ||
-      c.extraction_qa_status === 'pending' ||
-      c.extraction_qa_status === 'needs_human_review'
+  return extracted.every(
+    (c) => c.extraction_qa_status != null && c.extraction_qa_status !== 'pending'
   )
 }
 
@@ -290,6 +302,10 @@ export function isExtractionStepComplete(
       return isExtractComplete(payload)
     case 'validate-chunk-claims':
       return isChunkClaimsReviewComplete(payload)
+    case 'refine-chunk-claims':
+      return isChunkClaimsRefineSatisfied(payload)
+    case 'approve-chunk-claims':
+      return isChunkClaimsApprovalSatisfied(payload)
     default:
       return false
   }
@@ -317,6 +333,13 @@ export function extractionStepProgress(
       const reviewed = c.withJson - c.pendingValidate
       return c.withJson > 0 ? `${reviewed}/${c.withJson} chunks reviewed` : null
     }
+    case 'refine-chunk-claims': {
+      const refined = c.withJson - c.needsRefinement
+      return c.withJson > 0 ? `${refined}/${c.withJson} chunks refined` : null
+    }
+    case 'approve-chunk-claims': {
+      return c.withJson > 0 ? `${c.passed}/${c.withJson} chunks merge-ready` : null
+    }
     default:
       return null
   }
@@ -334,7 +357,12 @@ export function getExtractionNotRequiredMessage(
 }
 
 export function canRunExtractionWhenBlocked(stepId: PipelineStepId): boolean {
-  return stepId === 'extract-story-claims' || stepId === 'validate-chunk-claims'
+  return (
+    stepId === 'extract-story-claims' ||
+    stepId === 'validate-chunk-claims' ||
+    stepId === 'refine-chunk-claims' ||
+    stepId === 'approve-chunk-claims'
+  )
 }
 
 export function extractionSnapshot(stepId: PipelineStepId, payload: StoryExtractionReviewPayload) {

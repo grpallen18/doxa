@@ -3,7 +3,10 @@
 import { type NodeProps } from '@xyflow/react'
 import { Play, RotateCcw, Split } from 'lucide-react'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
-import { isStepRevertible } from '@/lib/admin/story-pipeline-checklist'
+import {
+  isChunkStepRevertible,
+  isStepRevertible,
+} from '@/lib/admin/story-pipeline-checklist'
 import { resolveRunnableHighlightTone } from '@/lib/admin/workflow-canvas/runnable-node-highlight'
 import { useWorkflowCanvas } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { CanvasUtilityNodeShell } from '@/components/admin/workflow-canvas/nodes/canvas-utility-node-shell'
@@ -21,11 +24,17 @@ type DecisionNodeData = {
 export function CanvasDecisionNode({ data, selected, id }: NodeProps) {
   const nodeData = data as DecisionNodeData
   const { label, desc, result, status, catalogStepId, runnable, maturity } = nodeData
-  const { payload, pipelineActions, hoveredNodeId } = useWorkflowCanvas()
+  const { payload, pipelineActions, hoveredNodeId, chunkIndex, canvasScope } = useWorkflowCanvas()
   const stepId = catalogStepId
+  const chunk = chunkIndex != null ? payload.chunks.find((c) => c.chunk_index === chunkIndex) : null
   const isRunning = stepId ? pipelineActions.isStepRunning(stepId) : false
   const isReverting = stepId ? pipelineActions.revertingStepId === stepId : false
-  const revertible = stepId ? isStepRevertible(stepId, payload) : false
+  const revertible =
+    stepId && canvasScope === 'chunk' && chunk
+      ? isChunkStepRevertible(stepId, chunk, payload)
+      : stepId
+        ? isStepRevertible(stepId, payload)
+        : false
   const canRun = Boolean(runnable && !isRunning && !isReverting)
   const isHoveredFromList = hoveredNodeId === id
   const runnableHighlight = resolveRunnableHighlightTone(canRun, isHoveredFromList)

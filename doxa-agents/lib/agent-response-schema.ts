@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { CLAIMS_REVIEW_SCHEMA, POSITIONS_REVIEW_SCHEMA } from "./extraction-qa/openai-qa.ts";
+import { CLAIMS_APPROVAL_SCHEMA, CLAIMS_REFINE_REPLACEMENT_SCHEMA, CLAIMS_REVIEW_SCHEMA, POSITIONS_REVIEW_SCHEMA } from "./extraction-qa/openai-qa.ts";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -21,11 +21,20 @@ const DEFAULT_SCHEMAS: Record<string, { schema: Record<string, unknown>; name: s
     schema: POSITIONS_REVIEW_SCHEMA as unknown as Record<string, unknown>,
     name: "doxa_chunk_positions_review",
   },
+  "refine-chunk-claims": {
+    schema: CLAIMS_REFINE_REPLACEMENT_SCHEMA as unknown as Record<string, unknown>,
+    name: "doxa_chunk_claims_refine",
+  },
+  "approve-chunk-claims": {
+    schema: CLAIMS_APPROVAL_SCHEMA as unknown as Record<string, unknown>,
+    name: "doxa_chunk_claims_approve",
+  },
 };
 
 const OPENAI_SCHEMA_NAMES: Record<string, string> = {
   "validate-chunk-claims": "doxa_chunk_claims_review",
   "refine-chunk-claims": "doxa_chunk_claims_refine",
+  "approve-chunk-claims": "doxa_chunk_claims_approve",
   "validate-chunk-positions": "doxa_chunk_positions_review",
   "refine-chunk-positions": "doxa_chunk_positions_refine",
 };

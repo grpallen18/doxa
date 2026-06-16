@@ -12,8 +12,7 @@ function latestArtifactCreatedAtForChunk(
   for (const artifact of payload.qa_artifacts) {
     if (artifact.chunk_index !== chunkIndex) continue
     if (!stages.includes(artifact.stage)) continue
-    const revertedAt = artifact.reverted_at
-    if (revertedAt) continue
+    if (artifact.reverted_at) continue
     if (!latest || artifact.created_at > latest) {
       latest = artifact.created_at
     }
@@ -21,37 +20,75 @@ function latestArtifactCreatedAtForChunk(
   return latest
 }
 
-/** Per-chunk revert tip — one step at a time through review/refine loops. */
+function hasArtifact(
+  payload: StoryExtractionReviewPayload,
+  stages: readonly string[],
+  chunkIndex: number
+): boolean {
+  return latestArtifactCreatedAtForChunk(payload, stages, chunkIndex) != null
+}
+
+function chunkReviewHasRun(
+  lane: QaLaneId,
+  chunk: ChunkRow,
+  payload: StoryExtractionReviewPayload,
+  chunkIndex: number
+): boolean {
+  const stages = QA_LANE_ARTIFACT_STAGES[lane]
+  const status = chunk[stages.qaStatusKey]
+  if (status != null && status !== 'pending') return true
+  if (chunk[stages.reviewReportKey] != null) return true
+  return hasArtifact(payload, stages.review, chunkIndex)
+}
+
+/**
+ * Per-chunk revert tip — linear stack (extract → review → refine → approve).
+ * Only the most recently completed step may be reverted.
+ *
+ * Uses lane phase (same source as runnable/next-action) so revert advances when
+ * chunk row status moves forward, not only when QA artifacts appear in payload.
+ */
 export function getChunkLaneQaRevertTip(
   lane: QaLaneId,
   chunk: ChunkRow,
   payload: StoryExtractionReviewPayload
 ): PipelineStepId | null {
   const stages = QA_LANE_ARTIFACT_STAGES[lane]
-  const phase = deriveChunkLanePhase(lane, chunk)
   const chunkIndex = chunk.chunk_index
 
-  if (phase === 'awaiting_review' && (chunk[stages.refinementCountKey] ?? 0) > 0) {
-    const latestReviewAt = latestArtifactCreatedAtForChunk(payload, stages.review, chunkIndex)
-    const latestRefineAt = latestArtifactCreatedAtForChunk(payload, stages.refine, chunkIndex)
-    if (latestRefineAt && (!latestReviewAt || latestRefineAt >= latestReviewAt)) {
-      return stages.validateStep as PipelineStepId
-    }
+  if (hasArtifact(payload, stages.approve, chunkIndex)) {
+    return stages.approveStep as PipelineStepId
   }
 
-  if (
-    phase === 'awaiting_refine' ||
-    phase === 'complete' ||
-    phase === 'needs_human' ||
-    (phase === 'awaiting_review' && chunk[stages.reviewReportKey] != null)
-  ) {
-    if (latestArtifactCreatedAtForChunk(payload, stages.review, chunkIndex)) {
-      return stages.validateStep as PipelineStepId
-    }
+  const phase = deriveChunkLanePhase(lane, chunk)
+
+  if (phase === 'awaiting_approval') {
+    return stages.refineStep as PipelineStepId
   }
 
-  if (chunk[stages.extractionJsonKey] != null) {
-    return stages.extractStep as PipelineStepId
+  if (phase === 'awaiting_refine') {
+    return stages.validateStep as PipelineStepId
+  }
+
+  if (phase === 'awaiting_review') {
+    if (chunk[stages.extractionJsonKey] != null) {
+      return stages.extractStep as PipelineStepId
+    }
+    return null
+  }
+
+  if (phase === 'complete' || phase === 'needs_human') {
+    const refinementCount = chunk[stages.refinementCountKey] ?? 0
+    if (refinementCount > 0 || hasArtifact(payload, stages.refine, chunkIndex)) {
+      return stages.refineStep as PipelineStepId
+    }
+    if (chunkReviewHasRun(lane, chunk, payload, chunkIndex)) {
+      return stages.validateStep as PipelineStepId
+    }
+    if (chunk[stages.extractionJsonKey] != null) {
+      return stages.extractStep as PipelineStepId
+    }
+    return null
   }
 
   return null
@@ -63,7 +100,7 @@ export function chunkHasRefineArtifact(
   chunkIndex: number
 ): boolean {
   const stages = QA_LANE_ARTIFACT_STAGES[lane]
-  return latestArtifactCreatedAtForChunk(payload, stages.refine, chunkIndex) != null
+  return hasArtifact(payload, stages.refine, chunkIndex)
 }
 
 /** Shown when refine is runnable but revert is blocked after a partial / timed-out refine. */

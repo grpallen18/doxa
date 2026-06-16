@@ -58,27 +58,6 @@ export function laneHasChunksPendingRereview(
   return payload.chunks.some((chunk) => isChunkPendingRereviewAfterRefine(lane, chunk))
 }
 
-function chunkReviewReportRequestsRefine(
-  lane: QaLaneId,
-  chunk: StoryExtractionReviewPayload['chunks'][number]
-): boolean {
-  const stages = QA_LANE_ARTIFACT_STAGES[lane]
-  const report = chunk[stages.reviewReportKey]
-  if (report == null || typeof report !== 'object' || Array.isArray(report)) return false
-
-  const row = report as {
-    recommended_action?: string
-    issues?: Array<{ severity?: string }>
-    patches?: unknown[]
-  }
-  if (row.recommended_action === 'needs_refinement') return true
-
-  const hasActionableIssues = (row.issues ?? []).some(
-    (issue) => issue.severity === 'blocking' || issue.severity === 'major'
-  )
-  return hasActionableIssues || (row.patches ?? []).length > 0
-}
-
 /** Chunk passed review with fixable findings and is eligible for another refine pass. */
 export function isChunkReadyForLaneRefine(
   lane: QaLaneId,
@@ -88,10 +67,7 @@ export function isChunkReadyForLaneRefine(
   if (chunk[stages.extractionJsonKey] == null) return false
 
   const status = chunk[stages.qaStatusKey]
-  const requestsRefine =
-    status === 'needs_refinement' ||
-    (status === 'needs_human_review' && chunkReviewReportRequestsRefine(lane, chunk))
-  if (!requestsRefine) return false
+  if (status !== 'needs_refinement') return false
 
   const refinementCount = chunk[stages.refinementCountKey] ?? 0
   const validationAttempts = chunk[stages.validationAttemptCountKey] ?? 0

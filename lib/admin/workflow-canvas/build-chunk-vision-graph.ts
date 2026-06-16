@@ -9,6 +9,9 @@ import {
   VISION_FLOW_NODES,
 } from '@/lib/admin/workflow-canvas/vision-flow-layout'
 
+/** Linear claims lane on chunk canvas — no approve→refine loop or merge edges. */
+const CHUNK_CLAIMS_EDGE_IDS = new Set(['e-c-ext-rev', 'e-c-rev-ref', 'e-c-ref-apr'])
+
 const CHUNK_PARALLEL_NODE_IDS = new Set(
   VISION_FLOW_NODES.filter(
     (node) =>
@@ -18,6 +21,7 @@ const CHUNK_PARALLEL_NODE_IDS = new Set(
 )
 
 const CHUNK_NODE_SPECS = VISION_FLOW_NODES.filter((node) => CHUNK_PARALLEL_NODE_IDS.has(node.id))
+const CHUNK_EDGE_SPECS = VISION_FLOW_EDGES.filter((edge) => CHUNK_CLAIMS_EDGE_IDS.has(edge.id))
 
 export function buildChunkVisionGraph(params: {
   checklist: PipelineChecklist
@@ -28,7 +32,7 @@ export function buildChunkVisionGraph(params: {
   return buildVisionGraph({
     ...params,
     nodeSpecs: CHUNK_NODE_SPECS,
-    edgeSpecs: VISION_FLOW_EDGES,
+    edgeSpecs: CHUNK_EDGE_SPECS,
     canvasScope: 'chunk',
   })
 }

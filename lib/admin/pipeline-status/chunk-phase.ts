@@ -9,6 +9,7 @@ export type ChunkLanePhase =
   | 'not_started'
   | 'awaiting_review'
   | 'awaiting_refine'
+  | 'awaiting_approval'
   | 'needs_human'
   | 'complete'
 
@@ -18,26 +19,9 @@ export const CHUNK_LANE_PHASE_LABELS: Record<ChunkLanePhase, string> = {
   not_started: 'Not started',
   awaiting_review: 'Awaiting review',
   awaiting_refine: 'Awaiting refine',
+  awaiting_approval: 'Awaiting approval',
   needs_human: 'Needs human',
   complete: 'Complete',
-}
-
-function chunkReviewReportRequestsRefine(lane: QaLaneId, chunk: ChunkRow): boolean {
-  const stages = QA_LANE_ARTIFACT_STAGES[lane]
-  const report = chunk[stages.reviewReportKey]
-  if (report == null || typeof report !== 'object' || Array.isArray(report)) return false
-
-  const row = report as {
-    recommended_action?: string
-    issues?: Array<{ severity?: string }>
-    patches?: unknown[]
-  }
-  if (row.recommended_action === 'needs_refinement') return true
-
-  const hasActionableIssues = (row.issues ?? []).some(
-    (issue) => issue.severity === 'blocking' || issue.severity === 'major'
-  )
-  return hasActionableIssues || (row.patches ?? []).length > 0
 }
 
 function isUnderAttemptCaps(lane: QaLaneId, chunk: ChunkRow): boolean {
@@ -62,10 +46,11 @@ export function deriveChunkLanePhase(lane: QaLaneId, chunk: ChunkRow): ChunkLane
     return 'awaiting_refine'
   }
 
+  if (status === 'awaiting_approval') {
+    return 'awaiting_approval'
+  }
+
   if (status === 'needs_human_review') {
-    if (chunkReviewReportRequestsRefine(lane, chunk) && isUnderAttemptCaps(lane, chunk)) {
-      return 'awaiting_refine'
-    }
     return 'needs_human'
   }
 
@@ -86,7 +71,12 @@ export function chunkLanePhaseLabel(lane: QaLaneId, chunk: ChunkRow): string {
 
 export function chunkNeedsAction(lane: QaLaneId, chunk: ChunkRow): boolean {
   const phase = deriveChunkLanePhase(lane, chunk)
-  return phase === 'awaiting_review' || phase === 'awaiting_refine' || phase === 'needs_human'
+  return (
+    phase === 'awaiting_review' ||
+    phase === 'awaiting_refine' ||
+    phase === 'awaiting_approval' ||
+    phase === 'needs_human'
+  )
 }
 
 export function laneForChunkStep(stepId: string): QaLaneId | null {

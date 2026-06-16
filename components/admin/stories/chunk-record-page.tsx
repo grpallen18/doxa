@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { ChunkContentExtractionLayout } from '@/components/admin/stories/chunk-content-extraction-layout'
 import { ChunkExtractionExportButtons } from '@/components/admin/stories/chunk-extraction-export-buttons'
 import { ChunkQaHistorySection } from '@/components/admin/stories/chunk-qa-history-section'
@@ -15,6 +17,7 @@ import { RecordSectionCard } from '@/components/admin/record/record-section-card
 import type { ChunkRecord } from '@/lib/admin/chunk-record'
 import { formatChunkLabel } from '@/lib/admin/chunk-record'
 import { storyAdminHref } from '@/lib/admin/friendly-id'
+import { chunkAgentFlowHref } from '@/lib/admin/story-lifecycle'
 import { qaStatusLabel, type ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
 import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
@@ -82,6 +85,21 @@ export function ChunkRecordPage() {
           data.chunk_friendly_id
         )}
         subtitle="Story chunk"
+        actions={
+          <Button variant="outline" size="sm" className="h-8" asChild>
+            <Link
+              href={chunkAgentFlowHref(
+                {
+                  story_id: data.story_id,
+                  friendly_id: data.story_friendly_id,
+                },
+                { friendly_id: data.chunk_friendly_id }
+              )}
+            >
+              Agent Flow
+            </Link>
+          </Button>
+        }
       />
       <RecordEntityLinkBar
         links={[

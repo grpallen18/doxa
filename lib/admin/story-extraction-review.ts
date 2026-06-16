@@ -203,6 +203,7 @@ export type StoryExtractionReviewPayload = {
     extraction_qa_refinement_count: number
     extraction_qa_validation_attempt_count: number
     extraction_qa_validated_at: string | null
+    claims_merge_eligibility: unknown
     positions_extraction_json: unknown
     positions_qa_status: ExtractionQaStatus
     positions_qa_review_report: unknown
@@ -225,6 +226,9 @@ export type StoryExtractionReviewPayload = {
     run_id: string | null
     created_at: string
     reverted_at: string | null
+    claim_version_id: string | null
+    input_claim_version_id: string | null
+    output_claim_version_id: string | null
   }>
   step_runs: Record<PipelineStepId, StoryStepLatestRow | null>
   step_run_history: Partial<Record<PipelineStepId, StoryStepRunHistoryRow[]>>
@@ -499,7 +503,7 @@ export async function fetchStoryExtractionReview(
     supabase
       .from('story_chunks')
       .select(
-        'chunk_index, friendly_id, content, extraction_json, active_claim_version_id, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_review_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at, positions_extraction_json, positions_qa_status, positions_qa_review_report, positions_qa_validation_report, positions_qa_refinement_count, positions_qa_validation_attempt_count, positions_qa_validated_at'
+        'chunk_index, friendly_id, content, extraction_json, active_claim_version_id, claims_merge_eligibility, extraction_qa_status, extraction_qa_standardization_report, extraction_qa_review_report, extraction_qa_validation_report, extraction_qa_refinement_count, extraction_qa_validation_attempt_count, extraction_qa_validated_at, positions_extraction_json, positions_qa_status, positions_qa_review_report, positions_qa_validation_report, positions_qa_refinement_count, positions_qa_validation_attempt_count, positions_qa_validated_at'
       )
       .eq('story_id', storyId)
       .order('chunk_index', { ascending: true }),
@@ -510,7 +514,9 @@ export async function fetchStoryExtractionReview(
       (table) =>
         supabase
           .from(table)
-          .select('id, stage, chunk_index, input_snapshot, output_snapshot, report, run_id, created_at, reverted_at')
+          .select(
+            'id, stage, chunk_index, input_snapshot, output_snapshot, report, run_id, created_at, reverted_at, claim_version_id, input_claim_version_id, output_claim_version_id'
+          )
           .eq('story_id', storyId)
           .order('created_at', { ascending: false })
           .limit(200)
@@ -739,6 +745,7 @@ export async function fetchStoryExtractionReview(
           c.extraction_qa_validation_attempt_count ?? 0
         ),
         extraction_qa_validated_at: c.extraction_qa_validated_at as string | null,
+        claims_merge_eligibility: c.claims_merge_eligibility ?? null,
         positions_extraction_json: c.positions_extraction_json,
         positions_qa_status: (c.positions_qa_status as ExtractionQaStatus) ?? null,
         positions_qa_review_report: c.positions_qa_review_report,
@@ -773,6 +780,9 @@ export async function fetchStoryExtractionReview(
       run_id: (a.run_id as string | null) ?? null,
       created_at: a.created_at as string,
       reverted_at: (a.reverted_at as string | null) ?? null,
+      claim_version_id: (a.claim_version_id as string | null) ?? null,
+      input_claim_version_id: (a.input_claim_version_id as string | null) ?? null,
+      output_claim_version_id: (a.output_claim_version_id as string | null) ?? null,
     })),
     step_runs: stepRuns,
     step_run_history: stepRunHistory,

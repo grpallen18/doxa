@@ -94,7 +94,7 @@ export function enforceVerbatimExcerpts(extraction: ExtractionJson, sourceText: 
   };
 }
 
-function wordOverlapScore(a: string, b: string): number {
+export function wordOverlapScore(a: string, b: string): number {
   const wordsA = new Set(
     normalizeText(a)
       .split(" ")

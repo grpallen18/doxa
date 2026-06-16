@@ -3,6 +3,11 @@ import {
   collectAttributionDriftIssues,
   mergeAttributionDriftIntoClaimsReview,
 } from "./attribution-drift.ts";
+import {
+  collectSpanGroundingMismatchIssues,
+  mergeSpanGroundingIntoClaimsReview,
+  spanGroundingDeterministicStrings,
+} from "./span-grounding.ts";
 import type {
   DeterministicChecksDetail,
   ExtractionJson,
@@ -453,6 +458,11 @@ export function runStrictPreValidation(
   const attribution_issues = collectAttributionDriftIssues(extraction);
   issues.push(...attributionDriftDeterministicStrings(attribution_issues));
 
+  const span_grounding_issues = !options.positionsOnly
+    ? collectSpanGroundingMismatchIssues(sourceText, extraction)
+    : [];
+  issues.push(...spanGroundingDeterministicStrings(span_grounding_issues));
+
   const deterministic_checks: DeterministicChecksDetail = {
     all_evidence_excerpts_verbatim,
     all_provenance_excerpts_verbatim: provResult.detail.all_provenance_excerpts_verbatim ?? true,
@@ -472,6 +482,7 @@ export function runStrictPreValidation(
     issues,
     deterministic_checks,
     attribution_issues,
+    span_grounding_issues,
   };
 }
 
@@ -594,7 +605,10 @@ export function buildDeterministicClaimsReviewReport(
     deterministic_issues: strict.issues,
   };
 
-  return mergeAttributionDriftIntoClaimsReview(base, strict.attribution_issues ?? []);
+  return mergeSpanGroundingIntoClaimsReview(
+    mergeAttributionDriftIntoClaimsReview(base, strict.attribution_issues ?? []),
+    strict.span_grounding_issues ?? []
+  );
 }
 
 export function buildDeterministicPositionsReviewReport(

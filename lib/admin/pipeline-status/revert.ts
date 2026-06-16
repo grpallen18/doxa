@@ -21,6 +21,8 @@ const INGESTION_REVERT_SCOPE: PipelineStepId[] = [
 const CLAIMS_REVERT_SCOPE: PipelineStepId[] = [
   'extract-story-claims',
   'validate-chunk-claims',
+  'refine-chunk-claims',
+  'approve-chunk-claims',
 ]
 
 export const REVERT_SCOPE_STEP_IDS: PipelineStepId[] = [
@@ -191,6 +193,10 @@ export function getRevertStepDescription(stepId: PipelineStepId): string {
       return 'Clears claims extraction JSON on chunks; chunks are kept.'
     case 'validate-chunk-claims':
       return 'Undoes the latest chunk claims review pass (one cycle). Keeps extraction JSON; restores the prior review state.'
+    case 'refine-chunk-claims':
+      return 'Undoes the latest claims repair pass for this chunk. Restores prior version and merge parking state.'
+    case 'approve-chunk-claims':
+      return 'Undoes the latest claims approval pass for this chunk. Returns chunk to awaiting approval.'
     default:
       return 'Reverts this pipeline step.'
   }

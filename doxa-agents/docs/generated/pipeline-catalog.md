@@ -20,5 +20,14 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | chunk-story-bodies | `chunk_story_bodies` | inactive | — | story_id |
 | extract-story-claims | `extract_story_claims` | inactive | — | story_id, chunk_index |
 | validate-chunk-claims | `validate_chunk_claims` | inactive | — | story_id, chunk_index |
+| refine-chunk-claims | `refine_chunk_claims` | inactive | — | story_id, chunk_index |
+| approve-chunk-claims | `approve_chunk_claims` | inactive | — | story_id, chunk_index |
+
+## Merging (`merging`)
+
+| Step | Deploy | Status | Optional | Isolation |
+|------|--------|--------|----------|-----------|
+| merge-story-claims | `merge_story_claims` | inactive | — | story_id |
+| review-merged-extraction | `review_merged_extraction` | inactive | — | story_id |
 
 _Generated from pipeline-admin-catalog.yaml + manifest.yaml._

@@ -13,20 +13,21 @@ Do not commit secret values to git.
 | relevance-gate | relevance_gate | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
+| approve-chunk-claims | approve_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | extract-story-claims | extract_story_claims | `OPENAI_API_KEY` |
+| refine-chunk-claims | refine_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | validate-chunk-claims | validate_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
+| merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | discord-daily-health | discord_daily_health | `DISCORD_THREAD_NAME`, `DISCORD_WEBHOOK` |
 | standardize-chunk-extraction | standardize_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| refine-chunk-claims | refine_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | link-chunk-entities | link_chunk_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | extract-story-positions | extract_story_positions | `OPENAI_API_KEY` |
 | validate-chunk-positions | validate_chunk_positions | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | refine-chunk-positions | refine_chunk_positions | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | merge-story-positions | merge_story_positions | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | refine-merged-extraction | refine_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | validate-merged-extraction | validate_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | classify-claim-pairs | classify_claim_pairs | `OPENAI_API_KEY`, `OPENAI_MODEL` |

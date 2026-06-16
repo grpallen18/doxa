@@ -358,7 +358,9 @@ export async function resetStaleChunkRefinementCounter(
 
   const linkedCount = countLinkedRefinementOutputs(artifactRows)
   const report = asRecord(chunk.extraction_qa_review_report)
+  const resolvedStatus = str(report?.resolved_status)
   const reviewRequestsRefine =
+    resolvedStatus === 'needs_refinement' ||
     str(report?.recommended_action) === 'needs_refinement' ||
     str(report?.recommended_action) === 'refine'
   const nextStatus =

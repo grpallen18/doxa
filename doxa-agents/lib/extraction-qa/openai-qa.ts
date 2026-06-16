@@ -249,6 +249,17 @@ const CLAIMS_REVIEW_PATCH_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const CLAIMS_REVIEW_CLAIM_AUDIT_SCHEMA = {
+  type: "object",
+  properties: {
+    claim_id: { type: "string" },
+    verdict: { type: "string", enum: ["pass", "needs_repair", "reject_final"] },
+    reason: { type: "string" },
+  },
+  required: ["claim_id", "verdict"],
+  additionalProperties: false,
+} as const;
+
 export const CLAIMS_REVIEW_SCHEMA = {
   type: "object",
   properties: {
@@ -257,8 +268,18 @@ export const CLAIMS_REVIEW_SCHEMA = {
     summary: { type: "string" },
     issues: { type: "array", items: CLAIMS_REVIEW_ISSUE_SCHEMA },
     patches: { type: "array", items: CLAIMS_REVIEW_PATCH_SCHEMA },
+    claim_audit: { type: "array", items: CLAIMS_REVIEW_CLAIM_AUDIT_SCHEMA },
+    refinement_instruction: { type: "string" },
   },
-  required: ["passes_review", "recommended_action", "summary", "issues", "patches"],
+  required: [
+    "passes_review",
+    "recommended_action",
+    "summary",
+    "issues",
+    "patches",
+    "claim_audit",
+    "refinement_instruction",
+  ],
   additionalProperties: false,
 } as const;
 
@@ -529,6 +550,67 @@ const POSITION_PATCH_OBJECT_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+export const CLAIMS_REFINE_REPLACEMENT_SCHEMA = {
+  type: "object",
+  properties: {
+    claims: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          claim_id: { type: "string" },
+          raw_text: { type: "string" },
+          polarity: { type: "string", enum: ["asserts", "denies", "uncertain"] },
+          stance: { type: "string", enum: ["support", "oppose", "neutral"] },
+          span_start: { type: "integer" },
+          span_end: { type: "integer" },
+          source_excerpt: { type: "string" },
+          source_story_id: { type: "string" },
+          source_chunk_index: { type: "integer" },
+          extraction_confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+        required: [
+          "claim_id",
+          "raw_text",
+          "polarity",
+          "stance",
+          "span_start",
+          "span_end",
+          "source_excerpt",
+          "source_story_id",
+          "source_chunk_index",
+          "extraction_confidence",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["claims"],
+  additionalProperties: false,
+} as const;
+
+export const CLAIMS_APPROVAL_SCHEMA = {
+  type: "object",
+  properties: {
+    verdicts: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          claim_id: { type: "string" },
+          approved: { type: "boolean" },
+          reason: { type: "string" },
+          fixable: { type: "boolean" },
+        },
+        required: ["claim_id", "approved", "reason"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["verdicts"],
+  additionalProperties: false,
+} as const;
+
 export const POSITION_REFINE_PATCH_SCHEMA = {
   type: "object",
   properties: {
@@ -559,43 +641,63 @@ Audit one chunk's primary claims extraction (claims array only). Do not rewrite 
 
 ${METADATA_PROMPT_BLOCK}
 
-INPUT: chunk_text and extraction_json.claims (each claim has raw_text; polarity/stance optional).
+INPUT: chunk_text and extraction_json.claims (each claim has raw_text, source_excerpt, span_start, span_end).
 
 EVALUATE:
-1. Grounding — every claim must be supported by the chunk text; no outside knowledge.
-2. Materiality — missing major factual claims visible in the chunk (major severity).
-3. Temporal accuracy — dates/years/timeframes in claim text must appear in or be clearly anchored by the chunk (blocking if invented).
-4. Claim quality — standalone sentences, not quotes-as-claims, not rhetorical filler, not duplicate/over-merged claims.
-5. Count — aim for 1–4 primary claims; flag excess weak claims (major).
+1. Claim grounding — raw_text must be supported by chunk_text. Do not use outside knowledge.
+2. Span/excerpt grounding — source_excerpt and spans must point to text that supports the claim. If raw_text is supported elsewhere in the chunk but source_excerpt points to unrelated text, use issue_type span_grounding_mismatch (blocking), not grounding. The refiner fixes excerpt/spans; do not reject the claim as unsupported when only the citation is wrong.
+3. Materiality — missing major factual claims visible in the chunk (major severity).
+4. Temporal accuracy — dates/years/timeframes in claim text must appear in or be clearly anchored by the chunk (blocking if invented).
+5. Claim quality — standalone sentences, not quotes-as-claims, not rhetorical filler, not duplicate/over-merged claims.
+6. Count — aim for 1–4 primary claims; flag excess weak claims (major).
 
-DO NOT review: evidence, positions, events, links, span_start/span_end.
+ISSUE TYPES (use exactly one per issue): grounding, span_grounding_mismatch, attribution, materiality, duplicate, over_merged, under_split, temporal, quote_like, missing_claim, schema_issue.
 
 SEVERITY:
-- blocking — unsupported factual assertion, invented date, claim not a complete sentence
+- blocking — unsupported factual assertion, invented date, span_grounding_mismatch, claim not a complete sentence
 - major — missing important claim, duplicate, weak/non-material claim, bad attribution
-- minor — wording, confidence, style
+- minor — wording polish, confidence, style that does not change meaning, attribution, or material completeness
+
+RECOMMENDED_ACTION:
+- validate — production-ready for merge (passes_review=true)
+- needs_refinement — fixable blocking/major issues including span/excerpt corrections (passes_review=false)
+- reject — serious ambiguity or unfixable issues requiring human judgment only when the refiner cannot safely resolve (passes_review=false)
 
 RULES:
-1. Treat deterministic_issues as pre-confirmed blocking facts (do not re-litigate).
-2. Ignore span_mismatch entries in deterministic_issues.
+1. Treat deterministic_issues as pre-confirmed facts (do not re-litigate). span_grounding_mismatch and attribution_drift entries are actionable — route to needs_refinement with matching issue_type.
+2. Ignore span_mismatch entries in deterministic_issues (server recomputes offsets from source_excerpt).
 3. Recommend add/remove/update patches on claims only — entity_type must be "claim".
-4. Set passes_review=true and recommended_action=validate only when production-ready for merge.
-5. Write summary as 2–4 sentences synthesizing all issues (deterministic + your findings).`;
+4. Wording or canonicalization alone is minor unless it changes meaning, attribution, or material completeness.
+5. Write summary as 2–4 sentences synthesizing all issues (deterministic + your findings).
+6. claim_audit: pass | needs_repair | reject_final per claim_id, consistent with issues.`;
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (refine-chunk-claims). */
-export const CHUNK_CLAIMS_REFINE_SYSTEM = `You are the Primary Claims Refiner for Doxa.
+export const CHUNK_CLAIMS_REFINE_SYSTEM = `You are the K-Claims Refiner Agent for Doxa.
 
-Apply targeted patches to fix reviewer findings on one chunk's claims array. Not a fresh extractor.
+Revise only the claims in repair_queue using the prior claim version and Review K-Claims feedback.
 
-${METADATA_PROMPT_BLOCK}
+Output a complete replacement claims JSON for the repair subset only. No commentary or markdown.
 
-RULES:
-1. Apply review_report findings — especially blocking and major with recommended_patch.
-2. Output patches only: add, remove, update on claims — never link/unlink.
-3. When adding/updating claims, raw_text must be a complete standalone sentence grounded in chunk_text only.
-4. Do not invent dates, actors, or facts not in chunk_text.
-5. Do not patch span_start or span_end — pipeline recomputes from source_excerpt if present.
-6. Minimal changes only. List ignored_findings when reviewer incorrectly flagged supported content.`;
+Rules:
+1. Preserve valid claims unless review requires change.
+2. Apply review issues, claim_audit, and refinement_instruction exactly.
+3. Do not invent claims — only include claims supported by chunk text.
+4. Fix grounding: accurate span_start, span_end, source_excerpt in chunk text. For span_grounding_mismatch issues, correct the excerpt/spans to verbatim supporting text or remove the claim if unsupported.
+5. Preserve stable claim_id when the claim remains substantively the same.
+6. Include all required extractor fields on every claim.
+7. Do not mark output as reviewed or passed.`;
+
+/** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (approve-chunk-claims). */
+export const CHUNK_CLAIMS_APPROVE_SYSTEM = `You are the K-Claims Approval Agent for Doxa.
+
+For each claim in the input list, decide approve or reject for merge eligibility.
+
+Rules:
+1. Approve only claims faithful to chunk text and merge-worthy.
+2. Do not rewrite claim text — verdict only.
+3. Reject hallucinations, vague summaries, duplicates of better claims, and ungrounded rows.
+4. Set fixable=true when rejection could be fixed by another repair pass; fixable=false when unfixable.
+5. Output one verdict per input claim_id.`;
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (validate-chunk-positions). */
 export const CHUNK_POSITIONS_REVIEW_SYSTEM = `You are the Doxa Position Review Agent.
@@ -965,6 +1067,12 @@ function normalizeClaimsReviewReport(raw: ClaimsReviewReport): ClaimsReviewRepor
       claim_indexes: patch.claim_indexes ?? [],
       recommended_raw_text: patch.recommended_raw_text ?? null,
     })),
+    claim_audit: (raw.claim_audit ?? []).map((row) => ({
+      claim_id: row.claim_id,
+      verdict: row.verdict,
+      ...(row.reason ? { reason: row.reason } : {}),
+    })),
+    refinement_instruction: raw.refinement_instruction ?? "",
   };
 }
 
@@ -1069,6 +1177,75 @@ export async function reviewChunkClaims(
     report.deterministic_issues = payloadObj.deterministic_issues;
   }
   return report;
+}
+
+export async function refineChunkClaimsReplacement(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  payload: unknown,
+  requestId: string,
+  responseSchema?: {
+    schema: Record<string, unknown>;
+    schemaName?: string;
+  },
+  timeoutMs?: number
+): Promise<{ claims: unknown[] }> {
+  const schema =
+    responseSchema?.schema ?? (CLAIMS_REFINE_REPLACEMENT_SCHEMA as unknown as Record<string, unknown>);
+  const schemaName = responseSchema?.schemaName ?? "doxa_chunk_claims_refine";
+  const result = await callOpenAIJson<{ claims?: unknown[] }>(
+    apiKey,
+    model,
+    systemPrompt,
+    payload,
+    schemaName,
+    schema,
+    requestId,
+    true,
+    timeoutMs
+  );
+  return { claims: Array.isArray(result?.claims) ? result.claims : [] };
+}
+
+export type ClaimsApprovalResult = {
+  verdicts: Array<{
+    claim_id: string;
+    approved: boolean;
+    reason: string;
+    fixable?: boolean;
+  }>;
+};
+
+export async function approveChunkClaims(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  payload: unknown,
+  requestId: string,
+  responseSchema?: {
+    schema: Record<string, unknown>;
+    schemaName?: string;
+  },
+  timeoutMs?: number
+): Promise<ClaimsApprovalResult> {
+  const schema =
+    responseSchema?.schema ?? (CLAIMS_APPROVAL_SCHEMA as unknown as Record<string, unknown>);
+  const schemaName = responseSchema?.schemaName ?? "doxa_chunk_claims_approve";
+  const result = await callOpenAIJson<ClaimsApprovalResult>(
+    apiKey,
+    model,
+    systemPrompt,
+    payload,
+    schemaName,
+    schema,
+    requestId,
+    true,
+    timeoutMs
+  );
+  return {
+    verdicts: Array.isArray(result?.verdicts) ? result.verdicts : [],
+  };
 }
 
 export async function refineChunkClaims(

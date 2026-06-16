@@ -193,9 +193,18 @@ export async function resolveSingleChunkStepOutcome(
   }
 
   if (stepId === "refine-chunk-claims" || stepId === "refine-chunk-positions") {
+    if (status === "awaiting_approval") return "success";
     if (status === "needs_human_review") return "success";
     if (status === "pending" && refinementCount > 0) return "success";
     if (status === "needs_refinement") return "failure";
+    return "success";
+  }
+
+  if (stepId === "approve-chunk-claims") {
+    if (status === "passed" || status === "atoms_passed") return "success";
+    if (status === "needs_refinement") return "success";
+    if (status === "needs_human_review") return "success";
+    if (status === "awaiting_approval") return "failure";
     return "success";
   }
 
@@ -230,6 +239,17 @@ export async function resolveChunkStepOutcome(
       (c) => (c as Record<string, unknown>)[statusKey] === "needs_refinement"
     );
     if (needsRefine) return "looping";
+    return hints.terminalComplete ? "success" : "looping";
+  }
+  if (stepId === "approve-chunk-claims") {
+    const { data: chunks } = await supabase
+      .from("story_chunks")
+      .select("extraction_qa_status")
+      .eq("story_id", storyId)
+      .not("extraction_json", "is", null);
+    const awaiting = (chunks ?? []).some((c) => c.extraction_qa_status === "awaiting_approval");
+    const needsRefine = (chunks ?? []).some((c) => c.extraction_qa_status === "needs_refinement");
+    if (awaiting || needsRefine) return "looping";
     return hints.terminalComplete ? "success" : "looping";
   }
   return "looping";

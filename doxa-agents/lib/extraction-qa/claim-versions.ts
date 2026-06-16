@@ -226,6 +226,89 @@ export async function getReviewArtifactForClaimVersion(
   return { id: data.id as string };
 }
 
+async function loadReviewArtifactById(
+  supabase: SupabaseClient,
+  artifactId: string
+): Promise<{ id: string; report: Record<string, unknown> } | null> {
+  const { data, error } = await supabase
+    .from("story_extraction_qa_artifacts")
+    .select("id, report")
+    .eq("id", artifactId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data?.id) return null;
+  const report =
+    data.report && typeof data.report === "object" && !Array.isArray(data.report)
+      ? (data.report as Record<string, unknown>)
+      : {};
+  return { id: data.id as string, report };
+}
+
+export async function resolveReviewArtifactForRefine(
+  supabase: SupabaseClient,
+  storyId: string,
+  chunkIndex: number,
+  inputVersionId: string | null
+): Promise<{ id: string; report: Record<string, unknown> } | null> {
+  if (inputVersionId) {
+    let versionIdToTry: string | null = inputVersionId;
+    for (let depth = 0; depth < 4 && versionIdToTry; depth += 1) {
+      const forVersion = await getReviewArtifactForClaimVersion(
+        supabase,
+        storyId,
+        chunkIndex,
+        versionIdToTry
+      );
+      if (forVersion) {
+        const loaded = await loadReviewArtifactById(supabase, forVersion.id);
+        if (loaded) return loaded;
+      }
+
+      const { data, error } = await supabase
+        .from("chunk_claim_versions")
+        .select("parent_version_id")
+        .eq("id", versionIdToTry)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      versionIdToTry =
+        typeof data?.parent_version_id === "string" ? data.parent_version_id : null;
+    }
+  }
+
+  return getLatestReviewArtifactForChunk(supabase, storyId, chunkIndex);
+}
+
+export async function verifyRefinementArtifactLink(
+  supabase: SupabaseClient,
+  artifactId: string,
+  outputVersionId: string
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("story_extraction_qa_artifacts")
+    .select("output_claim_version_id, report")
+    .eq("id", artifactId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("refinement_artifact_link_failed: artifact not found after save");
+
+  const report =
+    data.report && typeof data.report === "object" && !Array.isArray(data.report)
+      ? (data.report as Record<string, unknown>)
+      : {};
+  const outputFromReport =
+    typeof report.output_claim_version_id === "string" ? report.output_claim_version_id : null;
+  const outputFromColumn =
+    typeof data.output_claim_version_id === "string" ? data.output_claim_version_id : null;
+
+  if (outputFromColumn !== outputVersionId && outputFromReport !== outputVersionId) {
+    throw new Error(
+      "refinement_artifact_link_failed: output_claim_version_id does not match refiner version"
+    );
+  }
+}
+
 export async function getLatestReviewArtifactForChunk(
   supabase: SupabaseClient,
   storyId: string,
