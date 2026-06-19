@@ -34,6 +34,27 @@ const DrawerOverlay = React.forwardRef<
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
+const drawerHandleVisualClass = '!block !h-2 !w-[100px] !rounded-full !opacity-100'
+
+const DrawerHandle = React.forwardRef<
+  React.ElementRef<typeof DrawerPrimitive.Handle>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Handle> & {
+    pillClassName?: string
+  }
+>(({ className, pillClassName, ...props }, ref) => (
+  <DrawerPrimitive.Handle
+    ref={ref}
+    className={cn(
+      'relative mx-auto mt-2 shrink-0 cursor-grab touch-action-pan-y active:cursor-grabbing',
+      drawerHandleVisualClass,
+      pillClassName,
+      className
+    )}
+    {...props}
+  />
+))
+DrawerHandle.displayName = DrawerPrimitive.Handle.displayName
+
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
@@ -46,15 +67,13 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        "fixed inset-x-0 bottom-0 z-50 flex h-[85vh] max-h-[85vh] flex-col rounded-t-[10px] border bg-background",
         "data-[vaul-drawer-direction=right]:inset-x-auto data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:left-auto data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:top-0 data-[vaul-drawer-direction=right]:bottom-0 data-[vaul-drawer-direction=right]:mt-0 data-[vaul-drawer-direction=right]:h-full data-[vaul-drawer-direction=right]:max-h-none data-[vaul-drawer-direction=right]:w-full data-[vaul-drawer-direction=right]:max-w-md data-[vaul-drawer-direction=right]:rounded-l-[10px] data-[vaul-drawer-direction=right]:rounded-t-none data-[vaul-drawer-direction=right]:rounded-b-none",
         className
       )}
       {...props}
     >
-      {!hideHandle && (
-        <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      )}
+      {!hideHandle && <DrawerHandle />}
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>
@@ -116,6 +135,7 @@ export {
   DrawerOverlay,
   DrawerTrigger,
   DrawerClose,
+  DrawerHandle,
   DrawerContent,
   DrawerHeader,
   DrawerFooter,

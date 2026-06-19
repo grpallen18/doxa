@@ -144,16 +144,11 @@ export function ChunkRecordPage() {
 
         <RecordSectionCard
           id="chunk-source-extraction"
-          title="Content & extraction"
+          title="Chunk content"
           variant="panel"
           headerActions={<ChunkExtractionExportButtons record={data} />}
         >
-          <ChunkContentExtractionLayout
-            content={data.content}
-            extractionJson={data.extraction_json}
-            positionsExtractionJson={data.positions_extraction_json}
-            chunkIndex={data.chunk_index}
-          />
+          <ChunkContentExtractionLayout content={data.content} />
         </RecordSectionCard>
 
         <ChunkQaHistorySection apiPath={qaHistoryPath} variant="panel" />

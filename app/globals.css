@@ -463,6 +463,11 @@ body {
     color: inherit;
   }
 
+  [data-vaul-handle] {
+    background: var(--accent-secondary) !important;
+    opacity: 1 !important;
+  }
+
   /* Post-login loader */
   .post-login-loader-main {
     display: flex;

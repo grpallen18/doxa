@@ -1,204 +1,58 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import type { ChunkQaHistoryPayload, ChunkQaHistoryEvent } from '@/lib/admin/chunk-qa-history'
-import { formatAdminDateTime } from '@/lib/admin/format-datetime'
+import { useEffect, useMemo, useState } from 'react'
+import type { ChunkQaHistoryPayload } from '@/lib/admin/chunk-qa-history'
+import { buildClaimReviewWorkspace } from '@/lib/admin/claim-review-workspace'
 import {
-  FocusAccordion,
-  FocusAccordionItem,
-  AccordionContent,
-  AccordionTrigger,
-} from '@/components/admin/pipeline/focus-accordion'
-import { RecordLedgerCell, recordLedgerValueClass } from '@/components/admin/record/record-ledger-table'
+  CHUNK_REVIEW_ATOM_TABS,
+  DEFAULT_CHUNK_REVIEW_ATOM,
+  type ChunkReviewAtomId,
+} from '@/lib/admin/chunk-review-atoms'
+import { ClaimReviewHistoryDrawer } from '@/components/admin/stories/claim-review-history-drawer'
+import {
+  RecordLedgerTable,
+  recordLedgerRowClass,
+  recordLedgerValueClass,
+} from '@/components/admin/record/record-ledger-table'
 import { RecordSectionCard } from '@/components/admin/record/record-section-card'
-import { ClaimsReviewReportDisplay } from '@/components/admin/extraction/claims-review-report'
 import { cn } from '@/lib/utils'
 
-function eventTitle(event: ChunkQaHistoryEvent): string {
-  const base =
-    event.kind === 'review'
-      ? `Review${event.cycle_number != null ? ` #${event.cycle_number}` : ''}`
-      : `Refine${event.cycle_number != null ? ` #${event.cycle_number}` : ''}`
-  return event.reverted ? `${base} (reverted)` : base
+const WORKSPACE_GRID =
+  'grid grid-cols-[2.25rem_minmax(5.5rem,6.5rem)_3rem_minmax(0,1fr)] gap-x-3'
+
+const WORKSPACE_COLUMNS = ['#', 'Status', 'Ver', 'Preview']
+
+const ATOM_LABELS: Record<ChunkReviewAtomId, string> = {
+  claims: 'claims',
+  positions: 'positions',
+  events: 'events',
+  evidence: 'evidence',
 }
 
-function eventStatusLine(event: ChunkQaHistoryEvent): string {
-  const promptLabel =
-    event.prompt_version_number != null ? `prompt v${event.prompt_version_number}` : null
-  if (event.kind === 'review') {
-    const status =
-      event.review_passes === true
-        ? 'Passed review'
-        : event.review_passes === false
-          ? 'Needs refinement'
-          : 'Review completed'
-    return promptLabel ? `${status} · ${promptLabel}` : status
+function statusTone(status: string): string {
+  switch (status) {
+    case 'approved':
+      return 'text-emerald-600 dark:text-emerald-400'
+    case 'needs_refinement':
+      return 'text-amber-600 dark:text-amber-400'
+    case 'rejected':
+      return 'text-destructive'
+    default:
+      return 'text-muted'
   }
-  const changes = event.claim_diffs.length
-  const changeLabel =
-    changes === 0 ? 'No claim changes' : `${changes} claim change${changes === 1 ? '' : 's'}`
-  return promptLabel ? `${changeLabel} · ${promptLabel}` : changeLabel
 }
 
-function RefinePatches({ report }: { report: unknown }) {
-  if (!report || typeof report !== 'object') return null
-  const patches = (report as { patches?: unknown[] }).patches ?? []
-  if (patches.length === 0) return <p className="text-xs text-muted">No patches recorded.</p>
+function AtomLaneEmptyState({ atom }: { atom: ChunkReviewAtomId }) {
   return (
-    <ul className="space-y-1.5">
-      {patches.map((p, i) => (
-        <li key={i} className="rounded bg-muted/20 px-2 py-1.5 font-mono text-xs">
-          {JSON.stringify(p)}
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function ClaimDiffTable({ event }: { event: ChunkQaHistoryEvent }) {
-  if (event.claim_diffs.length === 0) {
-    return <p className="text-xs text-muted">No claim changes in this step.</p>
-  }
-
-  return (
-    <div className="min-w-0 rounded-md border border-subtle text-xs">
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 border-b border-subtle bg-muted/10 px-3 py-2 font-medium">
-        <span>Claim ID</span>
-        <span>Before</span>
-        <span>After</span>
-      </div>
-      <ul className="divide-y divide-subtle">
-        {event.claim_diffs.map((diff) => (
-          <li
-            key={`${diff.claim_id}-${diff.change}`}
-            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 px-3 py-2"
-          >
-            <span className="font-mono text-[10px] text-muted" title={diff.claim_id}>
-              {diff.claim_id}
-            </span>
-            <span className={recordLedgerValueClass}>
-              <RecordLedgerCell>
-                {diff.before?.raw_text ?? (
-                  <span className="text-muted italic">—</span>
-                )}
-              </RecordLedgerCell>
-            </span>
-            <span className={recordLedgerValueClass}>
-              <RecordLedgerCell>
-                {diff.after?.raw_text ?? (
-                  <span className="text-muted italic">removed</span>
-                )}
-              </RecordLedgerCell>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function ClaimVersionMatrix({ payload }: { payload: ChunkQaHistoryPayload }) {
-  const { claim_version_matrix: rows, version_labels: labels } = payload
-  if (rows.length === 0 || labels.length === 0) {
-    return <p className="text-xs text-muted">No claim versions recorded yet.</p>
-  }
-
-  const gridStyle = {
-    gridTemplateColumns: `minmax(0, 1.5fr) repeat(${labels.length}, minmax(0, 1fr))`,
-  }
-
-  return (
-    <div className="min-w-0 overflow-x-auto rounded-md border border-subtle text-xs">
-      <div
-        className="grid min-w-[32rem] gap-x-3 border-b border-subtle bg-muted/10 px-3 py-2 font-medium"
-        style={gridStyle}
-      >
-        <span>Claim</span>
-        {labels.map((label) => (
-          <span key={label} className="min-w-0 truncate" title={label}>
-            {label}
-          </span>
-        ))}
-      </div>
-      <ul className="divide-y divide-subtle">
-        {rows.map((row) => (
-          <li key={row.row_key} className="grid min-w-[32rem] gap-x-3 px-3 py-2" style={gridStyle}>
-            <span className={recordLedgerValueClass} title={row.label}>
-              <RecordLedgerCell>{row.label}</RecordLedgerCell>
-            </span>
-            {row.versions.map((cell) => (
-              <span
-                key={`${row.row_key}-${cell.version}`}
-                className={cn(
-                  recordLedgerValueClass,
-                  cell.changed && 'rounded bg-amber-500/10 px-1'
-                )}
-                title={cell.raw_text ?? undefined}
-              >
-                <RecordLedgerCell>
-                  {cell.raw_text ?? <span className="text-muted italic">—</span>}
-                </RecordLedgerCell>
-              </span>
-            ))}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function QaEventDetail({ event }: { event: ChunkQaHistoryEvent }) {
-  const meta: string[] = []
-  if (event.prompt_version_number != null && event.prompt_step_id) {
-    meta.push(`Prompt v${event.prompt_version_number}`)
-  }
-  if (event.model_name) meta.push(event.model_name)
-  if (event.run_id) meta.push(`Run ${event.run_id.slice(0, 8)}`)
-
-  return (
-    <div className="space-y-3">
-      {meta.length > 0 ? (
-        <p className="text-xs text-muted">{meta.join(' · ')}</p>
-      ) : null}
-
-      {event.kind === 'review' ? (
-        <>
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted">Review findings</p>
-            <ClaimsReviewReportDisplay report={event.report} />
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted">
-              Claims at review ({event.claims_after.length})
-            </p>
-            {event.claims_after.length === 0 ? (
-              <p className="text-xs text-muted">No claims.</p>
-            ) : (
-              <ul className="space-y-1">
-                {event.claims_after.map((c) => (
-                  <li key={c.claim_id} className="rounded bg-muted/20 px-2 py-1 text-xs">
-                    <span className="font-mono text-[10px] text-muted">{c.claim_id}</span>
-                    <span className="mx-1 text-muted">·</span>
-                    {c.raw_text}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted">Patches applied</p>
-            <RefinePatches report={event.report} />
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted">Claim changes</p>
-            <ClaimDiffTable event={event} />
-          </div>
-        </>
-      )}
-    </div>
+    <li className="px-3 py-8 text-center">
+      <p className="text-xs text-muted">
+        No {ATOM_LABELS[atom]} review history recorded for this chunk yet.
+      </p>
+      <p className="mt-1 text-xs italic text-muted">
+        Status tabs and version history for this lane will appear here as the parallel review
+        pipeline is wired up.
+      </p>
+    </li>
   )
 }
 
@@ -212,6 +66,10 @@ export function ChunkQaHistorySection({
   const [payload, setPayload] = useState<ChunkQaHistoryPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeAtom, setActiveAtom] = useState<ChunkReviewAtomId>(DEFAULT_CHUNK_REVIEW_ATOM)
+  const [activeTab, setActiveTab] = useState('approved')
+  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -233,47 +91,114 @@ export function ChunkQaHistorySection({
       .finally(() => setLoading(false))
   }, [apiPath])
 
-  const events = payload?.events ?? []
-  const reversed = [...events].reverse()
+  const workspace = useMemo(
+    () => (payload ? buildClaimReviewWorkspace(payload) : null),
+    [payload]
+  )
+
+  useEffect(() => {
+    if (!workspace || activeAtom !== 'claims') return
+    if (workspace.tabs.some((tab) => tab.id === activeTab)) return
+    setActiveTab(workspace.defaultTabId)
+  }, [workspace, activeTab, activeAtom])
+
+  useEffect(() => {
+    setSelectedClaimId(null)
+    setDrawerOpen(false)
+  }, [activeAtom])
+
+  const activeRows = activeAtom === 'claims' ? (workspace?.rowsByTab[activeTab] ?? []) : []
+  const selectedLifecycle =
+    selectedClaimId && workspace
+      ? (workspace.lifecycleByClaimId.get(selectedClaimId) ?? null)
+      : null
+
+  const handleRowClick = (claimId: string) => {
+    setSelectedClaimId(claimId)
+    setDrawerOpen(true)
+  }
+
+  const hasClaimsHistory =
+    payload != null &&
+    (payload.claim_versions.length > 0 || payload.events.some((event) => !event.reverted))
+
+  const showClaimsTable = activeAtom === 'claims' && hasClaimsHistory && workspace != null
+  const claimsStatusTabs = showClaimsTable && workspace.tabs.length > 0 ? workspace.tabs : undefined
 
   return (
-    <RecordSectionCard id="chunk-qa-history" title="Review & refine history" variant={variant}>
-      {loading && <p className="text-xs text-muted">Loading QA history…</p>}
+    <RecordSectionCard id="chunk-qa-history" title="Chunk review workspace" variant={variant}>
+      {loading && <p className="text-xs text-muted">Loading review history…</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
-      {!loading && !error && events.length === 0 ? (
-        <p className="text-xs text-muted">No review or refine runs recorded for this chunk yet.</p>
-      ) : null}
-      {!loading && !error && payload && events.length > 0 ? (
-        <div className="space-y-6">
-          {payload.version_timeline ? (
-            <p className="text-xs text-muted font-mono">{payload.version_timeline}</p>
-          ) : null}
-          <section>
-            <h3 className="mb-2 text-xs font-medium text-muted">Claim versions across refinements</h3>
-            <ClaimVersionMatrix payload={payload} />
-          </section>
-
-          <section>
-            <h3 className="mb-2 text-xs font-medium text-muted">Run timeline</h3>
-            <FocusAccordion defaultValue={reversed[0] ? [reversed[0].id] : []}>
-              {reversed.map((event) => (
-                <FocusAccordionItem key={event.id} value={event.id}>
-                  <AccordionTrigger className="py-2 text-xs hover:no-underline">
-                    <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                      <span className="font-medium">{eventTitle(event)}</span>
-                      <span className="text-muted">{eventStatusLine(event)}</span>
-                      <span className="ml-auto shrink-0 tabular-nums text-muted">
-                        {formatAdminDateTime(event.created_at)}
+      {!loading && !error ? (
+        <div className="space-y-4">
+          <RecordLedgerTable
+            columns={WORKSPACE_COLUMNS}
+            gridClass={WORKSPACE_GRID}
+            laneTabs={CHUNK_REVIEW_ATOM_TABS}
+            activeLaneTab={activeAtom}
+            onLaneTabChange={(tabId) => setActiveAtom(tabId as ChunkReviewAtomId)}
+            tabs={claimsStatusTabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            showColumns={activeAtom === 'claims'}
+          >
+            <ol className="divide-y divide-subtle">
+              {activeAtom !== 'claims' ? (
+                <AtomLaneEmptyState atom={activeAtom} />
+              ) : !hasClaimsHistory ? (
+                <li className="px-3 py-2">
+                  <p className="text-xs italic text-muted">
+                    No review or refine runs recorded for this chunk yet.
+                  </p>
+                </li>
+              ) : workspace?.tabs.length === 0 ? (
+                <li className="px-3 py-2">
+                  <p className="text-xs italic text-muted">No claims recorded yet.</p>
+                </li>
+              ) : activeRows.length === 0 ? (
+                <li className="px-3 py-2">
+                  <p className="text-xs italic text-muted">No claims in this status.</p>
+                </li>
+              ) : (
+                activeRows.map((row) => (
+                  <li key={row.claimId}>
+                    <button
+                      type="button"
+                      className={cn(
+                        recordLedgerRowClass(WORKSPACE_GRID),
+                        'w-full cursor-pointer text-left hover:bg-muted/30'
+                      )}
+                      onClick={() => handleRowClick(row.claimId)}
+                    >
+                      <span className={cn(recordLedgerValueClass, 'tabular-nums text-foreground')}>
+                        {row.claimNumber}
                       </span>
-                    </span>
-                  </AccordionTrigger>
-                  <AccordionContent className="pb-3">
-                    <QaEventDetail event={event} />
-                  </AccordionContent>
-                </FocusAccordionItem>
-              ))}
-            </FocusAccordion>
-          </section>
+                      <span className={cn(recordLedgerValueClass, statusTone(row.status))}>
+                        {row.statusLabel}
+                      </span>
+                      <span className={cn(recordLedgerValueClass, 'tabular-nums')}>
+                        {row.versionCount}
+                      </span>
+                      <span
+                        className="min-w-0 truncate text-xs leading-snug text-muted"
+                        title={row.preview}
+                      >
+                        {row.preview}
+                      </span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ol>
+          </RecordLedgerTable>
+
+          {activeAtom === 'claims' ? (
+            <ClaimReviewHistoryDrawer
+              open={drawerOpen}
+              onOpenChange={setDrawerOpen}
+              lifecycle={selectedLifecycle}
+            />
+          ) : null}
         </div>
       ) : null}
     </RecordSectionCard>

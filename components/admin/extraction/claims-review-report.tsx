@@ -1,17 +1,19 @@
+import { cn } from '@/lib/utils'
+
 type LegacyFinding = {
   severity?: string
   description?: string
   type?: string
 }
 
-type ClaimsIssue = {
+export type ClaimsIssue = {
   severity?: string
   issue_type?: string
   finding?: string
   claim_id?: string | null
 }
 
-type ClaimsPatch = {
+export type ClaimsPatch = {
   action?: string
   severity?: string
   reason?: string
@@ -97,6 +99,123 @@ export function ClaimsReviewReportDisplay({
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export function ClaimIssueList({
+  issues,
+  className = 'text-xs',
+  listClassName,
+}: {
+  issues: ClaimsIssue[]
+  className?: string
+  listClassName?: string
+}) {
+  if (issues.length === 0) return null
+
+  return (
+    <ul className={cn('space-y-1.5', listClassName)}>
+      {issues.map((issue, i) =>
+        issue.finding ? (
+          <li key={i} className={cn('rounded bg-muted/20 px-2 py-1.5', className)}>
+            {issue.finding}
+          </li>
+        ) : null
+      )}
+    </ul>
+  )
+}
+
+export function ClaimRepairGuidanceList({
+  patches,
+  className = 'text-xs',
+  listClassName,
+}: {
+  patches: ClaimsPatch[]
+  className?: string
+  listClassName?: string
+}) {
+  if (patches.length === 0) return null
+
+  return (
+    <ul className={cn('space-y-1.5', listClassName)}>
+      {patches.map((patch, i) =>
+        patch.reason ? (
+          <li key={i} className={cn('rounded bg-muted/20 px-2 py-1.5', className)}>
+            {patch.reason}
+          </li>
+        ) : null
+      )}
+    </ul>
+  )
+}
+
+type ClaimScopedReviewFeedbackProps = {
+  report: {
+    claim_verdict?: 'pass' | 'needs_repair' | 'reject_final' | null
+    claim_verdict_label?: string
+    claim_summary?: string | null
+    issues?: ClaimsIssue[]
+    patches?: ClaimsPatch[]
+    claim_audit?: Array<{ claim_id?: string; verdict?: string; reason?: string }>
+    deterministic_issues?: unknown[]
+    refinement_instruction?: string | null
+  }
+}
+
+export function ClaimScopedReviewFeedback({ report }: ClaimScopedReviewFeedbackProps) {
+  const issues = report.issues ?? []
+  const patches = report.patches ?? []
+  const deterministicIssues = (report.deterministic_issues ?? []).filter(
+    (issue): issue is string => typeof issue === 'string'
+  )
+
+  return (
+    <div className="space-y-2">
+      {report.claim_summary ? (
+        <p className="rounded bg-muted/20 px-2 py-1.5 text-xs text-foreground">
+          {report.claim_summary}
+        </p>
+      ) : null}
+
+      {deterministicIssues.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted">Failed checks</p>
+          <ul className="space-y-1.5">
+            {deterministicIssues.map((issue, i) => (
+              <li key={i} className="rounded bg-muted/20 px-2 py-1.5 text-xs text-foreground">
+                {issue}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {issues.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted">Issues</p>
+          <ClaimIssueList issues={issues} />
+        </div>
+      ) : report.claim_verdict === 'pass' ? (
+        <EmptyMessage message="No issues for this claim." />
+      ) : null}
+
+      {patches.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted">Repair guidance</p>
+          <ClaimRepairGuidanceList patches={patches} />
+        </div>
+      ) : null}
+
+      {report.refinement_instruction ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted">Refinement notes</p>
+          <p className="rounded bg-muted/20 px-2 py-1.5 text-xs text-foreground">
+            {report.refinement_instruction}
+          </p>
         </div>
       ) : null}
     </div>
