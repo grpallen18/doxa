@@ -50,7 +50,7 @@ export function AtomList({
             {claims.map((c) => (
               <li
                 key={c.story_claim_id}
-                className="rounded-md border border-subtle px-3 py-2"
+                className="rounded-md border border-border px-3 py-2"
                 {...hoverHandlers(null, c.span_start, c.span_end, c.raw_text)}
               >
                 <p className="leading-snug">{c.raw_text}</p>
@@ -80,7 +80,7 @@ export function AtomList({
           </h3>
           <ul className="mt-2 space-y-2">
             {positions.map((p) => (
-              <li key={p.story_position_id} className="rounded-md border border-subtle px-3 py-2">
+              <li key={p.story_position_id} className="rounded-md border border-border px-3 py-2">
                 <p className="leading-snug">{p.raw_text}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                   <ConfidenceBadge value={p.extraction_confidence} />
@@ -106,7 +106,7 @@ export function AtomList({
           </h3>
           <ul className="mt-2 space-y-2">
             {events.map((e) => (
-              <li key={e.story_event_id} className="rounded-md border border-subtle px-3 py-2">
+              <li key={e.story_event_id} className="rounded-md border border-border px-3 py-2">
                 <p className="leading-snug">{e.event_summary}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                   <ConfidenceBadge value={e.extraction_confidence} />
@@ -134,7 +134,7 @@ export function AtomList({
             {evidence.map((ev) => (
               <li
                 key={ev.evidence_id}
-                className="rounded-md border border-subtle px-3 py-2"
+                className="rounded-md border border-border px-3 py-2"
                 {...hoverHandlers(null, ev.span_start, ev.span_end, ev.excerpt)}
               >
                 <p className="text-xs text-muted">{ev.evidence_type}</p>

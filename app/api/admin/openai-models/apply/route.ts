@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
   const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : null
   const key = typeof record?.key === 'string' ? record.key : ''
   const value = typeof record?.value === 'string' ? record.value : ''
+  const label = typeof record?.label === 'string' ? record.label : undefined
+  const description = typeof record?.description === 'string' ? record.description : undefined
 
   if (!key || !isEditableOpenAiModelKey(key)) {
     return NextResponse.json(
@@ -35,7 +37,10 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
-  const result = await applyOpenAiModelConfig(supabase, key, validated, auth.user.id)
+  const result = await applyOpenAiModelConfig(supabase, key, validated, auth.user.id, {
+    label,
+    description,
+  })
 
   if ('error' in result) {
     return NextResponse.json({ data: null, error: { message: result.error } }, { status: 400 })
@@ -46,6 +51,7 @@ export async function POST(request: NextRequest) {
       entry: result.entry,
       test: result.test,
       sync: result.sync,
+      warning: result.warning ?? null,
     },
     error: null,
   })

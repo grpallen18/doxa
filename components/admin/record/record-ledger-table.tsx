@@ -75,7 +75,7 @@ function RecordLedgerTabBar({
     <div
       ref={containerRef}
       className={cn(
-        'relative flex gap-1 border-b border-subtle px-2 pb-0 pt-2',
+        'relative flex gap-1 border-b border-border px-2 pb-0 pt-2',
         variant === 'lane' && 'bg-surface-section'
       )}
     >
@@ -136,7 +136,7 @@ export function RecordLedgerTable({
   showColumns?: boolean
 }) {
   return (
-    <div className="min-w-0 w-full rounded-md border border-subtle text-sm">
+    <div className="min-w-0 w-full rounded-md border border-border text-sm">
       {laneTabs && laneTabs.length > 0 && onLaneTabChange && activeLaneTab != null && (
         <RecordLedgerTabBar
           tabs={laneTabs}

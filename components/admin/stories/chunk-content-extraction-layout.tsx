@@ -14,7 +14,7 @@ export function ChunkContentExtractionLayout({ content }: { content: string }) {
         ref={contentViewportRef}
         type="always"
         className={cn(
-          'h-[min(50vh,28rem)] min-h-0 overflow-hidden rounded-md border border-subtle bg-surface',
+          'h-[min(50vh,28rem)] min-h-0 overflow-hidden rounded-md border border-border bg-surface',
           '[&_[data-slot=scroll-area-viewport]]:h-full [&_[data-slot=scroll-area-viewport]]:max-h-full',
           '[&_[data-slot=scroll-area-thumb]]:bg-muted-foreground/50'
         )}

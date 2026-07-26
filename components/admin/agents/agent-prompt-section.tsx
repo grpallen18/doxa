@@ -358,7 +358,7 @@ export function AgentPromptSection({
           }}
           rows={14}
           className={cn(
-            'w-full resize-y rounded-md border border-subtle bg-background px-3 py-2 font-mono text-xs leading-relaxed',
+            'w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-xs leading-relaxed',
             !editing && 'text-muted-foreground'
           )}
         />
@@ -394,7 +394,7 @@ export function AgentPromptSection({
             User payload (read-only)
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <pre className="mt-2 whitespace-pre-wrap rounded-md border border-subtle bg-muted/30 p-3 font-mono text-xs text-muted">
+            <pre className="mt-2 whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 font-mono text-xs text-muted">
               {agent.userPayloadDoc}
             </pre>
           </CollapsibleContent>

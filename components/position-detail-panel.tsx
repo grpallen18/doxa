@@ -26,7 +26,7 @@ function Sparkline({ points, color }: { points: number[]; color: string }) {
 
 function ClaimRow({ claim, accent }: { claim: SupportingClaim; accent: string }) {
   return (
-    <li className="space-y-1.5 rounded-md border border-subtle bg-surface p-3">
+    <li className="space-y-1.5 rounded-md border border-border bg-surface p-3">
       <p className="text-xs leading-relaxed text-foreground">{claim.text}</p>
       <div className="flex items-center gap-3">
         <div className="flex-1">
@@ -49,7 +49,7 @@ function ClaimRow({ claim, accent }: { claim: SupportingClaim; accent: string })
 
 function ControversyRow({ item, accent }: { item: RelatedControversy; accent: string }) {
   return (
-    <li className="flex items-center justify-between gap-3 rounded-md border border-subtle bg-surface p-3">
+    <li className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface p-3">
       <span className="min-w-0 flex-1 truncate text-xs text-foreground">{item.title}</span>
       <Sparkline points={item.trend} color="var(--destructive)" />
       <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted">{item.impact}</span>
@@ -84,7 +84,7 @@ export function PositionDetailPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="space-y-3 border-b border-subtle p-4">
+      <div className="space-y-3 border-b border-border p-4">
         <div className="flex items-start justify-between gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">
             Position {position.ordinal} Selected
@@ -107,7 +107,7 @@ export function PositionDetailPanel({
         </div>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-subtle px-2 py-2">
+      <div className="flex gap-1 overflow-x-auto border-b border-border px-2 py-2">
         {detailTabs.map((t) => (
           <button
             key={t}
@@ -139,7 +139,7 @@ export function PositionDetailPanel({
           <Section title="Top Opposing Claims">
             <ul className="space-y-2">
               {position.opposingClaims.map((claim) => (
-                <ClaimRow key={claim.id} claim={claim} accent="var(--muted-soft)" />
+                <ClaimRow key={claim.id} claim={claim} accent="var(--muted)" />
               ))}
             </ul>
           </Section>

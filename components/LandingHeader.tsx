@@ -100,7 +100,7 @@ export function LandingHeader({ variant = 'default', animateTitle = false }: Lan
       <div className="mb-6 text-center">
         <Link
           href="/"
-          className="text-6xl font-semibold uppercase tracking-[0.18em] text-muted font-['Times_New_Roman',serif] transition-colors hover:text-accent-primary sm:text-7xl"
+          className="text-6xl font-semibold uppercase tracking-[0.18em] text-muted transition-colors hover:text-accent-primary sm:text-7xl"
         >
           {animateTitle ? (
             <>

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { applyThemeColorOverrides } from '@/lib/admin/global-layout-theme'
 
 const STORAGE_KEY = 'doxa-theme'
 
@@ -22,8 +23,8 @@ export function useTheme() {
 }
 
 function getInitialTheme(): Theme {
-  if (typeof document === 'undefined') return 'light'
-  if (document.documentElement.classList.contains('dark')) return 'dark'
+  // Always start as light so SSR and the first client render match.
+  // The boot script still applies `.dark` for CSS; React state syncs in useEffect.
   return 'light'
 }
 
@@ -39,7 +40,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
     if (stored === 'light' || stored === 'dark') {
       setThemeState(stored)
-    } else if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    } else if (
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
       setThemeState('dark')
     }
   }, [])
@@ -48,9 +52,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (!mounted || typeof document === 'undefined') return
     if (pathname === LOGIN_PATH) {
       document.documentElement.classList.remove('dark')
+      applyThemeColorOverrides('light')
     } else {
       document.documentElement.classList.toggle('dark', theme === 'dark')
       localStorage.setItem(STORAGE_KEY, theme)
+      applyThemeColorOverrides(theme)
     }
   }, [mounted, theme, pathname])
 

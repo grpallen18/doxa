@@ -35,7 +35,7 @@ export function RelationshipPanel({ payload }: { payload: StoryExtractionReviewP
               return (
                 <li
                   key={`${link.story_claim_id}-${link.evidence_id}`}
-                  className="rounded-md border border-subtle px-3 py-2 text-xs"
+                  className="rounded-md border border-border px-3 py-2 text-xs"
                 >
                   <p className="font-medium">{claim?.raw_text?.slice(0, 120) ?? link.story_claim_id}</p>
                   <p className="mt-1 text-muted">{ev?.excerpt?.slice(0, 160) ?? link.evidence_id}</p>

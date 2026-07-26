@@ -40,9 +40,6 @@ export default function Error({
             Go home
           </Button>
         </div>
-        <p className="text-xs text-muted-soft">
-          Using &quot;Go home&quot; does a full page load and often fixes load errors.
-        </p>
       </Panel>
     </main>
   )

@@ -53,8 +53,8 @@ function NarrativeSectionBlock({
   const headingClassName = isPageTitle
     ? 'mb-4 scroll-mt-[calc(var(--header-height)+1rem)] text-2xl font-semibold tracking-tight text-foreground'
     : depth === 0
-      ? 'flow-root scroll-mt-[calc(var(--header-height)+1rem)] border-b border-heading pb-1 text-base font-semibold text-foreground'
-      : 'flow-root scroll-mt-[calc(var(--header-height)+1rem)] border-b border-subtle pb-1 text-sm font-semibold text-foreground'
+      ? 'flow-root scroll-mt-[calc(var(--header-height)+1rem)] border-b border-subtle pb-1 text-base font-semibold text-foreground'
+      : 'flow-root scroll-mt-[calc(var(--header-height)+1rem)] border-b border-border pb-1 text-sm font-semibold text-foreground'
 
   return (
     <section className={depth === 0 && !isPageTitle ? 'mt-8 space-y-4' : 'space-y-4'}>

@@ -147,7 +147,7 @@ export function ProvenanceStoryList({
   return (
     <ul className="space-y-2 text-sm">
       {items.map((item) => (
-        <li key={item.story_id} className="rounded-md border border-subtle px-3 py-2">
+        <li key={item.story_id} className="rounded-md border border-border px-3 py-2">
           <Link
             href={`/admin/stories/${item.story_id}`}
             className="font-medium text-accent-primary hover:underline"

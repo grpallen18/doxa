@@ -23,7 +23,7 @@ const JOB_TITLE_CLASS = 'text-sm font-medium text-[var(--record-section-header-f
 const BIO_CLASS = 'max-w-2xl text-sm leading-relaxed text-muted'
 
 const EDITABLE_FIELD_CLASS =
-  'block h-auto min-h-0 rounded border border-subtle bg-background px-1.5 py-0 shadow-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+  'block h-auto min-h-0 rounded border border-border bg-background px-1.5 py-0 shadow-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
 
 /** Two icon buttons (32px each + gap) in the absolute toolbar. */
 const PROFILE_TOOLBAR_PAD = 'pr-[4.5rem]'

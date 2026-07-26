@@ -32,7 +32,7 @@ const ScrollArea = React.forwardRef<
         {children}
       </ScrollAreaPrimitive.Viewport>
       <ScrollBar
-        className={scrollbarOutside ? "!relative shrink-0 border-l border-subtle" : undefined}
+        className={scrollbarOutside ? "!relative shrink-0 border-l border-border" : undefined}
       />
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>

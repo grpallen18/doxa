@@ -83,11 +83,11 @@ const metadataDiffGridClass =
 
 function MetadataDiffList({ fields }: { fields: ClaimMetadataFieldDiff[] }) {
   return (
-    <div className="min-w-0 overflow-x-auto rounded-md border border-subtle">
+    <div className="min-w-0 overflow-x-auto rounded-md border border-border">
       <div
         className={cn(
           metadataDiffGridClass,
-          'border-b border-subtle bg-muted/20 px-2 py-1.5 text-xs font-medium uppercase tracking-wide text-muted'
+          'border-b border-border bg-muted/20 px-2 py-1.5 text-xs font-medium uppercase tracking-wide text-muted'
         )}
       >
         <span>Field</span>
@@ -99,7 +99,7 @@ function MetadataDiffList({ fields }: { fields: ClaimMetadataFieldDiff[] }) {
           key={field.field}
           className={cn(
             metadataDiffGridClass,
-            'border-b border-subtle px-2 py-1.5 last:border-b-0',
+            'border-b border-border px-2 py-1.5 last:border-b-0',
             index % 2 === 0 ? 'bg-surface-soft' : 'bg-surface-section'
           )}
         >
@@ -182,9 +182,9 @@ export function ClaimReviewHistoryDrawer({
     <Drawer open={open} onOpenChange={onOpenChange} handleOnly>
       <DrawerContent
         hideHandle
-        className="flex flex-col overflow-hidden border-subtle bg-surface-soft select-text"
+        className="flex flex-col overflow-hidden border-border bg-surface-soft select-text"
       >
-        <DrawerHeader className="shrink-0 gap-1 border-b border-subtle p-0 px-4 pb-2 pt-1.5 text-left">
+        <DrawerHeader className="shrink-0 gap-1 border-b border-border p-0 px-4 pb-2 pt-1.5 text-left">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-3">
             <DrawerTitle className="col-start-1 min-w-0 truncate">
               Claim Version History

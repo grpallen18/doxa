@@ -75,7 +75,7 @@ export default async function TopicsPage({
             <p className="text-sm text-muted">No topics yet. Create one from the Admin page.</p>
           ) : (
             <>
-              <ul className="rounded-md border border-subtle bg-surface">
+              <ul className="rounded-md border border-border bg-surface">
                 {topics.map((topic, i) => (
                   <li key={topic.topic_id}>
                     {i > 0 && <Separator />}

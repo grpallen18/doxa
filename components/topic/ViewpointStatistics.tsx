@@ -102,34 +102,34 @@ export function ViewpointStatisticsCard({
           <table className="w-full min-w-[160px] border-collapse text-xs text-muted">
             <thead>
               <tr>
-                <th className="border-b border-subtle pb-1 pr-2 text-left font-medium text-foreground">
+                <th className="border-b border-border pb-1 pr-2 text-left font-medium text-foreground">
                   Sample size
                 </th>
                 {PARTIES.map((party) => (
                   <th
                     key={party}
-                    className="border-b border-subtle pb-1 pl-1 text-right font-medium text-foreground"
+                    className="border-b border-border pb-1 pl-1 text-right font-medium text-foreground"
                   >
                     {SAMPLE_SIZE_BY_PARTY[party].toLocaleString()}
                   </th>
                 ))}
-                <th className="border-b border-subtle pb-1 pl-1 text-right font-medium text-foreground">
+                <th className="border-b border-border pb-1 pl-1 text-right font-medium text-foreground">
                   {TOTAL_SAMPLE.toLocaleString()}
                 </th>
               </tr>
               <tr>
-                <th className="border-b border-subtle pb-1 pr-2 text-left font-medium text-foreground">
+                <th className="border-b border-border pb-1 pr-2 text-left font-medium text-foreground">
                   Response
                 </th>
                 {PARTIES.map((party) => (
                   <th
                     key={party}
-                    className="border-b border-subtle pb-1 pl-1 text-right font-medium text-foreground"
+                    className="border-b border-border pb-1 pl-1 text-right font-medium text-foreground"
                   >
                     {PARTY_LABELS[party]}
                   </th>
                 ))}
-                <th className="border-b border-subtle pb-1 pl-1 text-right font-medium text-foreground">
+                <th className="border-b border-border pb-1 pl-1 text-right font-medium text-foreground">
                   Total
                 </th>
               </tr>

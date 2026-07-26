@@ -197,7 +197,7 @@ export function OrphanedClaimVersionsPanel({
               key={issue.kind}
               className={cn(
                 'rounded-md border px-3 py-3 text-sm',
-                isCanvas ? 'border-amber-500/30 bg-amber-500/10' : 'border-subtle'
+                isCanvas ? 'border-amber-500/30 bg-amber-500/10' : 'border-border'
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -228,7 +228,7 @@ export function OrphanedClaimVersionsPanel({
               key={orphan.version_id}
               className={cn(
                 'rounded-md border px-3 py-3 text-sm',
-                isCanvas ? 'border-white/10 bg-zinc-900/60' : 'border-subtle'
+                isCanvas ? 'border-white/10 bg-zinc-900/60' : 'border-border'
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">

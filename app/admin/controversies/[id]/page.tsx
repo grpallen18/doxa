@@ -87,7 +87,7 @@ export default function ControversyRecordPage() {
               {data.positions.map((p) => (
                 <li
                   key={`${p.agreement_cluster_id}-${p.side}`}
-                  className="rounded-md border border-subtle px-3 py-2"
+                  className="rounded-md border border-border px-3 py-2"
                 >
                   <Link
                     href={`/admin/agreements/${p.agreement_cluster_id}`}
@@ -110,7 +110,7 @@ export default function ControversyRecordPage() {
           children: (
             <ul className="space-y-2 text-sm">
               {data.viewpoints.map((v) => (
-                <li key={v.viewpoint_id} className="rounded-md border border-subtle px-3 py-2">
+                <li key={v.viewpoint_id} className="rounded-md border border-border px-3 py-2">
                   <p className="font-medium">{v.title ?? v.viewpoint_id.slice(0, 8)}</p>
                 </li>
               ))}

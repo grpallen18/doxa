@@ -27,7 +27,7 @@ export function PositionCard({
       className={cn(
         'grid h-full w-full min-w-0 overflow-hidden grid-rows-[auto_auto_1fr] gap-3 rounded-bevel border bg-surface p-4 text-left transition-colors',
         'hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        selected ? 'border-2 shadow-panel-soft' : 'border border-subtle'
+        selected ? 'border-2 shadow-panel-soft' : 'border border-border'
       )}
       style={selected ? { borderColor: accent } : undefined}
     >

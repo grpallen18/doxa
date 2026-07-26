@@ -310,7 +310,7 @@ export default function AdminTopicsPage() {
           <p className="text-sm text-destructive">{processError}</p>
         )}
         {processResult && (
-          <div className="rounded-md border border-subtle bg-muted/30 p-3 text-sm">
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
             <p>Processed: {processResult.controversies_linked} controversies linked, summary {processResult.summary_generated ? 'generated' : 'not generated'}.</p>
           </div>
         )}

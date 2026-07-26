@@ -116,7 +116,7 @@ export function SearchBar() {
                 onKeyDown={handleKeyDown}
                 onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
                 placeholder="Search a topic"
-                className="search-input h-full w-full rounded-bevel border border-subtle px-4 py-3 pr-10 text-base shadow-inset-soft placeholder:text-muted-soft outline-none transition-shadow focus:shadow-inset-strong"
+                className="search-input h-full w-full rounded-bevel border border-border px-4 py-3 pr-10 text-base shadow-inset-soft placeholder:text-muted outline-none transition-shadow focus:shadow-inset-strong"
                 autoComplete="off"
               />
               {query.length > 0 && (
@@ -136,7 +136,7 @@ export function SearchBar() {
             </div>
             {showDropdown && (
               <div
-                className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-bevel border border-subtle bg-surface shadow-panel-soft"
+                className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-bevel border border-border bg-surface shadow-panel-soft"
                 role="listbox"
               >
                 {loading ? (

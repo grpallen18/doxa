@@ -9,47 +9,48 @@
    ========================================================================== */
 
 :root {
-  /* Surfaces — background = white content canvas; sidebar tokens = warm chrome */
-  --chrome-warm: #f8f5f1;
+  /* Surfaces — background = page canvas; surface* = raised / recessed depth */
   --background: #ffffff;
   --foreground: #1a1712;
   --surface: #faf9f7;
   --surface-soft: #ffffff;
   --surface-section: #f5f3f0;
-  --surface-accordion: #f7f5f2;
-  --record-section-header-bg: color-mix(in srgb, var(--accent-secondary) 38%, var(--surface-section));
-  --record-section-header-fg: var(--foreground);
-  --record-section-header-hover: var(--record-section-header-bg);
-  --record-section-header-border: color-mix(in srgb, var(--accent-secondary) 44%, var(--border-subtle));
+  --surface-accordion: var(--surface-section);
 
-  /* Borders */
-  --border-subtle: #ebe7e2;
-  --border-heading: #ccc5bc;
-  --separator: #e0dcd6;
+  /* Borders — admin edits --border; muted/subtle derive darker steps */
+  --border: #ebe7e2;
+  --border-muted: color-mix(in srgb, var(--border) 70%, var(--foreground));
+  --border-subtle: color-mix(in srgb, var(--border) 45%, var(--foreground));
+  --input: var(--border);
 
-  /* Text: muted = secondary text, muted-soft = tertiary */
-  --muted: #524736;
-  --muted-soft: #6a6053;
-  --muted-bg: #faf9f7;
+  /* Text: muted = secondary; inverted = on filled / tinted chrome */
+  --muted: #3f3629;
+  --muted-bg: var(--surface);
+  --inverted: #ffffff;
 
-  /* Accents */
+  /* Brand accents — shadcn primary/ring alias these */
   --accent-primary: #2d5a4a;
-  --accent-primary-soft: rgba(45, 90, 74, 0.18);
   --accent-primary-foreground: #faf9f7;
+  --accent-primary-soft: color-mix(in srgb, var(--accent-primary) 18%, transparent);
   --provenance-highlight: color-mix(in srgb, var(--accent-primary) 10%, white);
   --provenance-highlight-mark: color-mix(in srgb, var(--accent-primary) 16%, white);
   --accent-secondary: #a68b6d;
-  --accent-secondary-soft: rgba(166, 139, 109, 0.28);
+  --accent-secondary-foreground: #1a1712;
+  --accent-secondary-soft: color-mix(in srgb, var(--accent-secondary) 28%, transparent);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 95%, white);
 
-  /* Classic web link hues — browser default :link is #0000EE; readable green parallel is #008000 */
+  --record-section-header-bg: color-mix(in srgb, var(--accent-secondary) 38%, var(--surface-section));
+  --record-section-header-fg: var(--foreground);
+  --record-section-header-hover: var(--record-section-header-bg);
+  --record-section-header-border: color-mix(in srgb, var(--accent-secondary) 44%, var(--border));
+
+  /* Link palette constants + active link (editable) */
   --link-default-blue: #0000ee;
   --link-default-blue-hover: #3358f5;
   --link-default-green: #008000;
   --link-default-green-hover: #00c400;
-  --link-accent: var(--link-default-blue);
-  --link-accent-hover: var(--link-default-blue-hover);
-  /* Idle dashed underline = deeper accent; hover solid = lighter than the hover text */
+  --link-accent: #0000ee;
+  --link-accent-hover: #3358f5;
   --link-underline-idle: var(--link-accent);
   --link-underline-active: #6690ff;
   --link-underline-idle-opacity: 0.8;
@@ -129,25 +130,23 @@
   --agent-icon-inactive-bg: #fecaca;
   --agent-icon-inactive-fg: #991b1b;
 
-  /* shadcn / UI tokens */
-  --card: #faf9f7;
-  --card-foreground: #1a1712;
-  --popover: #ffffff;
-  --popover-foreground: #1a1712;
-  --primary: #2d5a4a;
-  --primary-foreground: #faf9f7;
-  --secondary: #f5f3f0;
-  --secondary-foreground: #1a1712;
+  /* shadcn / UI — alias brand tokens (do not fork hex here) */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--accent-primary-foreground);
+  --secondary: var(--surface-section);
+  --secondary-foreground: var(--foreground);
   --destructive: #dc2626;
   --destructive-foreground: #fafafa;
-  --border: #ebe7e2;
-  --input: #ebe7e2;
-  --ring: #2d5a4a;
-  --chart-1: #2d5a4a;
-  --chart-2: #a68b6d;
+  --ring: var(--accent-primary);
+  --chart-1: var(--accent-primary);
+  --chart-2: var(--accent-secondary);
   --chart-3: #524736;
   --chart-4: #6a6053;
-  --chart-5: #dc2626;
+  --chart-5: var(--destructive);
   --success: #16a34a;
   --success-foreground: #052e16;
   --sidebar-background: 36 30% 94%;
@@ -170,33 +169,37 @@
   --surface-soft: #2a2a2a;
   --surface-section: #252525;
   --surface-accordion: #1a1a1a;
-  --record-section-header-bg: color-mix(in srgb, #a68b6d 42%, var(--surface-section));
-  --record-section-header-fg: var(--foreground);
-  --record-section-header-hover: var(--record-section-header-bg);
-  --record-section-header-border: color-mix(in srgb, #a68b6d 48%, var(--border-subtle));
 
-  /* Borders */
-  --border-subtle: #333333;
-  --border-heading: #525252;
-  --separator: #444444;
+  /* Borders — admin edits --border; muted/subtle derive stronger steps */
+  --border: #333333;
+  --border-muted: color-mix(in srgb, var(--border) 70%, var(--foreground));
+  --border-subtle: color-mix(in srgb, var(--border) 45%, var(--foreground));
+  --input: var(--border);
 
   /* Text */
-  --muted: #a8a8a8;
-  --muted-soft: #7a7a7a;
-  --muted-bg: #2a2a2a;
+  --muted: #b4b4b4;
+  --muted-bg: var(--surface-soft);
+  --inverted: #000000;
 
   /* Accents (off-whites for monochromatic dark mode) */
   --accent-primary: #f0edea;
-  --accent-primary-soft: rgba(240, 237, 234, 0.2);
   --accent-primary-foreground: #1a1712;
-  --provenance-highlight: color-mix(in srgb, var(--link-default-green) 12%, transparent);
-  --provenance-highlight-mark: color-mix(in srgb, var(--link-default-green) 18%, transparent);
+  --accent-primary-soft: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  --provenance-highlight: color-mix(in srgb, var(--link-accent) 12%, transparent);
+  --provenance-highlight-mark: color-mix(in srgb, var(--link-accent) 18%, transparent);
   --accent-secondary: #e0ddd9;
-  --accent-secondary-soft: rgba(224, 221, 217, 0.25);
+  --accent-secondary-foreground: #1a1712;
+  --accent-secondary-soft: color-mix(in srgb, var(--accent-secondary) 25%, transparent);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 90%, var(--surface));
 
-  --link-accent: var(--link-default-green);
-  --link-accent-hover: var(--link-default-green-hover);
+  --record-section-header-bg: color-mix(in srgb, var(--accent-secondary) 42%, var(--surface-section));
+  --record-section-header-fg: var(--foreground);
+  --record-section-header-hover: var(--record-section-header-bg);
+  --record-section-header-border: color-mix(in srgb, var(--accent-secondary) 48%, var(--border));
+
+  /* Active link (editable) — green defaults in dark */
+  --link-accent: #008000;
+  --link-accent-hover: #00c400;
   --link-underline-idle: var(--link-accent);
   --link-underline-active: var(--link-accent-hover);
   --link-underline-idle-opacity: 0.4;
@@ -252,29 +255,27 @@
   --pipeline-step-current-fg: #f0edea;
   --pipeline-step-pending-bg: var(--surface-soft);
   --pipeline-step-track: #a68b6d;
-  --pipeline-step-track-muted: rgba(166, 139, 109, 0.28);
+  --pipeline-step-track-muted: color-mix(in srgb, #a68b6d 28%, transparent);
 
   --agent-icon-active-bg: color-mix(in srgb, #22c55e 38%, var(--surface-soft));
   --agent-icon-active-fg: #bbf7d0;
   --agent-icon-inactive-bg: color-mix(in srgb, #f87171 42%, var(--surface-soft));
   --agent-icon-inactive-fg: #fecaca;
 
-  /* shadcn / UI tokens */
-  --card: #1e1e1e;
-  --card-foreground: #e8e6e3;
+  /* shadcn / UI — alias brand tokens */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
   --popover: var(--background);
   --popover-foreground: var(--foreground);
-  --primary: #f0edea;
-  --primary-foreground: #1a1712;
-  --secondary: #2a2a2a;
-  --secondary-foreground: #e8e6e3;
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--accent-primary-foreground);
+  --secondary: var(--surface-soft);
+  --secondary-foreground: var(--foreground);
   --destructive: #7f1d1d;
   --destructive-foreground: #fafafa;
-  --border: #333333;
-  --input: #333333;
-  --ring: #f0edea;
-  --chart-1: #f0edea;
-  --chart-2: #e0ddd9;
+  --ring: var(--accent-primary);
+  --chart-1: var(--accent-primary);
+  --chart-2: var(--accent-secondary);
   --chart-3: #a8a8a8;
   --chart-4: #7a7a7a;
   --chart-5: #f87171;
@@ -295,9 +296,21 @@ html {
   scrollbar-gutter: stable;
 }
 
+/*
+  react-remove-scroll-bar (used by Radix Select) injects at runtime:
+    body[data-scroll-locked] { overflow: hidden !important; margin-right: <gap>px !important; }
+  That hides the scrollbar and inserts a right margin strip, shifting layout.
+  Higher specificity beats the injected singleton stylesheet.
+*/
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  overflow: visible !important;
+}
+
 body {
   background: var(--body-bg);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+  font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -359,6 +372,11 @@ body {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Slightly heavier secondary copy — Lora reads thin at regular weight. */
+  .text-muted {
+    font-weight: 500;
   }
 }
 
@@ -602,7 +620,8 @@ body {
   }
 
   .search-input {
-    color: var(--foreground);
+    color: var(--muted);
+    font-weight: 500;
     background-color: var(--surface);
   }
 
@@ -828,6 +847,17 @@ body {
       color var(--interactive-duration) ease,
       background-color var(--interactive-duration) ease;
   }
+  /* Form fields inherit app typeface; typed value uses muted @ 500. */
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  button {
+    font-family: inherit;
+  }
 }
 
 @keyframes canvas-running-bar-shuttle {
@@ -861,4 +891,70 @@ body {
     animation: none !important;
     opacity: 1 !important;
   }
+}
+
+/* Sonner — brand-aligned, compact (beats runtime-injected sonner CSS) */
+[data-sonner-toaster].toaster {
+  /* Wide slot so hug-content toasts can center without a 20rem cap */
+  --width: calc(100vw - 2rem);
+  --border-radius: 0.375rem;
+  --normal-bg: var(--card);
+  --normal-border: var(--border);
+  --normal-text: var(--card-foreground);
+  font-family: inherit;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-styled='true'] {
+  padding: 0.5rem 0.75rem !important;
+  gap: 0.5rem !important;
+  width: max-content !important;
+  max-width: calc(100vw - 2rem);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06) !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.25rem;
+  font-family: inherit;
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  color: var(--card-foreground) !important;
+}
+
+/* Hug-content toasts sit at left:0 in Sonner; re-center under the toaster */
+[data-sonner-toaster][data-x-position='center'].toaster [data-sonner-toast] {
+  left: 50%;
+  right: auto;
+  translate: -50% 0;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-styled='true'] [data-title] {
+  font-weight: 500;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-styled='true'] [data-content] {
+  white-space: nowrap;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-type='success'],
+[data-sonner-toaster].toaster [data-sonner-toast][data-type='error'],
+[data-sonner-toaster].toaster [data-sonner-toast][data-type='warning'],
+[data-sonner-toaster].toaster [data-sonner-toast][data-type='info'] {
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  color: var(--card-foreground) !important;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-type='success'] [data-icon] {
+  color: var(--accent-primary);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-type='error'] [data-icon] {
+  color: var(--destructive);
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast] [data-close-button] {
+  display: none !important;
 }

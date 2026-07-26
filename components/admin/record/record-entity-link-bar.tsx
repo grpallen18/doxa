@@ -28,7 +28,7 @@ export function RecordEntityLinkBar({
             href={link.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="border-b border-subtle font-medium text-accent-primary hover:text-accent-primary/80"
+            className="border-b border-border font-medium text-accent-primary hover:text-accent-primary/80"
           >
             {link.linkText}
           </a>

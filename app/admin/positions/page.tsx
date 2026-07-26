@@ -116,7 +116,7 @@ function StatCard({
   countActive: number
 }) {
   return (
-    <div className="rounded-lg border border-subtle bg-muted/20 p-4">
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
       <p className="text-xs font-medium text-muted">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums">{countActive}</p>
       <p className="text-xs text-muted">+{count24h} in last 24h</p>
@@ -312,7 +312,7 @@ function AdminPositionsPageContent() {
               </div>
 
               {/* Tabs */}
-              <div className="md:col-span-3 flex items-center gap-2 border-b border-subtle">
+              <div className="md:col-span-3 flex items-center gap-2 border-b border-border">
                 {(['positions', 'controversies', 'viewpoints'] as const).map((t) => (
                   <button
                     key={t}
@@ -344,7 +344,7 @@ function AdminPositionsPageContent() {
               {/* List + drill-down */}
               <div className="md:col-span-3 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className={hasSelection ? 'md:col-span-2' : 'md:col-span-3'}>
-                  <div className="h-[320px] overflow-y-auto rounded-lg border border-subtle">
+                  <div className="h-[320px] overflow-y-auto rounded-lg border border-border">
                     {listLoading ? (
                       <div className="flex h-full items-center justify-center text-sm text-muted">
                         Loading…
@@ -407,7 +407,7 @@ function PositionsList({
   }
   return (
     <div className="p-2">
-      <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-subtle bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
+      <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
         <span>Label</span>
         <span className="flex shrink-0 gap-4">
           <span className="w-10 text-right">Claims</span>
@@ -457,7 +457,7 @@ function ControversiesList({
   }
   return (
     <div className="p-2">
-      <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-subtle bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
+      <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
         <span>Question</span>
         <span className="flex shrink-0 gap-4">
           <span className="w-10 text-right">Pos.</span>
@@ -507,7 +507,7 @@ function ViewpointsList({
   }
   return (
     <div className="p-2">
-      <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-subtle bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
+      <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
         <span>Viewpoint / Question</span>
         <span className="w-20 shrink-0 text-right">Position</span>
       </div>
@@ -551,14 +551,14 @@ function DrillDownPanel({
 }) {
   if (loading) {
     return (
-      <div className="flex h-[320px] items-center justify-center rounded-lg border border-subtle bg-muted/10 text-sm text-muted">
+      <div className="flex h-[320px] items-center justify-center rounded-lg border border-border bg-muted/10 text-sm text-muted">
         Loading…
       </div>
     )
   }
   if (error) {
     return (
-      <div className="flex h-[320px] flex-col items-center justify-center rounded-lg border border-subtle bg-muted/10 p-4 text-center">
+      <div className="flex h-[320px] flex-col items-center justify-center rounded-lg border border-border bg-muted/10 p-4 text-center">
         <p className="text-sm text-destructive">{error}</p>
       </div>
     )
@@ -570,7 +570,7 @@ function DrillDownPanel({
   if (tab === 'positions' && 'position_cluster_id' in detail) {
     const d = detail as PositionDetail
     return (
-      <div className="h-[320px] overflow-y-auto rounded-lg border border-subtle bg-muted/10 p-4">
+      <div className="h-[320px] overflow-y-auto rounded-lg border border-border bg-muted/10 p-4">
         <h4 className="text-sm font-medium">Position detail</h4>
         <p className="mt-1 text-xs text-muted">{d.label || 'No label'}</p>
         {d.summary && (
@@ -686,7 +686,7 @@ function DrillDownPanel({
   if (tab === 'controversies' && 'controversy_cluster_id' in detail) {
     const d = detail as ControversyDetail
     return (
-      <div className="h-[320px] overflow-y-auto rounded-lg border border-subtle bg-muted/10 p-4">
+      <div className="h-[320px] overflow-y-auto rounded-lg border border-border bg-muted/10 p-4">
         <h4 className="text-sm font-medium">Controversy detail</h4>
         <p className="mt-1 text-xs text-muted whitespace-pre-wrap">{d.question || 'No question'}</p>
         {d.summary && (
@@ -764,7 +764,7 @@ function DrillDownPanel({
       position_label?: string | null
     }
     return (
-      <div className="h-[320px] overflow-y-auto rounded-lg border border-subtle bg-muted/10 p-4">
+      <div className="h-[320px] overflow-y-auto rounded-lg border border-border bg-muted/10 p-4">
         <h4 className="text-sm font-medium">Viewpoint detail</h4>
         <p className="mt-1 text-xs text-muted">{d.title || 'No title'}</p>
         <p className="mt-2 text-xs text-muted whitespace-pre-wrap">{d.summary}</p>

@@ -104,7 +104,7 @@ export function PositionLandscape({
             onClick={() => go(-1)}
             aria-label="Previous positions"
             className={cn(
-              'flex shrink-0 items-center justify-center self-center rounded-md border border-subtle',
+              'flex shrink-0 items-center justify-center self-center rounded-md border border-border',
               'bg-surface p-2 text-muted transition-colors hover:bg-surface-soft hover:text-foreground',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
             )}
@@ -149,7 +149,7 @@ export function PositionLandscape({
             onClick={() => go(1)}
             aria-label="Next positions"
             className={cn(
-              'flex shrink-0 items-center justify-center self-center rounded-md border border-subtle',
+              'flex shrink-0 items-center justify-center self-center rounded-md border border-border',
               'bg-surface p-2 text-muted transition-colors hover:bg-surface-soft hover:text-foreground',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
             )}

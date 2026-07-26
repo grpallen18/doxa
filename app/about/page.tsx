@@ -17,7 +17,7 @@ export default function AboutPage() {
                 Ancient Greek | <span className="font-medium italic">dóxa</span> (δόξα): A belief, opinion, or reputation.
               </p>
             </div>
-            <blockquote className="space-y-2 border-t border-subtle pt-5">
+            <blockquote className="space-y-2 border-t border-border pt-5">
               <p className="text-sm italic leading-relaxed text-muted">
                 &quot;Opinion is the intermediate between knowledge and ignorance.&quot;
               </p>

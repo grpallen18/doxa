@@ -20,7 +20,7 @@ export function HeaderSearch({ className }: { className?: string }) {
           type="search"
           placeholder="Search topics…"
           autoComplete="off"
-          className="h-9 w-full rounded-md border border-sidebar-border bg-white pl-9 pr-3 text-sm text-foreground shadow-none outline-none transition-shadow placeholder:text-muted-soft focus:ring-2 focus:ring-ring dark:bg-background"
+          className="h-9 w-full rounded-md border border-sidebar-border bg-white pl-9 pr-3 text-sm font-medium text-muted shadow-none outline-none transition-shadow placeholder:text-muted focus:ring-2 focus:ring-ring dark:bg-background"
         />
       </div>
     </form>

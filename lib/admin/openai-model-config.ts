@@ -12,7 +12,16 @@ export const TEST_OPENAI_MODEL_DEPLOY = 'test_openai_model'
 export type ResolvedOpenAiModelEntry = OpenAiModelKeyMeta & {
   configuredValue: string | null
   effectiveValue: string
+  /** Catalog default label; `label` is the effective (override or catalog) name. */
+  catalogLabel: string
+  /** Catalog default description; `description` is the effective override or catalog text. */
+  catalogDescription: string
   updatedAt: string | null
+}
+
+export type OpenAiModelDisplayFields = {
+  label?: string
+  description?: string
 }
 
 export type OpenAiModelTestResult = {
@@ -36,34 +45,58 @@ export function isSupabaseSecretsSyncConfigured(): boolean {
   return Boolean(process.env.SUPABASE_ACCESS_TOKEN?.trim() && supabaseProjectRef())
 }
 
+function normalizeDisplayText(
+  value: string | null | undefined,
+  maxLen: number
+): string | null | { error: string } {
+  if (value == null) return null
+  const trimmed = value.trim()
+  if (!trimmed) return { error: 'Value cannot be empty' }
+  if (trimmed.length > maxLen) {
+    return { error: `Value must be ${maxLen} characters or fewer` }
+  }
+  return trimmed
+}
+
 export async function fetchResolvedOpenAiModels(
   supabase: SupabaseClient
 ): Promise<ResolvedOpenAiModelEntry[]> {
   const { data, error } = await supabase
     .from('admin_openai_model_config')
-    .select('config_key, model_value, updated_at')
+    .select('config_key, model_value, display_label, display_description, updated_at')
 
-  const configured: Record<string, string> = {}
-  const updatedAtByKey: Record<string, string> = {}
+  const configured: Record<
+    string,
+    { value: string; label: string | null; description: string | null; updatedAt: string }
+  > = {}
 
   if (!error && data) {
     for (const row of data) {
       const key = row.config_key as string
       const value = (row.model_value as string | null)?.trim()
       if (key && value) {
-        configured[key] = value
-        updatedAtByKey[key] = row.updated_at as string
+        configured[key] = {
+          value,
+          label: (row.display_label as string | null)?.trim() || null,
+          description: (row.display_description as string | null)?.trim() || null,
+          updatedAt: row.updated_at as string,
+        }
       }
     }
   }
 
   return buildOpenAiModelCatalog().map((entry) => {
-    const configuredValue = configured[entry.key] ?? null
+    const row = configured[entry.key]
+    const configuredValue = row?.value ?? null
     return {
       ...entry,
+      catalogLabel: entry.label,
+      catalogDescription: entry.description,
+      label: row?.label ?? entry.label,
+      description: row?.description ?? entry.description,
       configuredValue,
       effectiveValue: configuredValue ?? entry.codeDefault,
-      updatedAt: updatedAtByKey[entry.key] ?? null,
+      updatedAt: row?.updatedAt ?? null,
     }
   })
 }
@@ -168,6 +201,8 @@ async function restorePreviousModelConfig(
   supabase: SupabaseClient,
   key: string,
   previousValue: string | null,
+  previousLabel: string | null,
+  previousDescription: string | null,
   actorId: string
 ): Promise<void> {
   if (previousValue) {
@@ -175,6 +210,8 @@ async function restorePreviousModelConfig(
       {
         config_key: key,
         model_value: previousValue,
+        display_label: previousLabel,
+        display_description: previousDescription,
         updated_at: new Date().toISOString(),
         updated_by: actorId,
       },
@@ -190,12 +227,14 @@ export async function applyOpenAiModelConfig(
   supabase: SupabaseClient,
   key: string,
   value: string,
-  actorId: string
+  actorId: string,
+  display: OpenAiModelDisplayFields = {}
 ): Promise<
   | {
       entry: ResolvedOpenAiModelEntry
-      test: OpenAiModelTestResult
-      sync: { ok: boolean; message: string }
+      test: OpenAiModelTestResult | null
+      sync: { ok: boolean; message: string } | null
+      warning?: string
     }
   | { error: string }
 > {
@@ -208,50 +247,127 @@ export async function applyOpenAiModelConfig(
     return { error: validated.error }
   }
 
+  const labelResult = normalizeDisplayText(display.label, 120)
+  if (labelResult && typeof labelResult === 'object' && 'error' in labelResult) {
+    return { error: `Friendly name: ${labelResult.error}` }
+  }
+
+  const descriptionResult = normalizeDisplayText(display.description, 500)
+  if (descriptionResult && typeof descriptionResult === 'object' && 'error' in descriptionResult) {
+    return { error: `Description: ${descriptionResult.error}` }
+  }
+
   const catalog = await fetchResolvedOpenAiModels(supabase)
   const current = catalog.find((item) => item.key === key)
   if (!current) {
     return { error: 'Unknown model key' }
   }
 
-  if (validated === current.effectiveValue) {
-    return { error: 'No change to apply' }
+  const nextLabel = (labelResult as string | null) ?? current.label
+  const nextDescription = (descriptionResult as string | null) ?? current.description
+  const valueChanged = validated !== current.effectiveValue
+  const labelChanged = nextLabel !== current.label
+  const descriptionChanged = nextDescription !== current.description
+
+  if (!valueChanged && !labelChanged && !descriptionChanged) {
+    return { error: 'No change to save' }
   }
 
   const previousConfiguredValue = current.configuredValue
+  const displayLabelToStore = nextLabel === current.catalogLabel ? null : nextLabel
+  const displayDescriptionToStore =
+    nextDescription === current.catalogDescription ? null : nextDescription
+  const modelValueForDisplaySave = current.configuredValue ?? current.effectiveValue
 
-  const test = await invokeTestOpenAiModelEdge(key, validated)
-  if (!test.ok) {
-    return { error: test.message }
-  }
+  let test: OpenAiModelTestResult | null = null
+  let sync: { ok: boolean; message: string } | null = null
 
-  const { error: upsertError } = await supabase.from('admin_openai_model_config').upsert(
-    {
-      config_key: key,
-      model_value: validated,
-      updated_at: new Date().toISOString(),
-      updated_by: actorId,
-    },
-    { onConflict: 'config_key' }
-  )
-
-  if (upsertError) {
-    return { error: upsertError.message }
-  }
-
-  const sync = await syncOpenAiSecretsToEdge({ [key]: validated })
-  if (!sync.ok && process.env.SUPABASE_ACCESS_TOKEN?.trim()) {
-    await restorePreviousModelConfig(supabase, key, previousConfiguredValue, actorId)
-    return {
-      error: `${sync.message} Change was rolled back to the previous value.`,
+  // Persist friendly name / description first so they survive a failed technical test.
+  if (labelChanged || descriptionChanged) {
+    const { error: displayError } = await supabase.from('admin_openai_model_config').upsert(
+      {
+        config_key: key,
+        model_value: modelValueForDisplaySave,
+        display_label: displayLabelToStore,
+        display_description: displayDescriptionToStore,
+        updated_at: new Date().toISOString(),
+        updated_by: actorId,
+      },
+      { onConflict: 'config_key' }
+    )
+    if (displayError) {
+      return { error: displayError.message }
     }
+  }
+
+  if (valueChanged) {
+    test = await invokeTestOpenAiModelEdge(key, validated)
+    if (!test.ok) {
+      const updatedCatalog = await fetchResolvedOpenAiModels(supabase)
+      const entry = updatedCatalog.find((item) => item.key === key)
+      if (!entry) {
+        return { error: test.message }
+      }
+      if (labelChanged || descriptionChanged) {
+        return {
+          entry,
+          test,
+          sync: { ok: true, message: 'Display metadata saved.' },
+          warning: `Friendly name/description saved. Technical model rejected: ${test.message}`,
+        }
+      }
+      return { error: test.message }
+    }
+
+    const { error: upsertError } = await supabase.from('admin_openai_model_config').upsert(
+      {
+        config_key: key,
+        model_value: validated,
+        display_label: displayLabelToStore,
+        display_description: displayDescriptionToStore,
+        updated_at: new Date().toISOString(),
+        updated_by: actorId,
+      },
+      { onConflict: 'config_key' }
+    )
+
+    if (upsertError) {
+      return { error: upsertError.message }
+    }
+
+    sync = await syncOpenAiSecretsToEdge({ [key]: validated })
+    if (!sync.ok && process.env.SUPABASE_ACCESS_TOKEN?.trim()) {
+      await restorePreviousModelConfig(
+        supabase,
+        key,
+        previousConfiguredValue,
+        displayLabelToStore,
+        displayDescriptionToStore,
+        actorId
+      )
+      const updatedCatalog = await fetchResolvedOpenAiModels(supabase)
+      const entry = updatedCatalog.find((item) => item.key === key)
+      if (entry && (labelChanged || descriptionChanged)) {
+        return {
+          entry,
+          test,
+          sync,
+          warning: `Friendly name/description saved. Technical model rolled back: ${sync.message}`,
+        }
+      }
+      return {
+        error: `${sync.message} Change was rolled back to the previous value.`,
+      }
+    }
+  } else {
+    sync = { ok: true, message: 'Display metadata saved.' }
   }
 
   const updatedCatalog = await fetchResolvedOpenAiModels(supabase)
   const entry = updatedCatalog.find((item) => item.key === key)
 
   if (!entry) {
-    return { error: 'Applied but failed to reload config' }
+    return { error: 'Saved but failed to reload config' }
   }
 
   return { entry, test, sync }

@@ -61,7 +61,7 @@ export function AgentProfileResponsibilitiesSection({ agent }: { agent: AgentDet
       {responsibilities.map((item) => (
         <li
           key={item}
-          className="rounded-md border border-subtle bg-surface-soft px-3 py-2.5 text-sm leading-snug"
+          className="rounded-md border border-border bg-surface-soft px-3 py-2.5 text-sm leading-snug"
         >
           {item}
         </li>
@@ -82,22 +82,22 @@ export function AgentProfilePerformanceSection({
   return (
     <div className="space-y-4">
       <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-md border border-subtle bg-surface-soft px-3 py-2.5">
+        <div className="rounded-md border border-border bg-surface-soft px-3 py-2.5">
           <dt className="text-xs font-medium text-muted">
             Success rate
             {runStats.totalSampled > 0 ? ` (last ${runStats.totalSampled} runs)` : ''}
           </dt>
           <dd className={statValueClass}>{formatRate(runStats.successRate)}</dd>
         </div>
-        <div className="rounded-md border border-subtle bg-surface-soft px-3 py-2.5">
+        <div className="rounded-md border border-border bg-surface-soft px-3 py-2.5">
           <dt className="text-xs font-medium text-muted">Failures</dt>
           <dd className={statValueClass}>{runStats.failureCount}</dd>
         </div>
-        <div className="rounded-md border border-subtle bg-surface-soft px-3 py-2.5">
+        <div className="rounded-md border border-border bg-surface-soft px-3 py-2.5">
           <dt className="text-xs font-medium text-muted">Avg runtime</dt>
           <dd className={statValueClass}>{formatDuration(runStats.averageRuntimeMs)}</dd>
         </div>
-        <div className="rounded-md border border-subtle bg-surface-soft px-3 py-2.5">
+        <div className="rounded-md border border-border bg-surface-soft px-3 py-2.5">
           <dt className="text-xs font-medium text-muted">Last success</dt>
           <dd className={statValueClass}>{formatAdminDateTime(runStats.lastSuccessAt)}</dd>
         </div>

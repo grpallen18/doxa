@@ -13,11 +13,11 @@ const config: Config = {
   		colors: {
   			background: 'var(--background)',
   			foreground: 'var(--foreground)',
+  			inverted: 'var(--inverted)',
   		muted: {
   				DEFAULT: 'var(--muted-bg)',
   				foreground: 'var(--muted)'
   			},
-  			'muted-soft': 'var(--muted-soft)',
   			accent: {
   				primary: 'var(--accent-primary)',
   				'primary-foreground': 'var(--accent-primary-foreground)',
@@ -95,18 +95,24 @@ const config: Config = {
   			muted: 'var(--muted-bg)'
   		},
   		textColor: {
-  			muted: 'var(--muted)'
+  			muted: 'var(--muted)',
+  			inverted: 'var(--inverted)',
   		},
   		maxWidth: {
   			content: 'var(--content-max-width)'
   		},
   		fontFamily: {
-  			cinzel: ['var(--font-cinzel)', 'serif'],
+  			sans: ['var(--font-app)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			serif: ['var(--font-app)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			mono: ['var(--font-app)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   		},
   		borderColor: {
   			subtle: 'var(--border-subtle)',
-  			heading: 'var(--border-heading)',
-  			separator: 'var(--separator)',
+  			muted: 'var(--border-muted)',
+  		},
+  		transitionDuration: {
+  			'400': '400ms',
+  			'1400': '1400ms',
   		},
   		keyframes: {
   			'doxa-letter': {
@@ -168,19 +174,35 @@ const config: Config = {
   			'advocate-marquee-x': {
   				'0%': { transform: 'translateX(0)' },
   				'100%': { transform: 'translateX(-50%)' }
-  			}
-  		},
-  		animation: {
-  			'doxa-letter': 'doxa-letter 1.2s ease-out forwards',
-  			'panel-fade-in': 'panel-fade-in 2.5s ease-out forwards',
-  			'accordion-down': 'accordion-down 0.3s ease-out',
-  			'accordion-up': 'accordion-up 0.3s ease-out',
-  			'collapsible-down': 'collapsible-down 0.3s ease-out',
-  			'collapsible-up': 'collapsible-up 0.3s ease-out',
-  			'skeleton-pulse': 'skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-  			'advocate-marquee': 'advocate-marquee 12s linear infinite',
-  			'advocate-marquee-x': 'advocate-marquee-x 18s linear infinite'
-  		}
+  			},
+			'stats-marquee-x': {
+				'0%': { transform: 'translateX(0)' },
+				'100%': { transform: 'translateX(-50%)' }
+			},
+			'metric-swap-out': {
+				'0%': { opacity: '1' },
+				'100%': { opacity: '0' },
+			},
+			'metric-swap-in': {
+				'0%': { opacity: '0' },
+				'100%': { opacity: '1' },
+			},
+		},
+		animation: {
+			'doxa-letter': 'doxa-letter 1.2s ease-out forwards',
+			'panel-fade-in': 'panel-fade-in 2.5s ease-out forwards',
+			'accordion-down': 'accordion-down 0.3s ease-out',
+			'accordion-up': 'accordion-up 0.3s ease-out',
+			'collapsible-down': 'collapsible-down 0.3s ease-out',
+			'collapsible-up': 'collapsible-up 0.3s ease-out',
+			'skeleton-pulse': 'skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+			'advocate-marquee': 'advocate-marquee 12s linear infinite',
+			'advocate-marquee-x': 'advocate-marquee-x 18s linear infinite',
+			'stats-marquee-x': 'stats-marquee-x 45s linear infinite',
+			'metric-swap-out': 'metric-swap-out 1200ms ease-in-out forwards',
+			'metric-swap-in': 'metric-swap-in 1200ms ease-in-out forwards',
+			'metric-swap-out-fast': 'metric-swap-out 400ms ease-in-out forwards',
+		}
   	}
   },
   plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],

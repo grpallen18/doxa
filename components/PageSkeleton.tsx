@@ -118,7 +118,7 @@ export function PageSkeletonTopics() {
           <Skeleton className="h-8 w-40" />
           {/* p Click a topic... */}
           <Skeleton className="h-5 w-80" />
-          <ul className="rounded-md border border-subtle bg-surface">
+          <ul className="rounded-md border border-border bg-surface">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <li key={i}>
                 {i > 0 && <Separator />}
@@ -178,7 +178,7 @@ export function PageSkeletonAbout() {
               <Skeleton className="h-4 w-16" />
               <Skeleton className="h-4 w-72" />
             </div>
-            <div className="space-y-2 border-t border-subtle pt-5">
+            <div className="space-y-2 border-t border-border pt-5">
               <Skeleton className="h-4 w-80" />
               <Skeleton className="h-3 w-36" />
             </div>
@@ -217,7 +217,7 @@ export function PageSkeletonSearch() {
         <section className="space-y-4">
           {/* h2 Results for "..." */}
           <Skeleton className="h-7 w-48" />
-          <ul className="rounded-md border border-subtle bg-surface">
+          <ul className="rounded-md border border-border bg-surface">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <li key={i}>
                 {i > 0 && <Separator />}

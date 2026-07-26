@@ -353,7 +353,7 @@ export default function AtlasPage() {
                   const id = e.target.value
                   if (id) handleAgreementSelect(id)
                 }}
-                className="rounded-md border border-[var(--border-subtle)] bg-background/80 px-3 py-2 text-sm text-foreground shadow-sm"
+                className="rounded-md border border-[var(--border)] bg-background/80 px-3 py-2 text-sm text-foreground shadow-sm"
               >
                 {agreements.map((a) => (
                   <option key={a.agreement_cluster_id} value={a.agreement_cluster_id}>
@@ -440,7 +440,7 @@ function PositionsPanel({
               'w-full rounded-md border px-3 py-2 text-left transition-colors',
               isHighlighted
                 ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary-soft)]'
-                : 'border-[var(--border-subtle)] bg-[var(--surface-accordion)] hover:border-[var(--border-subtle)]'
+                : 'border-[var(--border)] bg-[var(--surface-accordion)] hover:border-[var(--border)]'
             )}
           >
             <p className="line-clamp-3 text-xs text-foreground">
@@ -475,7 +475,7 @@ function ClaimsPanel({
               'w-full rounded-md border px-3 py-2 text-left transition-colors',
               isHighlighted
                 ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary-soft)]'
-                : 'border-[var(--border-subtle)] bg-[var(--surface-accordion)]'
+                : 'border-[var(--border)] bg-[var(--surface-accordion)]'
             )}
           >
             <p className="line-clamp-3 text-xs text-foreground">
@@ -564,7 +564,7 @@ function SourcesPanel({
                 className={`rounded-md border px-3 transition-colors ${
                   isHighlighted
                     ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary-soft)]'
-                    : 'border-[var(--border-subtle)] bg-[var(--surface-accordion)]'
+                    : 'border-[var(--border)] bg-[var(--surface-accordion)]'
                 }`}
                 onMouseEnter={() => onHoveredOuterChange(src.source_id)}
                 onMouseLeave={() => onHoveredOuterChange(null)}
@@ -602,7 +602,7 @@ function SourcesPanel({
                           key={story.story_id}
                           value={storyKey}
                           className={cn(
-                            'rounded border border-[var(--border-subtle)] bg-[var(--surface-accordion)] px-2 transition-opacity duration-300',
+                            'rounded border border-[var(--border)] bg-[var(--surface-accordion)] px-2 transition-opacity duration-300',
                             isDimmed && 'opacity-50'
                           )}
                         >

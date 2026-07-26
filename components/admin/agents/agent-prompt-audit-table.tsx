@@ -30,7 +30,7 @@ export function AgentPromptAuditTable({
 
   return (
     <>
-      <div className="min-w-0 w-full rounded-md border border-subtle text-sm">
+      <div className="min-w-0 w-full rounded-md border border-border text-sm">
         <div
           className={cn(
             AUDIT_GRID,

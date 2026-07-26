@@ -85,7 +85,7 @@ export function ProfileSettingsCard() {
             </Button>
           </div>
           {displayName && (
-            <p className="text-xs text-muted-soft">
+            <p className="text-xs text-muted">
               Shown in the navigation when you are signed in.
             </p>
           )}

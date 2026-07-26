@@ -14,7 +14,7 @@ export function RecordFieldRow({
       <dt className="min-w-0 truncate whitespace-nowrap pb-1.5 text-sm font-medium text-muted">
         {label}
       </dt>
-      <dd className="min-w-0 border-b border-subtle pb-1.5 text-sm leading-snug text-foreground">
+      <dd className="min-w-0 border-b border-border pb-1.5 text-sm leading-snug text-foreground">
         <div className="min-w-0 truncate whitespace-nowrap">
           {empty ? <span className="text-muted">—</span> : children}
         </div>

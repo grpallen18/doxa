@@ -136,7 +136,7 @@ function ScrapeAreaChart({
 
   return (
     <div className="pt-0">
-      <div className="flex flex-col gap-2 border-b border-subtle py-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 border-b border-border py-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1 px-4 sm:px-6">
           <h3 className="font-semibold">Scrapes over time</h3>
           <p className="text-sm text-muted">
@@ -180,7 +180,7 @@ function ScrapeAreaChart({
             Loading…
           </div>
         ) : showEmpty ? (
-          <div className="flex h-[250px] items-center justify-center rounded-lg border border-dashed border-subtle bg-muted/20">
+          <div className="flex h-[250px] items-center justify-center rounded-lg border border-dashed border-border bg-muted/20">
             <p className="text-sm text-muted">No scrape data in this time range</p>
           </div>
         ) : (
@@ -369,7 +369,7 @@ function ScrapeDrillDownPanel({
         <TooltipProvider delayDuration={200}>
           <div className="mt-2 flex flex-col">
             <div className="h-[200px] overflow-y-auto">
-              <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-subtle bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
+              <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
                 <span>Domain, Story</span>
                 <span className="w-14 shrink-0 text-right">{countLabel}</span>
               </div>
@@ -388,7 +388,7 @@ function ScrapeDrillDownPanel({
                   <span className="w-14 shrink-0 text-right tabular-nums">{domainTotal}</span>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-subtle pl-3">
+                  <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-3">
                     {Object.entries(byTitle).map(([title, info], storyIndex) => (
                       <li
                         key={title}
@@ -483,7 +483,7 @@ function DomainScrapeRateList() {
     <div className="space-y-2">
       <h4 className="text-sm font-medium">Scrape rate by domain (24h)</h4>
       <div className="h-[240px] overflow-y-auto">
-        <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-subtle bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
+        <div className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-background px-1.5 pb-1 pr-[14px] text-xs font-medium text-muted">
           <span>Domain</span>
           <span className="w-14 shrink-0 text-right">Rate</span>
         </div>

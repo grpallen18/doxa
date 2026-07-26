@@ -18,7 +18,7 @@ const Item = React.forwardRef<ItemElement, ItemProps>(
       "panel-bevel-soft panel-bevel-interactive rounded-bevel flex w-full items-center gap-3 p-4 [transition:background-color_var(--interactive-duration)_ease,box-shadow_var(--interactive-duration)_ease,transform_var(--interactive-duration)_ease] hover:shadow-panel-hover"
     const variantClass =
       variant === "outline"
-        ? "border border-subtle"
+        ? "border border-border"
         : ""
     return (
       <Comp

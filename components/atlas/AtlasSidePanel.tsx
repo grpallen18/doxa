@@ -79,7 +79,7 @@ export default function AtlasSidePanel({ node, onClose }: AtlasSidePanelProps) {
 
   return (
     <Panel variant="soft" className="flex h-full flex-col overflow-hidden p-4">
-      <div className="flex items-center justify-between gap-2 border-b border-subtle pb-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
           {node.entity_type}
         </h3>
@@ -117,7 +117,7 @@ export default function AtlasSidePanel({ node, onClose }: AtlasSidePanelProps) {
                 <h4 className="mb-2 text-xs font-semibold uppercase text-muted">Story claims</h4>
                 <ul className="space-y-2">
                   {storyClaims.map((sc) => (
-                    <li key={sc.story_claim_id} className="border-l-2 border-subtle pl-3">
+                    <li key={sc.story_claim_id} className="border-l-2 border-border pl-3">
                       <p className="text-foreground">{sc.raw_text}</p>
                       {sc.stories && (
                         <a

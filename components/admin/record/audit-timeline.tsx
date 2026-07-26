@@ -24,7 +24,7 @@ export function AuditTimeline({
   emptyMessage?: string
 }) {
   return (
-    <div className="min-w-0 w-full overflow-x-auto rounded-md border border-subtle text-sm">
+    <div className="min-w-0 w-full overflow-x-auto rounded-md border border-border text-sm">
       <table className="w-max min-w-full table-auto border-collapse">
         <thead>
           <tr className="border-b border-sidebar-border bg-sidebar text-sidebar-foreground">

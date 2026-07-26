@@ -161,13 +161,13 @@ export default function AtlasForceGraph({
         <button
           type="button"
           onClick={() => setShowSliders((s) => !s)}
-          className="rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-1.5 text-sm text-foreground shadow-[var(--shadow-panel-soft)] hover:bg-[var(--surface-soft)]"
+          className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-foreground shadow-[var(--shadow-panel-soft)] hover:bg-[var(--surface-soft)]"
         >
           {showSliders ? 'Hide' : 'Show'} layout controls
         </button>
       </div>
       {showSliders && (
-        <div className="absolute left-3 top-12 z-10 flex flex-col gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] p-3 shadow-[var(--shadow-panel-soft)]">
+        <div className="absolute left-3 top-12 z-10 flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-panel-soft)]">
           <label className="flex flex-col gap-1 text-xs text-muted">
             Center strength
             <input

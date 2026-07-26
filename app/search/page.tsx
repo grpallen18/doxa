@@ -51,7 +51,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             <p className="text-sm text-muted">No topics found.</p>
           ) : (
             <>
-              <ul className="rounded-md border border-subtle bg-surface">
+              <ul className="rounded-md border border-border bg-surface">
                 {results.map((topic, i) => (
                   <li key={topic.topic_id}>
                     {i > 0 && <Separator />}

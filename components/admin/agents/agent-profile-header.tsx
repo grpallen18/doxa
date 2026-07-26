@@ -143,7 +143,7 @@ export function AgentProfileHeader({
           departmentLabel={catalogProfile.departmentLabel}
           optionalBadge={
             agent.optional ? (
-              <span className="rounded border border-subtle bg-surface-soft px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted">
+              <span className="rounded border border-border bg-surface-soft px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted">
                 Optional
               </span>
             ) : undefined

@@ -24,7 +24,7 @@ function DiscourseStrip({ positions }: { positions: Position[] }) {
   }))
 
   return (
-    <div className="space-y-2 rounded-bevel border border-subtle bg-surface p-4">
+    <div className="space-y-2 rounded-bevel border border-border bg-surface p-4">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">
           Where discourse concentrates
@@ -97,7 +97,7 @@ function PositionListRow({
       className={cn(
         'flex w-full min-w-0 items-stretch gap-0 rounded-bevel border text-left transition-colors',
         'hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        selected ? 'border-2 bg-surface-soft shadow-panel-soft' : 'border border-subtle bg-surface'
+        selected ? 'border-2 bg-surface-soft shadow-panel-soft' : 'border border-border bg-surface'
       )}
       style={selected ? { borderColor: accent } : undefined}
     >
@@ -164,7 +164,7 @@ export function PositionListExplore({
       <div className="space-y-1">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">Positions — list view</h2>
-          <div className="flex items-center gap-1 rounded-md border border-subtle bg-surface p-0.5">
+          <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-0.5">
             {sortOptions.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}

@@ -37,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className={cn(
           'fixed top-0 z-50 flex w-full shrink-0 items-center gap-2 border-b px-4 transition-transform duration-300 ease-in-out motion-reduce:transition-none',
           isAdmin
-            ? 'border-subtle bg-background'
+            ? 'border-border bg-background'
             : 'border-sidebar-border bg-sidebar',
           !headerVisible && '-translate-y-full'
         )}
@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
             <p
               className={cn(
-                'w-full pb-px text-center font-cinzel text-[11px] font-medium leading-none tracking-[0.14em]',
+                'w-full pb-px text-center text-[11px] font-medium leading-none tracking-[0.14em]',
                 isAdmin ? 'text-muted/70' : 'text-sidebar-foreground/70'
               )}
             >

@@ -10,7 +10,7 @@ function WikiSubheading({ id, children }: { id: string; children: React.ReactNod
   return (
     <h3
       id={id}
-      className="scroll-mt-[calc(var(--header-height)+1rem)] border-b border-subtle pb-1 text-sm font-semibold text-foreground"
+      className="scroll-mt-[calc(var(--header-height)+1rem)] border-b border-border pb-1 text-sm font-semibold text-foreground"
     >
       {children}
     </h3>

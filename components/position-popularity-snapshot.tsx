@@ -45,7 +45,7 @@ export function PositionPopularitySnapshot({
   return (
     <figure
       className={cn(
-        'mb-4 w-full rounded-bevel border border-subtle bg-surface p-4',
+        'mb-4 w-full rounded-bevel border border-border bg-surface p-4',
         'sm:float-right sm:clear-right sm:mb-3 sm:ml-5 sm:w-64',
         className
       )}
@@ -84,7 +84,7 @@ function AdvocateSourceIcon({ sourceType }: { sourceType: PositionAdvocate['sour
 
 function AdvocateLinks({ advocates }: { advocates: PositionAdvocate[] }) {
   return (
-    <div className="border-t border-subtle pt-3">
+    <div className="border-t border-border pt-3">
       <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">Recent examples</p>
       <ul className="space-y-1">
         {advocates.map((advocate) => (

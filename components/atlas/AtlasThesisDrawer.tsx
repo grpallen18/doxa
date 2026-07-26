@@ -62,11 +62,11 @@ export default function AtlasThesisDrawer({
         className={cn(
           'inset-x-auto inset-y-0 right-0 left-auto mt-0 h-full w-full max-w-md',
           'rounded-l-[var(--radius-lg)] rounded-r-none',
-          'border-l border-[var(--border-subtle)]',
+          'border-l border-[var(--border)]',
           'bg-[var(--surface)] shadow-[var(--shadow-panel-soft)]'
         )}
       >
-        <DrawerHeader className="border-b border-[var(--border-subtle)] p-4 text-left">
+        <DrawerHeader className="border-b border-[var(--border)] p-4 text-left">
           <DrawerTitle className="text-sm font-semibold uppercase tracking-wider text-[var(--muted)]">
             Viewpoint
           </DrawerTitle>
@@ -95,7 +95,7 @@ export default function AtlasThesisDrawer({
           )}
         </ScrollArea>
 
-        <div className="border-t border-[var(--border-subtle)] p-4">
+        <div className="border-t border-[var(--border)] p-4">
           <DrawerClose asChild>
             <Button variant="outline" className="w-full">
               Close

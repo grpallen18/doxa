@@ -85,7 +85,7 @@ export default function AgreementRecordPage() {
           children: (
             <ul className="space-y-2 text-sm">
               {data.claims.map((c) => (
-                <li key={c.claim_id} className="rounded-md border border-subtle px-3 py-2">
+                <li key={c.claim_id} className="rounded-md border border-border px-3 py-2">
                   <Link
                     href={`/admin/records/claims/${c.claim_id}`}
                     className="text-accent-primary hover:underline"
@@ -106,7 +106,7 @@ export default function AgreementRecordPage() {
           children: (
             <ul className="space-y-2 text-sm">
               {data.controversies.map((c) => (
-                <li key={c.controversy_cluster_id} className="rounded-md border border-subtle px-3 py-2">
+                <li key={c.controversy_cluster_id} className="rounded-md border border-border px-3 py-2">
                   <Link
                     href={`/admin/controversies/${c.controversy_cluster_id}`}
                     className="font-medium text-accent-primary hover:underline"

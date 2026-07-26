@@ -228,7 +228,7 @@ function AdminHeaderSearchInner({ className }: { className?: string }) {
           aria-autocomplete="list"
           role="combobox"
           autoComplete="off"
-          className="h-9 w-full bg-background pl-9 pr-3"
+          className="h-9 w-full bg-surface pl-9 pr-3 text-foreground placeholder:text-muted"
         />
       </div>
 

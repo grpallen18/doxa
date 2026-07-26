@@ -40,9 +40,13 @@ export function StoryReviewProvider({
         setError(null)
       }
       try {
-        const res = await fetch(`/api/admin/stories/${storyId}/extraction-review`, {
-          cache: 'no-store',
-        })
+        const res = await fetch(
+          `/api/admin/stories/${encodeURIComponent(storyId)}/extraction-review`,
+          {
+            cache: 'no-store',
+            credentials: 'same-origin',
+          }
+        )
         const json = await res.json()
         if (!res.ok) {
           if (!silent) {

@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { AdminCenterNav } from '@/components/admin/admin-center-nav'
 import { AdminShell } from '@/components/admin/admin-shell'
 
 function isEntityRecordRoute(pathname: string): boolean {
@@ -11,15 +12,6 @@ function isEntityRecordRoute(pathname: string): boolean {
     pathname.startsWith('/admin/agreements/') ||
     /^\/admin\/controversies\/[^/]+/.test(pathname)
   )
-}
-
-function adminMaxWidth(pathname: string): 'default' | 'wide' | 'full' | 'content' {
-  if (pathname === '/admin') return 'wide'
-  if (isEntityRecordRoute(pathname)) return 'full'
-  if (pathname.startsWith('/admin/health') || pathname.startsWith('/admin/positions')) {
-    return 'content'
-  }
-  return 'default'
 }
 
 function isAgentFlowRoute(pathname: string): boolean {
@@ -38,8 +30,14 @@ function adminShellClass(pathname: string): string | undefined {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const showCenterNav = !isAgentFlowRoute(pathname)
+  const entityPadding = isEntityRecordRoute(pathname)
+    ? 'px-4 sm:px-6 md:px-8 lg:px-10'
+    : undefined
+
   return (
-    <AdminShell maxWidth={adminMaxWidth(pathname)} className={adminShellClass(pathname)}>
+    <AdminShell maxWidth="full" className={adminShellClass(pathname)}>
+      {showCenterNav && <AdminCenterNav className={entityPadding} />}
       {children}
     </AdminShell>
   )

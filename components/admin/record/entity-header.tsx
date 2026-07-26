@@ -58,7 +58,7 @@ export function EntityHeader({
         className={cn(
           embedded
             ? 'px-4 py-3 sm:px-5'
-            : 'rounded-lg border border-subtle bg-card px-4 py-3 sm:px-5',
+            : 'rounded-lg border border-border bg-card px-4 py-3 sm:px-5',
           className
         )}
       >
@@ -97,7 +97,7 @@ export function EntityHeader({
                   <div
                     className={cn(
                       'flex flex-wrap items-center gap-2',
-                      actions && 'border-t border-subtle pt-2 lg:justify-end'
+                      actions && 'border-t border-border pt-2 lg:justify-end'
                     )}
                   >
                     {destructiveActions}
@@ -114,7 +114,7 @@ export function EntityHeader({
   return (
     <header
       className={cn(
-        'rounded-lg border border-subtle bg-card px-4 py-4 sm:px-5',
+        'rounded-lg border border-border bg-card px-4 py-4 sm:px-5',
         className
       )}
     >

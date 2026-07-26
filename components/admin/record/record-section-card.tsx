@@ -45,8 +45,8 @@ export function RecordSectionCard({
       className={cn(
         'scroll-mt-24',
         isPanel
-          ? 'overflow-hidden rounded-lg border border-subtle bg-surface-soft'
-          : 'overflow-hidden rounded-lg border border-subtle bg-card shadow-sm',
+          ? 'overflow-hidden rounded-lg border border-border bg-surface-soft'
+          : 'overflow-hidden rounded-lg border border-border bg-card shadow-sm',
         className
       )}
     >

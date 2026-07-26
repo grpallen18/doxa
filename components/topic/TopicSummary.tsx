@@ -160,7 +160,7 @@ export default function TopicSummary({ summary, topicId }: TopicSummaryProps) {
 
       {showToolbar && selection && (
         <div
-          className="absolute z-10 flex items-center gap-1 rounded-md border border-subtle bg-surface px-2 py-1 shadow-panel-soft"
+          className="absolute z-10 flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 shadow-panel-soft"
           style={{ top: toolbarPos.top, left: toolbarPos.left }}
         >
           <Button
@@ -204,7 +204,7 @@ export default function TopicSummary({ summary, topicId }: TopicSummaryProps) {
               />
               {searchLoading && <p className="text-xs text-muted">Searching…</p>}
               {searchResults.length > 0 && (
-                <ul className="max-h-40 overflow-y-auto rounded-md border border-subtle p-2">
+                <ul className="max-h-40 overflow-y-auto rounded-md border border-border p-2">
                   {searchResults.map((t) => (
                     <li key={t.topic_id}>
                       <button

@@ -1,5 +1,7 @@
 'use client'
 
+import { appFont } from '@/lib/fonts'
+
 export default function GlobalError({
   error,
   reset,
@@ -8,11 +10,11 @@ export default function GlobalError({
   reset: () => void
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={appFont.variable}>
       <body
+        className={appFont.className}
         style={{
           margin: 0,
-          fontFamily: 'system-ui, -apple-system, sans-serif',
           background: '#e4e1dd',
           color: '#1a1712',
           minHeight: '100vh',

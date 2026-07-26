@@ -35,5 +35,5 @@ export type StoryAdminRef = {
 
 export function storyAdminHref(story: StoryAdminRef): string {
   const slug = story.friendly_id?.trim() || story.story_id
-  return `/admin/stories/${slug}`
+  return `/admin/stories/${encodeURIComponent(slug)}`
 }
