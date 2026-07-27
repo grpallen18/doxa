@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import {
+  mapThemePresetRow,
   normalizeThemeColors,
   isProtectedThemePresetName,
   type ThemeMode,
-  type ThemePresetRecord,
 } from '@/lib/admin/global-layout-theme'
 
 type RouteContext = {
@@ -14,29 +14,6 @@ type RouteContext = {
 
 function isThemeMode(value: unknown): value is ThemeMode {
   return value === 'light' || value === 'dark'
-}
-
-function mapRow(row: {
-  id: string
-  name: string
-  mode: string
-  colors: unknown
-  created_at: string
-  updated_at: string
-}): ThemePresetRecord | null {
-  if (!isThemeMode(row.mode)) return null
-  const colors =
-    row.colors && typeof row.colors === 'object' && !Array.isArray(row.colors)
-      ? normalizeThemeColors(row.colors as Record<string, unknown>, row.mode)
-      : normalizeThemeColors({}, row.mode)
-  return {
-    id: row.id,
-    name: row.name,
-    mode: row.mode,
-    colors,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  }
 }
 
 export async function PUT(request: Request, context: RouteContext) {
@@ -102,7 +79,7 @@ export async function PUT(request: Request, context: RouteContext) {
       )
     }
 
-    const preset = mapRow(data)
+    const preset = mapThemePresetRow(data)
     if (!preset) {
       return NextResponse.json(
         { data: null, error: { message: 'Updated but failed to map preset' } },

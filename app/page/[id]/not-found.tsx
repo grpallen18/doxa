@@ -1,6 +1,7 @@
-import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/Button'
+import { defaultTopicId } from '@/lib/mock/topic-explore'
+import { topicPath } from '@/lib/topic-routes'
 
 export default function TopicNotFound() {
   return (
@@ -13,8 +14,8 @@ export default function TopicNotFound() {
           The topic you&apos;re looking for doesn&apos;t exist or has been removed.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Button href="/topics" variant="primary">
-            Browse topics
+          <Button href={topicPath(defaultTopicId)} variant="primary">
+            Explore topics
           </Button>
           <Button href="/" variant="primary">
             Go home

@@ -142,7 +142,7 @@ export function ChunkQaHistorySection({
             onTabChange={setActiveTab}
             showColumns={activeAtom === 'claims'}
           >
-            <ol className="divide-y divide-subtle">
+            <ol className="divide-y divide-border">
               {activeAtom !== 'claims' ? (
                 <AtomLaneEmptyState atom={activeAtom} />
               ) : !hasClaimsHistory ? (

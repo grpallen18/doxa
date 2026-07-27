@@ -17,7 +17,6 @@ supabase functions deploy validate_chunk_claims
 supabase functions deploy merge_story_claims
 supabase functions deploy review_merged_extraction
 supabase functions deploy discord_daily_health
-supabase functions deploy generate_atlas_map
 ```
 
 JWT exceptions:

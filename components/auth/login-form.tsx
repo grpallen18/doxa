@@ -148,7 +148,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                       onClick={() => handleSocialLogin(provider)}
                     >
                       {label}
-                      <Icon className="size-4 shrink-0 text-black" />
+                      <Icon className="size-4 shrink-0 text-foreground" />
                     </Button>
                   ))}
                   <Button
@@ -161,7 +161,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                     }}
                   >
                     Email
-                    <Mail className="size-4 shrink-0 text-black" />
+                    <Mail className="size-4 shrink-0 text-foreground" />
                   </Button>
                 </div>
               </form>

@@ -53,7 +53,7 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 |------------|------|---------|
 | 01 Ingestion | [departments/01-ingestion-engine](departments/01-ingestion-engine) | NewsAPI, relevance, scrape, clean |
 | 02 Chunking | [departments/02-chunking-engine](departments/02-chunking-engine) | **Active:** chunk, extract claims, chunk QA review |
-| 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, atlas, maintenance |
+| 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, maintenance |
 | Legacy | [departments/legacy](departments/legacy) | Archived merge, canonicalization, topology, multi-atom chunk steps |
 
 ### 02 Chunking (active)

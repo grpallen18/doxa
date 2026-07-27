@@ -14,6 +14,7 @@ import { mapAgentNodeStatus } from '@/lib/admin/workflow-canvas/step-status-disp
 import type { VisionNodeSpec } from '@/lib/admin/workflow-canvas/types'
 import { VISION_FLOW_EDGES, VISION_FLOW_NODES } from '@/lib/admin/workflow-canvas/vision-flow-layout'
 import { isChunkParallelStep } from '@/lib/admin/pipeline-status/extraction-groups'
+import { claimsChunkWorkflowProgress } from '@/lib/admin/pipeline-status/chunk-parallel-progress'
 
 const COL_WIDTH = 300
 const ROW_HEIGHT = 230
@@ -64,9 +65,17 @@ function resolveAgentIconVariant(
 }
 
 function isInDevelopment(spec: VisionNodeSpec): boolean {
+  if (spec.opensChunkWorkflows && spec.maturity === 'live') return false
   if (spec.maturity === 'partial' || spec.maturity === 'placeholder') return true
   if (spec.catalogStepId && !PIPELINE_STEPS.some((s) => s.id === spec.catalogStepId)) return true
   return false
+}
+
+function resolveNodeProgress(spec: VisionNodeSpec, payload: StoryExtractionReviewPayload): string {
+  if (spec.chunkProgressLane === 'claims') {
+    return claimsChunkWorkflowProgress(payload)
+  }
+  return ''
 }
 
 export function buildVisionGraph({
@@ -104,13 +113,16 @@ export function buildVisionGraph({
       ? catalogLabel(catalogStepId, displayNameOverrides)
       : spec.visionLabel
     const chunkLayerOnly =
-      canvasScope === 'story' && catalogStepId != null && isChunkParallelStep(catalogStepId)
+      canvasScope === 'story' &&
+      (Boolean(spec.opensChunkWorkflows) ||
+        (catalogStepId != null && isChunkParallelStep(catalogStepId)))
 
     const inDevelopment = isInDevelopment(spec)
+    const shellProgress = resolveNodeProgress(spec, payload)
     const baseData = {
       visionLabel: spec.visionLabel,
       label,
-      desc: spec.roadmapNote ?? stepState?.progress ?? '',
+      desc: spec.roadmapNote ?? (shellProgress || stepState?.progress || ''),
       maturity: spec.maturity,
       catalogStepId: rawCatalogStepId ?? null,
       handlerPath: spec.handlerPath ?? null,

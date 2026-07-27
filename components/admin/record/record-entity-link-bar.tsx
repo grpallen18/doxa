@@ -23,7 +23,7 @@ export function RecordEntityLinkBar({
     >
       {links.map((link) => (
         <p key={link.label} className="shrink-0">
-          <span className="text-[var(--record-section-header-fg)]">{link.label}: </span>
+          <span className="text-foreground">{link.label}: </span>
           <a
             href={link.href}
             target="_blank"

@@ -20,7 +20,7 @@ Post-canonicalization debate intelligence in explicit layers.
 
 ## Traceability
 
-Controversy → `controversy_cluster_lineage` → `agreement_cluster_relationships` → agreement clusters → positions → claims/stories (Atlas scope API `/api/atlas/scope/controversy/{id}`).
+Controversy → `controversy_cluster_lineage` → `agreement_cluster_relationships` → agreement clusters → positions → claims/stories.
 
 Story evidence stays at story level (not canonicalized).
 

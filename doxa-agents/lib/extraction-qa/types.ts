@@ -6,8 +6,17 @@ export type ExtractionQaStatus =
   | "refined"
   | "awaiting_approval"
   | "atoms_passed"
+  | "complete"
+  /** @deprecated Prefer `complete` for claims-lane terminal status. Kept for dual-read. */
   | "passed"
   | "needs_human_review";
+
+/** Claims-lane terminal status: QA cycle finished / merge-eligible. */
+export const CLAIMS_QA_COMPLETE_STATUS = "complete" as const;
+
+export function isClaimsQaTerminalStatus(status: string | null | undefined): boolean {
+  return status === "complete" || status === "passed" || status === "atoms_passed";
+}
 
 export const MAX_VALIDATION_ATTEMPTS = 3;
 export const MAX_REFINEMENT_ATTEMPTS = 3;
@@ -81,7 +90,6 @@ export const CLAIMS_REVIEW_ISSUE_TYPES = [
   "under_split",
   "temporal",
   "quote_like",
-  "missing_claim",
   "deterministic",
   "schema_issue",
 ] as const;
@@ -97,7 +105,7 @@ export type ClaimsReviewIssue = {
 };
 
 export type ClaimsReviewPatch = {
-  action: "add" | "remove" | "update" | "merge" | "split";
+  action: "remove" | "update" | "merge" | "split";
   entity_type: "claim";
   severity: "blocking" | "major" | "minor";
   claim_ids: string[];
@@ -107,7 +115,8 @@ export type ClaimsReviewPatch = {
   source_grounding: string;
 };
 
-export type ClaimAuditVerdict = "pass" | "needs_repair" | "reject_final";
+/** Review per-claim verdict. `drop` removes the claim; never call this "reject" (approve requeue only). */
+export type ClaimAuditVerdict = "pass" | "needs_repair" | "drop";
 
 export type ClaimAuditEntry = {
   claim_id: string;
@@ -115,13 +124,13 @@ export type ClaimAuditEntry = {
   reason?: string;
 };
 
-export type ClaimsReviewResolvedStatus = "passed" | "needs_refinement" | "needs_human_review";
+export type ClaimsReviewResolvedStatus = "complete" | "needs_refinement";
 
 export type ClaimsReviewReport = {
   passes_review: boolean;
-  recommended_action: "validate" | "needs_refinement" | "reject";
+  recommended_action: "validate" | "needs_refinement";
   /** Workflow status after server resolution — mirrors extraction_qa_status. */
-  resolved_status?: ClaimsReviewResolvedStatus;
+  resolved_status?: ClaimsReviewResolvedStatus | "passed" | "needs_human_review";
   summary: string;
   issues: ClaimsReviewIssue[];
   patches: ClaimsReviewPatch[];
@@ -131,6 +140,31 @@ export type ClaimsReviewReport = {
   attempt_number?: number;
   reviewed_claim_version_id?: string;
 };
+
+export function normalizeClaimAuditVerdict(verdict: string | undefined | null): ClaimAuditVerdict {
+  if (verdict === "pass" || verdict === "needs_repair" || verdict === "drop") return verdict;
+  if (verdict === "reject_final") return "drop";
+  return "needs_repair";
+}
+
+function claimsReviewFailureHasRefinableFindings(
+  issues: Array<{ severity?: string; issue_type?: string }>,
+  patches: Array<{ action?: string }>,
+  claimAudit?: ClaimAuditEntry[]
+): boolean {
+  if (claimAudit?.some((row) => normalizeClaimAuditVerdict(row.verdict) === "needs_repair")) {
+    return true;
+  }
+  const actionable = issues.some(
+    (issue) =>
+      (issue.severity === "blocking" || issue.severity === "major") &&
+      issue.issue_type !== "missing_claim"
+  );
+  const refinablePatches = patches.some(
+    (patch) => patch.action === "update" || patch.action === "merge" || patch.action === "split"
+  );
+  return actionable || refinablePatches;
+}
 
 function reviewFailureHasRefinableFindings(
   issues: Array<{ severity?: string }>,
@@ -142,44 +176,50 @@ function reviewFailureHasRefinableFindings(
   return actionable || patches.length > 0;
 }
 
+/**
+ * Claims-lane failure resolution: never emits needs_human_review.
+ * Cap / only-drops → complete; otherwise needs_refinement when revise work remains.
+ */
 export function resolveClaimsReviewFailureStatus(
   attemptCount: number,
-  recommendedAction: ClaimsReviewReport["recommended_action"],
-  report?: Pick<ClaimsReviewReport, "issues" | "patches">
+  recommendedAction: ClaimsReviewReport["recommended_action"] | "reject",
+  report?: Pick<ClaimsReviewReport, "issues" | "patches" | "claim_audit">
 ): ExtractionQaStatus {
-  if (attemptCount >= MAX_VALIDATION_ATTEMPTS) return "needs_human_review";
-  if (recommendedAction === "needs_refinement") return "needs_refinement";
-  if (
+  const hasRepair =
     report &&
-    reviewFailureHasRefinableFindings(report.issues ?? [], report.patches ?? [])
-  ) {
-    return "needs_refinement";
+    claimsReviewFailureHasRefinableFindings(
+      report.issues ?? [],
+      report.patches ?? [],
+      report.claim_audit
+    );
+
+  if (attemptCount >= MAX_VALIDATION_ATTEMPTS) {
+    return CLAIMS_QA_COMPLETE_STATUS;
   }
-  if (recommendedAction === "reject") return "needs_human_review";
-  return "needs_human_review";
+  if (recommendedAction === "needs_refinement" || hasRepair) return "needs_refinement";
+  return CLAIMS_QA_COMPLETE_STATUS;
 }
 
 export function applyClaimsReviewResolvedStatus(
   report: ClaimsReviewReport,
-  finalStatus: ClaimsReviewResolvedStatus
+  finalStatus: ClaimsReviewResolvedStatus | "passed" | "needs_human_review"
 ): ClaimsReviewReport {
+  const normalizedStatus: ClaimsReviewResolvedStatus =
+    finalStatus === "needs_refinement" ? "needs_refinement" : "complete";
+
   const synced: ClaimsReviewReport = {
     ...report,
-    resolved_status: finalStatus,
+    resolved_status: normalizedStatus,
   };
 
-  if (finalStatus === "passed") {
+  if (normalizedStatus === "complete") {
     synced.recommended_action = "validate";
     synced.passes_review = true;
     return synced;
   }
 
   synced.passes_review = false;
-  if (finalStatus === "needs_refinement") {
-    synced.recommended_action = "needs_refinement";
-  } else {
-    synced.recommended_action = "reject";
-  }
+  synced.recommended_action = "needs_refinement";
   return synced;
 }
 

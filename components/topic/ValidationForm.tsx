@@ -68,9 +68,9 @@ export default function ValidationForm({ topicId, viewpoints, onSuccess }: Valid
   }
 
   return (
-    <form onSubmit={handleSubmit} className="border rounded-lg p-6 bg-white dark:bg-gray-800">
+    <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-card p-6">
       <h3 className="text-xl font-semibold mb-4">Validate Representation</h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <p className="mb-4 text-sm text-muted">
         Is your viewpoint fairly represented on this topic?
       </p>
 
@@ -81,7 +81,7 @@ export default function ValidationForm({ topicId, viewpoints, onSuccess }: Valid
         <select
           value={selectedViewpoint}
           onChange={(e) => setSelectedViewpoint(e.target.value)}
-          className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+          className="w-full rounded border border-input bg-background p-2"
           required
         >
           <option value="">Choose a viewpoint...</option>
@@ -132,7 +132,7 @@ export default function ValidationForm({ topicId, viewpoints, onSuccess }: Valid
         <textarea
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
-          className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+          className="w-full rounded border border-input bg-background p-2"
           rows={3}
           placeholder="What's missing or incorrect?"
         />
@@ -141,7 +141,7 @@ export default function ValidationForm({ topicId, viewpoints, onSuccess }: Valid
       <button
         type="submit"
         disabled={submitting}
-        className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full rounded bg-primary px-4 py-2 text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitting ? 'Submitting...' : 'Submit Validation'}
       </button>

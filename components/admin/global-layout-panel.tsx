@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label'
 import { useTheme } from '@/components/ThemeProvider'
 import {
   applyThemeColorOverrides,
+  applyThemePreset,
   captureCurrentThemeColors,
   clearThemeColorOverrides,
   groupGlobalLayoutColorVars,
@@ -188,15 +189,7 @@ export function GlobalLayoutPanel() {
   async function loadPreset(preset: ThemePresetRecord) {
     setLoadingId(preset.id)
     try {
-      const selection = { id: preset.id, name: preset.name }
-      // Persist colors for this mode first so ThemeProvider picks them up on switch.
-      saveThemeColorOverrides(preset.mode, preset.colors)
-      saveSelectedThemePreset(preset.mode, selection)
-
-      // Coordinate with header theme toggle: switch light/dark to match the preset.
-      themeCtx?.setTheme(preset.mode)
-
-      applyThemeColorOverrides(preset.mode, preset.colors)
+      const selection = applyThemePreset(preset, themeCtx?.setTheme)
       setOverrides(preset.colors)
       setSelected(selection)
       setColorsReady(true)
@@ -431,7 +424,7 @@ export function GlobalLayoutPanel() {
                                 onChange={(e) =>
                                   setColor(entry.key, e.target.value, fallback)
                                 }
-                                className="h-5 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
+                                className="size-5 cursor-pointer appearance-none overflow-hidden rounded-full border border-border bg-transparent p-0 [&::-moz-color-swatch]:rounded-full [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
                                 aria-label={entry.label}
                               />
                             </span>

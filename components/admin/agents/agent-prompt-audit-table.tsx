@@ -41,7 +41,7 @@ export function AgentPromptAuditTable({
           <span>When</span>
           <span>Detail</span>
         </div>
-        <ol className="divide-y divide-subtle">
+        <ol className="divide-y divide-border">
           {items.length === 0 ? (
             <li className={cn(AUDIT_GRID, 'px-3 py-3 text-xs text-muted')}>
               <span className="col-span-full">No prompt changes recorded yet.</span>

@@ -16,14 +16,6 @@ DECLARE
   v_set_parts text[] := array[]::text[];
   v_col text;
 BEGIN
-  -- group: viz
-  IF 'public.viz_maps'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.viz_maps, public.viz_nodes, public.viz_edges RESTART IDENTITY CASCADE';
-    v_truncated := v_truncated || ARRAY['viz_maps', 'viz_nodes', 'viz_edges'];
-  ELSE
-    v_skipped := v_skipped || ARRAY['viz'];
-  END IF;
-
   -- required: story_step_runs
   IF 'public.story_step_runs'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.story_step_runs RESTART IDENTITY CASCADE';
@@ -342,7 +334,7 @@ END;
 $function$;
 
 COMMENT ON FUNCTION public.purge_engine_data() IS
-  'Wipes pipeline-derived data (stories, claims, clusters, viz, etc.). Preserves sources, domain_throttle, pipeline_runs, users, and topic rows. Source: doxa-agents/ops/purge-engine-tables.yaml';
+  'Wipes pipeline-derived data (stories, claims, clusters, etc.). Preserves sources, domain_throttle, pipeline_runs, users, and topic rows. Source: doxa-agents/ops/purge-engine-tables.yaml';
 
 REVOKE ALL ON FUNCTION public.purge_engine_data() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.purge_engine_data() TO service_role;

@@ -1,6 +1,7 @@
-import Link from 'next/link'
 import { Panel } from '@/components/Panel'
 import { Button } from '@/components/Button'
+import { defaultTopicId } from '@/lib/mock/topic-explore'
+import { topicPath } from '@/lib/topic-routes'
 
 export default function NotFound() {
   return (
@@ -16,8 +17,8 @@ export default function NotFound() {
           <Button href="/" variant="primary">
             Go home
           </Button>
-          <Button href="/atlas" variant="primary">
-            Atlas
+          <Button href={topicPath(defaultTopicId)} variant="primary">
+            Explore topics
           </Button>
         </div>
       </Panel>

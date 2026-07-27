@@ -94,7 +94,6 @@ Doxa publishes structured models of facts, disagreement, and framing, continuous
 
 - **Frontend:** Next.js 14 (App Router) + React + TypeScript
 - **Backend:** Next.js API routes + Supabase (PostgreSQL)
-- **Graph Visualization:** react-force-graph-2d
 - **AI Integration:** OpenAI API
 - **Styling:** Tailwind CSS
 
@@ -196,7 +195,6 @@ doxa/
 │   ├── profile/               # Profile & ideology stub
 │   ├── page/[id]/             # Topic detail pages
 │   ├── admin/topics/          # Admin: create topics, run process_topic pipeline
-│   ├── atlas/                 # Thesis map visualization
 │   ├── graph/                 # Topics list (graph visualization removed)
 │   ├── error.tsx              # Route-level error boundary
 │   ├── global-error.tsx       # Global error boundary
@@ -205,7 +203,6 @@ doxa/
 │   ├── Panel.tsx              # Beveled panel (design system)
 │   ├── Button.tsx             # Primary/secondary button (design system)
 │   ├── InstrumentModule.tsx   # Instrument-style metric module
-│   ├── LandingHeader.tsx      # Shared nav (home + graph pages)
 │   ├── TrendingStoriesList.tsx # Auto-scrolling trending stories panel
 │   ├── auth/                  # Auth forms (login, sign-up, forgot-password, etc.)
 │   ├── graph/                 # Graph visualization components

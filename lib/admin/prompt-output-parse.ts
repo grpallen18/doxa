@@ -1,5 +1,5 @@
 export function extractOutputJsonBlock(systemPrompt: string): string | null {
-  const outputIdx = systemPrompt.search(/\bOUTPUT:\b/i)
+  const outputIdx = systemPrompt.search(/\bOUTPUT:/i)
   const slice = outputIdx >= 0 ? systemPrompt.slice(outputIdx) : systemPrompt
   const start = slice.indexOf('{')
   if (start < 0) return null

@@ -1,5 +1,4 @@
 import { Panel } from '@/components/Panel'
-import { LandingHeader } from '@/components/LandingHeader'
 import { InstrumentModule } from '@/components/InstrumentModule'
 import { ProfileSettingsCard } from '@/components/auth/profile-settings-card'
 
@@ -14,10 +13,8 @@ const IDEOLOGY_FACTORS = [
 
 export default function ProfilePage() {
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
+    <main className="min-h-screen bg-background px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        <LandingHeader />
-
         <section aria-labelledby="profile-heading" className="space-y-6">
           <h1 id="profile-heading" className="text-xl font-semibold tracking-tight sm:text-2xl">
             Profile &amp; account

@@ -75,13 +75,13 @@ function RecordLedgerTabBar({
     <div
       ref={containerRef}
       className={cn(
-        'relative flex gap-1 border-b border-border px-2 pb-0 pt-2',
+        'relative flex h-8 items-center gap-1 border-b border-border px-2',
         variant === 'lane' && 'bg-surface-section'
       )}
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-accent-secondary transition-[left,width] duration-200 ease-out"
+        className="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-foreground transition-[left,width] duration-200 ease-out"
         style={{ left: indicator.left, width: indicator.width }}
       />
       {tabs.map((tab) => {
@@ -97,7 +97,7 @@ function RecordLedgerTabBar({
               else tabRefs.current.delete(tab.id)
             }}
             className={cn(
-              'relative z-[1] whitespace-nowrap rounded-t-md px-2.5 py-1 transition-colors',
+              'relative z-[1] inline-flex h-7 items-center whitespace-nowrap rounded-t-md px-2.5 transition-colors',
               variant === 'lane'
                 ? 'text-xs font-medium'
                 : 'text-[11px] font-medium uppercase tracking-wide',
@@ -168,6 +168,6 @@ export function RecordLedgerTable({
 }
 
 export const recordLedgerRowClass = (gridClass: string) =>
-  cn(gridClass, 'min-w-0 items-center px-3 py-2 transition-colors hover:bg-white')
+  cn(gridClass, 'min-w-0 items-center px-3 py-2 transition-colors hover:bg-card')
 
 export const recordLedgerValueClass = 'min-w-0 truncate text-xs leading-snug text-muted'

@@ -85,6 +85,18 @@ export const GLOBAL_LAYOUT_COLOR_VARS: GlobalLayoutColorVar[] = [
     defaults: { light: '#1a1712', dark: '#1a1712' },
   },
   {
+    key: '--accent-tertiary',
+    label: 'Accent tertiary',
+    group: 'Accents',
+    defaults: { light: '#3d5a80', dark: '#b8c4d4' },
+  },
+  {
+    key: '--accent-tertiary-foreground',
+    label: 'Accent tertiary foreground',
+    group: 'Accents',
+    defaults: { light: '#faf9f7', dark: '#1a1712' },
+  },
+  {
     key: '--destructive',
     label: 'Destructive',
     group: 'Status',
@@ -487,4 +499,44 @@ export const PROTECTED_THEME_PRESET_NAME = 'Default'
 
 export function isProtectedThemePresetName(name: string): boolean {
   return name.trim().toLowerCase() === PROTECTED_THEME_PRESET_NAME.toLowerCase()
+}
+
+export function mapThemePresetRow(row: {
+  id: string
+  name: string
+  mode: string
+  colors: unknown
+  created_at: string
+  updated_at: string
+}): ThemePresetRecord | null {
+  if (row.mode !== 'light' && row.mode !== 'dark') return null
+  const colors =
+    row.colors && typeof row.colors === 'object' && !Array.isArray(row.colors)
+      ? normalizeThemeColors(row.colors as Record<string, unknown>, row.mode)
+      : normalizeThemeColors({}, row.mode)
+  return {
+    id: row.id,
+    name: row.name,
+    mode: row.mode,
+    colors,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+/**
+ * Persist a preset for its mode, switch light/dark if needed, then apply colors.
+ * Same path as the admin “Load theme” action.
+ */
+export function applyThemePreset(
+  preset: Pick<ThemePresetRecord, 'id' | 'name' | 'mode' | 'colors'>,
+  setTheme?: (mode: ThemeMode) => void
+): ThemePresetSelection {
+  const selection = { id: preset.id, name: preset.name }
+  // Persist colors for this mode first so ThemeProvider picks them up on switch.
+  saveThemeColorOverrides(preset.mode, preset.colors)
+  saveSelectedThemePreset(preset.mode, selection)
+  setTheme?.(preset.mode)
+  applyThemeColorOverrides(preset.mode, preset.colors)
+  return selection
 }

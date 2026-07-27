@@ -11,7 +11,6 @@
 | scrape-story-content-every-2min | scrape-story-content | scrape_story_content | `*/2 * * * *` | active | [schedule.sql](doxa-agents/departments/01-ingestion-engine/03-scrape-story-content/schedule.sql) |
 | chunk-story-bodies-every-2min | chunk-story-bodies | chunk_story_bodies | `*/2 * * * *` | inactive | [schedule.sql](doxa-agents/departments/02-chunking-engine/01-chunk-story-bodies/schedule.sql) |
 | discord-daily-health-report | discord-daily-health | discord_daily_health | `0 18 * * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/02-discord-daily-health/schedule.sql) |
-| generate-atlas-map-weekly | generate-atlas-map | generate_atlas_map | `0 3 * * 0` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/01-generate-atlas-map/schedule.sql) |
 | purge-drop-stories-monthly | purge-drop-stories-monthly | — | `0 4 1 * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/01-purge-drop-stories/schedule.sql) |
 | cleanup-cron-job-run-details-daily | cleanup-cron-job-run-details-daily | — | `30 4 * * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql) |
 | cleanup-http-responses-hourly | cleanup-http-responses-hourly | — | `0 * * * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql) |

@@ -14,6 +14,7 @@ export const QA_LANE_ARTIFACT_STAGES: Record<
   LaneStepIds & {
     review: readonly string[]
     refine: readonly string[]
+    approve: readonly string[]
     refinementCountKey: 'extraction_qa_refinement_count' | 'positions_qa_refinement_count'
     validationAttemptCountKey:
       | 'extraction_qa_validation_attempt_count'

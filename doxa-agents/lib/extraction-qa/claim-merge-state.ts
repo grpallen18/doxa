@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
-import type { ClaimsReviewReport, ClaimAuditEntry } from "./types.ts";
-import { chunkClaimsReviewPasses } from "./types.ts";
-import { MAX_REFINEMENT_ATTEMPTS } from "./types.ts";
+import type { ClaimsReviewReport, ClaimAuditEntry, ClaimsReviewPatch } from "./types.ts";
+import {
+  chunkClaimsReviewPasses,
+  MAX_REFINEMENT_ATTEMPTS,
+  normalizeClaimAuditVerdict,
+} from "./types.ts";
 
 export type ParkedBy = "review" | "approval";
 
@@ -20,6 +23,7 @@ export type RepairQueueEntry = {
   attempt_count: number;
 };
 
+/** Drop sink — claims removed from the merge set (review drop, approve drop, or cycle exhaustion). */
 export type RejectedFinalClaim = {
   claim_id: string;
   reason: string;
@@ -29,6 +33,7 @@ export type RejectedFinalClaim = {
 export type ClaimsMergeEligibility = {
   parked: ParkedClaim[];
   repair_queue: RepairQueueEntry[];
+  /** Dropped claims (legacy key name). */
   rejected_final: RejectedFinalClaim[];
   pending_approval_claim_ids?: string[];
   last_repair_version_id?: string | null;
@@ -38,6 +43,7 @@ export type ApprovalVerdict = {
   claim_id: string;
   approved: boolean;
   reason?: string;
+  /** true = reject/requeue to refine; false = drop */
   fixable?: boolean;
 };
 
@@ -75,12 +81,67 @@ export function claimsById(claims: Array<Record<string, unknown>>): Map<string, 
   return map;
 }
 
+function droppedClaimIds(state: ClaimsMergeEligibility): Set<string> {
+  return new Set(state.rejected_final.map((entry) => entry.claim_id));
+}
+
+/**
+ * Strip out-of-contract review noise: missing_claim issues and add patches.
+ * Promote remove patches into drop audit verdicts.
+ */
+export function sanitizeClaimsReviewReportForPartition(
+  report: ClaimsReviewReport,
+  claims: Array<Record<string, unknown>>
+): ClaimsReviewReport {
+  const claimIdAtIndex = (index: number | null): string | null => {
+    if (index == null || index < 0 || index >= claims.length) return null;
+    const id = claims[index]?.claim_id;
+    return typeof id === "string" ? id : null;
+  };
+
+  const issues = (report.issues ?? []).filter((issue) => issue.issue_type !== "missing_claim");
+  const patches = (report.patches ?? []).filter((patch) => (patch.action as string) !== "add") as ClaimsReviewPatch[];
+
+  const auditById = new Map(
+    (report.claim_audit ?? []).map((entry) => [
+      entry.claim_id,
+      {
+        ...entry,
+        verdict: normalizeClaimAuditVerdict(entry.verdict),
+      },
+    ])
+  );
+
+  for (const patch of patches) {
+    if (patch.action !== "remove") continue;
+    const ids = [
+      ...(patch.claim_ids ?? []),
+      ...(patch.claim_indexes ?? []).map(claimIdAtIndex).filter((id): id is string => id != null),
+    ];
+    for (const claimId of ids) {
+      const existing = auditById.get(claimId);
+      auditById.set(claimId, {
+        claim_id: claimId,
+        verdict: "drop",
+        reason: patch.reason || existing?.reason || "dropped_by_review",
+      });
+    }
+  }
+
+  return {
+    ...report,
+    issues,
+    patches,
+    claim_audit: [...auditById.values()],
+  };
+}
+
 export function claimIdsNeedingRepairFromReport(
   claims: Array<Record<string, unknown>>,
   report: ClaimsReviewReport
-): { repairIds: Set<string>; rejectIds: Set<string> } {
+): { repairIds: Set<string>; dropIds: Set<string> } {
   const repairIds = new Set<string>();
-  const rejectIds = new Set<string>();
+  const dropIds = new Set<string>();
 
   const claimIdAtIndex = (index: number | null): string | null => {
     if (index == null || index < 0 || index >= claims.length) return null;
@@ -89,26 +150,31 @@ export function claimIdsNeedingRepairFromReport(
   };
 
   for (const issue of report.issues ?? []) {
+    if (issue.issue_type === "missing_claim") continue;
     const claimId = issue.claim_id ?? claimIdAtIndex(issue.claim_index);
     if (!claimId) continue;
     if (issue.severity === "blocking" && issue.issue_type === "schema_issue") {
-      rejectIds.add(claimId);
+      dropIds.add(claimId);
     } else if (issue.severity === "blocking" || issue.severity === "major") {
       repairIds.add(claimId);
     }
   }
 
   for (const patch of report.patches ?? []) {
+    if ((patch.action as string) === "add") continue;
+    const target = patch.action === "remove" ? dropIds : repairIds;
     for (const id of patch.claim_ids ?? []) {
-      if (id) repairIds.add(id);
+      if (id) target.add(id);
     }
     for (const index of patch.claim_indexes ?? []) {
       const id = claimIdAtIndex(index);
-      if (id) repairIds.add(id);
+      if (id) target.add(id);
     }
   }
 
-  return { repairIds, rejectIds };
+  for (const id of dropIds) repairIds.delete(id);
+
+  return { repairIds, dropIds };
 }
 
 export function ensureClaimAudit(
@@ -119,7 +185,7 @@ export function ensureClaimAudit(
     .map((claim) => (typeof claim.claim_id === "string" ? claim.claim_id : null))
     .filter((id): id is string => id != null);
 
-  const { repairIds, rejectIds } = claimIdsNeedingRepairFromReport(claims, report);
+  const { repairIds, dropIds } = claimIdsNeedingRepairFromReport(claims, report);
 
   if (report.claim_audit?.length) {
     const auditById = new Map(report.claim_audit.map((entry) => [entry.claim_id, entry]));
@@ -129,14 +195,15 @@ export function ensureClaimAudit(
         verdict: "needs_repair" as const,
         reason: "missing_audit_entry",
       };
+      const verdict = normalizeClaimAuditVerdict(existing.verdict);
 
-      if (rejectIds.has(claim_id)) {
-        return { ...existing, verdict: "reject_final" as const };
+      if (dropIds.has(claim_id) || verdict === "drop") {
+        return { ...existing, verdict: "drop" as const };
       }
-      if (repairIds.has(claim_id) && existing.verdict === "pass") {
+      if (repairIds.has(claim_id) && verdict === "pass") {
         return { ...existing, verdict: "needs_repair" as const };
       }
-      return existing;
+      return { ...existing, verdict };
     });
   }
 
@@ -146,8 +213,8 @@ export function ensureClaimAudit(
 
   return claimIds.map((claim_id) => ({
     claim_id,
-    verdict: rejectIds.has(claim_id)
-      ? ("reject_final" as const)
+    verdict: dropIds.has(claim_id)
+      ? ("drop" as const)
       : repairIds.has(claim_id)
         ? ("needs_repair" as const)
         : ("pass" as const),
@@ -159,13 +226,13 @@ export function seedRepairQueueFromAudit(
   audit: ClaimAuditEntry[]
 ): ClaimsMergeEligibility {
   const parkedIds = new Set(state.parked.map((entry) => entry.claim_id));
-  const rejectedIds = new Set(state.rejected_final.map((entry) => entry.claim_id));
+  const droppedIds = droppedClaimIds(state);
   const queuedIds = new Set(state.repair_queue.map((entry) => entry.claim_id));
   const additions: RepairQueueEntry[] = [];
 
   for (const row of audit) {
-    if (row.verdict !== "needs_repair") continue;
-    if (parkedIds.has(row.claim_id) || rejectedIds.has(row.claim_id) || queuedIds.has(row.claim_id)) {
+    if (normalizeClaimAuditVerdict(row.verdict) !== "needs_repair") continue;
+    if (parkedIds.has(row.claim_id) || droppedIds.has(row.claim_id) || queuedIds.has(row.claim_id)) {
       continue;
     }
     additions.push({
@@ -194,12 +261,13 @@ export function parkClaims(
   }
 ): ClaimsMergeEligibility {
   const parkedAt = meta.parked_at ?? new Date().toISOString();
+  const dropped = droppedClaimIds(state);
   const existing = new Set(state.parked.map((p) => p.claim_id));
   const nextParked = [...state.parked];
 
   for (const claim of claims) {
     const claimId = typeof claim.claim_id === "string" ? claim.claim_id : null;
-    if (!claimId || existing.has(claimId)) continue;
+    if (!claimId || existing.has(claimId) || dropped.has(claimId)) continue;
     nextParked.push({
       claim_id: claimId,
       claim,
@@ -231,20 +299,23 @@ export function partitionAfterReview(
     artifact_id: string;
   }
 ): ClaimsMergeEligibility {
+  const sanitized = sanitizeClaimsReviewReportForPartition(report, claims);
   const byId = claimsById(claims);
-  const audit = report.claim_audit ?? [];
+  const audit = ensureClaimAudit(claims, sanitized);
   let next = { ...state, repair_queue: [...state.repair_queue], rejected_final: [...state.rejected_final] };
 
   const toPark: Array<Record<string, unknown>> = [];
   const repairIds = new Set<string>();
+  const existingDropped = droppedClaimIds(next);
 
   for (const row of audit) {
     const claim = byId.get(row.claim_id);
     if (!claim) continue;
+    const verdict = normalizeClaimAuditVerdict(row.verdict);
 
-    if (row.verdict === "pass") {
+    if (verdict === "pass") {
       toPark.push(claim);
-    } else if (row.verdict === "needs_repair") {
+    } else if (verdict === "needs_repair") {
       repairIds.add(row.claim_id);
       const existing = next.repair_queue.find((e) => e.claim_id === row.claim_id);
       if (existing) {
@@ -256,12 +327,15 @@ export function partitionAfterReview(
           attempt_count: 0,
         });
       }
-    } else if (row.verdict === "reject_final") {
-      next.rejected_final.push({
-        claim_id: row.claim_id,
-        reason: row.reason ?? "rejected_by_review",
-        artifact_id: meta.artifact_id,
-      });
+    } else if (verdict === "drop") {
+      if (!existingDropped.has(row.claim_id)) {
+        next.rejected_final.push({
+          claim_id: row.claim_id,
+          reason: row.reason ?? "dropped_by_review",
+          artifact_id: meta.artifact_id,
+        });
+        existingDropped.add(row.claim_id);
+      }
     }
   }
 
@@ -301,7 +375,10 @@ export function buildRepairPayload(
   state: ClaimsMergeEligibility,
   claims: Array<Record<string, unknown>>
 ): Array<Record<string, unknown>> {
-  const queueIds = new Set(state.repair_queue.map((e) => e.claim_id));
+  const dropped = droppedClaimIds(state);
+  const queueIds = new Set(
+    state.repair_queue.map((e) => e.claim_id).filter((id) => !dropped.has(id))
+  );
   return claims.filter((claim) => {
     const id = typeof claim.claim_id === "string" ? claim.claim_id : null;
     return id != null && queueIds.has(id);
@@ -312,8 +389,16 @@ export function buildApprovalPayload(
   state: ClaimsMergeEligibility,
   claims: Array<Record<string, unknown>>
 ): Array<Record<string, unknown>> {
-  const pending = new Set(state.pending_approval_claim_ids ?? []);
-  if (pending.size === 0) return claims;
+  const dropped = droppedClaimIds(state);
+  const pending = new Set(
+    (state.pending_approval_claim_ids ?? []).filter((id) => !dropped.has(id))
+  );
+  if (pending.size === 0) {
+    return claims.filter((claim) => {
+      const id = typeof claim.claim_id === "string" ? claim.claim_id : null;
+      return id != null && !dropped.has(id);
+    });
+  }
   return claims.filter((claim) => {
     const id = typeof claim.claim_id === "string" ? claim.claim_id : null;
     return id != null && pending.has(id);
@@ -337,7 +422,51 @@ export function isChunkMergeReady(
 }
 
 export function repairQueueClaimIds(state: ClaimsMergeEligibility): string[] {
-  return state.repair_queue.map((e) => e.claim_id);
+  const dropped = droppedClaimIds(state);
+  return state.repair_queue.map((e) => e.claim_id).filter((id) => !dropped.has(id));
+}
+
+/**
+ * End the claims QA cycle: drop remaining repair/pending claims; keep parked.
+ */
+export function finalizeClaimsCycleByDroppingRemainder(
+  state: ClaimsMergeEligibility,
+  meta: {
+    artifact_id: string;
+    reason?: string;
+  }
+): ClaimsMergeEligibility {
+  const reason = meta.reason ?? "cycle_exhausted";
+  const existingDropped = droppedClaimIds(state);
+  const nextDropped = [...state.rejected_final];
+
+  for (const entry of state.repair_queue) {
+    if (existingDropped.has(entry.claim_id)) continue;
+    nextDropped.push({
+      claim_id: entry.claim_id,
+      reason,
+      artifact_id: meta.artifact_id,
+    });
+    existingDropped.add(entry.claim_id);
+  }
+
+  for (const claimId of state.pending_approval_claim_ids ?? []) {
+    if (existingDropped.has(claimId)) continue;
+    if (state.parked.some((p) => p.claim_id === claimId)) continue;
+    nextDropped.push({
+      claim_id: claimId,
+      reason,
+      artifact_id: meta.artifact_id,
+    });
+    existingDropped.add(claimId);
+  }
+
+  return {
+    ...state,
+    repair_queue: [],
+    pending_approval_claim_ids: [],
+    rejected_final: nextDropped,
+  };
 }
 
 export function applyApprovalVerdicts(
@@ -349,6 +478,7 @@ export function applyApprovalVerdicts(
     artifact_id: string;
   }
 ): ClaimsMergeEligibility {
+  const dropped = droppedClaimIds(state);
   const verdictById = new Map(verdicts.map((v) => [v.claim_id, v]));
   let next = {
     ...state,
@@ -362,7 +492,7 @@ export function applyApprovalVerdicts(
 
   for (const claim of claims) {
     const claimId = typeof claim.claim_id === "string" ? claim.claim_id : null;
-    if (!claimId) continue;
+    if (!claimId || dropped.has(claimId)) continue;
 
     const verdict = verdictById.get(claimId);
     if (!verdict) {
@@ -399,7 +529,7 @@ export function applyApprovalVerdicts(
     } else {
       next.rejected_final.push({
         claim_id: verdict.claim_id,
-        reason: verdict.reason ?? "rejected_by_approval",
+        reason: verdict.reason ?? "dropped_by_approval",
         artifact_id: meta.artifact_id,
       });
       next.repair_queue = next.repair_queue.filter((e) => e.claim_id !== verdict.claim_id);
@@ -409,7 +539,7 @@ export function applyApprovalVerdicts(
   next.pending_approval_claim_ids = [
     ...stillPending,
     ...(state.pending_approval_claim_ids ?? []).filter(
-      (id) => !claims.some((claim) => claim.claim_id === id)
+      (id) => !claims.some((claim) => claim.claim_id === id) && !dropped.has(id)
     ),
   ];
 
@@ -429,9 +559,10 @@ export function setPendingApprovalClaims(
   claimIds: string[],
   repairVersionId: string | null
 ): ClaimsMergeEligibility {
+  const dropped = droppedClaimIds(state);
   return {
     ...state,
-    pending_approval_claim_ids: claimIds,
+    pending_approval_claim_ids: claimIds.filter((id) => !dropped.has(id)),
     last_repair_version_id: repairVersionId,
   };
 }

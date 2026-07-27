@@ -148,9 +148,9 @@ export async function getChunkLaneCompletionHints(
     extracted.every((c) => {
       const status = c[statusKey];
       if (lane === "claims") {
-        return status === "passed" || status === "atoms_passed";
+        return status === "complete" || status === "passed" || status === "atoms_passed";
       }
-      return status === "passed" || status === "atoms_passed";
+      return status === "complete" || status === "passed" || status === "atoms_passed";
     });
 
   return { total, withJson, blocked, terminalComplete };
@@ -186,7 +186,7 @@ export async function resolveSingleChunkStepOutcome(
   }
 
   if (stepId === "validate-chunk-claims" || stepId === "validate-chunk-positions") {
-    if (status === "passed" || status === "atoms_passed") return "success";
+    if (status === "complete" || status === "passed" || status === "atoms_passed") return "success";
     if (status === "needs_refinement" || status === "pending") return "success";
     if (status === "needs_human_review") return "success";
     return "looping";
@@ -194,14 +194,14 @@ export async function resolveSingleChunkStepOutcome(
 
   if (stepId === "refine-chunk-claims" || stepId === "refine-chunk-positions") {
     if (status === "awaiting_approval") return "success";
-    if (status === "needs_human_review") return "success";
+    if (status === "complete" || status === "needs_human_review") return "success";
     if (status === "pending" && refinementCount > 0) return "success";
     if (status === "needs_refinement") return "failure";
     return "success";
   }
 
   if (stepId === "approve-chunk-claims") {
-    if (status === "passed" || status === "atoms_passed") return "success";
+    if (status === "complete" || status === "passed" || status === "atoms_passed") return "success";
     if (status === "needs_refinement") return "success";
     if (status === "needs_human_review") return "success";
     if (status === "awaiting_approval") return "failure";
@@ -271,7 +271,7 @@ export async function resolveMergeQaOutcome(
   if (qa === "needs_human_review") return "failure";
   if (stepId === "review-merged-extraction") {
     if (qa === "needs_refinement") return "looping";
-    if (qa === "passed" || qa === "reviewed") return "success";
+    if (qa === "complete" || qa === "passed" || qa === "reviewed") return "success";
     return qa != null && qa !== "pending" ? "looping" : "looping";
   }
   if (stepId === "refine-merged-extraction") {
@@ -279,7 +279,7 @@ export async function resolveMergeQaOutcome(
     return qa != null && qa !== "needs_refinement" ? "success" : "looping";
   }
   if (stepId === "validate-merged-extraction") {
-    return qa === "passed" ? "success" : "looping";
+    return qa === "complete" || qa === "passed" ? "success" : "looping";
   }
   return "looping";
 }

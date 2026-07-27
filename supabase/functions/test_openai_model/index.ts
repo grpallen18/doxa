@@ -29,7 +29,7 @@ async function testChatModel(apiKey: string, model: string): Promise<{ ok: true;
     },
     body: JSON.stringify({
       model,
-      max_tokens: 8,
+      max_completion_tokens: 8,
       messages: [{ role: 'user', content: 'Reply with exactly: OK' }],
     }),
   })

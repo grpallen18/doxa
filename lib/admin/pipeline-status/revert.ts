@@ -158,7 +158,8 @@ export function getChunkStepRevertBlockedReason(
   if (isChunkStepRevertible(stepId, chunk, payload)) return null
 
   const storyPassedWithoutMerge =
-    payload.story.extraction_qa_status === 'passed' &&
+    (payload.story.extraction_qa_status === 'complete' ||
+      payload.story.extraction_qa_status === 'passed') &&
     payload.story.merged_at == null &&
     payload.claims.length === 0 &&
     payload.evidence.length === 0

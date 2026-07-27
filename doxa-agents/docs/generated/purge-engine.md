@@ -24,7 +24,7 @@ Initial install: migration `121_purge_engine_data.sql`.
 
 ## Truncate groups
 
-- **viz**: `viz_maps`, `viz_nodes`, `viz_edges`
+
 
 ## Truncate tables
 

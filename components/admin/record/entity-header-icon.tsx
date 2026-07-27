@@ -18,7 +18,7 @@ export function EntityHeaderIcon({
     <span
       aria-hidden
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full border border-[var(--record-section-header-border)] bg-[var(--record-section-header-bg)] text-[var(--record-section-header-fg)]',
+        'inline-flex shrink-0 items-center justify-center rounded-full border border-accent-primary bg-accent-primary text-accent-primary-foreground',
         size === 'sm' && 'size-8',
         size === 'md' && 'size-9',
         size === 'lg' && 'size-11',

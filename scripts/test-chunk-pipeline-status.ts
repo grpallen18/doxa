@@ -102,11 +102,14 @@ console.log('isChunkStepRunnable')
 
 console.log('isChunkStepDomainComplete')
 {
-  const chunk = baseChunk({ extraction_qa_status: 'passed' })
-  assert('extract complete when passed', isChunkStepDomainComplete('extract-story-claims', chunk))
-  assert('validate complete when passed', isChunkStepDomainComplete('validate-chunk-claims', chunk))
-  assert('refine complete when passed (fast path)', isChunkStepDomainComplete('refine-chunk-claims', chunk))
-  assert('approve complete when passed', isChunkStepDomainComplete('approve-chunk-claims', chunk))
+  const chunk = baseChunk({ extraction_qa_status: 'complete' })
+  assert('extract complete when complete', isChunkStepDomainComplete('extract-story-claims', chunk))
+  assert('validate complete when complete', isChunkStepDomainComplete('validate-chunk-claims', chunk))
+  assert('refine complete when complete (fast path)', isChunkStepDomainComplete('refine-chunk-claims', chunk))
+  assert('approve complete when complete', isChunkStepDomainComplete('approve-chunk-claims', chunk))
+
+  const legacyPassed = baseChunk({ extraction_qa_status: 'passed' })
+  assert('approve complete when legacy passed', isChunkStepDomainComplete('approve-chunk-claims', legacyPassed))
 }
 
 {

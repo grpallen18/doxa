@@ -125,7 +125,7 @@ export function CanvasAgentNode({ data, selected, id }: NodeProps) {
 
       {isRunning ? <CanvasRunningBar /> : null}
 
-      {stepId && chunkLayerOnly ? (
+      {chunkLayerOnly ? (
         <div className="flex items-center justify-center gap-2 bg-zinc-950/50 px-3 py-2">
           <TooltipProvider delayDuration={200}>
             <Tooltip>

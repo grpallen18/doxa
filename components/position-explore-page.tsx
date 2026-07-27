@@ -1,8 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 import { PositionNarrativeArticle } from '@/components/position-narrative-article'
 import { PositionDetailContent } from '@/components/position-detail-content'
 import { PositionPopularitySnapshot } from '@/components/position-popularity-snapshot'
@@ -31,15 +29,6 @@ export function PositionExplorePage({
   return (
     <main className="min-h-[calc(100svh-var(--header-height))] min-w-0 overflow-x-hidden text-foreground">
       <div className="min-w-0 space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        <Link
-          href={topicPath(topic.id)}
-          className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-foreground"
-          data-testid="position-back-link"
-        >
-          <ArrowLeft className="size-4 shrink-0" aria-hidden />
-          <span>{topic.title}</span>
-        </Link>
-
         <div data-testid="position-article-body">
           <PositionPopularitySnapshot position={position} />
 

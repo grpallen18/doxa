@@ -155,7 +155,7 @@ export const handler = async (req: Request) => {
           model: MODEL,
           messages: [{ role: "user", content: "Reply with JSON: {\"ok\":true}" }],
           response_format: { type: "json_object" },
-          max_tokens: 32,
+          max_completion_tokens: 32,
         }),
         signal: AbortSignal.timeout(30_000),
       });

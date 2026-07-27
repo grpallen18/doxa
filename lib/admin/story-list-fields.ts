@@ -118,7 +118,8 @@ export const STORY_LIST_FIELDS: readonly StoryListFieldDef[] = [
     sortColumn: 'extraction_qa_status',
     options: [
       { value: 'needs_human_review', label: 'Needs human review' },
-      { value: 'passed', label: 'QA passed' },
+      { value: 'complete', label: 'QA complete' },
+      { value: 'passed', label: 'QA complete (legacy)' },
       { value: 'pending_qa', label: 'Pending QA' },
       { value: 'awaiting_approval', label: 'Awaiting approval' },
       { value: 'atoms_passed', label: 'Atoms validated' },

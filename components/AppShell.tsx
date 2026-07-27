@@ -2,12 +2,14 @@
 
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import { PanelLeft } from 'lucide-react'
 
 import {
   Sidebar,
   SidebarContent,
   SidebarInset,
   SidebarProvider,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import { useUserRole } from '@/hooks/use-user-role'
@@ -16,8 +18,75 @@ import { ExploreSidebarNav } from '@/components/explore-sidebar-nav'
 import { AdminHeaderSearch } from '@/components/admin/admin-pipeline-search'
 import { HeaderSearch } from '@/components/header-search'
 import { HeaderAdminMenu } from '@/components/header-admin-menu'
+import { HeaderPagesMenu } from '@/components/header-pages-menu'
 import { HeaderUserMenu } from '@/components/header-user-menu'
 import { TopicExploreProvider } from '@/components/topic-explore-context'
+
+const SIDEBAR_PANE_MS = 500
+
+const sidebarPaneTransitionStyle = {
+  transitionDuration: `${SIDEBAR_PANE_MS}ms`,
+  transitionTimingFunction: 'ease-in-out',
+} as const
+
+function ExploreSidebarPane({
+  headerVisible,
+  children,
+}: {
+  headerVisible: boolean
+  children: React.ReactNode
+}) {
+  const { open, toggleSidebar } = useSidebar()
+
+  return (
+    <>
+      <div
+        className={cn(
+          'hidden shrink-0 md:block transition-[width] motion-reduce:transition-none',
+          open ? 'w-[--sidebar-width]' : 'w-0'
+        )}
+        style={sidebarPaneTransitionStyle}
+        aria-hidden
+      />
+      <Sidebar
+        side="left"
+        collapsible="none"
+        className={cn(
+          'fixed left-0 z-10 !flex w-[--sidebar-width] border-r border-border bg-surface text-foreground transition-[top,height,transform] motion-reduce:transition-none',
+          headerVisible
+            ? 'top-[--header-height] h-[calc(100svh-var(--header-height))]'
+            : 'top-0 h-svh',
+          open ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+        )}
+        style={sidebarPaneTransitionStyle}
+        aria-hidden={!open}
+      >
+        <SidebarContent>
+          <ExploreSidebarNav />
+        </SidebarContent>
+      </Sidebar>
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        aria-label="Show sidebar"
+        data-testid="sidebar-expand-button"
+        className={cn(
+          'fixed left-0 z-20 flex size-7 items-center justify-center rounded-md border border-l-0 border-border bg-surface text-muted transition-[top,opacity,transform] hover:text-foreground motion-reduce:transition-none',
+          headerVisible
+            ? 'top-[calc(var(--header-height)+0.5rem)]'
+            : 'top-2',
+          open
+            ? 'pointer-events-none -translate-x-full opacity-0'
+            : 'translate-x-0 opacity-100'
+        )}
+        style={sidebarPaneTransitionStyle}
+      >
+        <PanelLeft className="size-3.5" aria-hidden />
+      </button>
+      <SidebarInset>{children}</SidebarInset>
+    </>
+  )
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -35,10 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <header
         className={cn(
-          'fixed top-0 z-50 flex w-full shrink-0 items-center gap-2 border-b px-4 transition-transform duration-300 ease-in-out motion-reduce:transition-none',
-          isAdmin
-            ? 'border-border bg-background'
-            : 'border-sidebar-border bg-sidebar',
+          'fixed top-0 z-50 flex w-full shrink-0 items-center gap-2 border-b border-border bg-surface px-4 transition-transform duration-300 ease-in-out motion-reduce:transition-none',
           !headerVisible && '-translate-y-full'
         )}
       >
@@ -60,12 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               priority
               className="hidden h-[calc(var(--header-height)-1rem)] w-auto dark:block"
             />
-            <p
-              className={cn(
-                'w-full pb-px text-center text-[11px] font-medium leading-none tracking-[0.14em]',
-                isAdmin ? 'text-muted/70' : 'text-sidebar-foreground/70'
-              )}
-            >
+            <p className="w-full pb-px text-center text-[11px] font-medium leading-none tracking-[0.14em] text-muted/70">
               Belief, Mapped.
             </p>
           </div>
@@ -82,6 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1 self-center">
+            <HeaderPagesMenu />
             {role === 'admin' && <HeaderAdminMenu />}
             <HeaderUserMenu />
           </div>
@@ -94,24 +156,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {children}
           </main>
         ) : (
-          <>
-            <div className="hidden w-[--sidebar-width] shrink-0 md:block" aria-hidden />
-            <Sidebar
-              side="left"
-              collapsible="none"
-              className={cn(
-                'fixed left-0 z-10 !flex w-[--sidebar-width] border-r border-sidebar-border transition-[top,height] duration-300 ease-in-out motion-reduce:transition-none',
-                headerVisible
-                  ? 'top-[--header-height] h-[calc(100svh-var(--header-height))]'
-                  : 'top-0 h-svh'
-              )}
-            >
-              <SidebarContent>
-                <ExploreSidebarNav />
-              </SidebarContent>
-            </Sidebar>
-            <SidebarInset>{children}</SidebarInset>
-          </>
+          <ExploreSidebarPane headerVisible={headerVisible}>{children}</ExploreSidebarPane>
         )}
       </div>
     </>

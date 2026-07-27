@@ -38,11 +38,15 @@
   --accent-secondary-foreground: #1a1712;
   --accent-secondary-soft: color-mix(in srgb, var(--accent-secondary) 28%, transparent);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 95%, white);
+  --accent-tertiary: #3d5a80;
+  --accent-tertiary-foreground: #faf9f7;
+  --accent-tertiary-soft: color-mix(in srgb, var(--accent-tertiary) 28%, transparent);
+  --accent-tertiary-hover: color-mix(in srgb, var(--accent-tertiary) 95%, white);
 
-  --record-section-header-bg: color-mix(in srgb, var(--accent-secondary) 38%, var(--surface-section));
-  --record-section-header-fg: var(--foreground);
+  --record-section-header-bg: var(--accent-secondary);
+  --record-section-header-fg: var(--accent-secondary-foreground);
   --record-section-header-hover: var(--record-section-header-bg);
-  --record-section-header-border: color-mix(in srgb, var(--accent-secondary) 44%, var(--border));
+  --record-section-header-border: var(--accent-secondary);
 
   /* Link palette constants + active link (editable) */
   --link-default-blue: #0000ee;
@@ -99,20 +103,6 @@
   --graph-node-draft: #6a6053;
   --graph-node-default: #524736;
   --graph-link: rgba(82, 71, 54, 0.25);
-
-  /* Atlas bubbles */
-  --atlas-bg: var(--background);
-  --atlas-thesis-positive: #0d9488;
-  --atlas-thesis-negative: #dc2626;
-  --atlas-thesis-neutral: #0f766e;
-  --atlas-claim-positive: #4ade80;
-  --atlas-claim-negative: #f87171;
-  --atlas-claim-neutral: #94a3b8;
-  --atlas-bubble-border: rgba(0, 0, 0, 0.2);
-  --atlas-bubble-shadow: rgba(0, 0, 0, 0.25);
-  --atlas-bubble-selected-stroke: #475569;
-  --atlas-bubble-glow: rgba(13, 148, 136, 0.4);
-  --atlas-edge: rgba(82, 71, 54, 0.35);
 
   /* Pipeline stepper — circle + track states (complete / current / pending) */
   --pipeline-step-border: var(--accent-secondary);
@@ -191,11 +181,15 @@
   --accent-secondary-foreground: #1a1712;
   --accent-secondary-soft: color-mix(in srgb, var(--accent-secondary) 25%, transparent);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 90%, var(--surface));
+  --accent-tertiary: #b8c4d4;
+  --accent-tertiary-foreground: #1a1712;
+  --accent-tertiary-soft: color-mix(in srgb, var(--accent-tertiary) 25%, transparent);
+  --accent-tertiary-hover: color-mix(in srgb, var(--accent-tertiary) 90%, var(--surface));
 
-  --record-section-header-bg: color-mix(in srgb, var(--accent-secondary) 42%, var(--surface-section));
-  --record-section-header-fg: var(--foreground);
+  --record-section-header-bg: var(--accent-secondary);
+  --record-section-header-fg: var(--accent-secondary-foreground);
   --record-section-header-hover: var(--record-section-header-bg);
-  --record-section-header-border: color-mix(in srgb, var(--accent-secondary) 48%, var(--border));
+  --record-section-header-border: var(--accent-secondary);
 
   /* Active link (editable) — green defaults in dark */
   --link-accent: #008000;
@@ -231,20 +225,6 @@
   --graph-node-draft: #7a7a7a;
   --graph-node-default: #a8a8a8;
   --graph-link: rgba(168, 168, 168, 0.2);
-
-  /* Atlas */
-  --atlas-bg: #1a1a1a;
-  --atlas-thesis-positive: #2dd4bf;
-  --atlas-thesis-negative: #f87171;
-  --atlas-thesis-neutral: #22d3ee;
-  --atlas-claim-positive: #22c55e;
-  --atlas-claim-negative: #fb7185;
-  --atlas-claim-neutral: #64748b;
-  --atlas-bubble-border: rgba(255, 255, 255, 0.15);
-  --atlas-bubble-shadow: rgba(0, 0, 0, 0.5);
-  --atlas-bubble-selected-stroke: #cbd5e1;
-  --atlas-bubble-glow: rgba(45, 212, 191, 0.5);
-  --atlas-edge: rgba(168, 168, 168, 0.35);
 
   /* Pipeline stepper */
   --pipeline-step-border: #c4a882;
@@ -294,6 +274,36 @@
 
 html {
   scrollbar-gutter: stable;
+  background: var(--background);
+}
+
+/* Theme-aware scrollbars (Firefox + WebKit) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color:
+    color-mix(in srgb, var(--muted) 45%, var(--surface))
+    var(--surface);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background-color: var(--surface);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid var(--surface);
+  background-clip: padding-box;
+  background-color: color-mix(in srgb, var(--muted) 45%, var(--surface));
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted) 65%, var(--surface));
 }
 
 /*
@@ -312,6 +322,11 @@ body {
   background: var(--body-bg);
   font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Keep typography plugin content on the app typeface */
+.prose {
+  font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Theme toggle switch */
@@ -378,6 +393,14 @@ body {
   .text-muted {
     font-weight: 500;
   }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @layer components {
@@ -385,7 +408,7 @@ body {
     border-radius: var(--radius-lg);
     background: var(--surface);
     box-shadow: var(--shadow-panel-soft);
-    border: 1.5px solid var(--surface);
+    border: 1.5px solid var(--border);
     padding: 1.75rem;
     transition: ease var(--interactive-duration);
   }
@@ -394,7 +417,7 @@ body {
     border-radius: var(--radius-lg);
     background: var(--surface);
     box-shadow: var(--shadow-panel-soft);
-    border: 1.5px solid var(--surface);
+    border: 1.5px solid var(--border);
     transition: ease var(--interactive-duration);
   }
 
@@ -620,9 +643,9 @@ body {
   }
 
   .search-input {
-    color: var(--muted);
+    color: var(--foreground);
     font-weight: 500;
-    background-color: var(--surface);
+    background-color: var(--surface-section);
   }
 
   .doxa-link {

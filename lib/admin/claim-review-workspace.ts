@@ -6,6 +6,13 @@ import {
   type ChunkQaHistoryPayload,
   type ClaimSnapshot,
 } from '@/lib/admin/chunk-qa-history'
+import {
+  claimMergeBucket,
+  mergeEligibilityHasSignal,
+  parkedByForClaim,
+  parseClaimsMergeEligibility,
+  type AdminClaimsMergeEligibility,
+} from '@/lib/admin/claims-merge-eligibility'
 
 export type ClaimReviewWorkspaceStatus =
   | 'approved'
@@ -25,7 +32,7 @@ export type ClaimReviewWorkspaceRow = {
   changed: boolean
 }
 
-export type ClaimAuditVerdict = 'pass' | 'needs_repair' | 'reject_final'
+export type ClaimAuditVerdict = 'pass' | 'needs_repair' | 'drop' | 'reject_final'
 
 export type ClaimScopedReviewReport = {
   claim_verdict: ClaimAuditVerdict | null
@@ -93,14 +100,15 @@ export type ClaimReviewWorkspace = {
 const STATUS_LABELS: Record<ClaimReviewWorkspaceStatus, string> = {
   approved: 'Approved',
   needs_refinement: 'Needs refinement',
-  rejected: 'Rejected',
-  pending: 'Pending',
+  rejected: 'Dropped',
+  pending: 'Pending approval',
 }
 
 const VERDICT_LABELS: Record<ClaimAuditVerdict, string> = {
   pass: 'Approved',
   needs_repair: 'Needs refinement',
-  reject_final: 'Rejected',
+  drop: 'Dropped',
+  reject_final: 'Dropped',
 }
 
 const TAB_ORDER: ClaimReviewWorkspaceStatus[] = [
@@ -337,7 +345,7 @@ function workspaceStatusFromVerdict(
 ): ClaimReviewWorkspaceStatus {
   if (verdict === 'pass') return 'approved'
   if (verdict === 'needs_repair') return 'needs_refinement'
-  if (verdict === 'reject_final') return 'rejected'
+  if (verdict === 'drop' || verdict === 'reject_final') return 'rejected'
   return 'pending'
 }
 
@@ -361,7 +369,7 @@ function deriveVerdictFromReview(
   )
 }
 
-function deriveClaimStatus(
+function deriveClaimStatusFromReview(
   claimId: string,
   versions: ChunkClaimVersionSummary[],
   events: ChunkQaHistoryEvent[]
@@ -401,6 +409,33 @@ function deriveClaimStatus(
   }
 
   return status
+}
+
+function deriveClaimStatusFromMergeEligibility(
+  claimId: string,
+  state: AdminClaimsMergeEligibility
+): ClaimReviewWorkspaceStatus | null {
+  const bucket = claimMergeBucket(state, claimId)
+  if (bucket === 'parked') return 'approved'
+  if (bucket === 'pending_approval') return 'pending'
+  if (bucket === 'repair_queue') return 'needs_refinement'
+  if (bucket === 'dropped') return 'rejected'
+  return null
+}
+
+function deriveClaimStatus(
+  claimId: string,
+  versions: ChunkClaimVersionSummary[],
+  events: ChunkQaHistoryEvent[],
+  mergeEligibility: unknown
+): ClaimReviewWorkspaceStatus {
+  const state = parseClaimsMergeEligibility(mergeEligibility)
+  if (mergeEligibilityHasSignal(state)) {
+    const fromMerge = deriveClaimStatusFromMergeEligibility(claimId, state)
+    if (fromMerge) return fromMerge
+  }
+
+  return deriveClaimStatusFromReview(claimId, versions, events)
 }
 
 function issueSummaryForClaim(event: ChunkQaHistoryEvent | null, claimId: string): string | null {
@@ -473,8 +508,23 @@ function claimChangedAcrossVersions(
 function deriveLastStep(
   claimId: string,
   versions: ChunkClaimVersionSummary[],
-  events: ChunkQaHistoryEvent[]
+  events: ChunkQaHistoryEvent[],
+  mergeEligibility: unknown
 ): string {
+  const state = parseClaimsMergeEligibility(mergeEligibility)
+  if (mergeEligibilityHasSignal(state)) {
+    const bucket = claimMergeBucket(state, claimId)
+    if (bucket === 'parked') {
+      const by = parkedByForClaim(state, claimId)
+      if (by === 'approval') return 'Approved'
+      if (by === 'review') return 'Review passed'
+      return 'Approved'
+    }
+    if (bucket === 'pending_approval') return 'Awaiting approval'
+    if (bucket === 'repair_queue') return 'Needs refinement'
+    if (bucket === 'dropped') return 'Dropped'
+  }
+
   const ordered = sortedVersions(versions)
   const latestVersion = ordered.at(-1)
   const latestVersionWithClaim = latestVersionContainingClaim(claimId, versions)
@@ -498,7 +548,7 @@ function deriveLastStep(
     )
     if (verdict === 'pass') return 'Review passed'
     if (verdict === 'needs_repair') return 'Review failed'
-    if (verdict === 'reject_final') return 'Rejected'
+    if (verdict === 'drop' || verdict === 'reject_final') return 'Dropped'
   }
 
   if (
@@ -532,7 +582,7 @@ function claimVerdictFromReport(
     const audit = asRecord(row)
     if (audit?.claim_id !== claimId) continue
     const verdict = str(audit.verdict)
-    if (verdict === 'pass' || verdict === 'needs_repair' || verdict === 'reject_final') {
+    if (verdict === 'pass' || verdict === 'needs_repair' || verdict === 'drop' || verdict === 'reject_final') {
       return verdict
     }
   }
@@ -546,7 +596,7 @@ function claimVerdictFromReport(
   for (const issue of issues) {
     const severity = str(issue.severity)
     const issueType = str(issue.issue_type)
-    if (severity === 'blocking' && issueType === 'schema_issue') return 'reject_final'
+    if (severity === 'blocking' && issueType === 'schema_issue') return 'drop'
     if (severity === 'blocking' || severity === 'major') hasRepairIssue = true
   }
 
@@ -584,7 +634,9 @@ function claimSummaryFromScopedReport(params: {
 
   if (params.verdict === 'pass') return 'No issues found for this claim.'
   if (params.verdict === 'needs_repair') return 'This claim requires repair before merge.'
-  if (params.verdict === 'reject_final') return 'This claim was rejected and should not merge.'
+  if (params.verdict === 'drop' || params.verdict === 'reject_final') {
+    return 'This claim was dropped and should not merge.'
+  }
   return null
 }
 
@@ -635,7 +687,7 @@ export function filterReviewReportForClaim(
     claimVerdict != null ? VERDICT_LABELS[claimVerdict] : 'Review completed'
 
   const needsRepairGuidance =
-    claimVerdict === 'needs_repair' || claimVerdict === 'reject_final' || issues.length > 0
+    claimVerdict === 'needs_repair' || claimVerdict === 'drop' || claimVerdict === 'reject_final' || issues.length > 0
 
   return {
     claim_verdict: claimVerdict,
@@ -739,14 +791,14 @@ function latestPreviewForClaim(
 }
 
 export function buildClaimReviewWorkspace(payload: ChunkQaHistoryPayload): ClaimReviewWorkspace {
-  const { claim_versions: versions, events } = payload
+  const { claim_versions: versions, events, claims_merge_eligibility: mergeEligibility } = payload
   const claimIds = claimOrderFromVersions(versions)
   const lifecycleByClaimId = new Map<string, ClaimReviewLifecycle>()
   const rows: ClaimReviewWorkspaceRow[] = []
 
   claimIds.forEach((claimId, index) => {
     const claimNumber = index + 1
-    const status = deriveClaimStatus(claimId, versions, events)
+    const status = deriveClaimStatus(claimId, versions, events, mergeEligibility)
     const latestReview = latestReviewForClaim(claimId, events)
 
     rows.push({
@@ -757,7 +809,7 @@ export function buildClaimReviewWorkspace(payload: ChunkQaHistoryPayload): Claim
       preview: latestPreviewForClaim(claimId, versions),
       issueSummary: issueSummaryForClaim(latestReview, claimId),
       versionCount: countVersionsWithClaim(claimId, versions),
-      lastStep: deriveLastStep(claimId, versions, events),
+      lastStep: deriveLastStep(claimId, versions, events, mergeEligibility),
       changed: claimChangedAcrossVersions(claimId, versions),
     })
 

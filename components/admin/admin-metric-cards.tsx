@@ -279,7 +279,7 @@ export function AdminMetricCards({
         <div
           role="group"
           aria-label="Time range"
-          className="flex shrink-0 items-center rounded-md border border-border/70 bg-muted/30 p-0.5"
+          className="flex shrink-0 items-center rounded-md border border-border/70 bg-surface-section p-0.5"
         >
           {RANGES.map((item) => {
             const active = range === item.id

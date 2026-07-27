@@ -20,7 +20,7 @@ export function ChunkContentExtractionLayout({ content }: { content: string }) {
         )}
       >
         <div className="p-4">
-          <article className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed dark:prose-invert">
+          <article className="prose prose-sm max-w-none font-sans whitespace-pre-wrap text-sm leading-relaxed dark:prose-invert">
             {content ? (
               <HighlightedArticleText
                 text={content}

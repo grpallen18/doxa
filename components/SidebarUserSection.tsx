@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import { useLogoutTransition } from '@/components/LogoutTransitionWrapper'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { NavUser } from '@/components/nav-user'
 
 export function SidebarUserSection() {
@@ -44,7 +42,6 @@ export function SidebarUserSection() {
     <NavUser
       user={{ name: displayName, email, avatar }}
       onSignOut={handleSignOut}
-      themeToggle={<ThemeToggle />}
     />
   )
 }

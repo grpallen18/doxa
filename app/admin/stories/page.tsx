@@ -289,7 +289,7 @@ export default function AdminStoriesPage() {
     <>
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Panel variant="soft" interactive={false} className="overflow-hidden">
+      <Panel variant="soft" interactive={false} className="overflow-hidden border-transparent">
         <div className="grid grid-cols-1 items-center gap-2 px-3 py-2.5 sm:grid-cols-[1fr_minmax(14rem,36rem)_1fr]">
           <div className="flex flex-wrap items-center gap-2 sm:justify-self-start">
           <Popover

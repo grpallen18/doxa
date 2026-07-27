@@ -26,7 +26,7 @@ export function AdminDashboardWidget({
   const body = (
     <div
       className={cn(
-        'flex h-full flex-col overflow-hidden rounded-lg border border-border/70 bg-white shadow-sm dark:bg-card',
+        'flex h-full flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm',
         href && 'transition-[box-shadow,border-color] hover:border-border hover:shadow-md',
         className
       )}

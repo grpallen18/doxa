@@ -61,7 +61,12 @@ function StoryRecordPageContent({
         entityType="story"
         title={story.title}
         actions={
-          <Button variant="outline" size="sm" className="h-8" asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border-0 bg-accent-tertiary text-inverted shadow-sm hover:bg-accent-tertiary hover:brightness-110 hover:text-inverted"
+            asChild
+          >
             <Link href={`/admin/stories/${storyId}/agent-flow`}>Agent Flow</Link>
           </Button>
         }

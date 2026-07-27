@@ -50,7 +50,8 @@ export function canUndoHumanOverride(payload: StoryExtractionReviewPayload): boo
   if (
     !report.chunk_overrides?.length &&
     report.include_chunks !== false &&
-    payload.story.extraction_qa_status === 'passed' &&
+    (payload.story.extraction_qa_status === 'complete' ||
+      payload.story.extraction_qa_status === 'passed') &&
     payload.story.merged_at == null
   ) {
     return true

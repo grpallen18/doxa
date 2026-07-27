@@ -59,7 +59,7 @@ export function AgentRecentRunsTable({
           <span>Started</span>
           <span>Details</span>
         </div>
-        <ol className="divide-y divide-subtle">
+        <ol className="divide-y divide-border">
           {items.length === 0 ? (
             <li className={cn(RUNS_GRID, 'px-3 py-3 text-xs text-muted')}>
               <span className="col-span-full">No runs recorded for this agent.</span>

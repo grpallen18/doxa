@@ -404,7 +404,7 @@ function ChartScrubber({
 
       {hover && showMarker && (
         <div
-          className="pointer-events-none absolute z-20 size-2.5 rounded-full border-2 border-white"
+          className="pointer-events-none absolute z-20 size-2.5 rounded-full border-2 border-background"
           style={{
             left: `${((hover.point.x - minX) / viewBox.width) * 100}%`,
             top: `${(hover.point.y / viewBox.height) * 100}%`,
@@ -417,7 +417,7 @@ function ChartScrubber({
 
       {hover && (
         <div
-          className="pointer-events-none absolute z-30 flex items-center gap-2 rounded-full border border-border/50 bg-white px-2.5 py-1.5 shadow-[0_4px_16px_rgba(15,23,42,0.14)] dark:bg-card"
+          className="pointer-events-none absolute z-30 flex items-center gap-2 rounded-full border border-border/50 bg-card px-2.5 py-1.5 shadow-[0_4px_16px_rgba(15,23,42,0.14)]"
           style={{
             left: hover.pointerX,
             top: tipY,
@@ -905,7 +905,7 @@ export function MetricCard({
   const body = (
     <article
       className={cn(
-        'relative flex min-h-[240px] flex-col overflow-visible rounded-lg border border-border/70 bg-white p-4 shadow-sm dark:bg-card',
+        'relative flex min-h-[240px] flex-col overflow-visible rounded-lg border border-border/70 bg-card p-4 shadow-sm',
         interactive &&
           'transition-[box-shadow,border-color,transform] hover:-translate-y-0.5 hover:border-border hover:shadow-md',
         onOpen && 'cursor-pointer',

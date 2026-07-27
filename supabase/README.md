@@ -578,7 +578,7 @@ The **target** Doxa backend is built around:
 3. **Canonical layer:** **claims** (normalized, de-duplicated). Phase 2 claim–evidence links were never implemented (table dropped in 066).
 4. **Lenses:** **archetypes** (economic, legal, moral, etc.). **claim_archetypes** assigns claims to archetypes.
 5. **Clustering (new):** **position_clusters** (supporting-claim stances) → **controversy_clusters** (opposing positions). **position_cluster_claims**, **position_pair_scores**, **controversy_cluster_positions**, **controversy_viewpoints**. **claim_relationships** caches LLM pair classifications.
-6. **Clustering (legacy):** **theses** (claim clusters per topic + archetype). **thesis_claims** links claims to theses. Kept for Atlas; migrate later.
+6. **Clustering (legacy):** **theses** (claim clusters per topic + archetype). **thesis_claims** links claims to theses. Legacy schema; migrate later.
 7. **Synthesis:** **viewpoints** (archetype-scoped positions per topic, from theses). **viewpoint_theses** links theses to viewpoints.
 8. **Cross-topic:** **narratives** (aggregation of viewpoints into overarching narratives). **narrative_viewpoint_links** links narratives to topic-level viewpoints.
 9. **Audit:** **pipeline_runs** tracks AI/ETL runs for idempotency and debugging.

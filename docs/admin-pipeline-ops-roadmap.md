@@ -119,7 +119,7 @@ Phase 0 catalog and `lib/admin/pipeline-status/*` modules.
 
 4. **Trace APIs**
    - `GET /api/admin/trace/story/[id]`
-   - `GET /api/admin/trace/position/[id]` — reuse Atlas scope patterns
+   - `GET /api/admin/trace/position/[id]` — reuse agreement/controversy scope patterns
 
 ### Notes
 

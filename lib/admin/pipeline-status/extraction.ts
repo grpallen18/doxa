@@ -2,13 +2,14 @@ import { countPositionsInExtractionJson } from '@/lib/admin/chunk-extraction'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import type { ExtractionLaneId } from '@/lib/admin/pipeline-status/extraction-groups'
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
+import { isClaimsQaTerminalStatus } from '@/lib/admin/extraction-qa-types'
 import { formatChunksCreatedLabel } from '@/lib/admin/pipeline-step-run-display'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 
 type TimelineStepStatus = 'complete' | 'current' | 'pending' | 'blocked'
 
 function isChunkClaimsValidatedStatus(status: ExtractionQaStatus): boolean {
-  return status === 'passed' || status === 'atoms_passed'
+  return isClaimsQaTerminalStatus(status)
 }
 
 type ChunkQaRow = Pick<
@@ -49,13 +50,16 @@ export function isChunkClaimsRefineDone(chunk: ChunkQaRow): boolean {
   return true
 }
 
-/** Approval step is done for this chunk (merge-ready). */
+/** True when the chunk is merge-ready: claims QA cycle finished (`complete`). */
 export function isChunkClaimsApprovalDone(chunk: ChunkQaRow): boolean {
   if (chunk.extraction_json == null) return false
   return isChunkClaimsValidatedStatus(chunk.extraction_qa_status)
 }
 
-/** Both review and refine stages are complete for this chunk. */
+/**
+ * Review + refine stages only (approval may still be pending).
+ * Prefer {@link isChunkClaimsApprovalDone} for “all claims finished” UI.
+ */
 export function isChunkClaimsQaComplete(chunk: ChunkQaRow): boolean {
   return isChunkClaimsReviewDone(chunk) && isChunkClaimsRefineDone(chunk)
 }
@@ -71,7 +75,7 @@ export function chunkQaCounts(payload: StoryExtractionReviewPayload) {
   const validated = extracted.filter((c) =>
     isChunkClaimsValidatedStatus(c.extraction_qa_status)
   ).length
-  const passed = extracted.filter((c) => c.extraction_qa_status === 'passed').length
+  const passed = extracted.filter((c) => isClaimsQaTerminalStatus(c.extraction_qa_status)).length
   const needsHuman = extracted.filter((c) => c.extraction_qa_status === 'needs_human_review').length
   const needsRefinement = extracted.filter((c) => c.extraction_qa_status === 'needs_refinement').length
   const awaitingApproval = extracted.filter((c) => c.extraction_qa_status === 'awaiting_approval').length
@@ -214,11 +218,14 @@ export function isChunkReviewApproved(payload: StoryExtractionReviewPayload): bo
 
 export function isMergeValidated(payload: StoryExtractionReviewPayload): boolean {
   const qa = payload.story.extraction_qa_status
-  return qa === 'passed' || qa === 'needs_human_review'
+  return qa === 'complete' || qa === 'passed' || qa === 'needs_human_review'
 }
 
 export function isExtractionStageComplete(payload: StoryExtractionReviewPayload): boolean {
-  return payload.story.extraction_qa_status === 'passed'
+  return (
+    payload.story.extraction_qa_status === 'complete' ||
+    payload.story.extraction_qa_status === 'passed'
+  )
 }
 
 function isChunkQaBlocked(payload: StoryExtractionReviewPayload): boolean {
@@ -261,7 +268,12 @@ export function getExtractTimelineStatus(payload: StoryExtractionReviewPayload):
 export function getMergeTimelineStatus(payload: StoryExtractionReviewPayload): TimelineStepStatus {
   if (!isChunkReviewApproved(payload)) return 'pending'
   if (payload.story.extraction_qa_status === 'needs_human_review') return 'blocked'
-  if (payload.story.extraction_qa_status === 'passed') return 'complete'
+  if (
+    payload.story.extraction_qa_status === 'complete' ||
+    payload.story.extraction_qa_status === 'passed'
+  ) {
+    return 'complete'
+  }
   return 'current'
 }
 
@@ -279,7 +291,7 @@ export function mergeTimelineDetail(payload: StoryExtractionReviewPayload): stri
   const qa = payload.story.extraction_qa_status
   if (!isChunkReviewApproved(payload)) return base
   if (payload.story.merged_at == null) return base
-  if (qa === 'passed') return base
+  if (qa === 'complete' || qa === 'passed') return base
   if (qa === 'needs_human_review') {
     return `${base}. Approve — human review required before canonicalization.`
   }

@@ -6,6 +6,8 @@ export type ExtractionQaStatus =
   | 'refined'
   | 'awaiting_approval'
   | 'atoms_passed'
+  | 'complete'
+  /** @deprecated Prefer `complete` for claims-lane terminal status. */
   | 'passed'
   | 'needs_human_review'
   | null
@@ -24,6 +26,11 @@ export const EXTRACTION_ISSUE_TYPES = [
 
 export type ExtractionIssueType = (typeof EXTRACTION_ISSUE_TYPES)[number]
 
+/** Claims-lane terminal / merge-ready status (dual-read passed for legacy rows). */
+export function isClaimsQaTerminalStatus(status: ExtractionQaStatus | string | null | undefined): boolean {
+  return status === 'complete' || status === 'passed' || status === 'atoms_passed'
+}
+
 export function qaStatusLabel(status: ExtractionQaStatus): string {
   if (!status) return '—'
   switch (status) {
@@ -41,8 +48,10 @@ export function qaStatusLabel(status: ExtractionQaStatus): string {
       return 'Awaiting approval'
     case 'atoms_passed':
       return 'Atoms validated'
+    case 'complete':
+      return 'QA complete'
     case 'passed':
-      return 'QA passed'
+      return 'QA complete'
     case 'needs_human_review':
       return 'Needs human review'
     default:

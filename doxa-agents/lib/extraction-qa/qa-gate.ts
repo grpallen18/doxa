@@ -4,7 +4,7 @@ export async function loadQaPassedStoryIds(supabase: SupabaseClient): Promise<Se
   const { data } = await supabase
     .from("stories")
     .select("story_id")
-    .eq("extraction_qa_status", "passed");
+    .in("extraction_qa_status", ["complete", "passed"]);
   return new Set((data ?? []).map((r) => String(r.story_id)));
 }
 
@@ -17,5 +17,5 @@ export async function isStoryQaPassed(
     .select("extraction_qa_status")
     .eq("story_id", storyId)
     .maybeSingle();
-  return data?.extraction_qa_status === "passed";
+  return data?.extraction_qa_status === "complete" || data?.extraction_qa_status === "passed";
 }

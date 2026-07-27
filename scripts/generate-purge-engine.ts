@@ -120,7 +120,7 @@ function buildFunctionBody(cfg: PurgeConfig): string {
   lines.push('');
   lines.push("COMMENT ON FUNCTION public.purge_engine_data() IS");
   lines.push(
-    "  'Wipes pipeline-derived data (stories, claims, clusters, viz, etc.). Preserves sources, domain_throttle, pipeline_runs, users, and topic rows. Source: doxa-agents/ops/purge-engine-tables.yaml';",
+    "  'Wipes pipeline-derived data (stories, claims, clusters, etc.). Preserves sources, domain_throttle, pipeline_runs, users, and topic rows. Source: doxa-agents/ops/purge-engine-tables.yaml';",
   );
   lines.push('');
   lines.push('REVOKE ALL ON FUNCTION public.purge_engine_data() FROM PUBLIC;');

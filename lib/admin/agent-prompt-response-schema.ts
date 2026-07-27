@@ -38,13 +38,23 @@ export function defaultCodeSchema(stepId: string): Record<string, unknown> | nul
         passes_review: { type: 'boolean' },
         recommended_action: {
           type: 'string',
-          enum: ['validate', 'needs_refinement', 'reject'],
+          enum: ['validate', 'needs_refinement'],
         },
         summary: { type: 'string' },
         issues: { type: 'array', items: { type: 'object' } },
         patches: { type: 'array', items: { type: 'object' } },
+        claim_audit: { type: 'array', items: { type: 'object' } },
+        refinement_instruction: { type: 'string' },
       },
-      required: ['passes_review', 'recommended_action', 'summary', 'issues', 'patches'],
+      required: [
+        'passes_review',
+        'recommended_action',
+        'summary',
+        'issues',
+        'patches',
+        'claim_audit',
+        'refinement_instruction',
+      ],
       additionalProperties: false,
     }
   }

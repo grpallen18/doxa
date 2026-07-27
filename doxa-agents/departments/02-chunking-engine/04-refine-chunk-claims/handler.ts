@@ -5,7 +5,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { loadActivePrompt } from "../../../lib/agent-prompts.ts";
 import { loadActiveResponseSchema } from "../../../lib/agent-response-schema.ts";
 import {
+  assembleMergeClaims,
   buildRepairPayload,
+  finalizeClaimsCycleByDroppingRemainder,
   loadClaimsMergeEligibility,
   repairQueueClaimIds,
   setPendingApprovalClaims,
@@ -18,6 +20,10 @@ import {
   resolveReviewArtifactForRefine,
   verifyRefinementArtifactLink,
 } from "../../../lib/extraction-qa/claim-versions.ts";
+import {
+  assertClaimIdsSubsetOf,
+  remapRefinedClaimIds,
+} from "../../../lib/extraction-qa/claim-ids.ts";
 import { resolveChunkQaModel } from "../../../lib/extraction-qa/chunk-qa-model.ts";
 import {
   normalizeChunkClaims,
@@ -30,7 +36,14 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
-import { asExtractionJson, clampInt, corsHeaders, json } from "../../../lib/extraction-qa/types.ts";
+import {
+  asExtractionJson,
+  clampInt,
+  CLAIMS_QA_COMPLETE_STATUS,
+  corsHeaders,
+  json,
+  MAX_REFINEMENT_ATTEMPTS,
+} from "../../../lib/extraction-qa/types.ts";
 import { PipelineDebugTrace } from "../../../lib/pipeline-debug-trace.ts";
 import {
   logBatchChunkStepRuns,
@@ -66,8 +79,57 @@ function traceResponse(
   body: Record<string, unknown>,
   status = 200
 ) {
-  const debug_trace = trace.finish();
-  return json({ ...body, debug_trace }, status);
+  return json({ ...body, debug_trace: trace.finish() }, status);
+}
+
+async function recordRefineAttemptFailure(
+  supabase: ReturnType<typeof createClient>,
+  chunk: { story_id: string; chunk_index: number },
+  dryRun: boolean
+): Promise<"needs_refinement" | typeof CLAIMS_QA_COMPLETE_STATUS> {
+  const { data } = await supabase
+    .from("story_chunks")
+    .select("extraction_qa_refinement_count, claims_merge_eligibility")
+    .eq("story_id", chunk.story_id)
+    .eq("chunk_index", chunk.chunk_index)
+    .single();
+
+  const nextCount = (data?.extraction_qa_refinement_count ?? 0) + 1;
+  const exhausted = nextCount >= MAX_REFINEMENT_ATTEMPTS;
+
+  if (!dryRun) {
+    if (exhausted) {
+      const mergeState = finalizeClaimsCycleByDroppingRemainder(
+        await loadClaimsMergeEligibility(supabase, chunk.story_id, chunk.chunk_index),
+        { artifact_id: "", reason: "max_repair_attempts" }
+      );
+      const { error } = await supabase
+        .from("story_chunks")
+        .update({
+          extraction_qa_refinement_count: nextCount,
+          extraction_qa_status: CLAIMS_QA_COMPLETE_STATUS,
+          claims_merge_eligibility: mergeState,
+          extraction_json: assembleMergeClaims(mergeState),
+          extraction_qa_validated_at: new Date().toISOString(),
+        })
+        .eq("story_id", chunk.story_id)
+        .eq("chunk_index", chunk.chunk_index);
+      if (error) throw new Error(error.message);
+      return CLAIMS_QA_COMPLETE_STATUS;
+    }
+
+    const { error } = await supabase
+      .from("story_chunks")
+      .update({
+        extraction_qa_refinement_count: nextCount,
+        extraction_qa_status: "needs_refinement",
+      })
+      .eq("story_id", chunk.story_id)
+      .eq("chunk_index", chunk.chunk_index);
+    if (error) throw new Error(error.message);
+  }
+
+  return exhausted ? CLAIMS_QA_COMPLETE_STATUS : "needs_refinement";
 }
 
 export const handler = async (req: Request) => {
@@ -89,7 +151,8 @@ export const handler = async (req: Request) => {
     });
 
     if (!SUPABASE_URL || !SERVICE_ROLE || !OPENAI_API_KEY) {
-      return traceResponse(trace.fail("check_env", "Missing env"), { error: "Missing env" }, 500);
+      trace.fail("check_env", "Missing env");
+      return traceResponse(trace, { error: "Missing env" }, 500);
     }
 
     let body: Record<string, unknown> = {};
@@ -102,7 +165,8 @@ export const handler = async (req: Request) => {
 
     const { id: singleStoryId, invalid: invalidStoryId } = parseStoryIdFromBody(body);
     if (invalidStoryId) {
-      return traceResponse(trace.fail("parse_story_id", invalidUuidMessage("story_id")), {
+      trace.fail("parse_story_id", invalidUuidMessage("story_id"));
+      return traceResponse(trace, {
         error: invalidUuidMessage("story_id"),
       }, 400);
     }
@@ -124,7 +188,8 @@ export const handler = async (req: Request) => {
       p_limit: maxChunks * 2,
     });
     if (rpcErr) {
-      return traceResponse(trace.fail("fetch_refine_queue", rpcErr.message), { error: rpcErr.message }, 500);
+      trace.fail("fetch_refine_queue", rpcErr.message);
+      return traceResponse(trace, { error: rpcErr.message }, 500);
     }
 
     let chunks = (rows ?? []) as Array<{
@@ -153,6 +218,7 @@ export const handler = async (req: Request) => {
       return json({
         ok: true,
         processed: 0,
+        failed: 0,
         message: "No chunks ready for claims refine",
         debug_trace,
         ...testScopeFields({ storyId: singleStoryId }),
@@ -176,7 +242,10 @@ export const handler = async (req: Request) => {
     }
 
     let processed = 0;
+    let failed = 0;
     const processedChunks: Array<{ story_id: string; chunk_index: number }> = [];
+    const failedChunks: Array<{ story_id: string; chunk_index: number; error: string; status: string }> =
+      [];
     const requestId = `refine-claims-${Date.now()}`;
 
     for (const chunk of chunks) {
@@ -186,7 +255,27 @@ export const handler = async (req: Request) => {
         const mergeState = await loadClaimsMergeEligibility(supabase, chunk.story_id, chunk.chunk_index);
         const queueIds = repairQueueClaimIds(mergeState);
         if (queueIds.length === 0) {
-          chunkTrace.log("repair_queue", "skip", { reason: "empty_queue" });
+          chunkTrace.log("repair_queue", "skip", { reason: "empty_or_all_dropped" });
+          if (!dryRun) {
+            const cleaned = finalizeClaimsCycleByDroppingRemainder(mergeState, {
+              artifact_id: "",
+              reason: "stale_repair_queue",
+            });
+            const nextStatus = CLAIMS_QA_COMPLETE_STATUS;
+            const { error: cleanErr } = await supabase
+              .from("story_chunks")
+              .update({
+                extraction_qa_status: nextStatus,
+                claims_merge_eligibility: cleaned,
+                extraction_json: assembleMergeClaims(cleaned),
+                extraction_qa_validated_at: new Date().toISOString(),
+              })
+              .eq("story_id", chunk.story_id)
+              .eq("chunk_index", chunk.chunk_index);
+            if (cleanErr) throw new Error(cleanErr.message);
+          }
+          processed += 1;
+          processedChunks.push({ story_id: chunk.story_id, chunk_index: chunk.chunk_index });
           continue;
         }
 
@@ -245,13 +334,26 @@ export const handler = async (req: Request) => {
             .eq("chunk_index", chunk.chunk_index)
             .single()).data?.extraction_qa_refinement_count ?? 0) + 1;
 
+        const remapped = remapRefinedClaimIds(llmResult.claims, repairClaims);
+        if (remapped.droppedExtras > 0) {
+          chunkTrace.log("drop_extra_claims", "ok", {
+            dropped_extras: remapped.droppedExtras,
+            repair_inputs: repairClaims.length,
+            model_outputs: Array.isArray(llmResult.claims) ? llmResult.claims.length : 0,
+          });
+        }
+        const allowedClaimIds = remapped.claims
+          .map((claim) => (typeof claim.claim_id === "string" ? claim.claim_id : null))
+          .filter((id): id is string => id != null);
+
         const normalized = await normalizeChunkClaims(
-          llmResult.claims,
+          remapped.claims,
           chunk.story_id,
           chunk.chunk_index,
           sourceText,
           { refinementCycle: nextRefinementCount, preserveClaimIds: true }
         );
+        assertClaimIdsSubsetOf(normalized.claims, allowedClaimIds);
 
         const validation = validateNormalizedClaimsForChunk(
           normalized.claims,
@@ -293,6 +395,7 @@ export const handler = async (req: Request) => {
               input_claim_version_id: inputVersionId,
               output_claim_version_id: outputVersionId,
               source_review_artifact_id: reviewArtifactId,
+              dropped_extras: remapped.droppedExtras,
               validation,
             },
             run_id: runId,
@@ -352,10 +455,34 @@ export const handler = async (req: Request) => {
 
         processed += 1;
         processedChunks.push({ story_id: chunk.story_id, chunk_index: chunk.chunk_index });
+        chunkTrace.log("refine_complete", "ok", {
+          dropped_extras: remapped.droppedExtras,
+          claim_count: normalized.claims.length,
+        });
         lastChunkTrace = chunkTrace.finish();
+        trace.log(`chunk_${chunk.chunk_index}`, "ok");
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        failed += 1;
+
+        let escalatedStatus: string = "needs_refinement";
+        try {
+          escalatedStatus = await recordRefineAttemptFailure(supabase, chunk, dryRun);
+        } catch (statusErr) {
+          const statusMsg = statusErr instanceof Error ? statusErr.message : String(statusErr);
+          chunkTrace.log("refine_fail_status", "fail", undefined, statusMsg);
+        }
+
+        chunkTrace.log("refine_failed", "fail", { escalated_status: escalatedStatus }, msg);
         lastChunkTrace = chunkTrace.finish();
+
+        failedChunks.push({
+          story_id: chunk.story_id,
+          chunk_index: chunk.chunk_index,
+          error: msg,
+          status: escalatedStatus,
+        });
+
         await recordStoryStepRun(supabase, {
           storyId: chunk.story_id,
           stepId: STEP_ID,
@@ -365,14 +492,12 @@ export const handler = async (req: Request) => {
           pipelineRunId: runId,
           chunkIndex: chunk.chunk_index,
           error: msg,
-          meta: { debug_trace: lastChunkTrace },
+          meta: {
+            debug_trace: lastChunkTrace,
+            escalated_status: escalatedStatus,
+          },
         });
-        return traceResponse(trace.fail("process_chunk", msg), {
-          error: msg,
-          story_id: chunk.story_id,
-          chunk_index: chunk.chunk_index,
-          chunk_debug_trace: lastChunkTrace,
-        }, 500);
+        trace.log(`chunk_${chunk.chunk_index}`, "fail", { escalated_status: escalatedStatus }, msg);
       }
     }
 
@@ -397,17 +522,21 @@ export const handler = async (req: Request) => {
         .update({
           status: "completed",
           ended_at: new Date().toISOString(),
-          counts: { chunks: processed },
+          counts: { chunks: processed, failed, failed_chunks: failedChunks },
         })
         .eq("run_id", runId);
     }
 
+    const firstError = failedChunks[0]?.error ?? null;
     return traceResponse(trace, {
-      ok: true,
+      ok: failed === 0,
       processed,
+      failed,
+      failed_chunks: failedChunks,
       dry_run: dryRun,
       model: MODEL,
       run_id: runId,
+      ...(firstError ? { error: firstError, chunk_debug_trace: lastChunkTrace } : {}),
       ...testScopeFields({ storyId: singleStoryId }),
     });
   } catch (err) {

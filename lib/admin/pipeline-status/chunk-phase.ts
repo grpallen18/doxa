@@ -40,7 +40,7 @@ export function deriveChunkLanePhase(lane: QaLaneId, chunk: ChunkRow): ChunkLane
   if (chunk[stages.extractionJsonKey] == null) return 'not_started'
 
   const status = chunk[stages.qaStatusKey]
-  if (status === 'passed' || status === 'atoms_passed') return 'complete'
+  if (status === 'complete' || status === 'passed' || status === 'atoms_passed') return 'complete'
 
   if (status === 'needs_refinement' && isUnderAttemptCaps(lane, chunk)) {
     return 'awaiting_refine'

@@ -29,6 +29,13 @@ export type VisionNodeSpec = {
   decisionMode?: VisionDecisionMode
   /** Agent card icon; cloud = Cloudflare worker dispatch (no LLM). */
   iconVariant?: 'bot' | 'human' | 'cloud'
+  /**
+   * Story-canvas shell: run/revert live in chunk workflows (drawer), not on this node.
+   * When set without catalogStepId, still shows the Chunk workflows control.
+   */
+  opensChunkWorkflows?: boolean
+  /** Story-canvas progress rollup lane (n/m complete). */
+  chunkProgressLane?: 'claims'
 }
 
 export type VisionEdgeSpec = {

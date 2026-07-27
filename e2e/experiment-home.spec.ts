@@ -36,7 +36,7 @@ test.describe('topic and position pages', () => {
     await expect(page.getByTestId('position-primary-claims').getByRole('listitem')).toHaveCount(10)
     await expect(page.getByTestId('position-primary-argument-link')).toHaveCount(8)
 
-    await page.getByTestId('position-back-link').click()
+    await page.getByTestId('sidebar-back-link').click()
     await expect(page).toHaveURL('/topics/immigration')
     await expect(page.getByRole('heading', { name: 'Immigration', level: 1 })).toBeVisible()
   })

@@ -227,7 +227,7 @@ const CLAIMS_REVIEW_ISSUE_SCHEMA = {
 const CLAIMS_REVIEW_PATCH_SCHEMA = {
   type: "object",
   properties: {
-    action: { type: "string", enum: ["add", "remove", "update", "merge", "split"] },
+    action: { type: "string", enum: ["remove", "update", "merge", "split"] },
     entity_type: { type: "string", enum: ["claim"] },
     severity: { type: "string", enum: ["blocking", "major", "minor"] },
     claim_ids: { type: "array", items: { type: "string" } },
@@ -253,10 +253,10 @@ const CLAIMS_REVIEW_CLAIM_AUDIT_SCHEMA = {
   type: "object",
   properties: {
     claim_id: { type: "string" },
-    verdict: { type: "string", enum: ["pass", "needs_repair", "reject_final"] },
+    verdict: { type: "string", enum: ["pass", "needs_repair", "drop"] },
     reason: { type: "string" },
   },
-  required: ["claim_id", "verdict"],
+  required: ["claim_id", "verdict", "reason"],
   additionalProperties: false,
 } as const;
 
@@ -264,7 +264,7 @@ export const CLAIMS_REVIEW_SCHEMA = {
   type: "object",
   properties: {
     passes_review: { type: "boolean" },
-    recommended_action: { type: "string", enum: ["validate", "needs_refinement", "reject"] },
+    recommended_action: { type: "string", enum: ["validate", "needs_refinement"] },
     summary: { type: "string" },
     issues: { type: "array", items: CLAIMS_REVIEW_ISSUE_SCHEMA },
     patches: { type: "array", items: CLAIMS_REVIEW_PATCH_SCHEMA },
@@ -602,7 +602,7 @@ export const CLAIMS_APPROVAL_SCHEMA = {
           reason: { type: "string" },
           fixable: { type: "boolean" },
         },
-        required: ["claim_id", "approved", "reason"],
+        required: ["claim_id", "approved", "reason", "fixable"],
         additionalProperties: false,
       },
     },
@@ -643,33 +643,68 @@ ${METADATA_PROMPT_BLOCK}
 
 INPUT: chunk_text and extraction_json.claims (each claim has raw_text, source_excerpt, span_start, span_end).
 
-EVALUATE:
+EVALUATE existing claims only. Do not suggest adding new claims. Completeness gaps are out of scope.
+
 1. Claim grounding — raw_text must be supported by chunk_text. Do not use outside knowledge.
-2. Span/excerpt grounding — source_excerpt and spans must point to text that supports the claim. If raw_text is supported elsewhere in the chunk but source_excerpt points to unrelated text, use issue_type span_grounding_mismatch (blocking), not grounding. The refiner fixes excerpt/spans; do not reject the claim as unsupported when only the citation is wrong.
-3. Materiality — missing major factual claims visible in the chunk (major severity).
+2. Span/excerpt grounding — source_excerpt and spans must point to text that supports the claim. If raw_text is supported elsewhere in the chunk but source_excerpt points to unrelated text, use issue_type span_grounding_mismatch (blocking), not grounding. The refiner fixes excerpt/spans.
+3. Materiality — flag weak/non-material or excess claims (major). Do not invent missing claims.
 4. Temporal accuracy — dates/years/timeframes in claim text must appear in or be clearly anchored by the chunk (blocking if invented).
 5. Claim quality — standalone sentences, not quotes-as-claims, not rhetorical filler, not duplicate/over-merged claims.
-6. Count — aim for 1–4 primary claims; flag excess weak claims (major).
 
-ISSUE TYPES (use exactly one per issue): grounding, span_grounding_mismatch, attribution, materiality, duplicate, over_merged, under_split, temporal, quote_like, missing_claim, schema_issue.
+ISSUE TYPES (use exactly one per issue): grounding, span_grounding_mismatch, attribution, materiality, duplicate, over_merged, under_split, temporal, quote_like, schema_issue.
 
 SEVERITY:
 - blocking — unsupported factual assertion, invented date, span_grounding_mismatch, claim not a complete sentence
-- major — missing important claim, duplicate, weak/non-material claim, bad attribution
-- minor — wording polish, confidence, style that does not change meaning, attribution, or material completeness
+- major — duplicate, weak/non-material claim, bad attribution
+- minor — wording polish, confidence, style that does not change meaning or attribution
 
 RECOMMENDED_ACTION:
-- validate — production-ready for merge (passes_review=true)
-- needs_refinement — fixable blocking/major issues including span/excerpt corrections (passes_review=false)
-- reject — serious ambiguity or unfixable issues requiring human judgment only when the refiner cannot safely resolve (passes_review=false)
+- validate — all claims are pass or drop; nothing needs revise (passes_review=true)
+- needs_refinement — one or more claims need revise (needs_repair) (passes_review=false)
 
 RULES:
 1. Treat deterministic_issues as pre-confirmed facts (do not re-litigate). span_grounding_mismatch and attribution_drift entries are actionable — route to needs_refinement with matching issue_type.
 2. Ignore span_mismatch entries in deterministic_issues (server recomputes offsets from source_excerpt).
-3. Recommend add/remove/update patches on claims only — entity_type must be "claim".
-4. Wording or canonicalization alone is minor unless it changes meaning, attribution, or material completeness.
+3. Patches: update or remove on claims only — never add. entity_type must be "claim".
+4. Wording or canonicalization alone is minor unless it changes meaning or attribution.
 5. Write summary as 2–4 sentences synthesizing all issues (deterministic + your findings).
-6. claim_audit: pass | needs_repair | reject_final per claim_id, consistent with issues.`;
+6. claim_audit for every claim_id: pass (park), needs_repair (revise), or drop (remove from set). Never use reject. Drop = duplicate, non-material, hallucination, or unfixable claim. Pair drops with patch action remove when useful.
+
+OUTPUT:
+{
+  "passes_review": false,
+  "recommended_action": "validate | needs_refinement",
+  "summary": "string",
+  "issues": [
+    {
+      "severity": "blocking | major | minor",
+      "claim_id": null,
+      "claim_index": null,
+      "issue_type": "grounding | span_grounding_mismatch | attribution | materiality | duplicate | over_merged | under_split | temporal | quote_like | schema_issue",
+      "finding": "string"
+    }
+  ],
+  "patches": [
+    {
+      "action": "remove | update | merge | split",
+      "entity_type": "claim",
+      "severity": "blocking | major | minor",
+      "claim_ids": ["string"],
+      "claim_indexes": [0],
+      "recommended_raw_text": null,
+      "reason": "string",
+      "source_grounding": "string"
+    }
+  ],
+  "claim_audit": [
+    {
+      "claim_id": "string",
+      "verdict": "pass | needs_repair | drop",
+      "reason": "string"
+    }
+  ],
+  "refinement_instruction": "string"
+}`;
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (refine-chunk-claims). */
 export const CHUNK_CLAIMS_REFINE_SYSTEM = `You are the K-Claims Refiner Agent for Doxa.
@@ -680,23 +715,23 @@ Output a complete replacement claims JSON for the repair subset only. No comment
 
 Rules:
 1. Preserve valid claims unless review requires change.
-2. Apply review issues, claim_audit, and refinement_instruction exactly.
-3. Do not invent claims — only include claims supported by chunk text.
-4. Fix grounding: accurate span_start, span_end, source_excerpt in chunk text. For span_grounding_mismatch issues, correct the excerpt/spans to verbatim supporting text or remove the claim if unsupported.
-5. Preserve stable claim_id when the claim remains substantively the same.
+2. Apply review issues, claim_audit (needs_repair only), and refinement_instruction exactly.
+3. Do not invent or add claims — only revise the queued claim_ids. Output length must not exceed the repair set.
+4. Fix grounding: accurate span_start, span_end, source_excerpt in chunk text. For span_grounding_mismatch issues, correct the excerpt/spans to verbatim supporting text.
+5. Preserve stable claim_id for each revised claim.
 6. Include all required extractor fields on every claim.
-7. Do not mark output as reviewed or passed.`;
+7. Do not mark output as reviewed or complete. Do not drop claims here — that is review/approve only.`;
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (approve-chunk-claims). */
 export const CHUNK_CLAIMS_APPROVE_SYSTEM = `You are the K-Claims Approval Agent for Doxa.
 
-For each claim in the input list, decide approve or reject for merge eligibility.
+For each claim in the input list, decide approve, reject (requeue), or drop for merge eligibility.
 
 Rules:
 1. Approve only claims faithful to chunk text and merge-worthy.
 2. Do not rewrite claim text — verdict only.
-3. Reject hallucinations, vague summaries, duplicates of better claims, and ungrounded rows.
-4. Set fixable=true when rejection could be fixed by another repair pass; fixable=false when unfixable.
+3. Reject (fixable=true) when another refine pass could fix the claim.
+4. Drop (approved=false, fixable=false) when the claim should leave the merge set (hallucination, duplicate, unfixable).
 5. Output one verdict per input claim_id.`;
 
 /** @deprecated Seed-only — runtime source of truth is agent_prompt_versions (validate-chunk-positions). */
@@ -1043,35 +1078,48 @@ function normalizePositionsReviewReport(raw: PositionsReviewReport): PositionsRe
 }
 
 function normalizeClaimsReviewReport(raw: ClaimsReviewReport): ClaimsReviewReport {
-  const action = raw.recommended_action;
+  const action = raw.recommended_action as string;
   const normalizedAction =
     action === "validate"
       ? "validate"
       : action === "needs_refinement"
         ? "needs_refinement"
         : action === "reject"
-          ? "reject"
+          ? "needs_refinement"
           : "needs_refinement";
   return {
     ...raw,
     recommended_action: normalizedAction,
-    issues: (raw.issues ?? []).map((issue) => ({
-      ...issue,
-      claim_id: issue.claim_id ?? null,
-      claim_index: issue.claim_index ?? null,
-    })),
-    patches: (raw.patches ?? []).map((patch) => ({
-      ...patch,
-      entity_type: "claim",
-      claim_ids: patch.claim_ids ?? [],
-      claim_indexes: patch.claim_indexes ?? [],
-      recommended_raw_text: patch.recommended_raw_text ?? null,
-    })),
-    claim_audit: (raw.claim_audit ?? []).map((row) => ({
-      claim_id: row.claim_id,
-      verdict: row.verdict,
-      ...(row.reason ? { reason: row.reason } : {}),
-    })),
+    issues: (raw.issues ?? [])
+      .filter((issue) => issue.issue_type !== "missing_claim")
+      .map((issue) => ({
+        ...issue,
+        claim_id: issue.claim_id ?? null,
+        claim_index: issue.claim_index ?? null,
+      })),
+    patches: (raw.patches ?? [])
+      .filter((patch) => (patch.action as string) !== "add")
+      .map((patch) => ({
+        ...patch,
+        entity_type: "claim" as const,
+        action: patch.action === "add" ? "update" : patch.action,
+        claim_ids: patch.claim_ids ?? [],
+        claim_indexes: patch.claim_indexes ?? [],
+        recommended_raw_text: patch.recommended_raw_text ?? null,
+      })),
+    claim_audit: (raw.claim_audit ?? []).map((row) => {
+      const verdict =
+        row.verdict === "pass" || row.verdict === "needs_repair" || row.verdict === "drop"
+          ? row.verdict
+          : row.verdict === "reject_final"
+            ? ("drop" as const)
+            : ("needs_repair" as const);
+      return {
+        claim_id: row.claim_id,
+        verdict,
+        ...(row.reason ? { reason: row.reason } : {}),
+      };
+    }),
     refinement_instruction: raw.refinement_instruction ?? "",
   };
 }

@@ -23,6 +23,18 @@ function countPhases(lane: QaLaneId, payload: StoryExtractionReviewPayload) {
   return counts
 }
 
+/**
+ * Story-canvas shell progress for Process K-Claims.
+ * Complete = chunk claims QA finished (all claims parked or dropped / merge-ready).
+ */
+export function claimsChunkWorkflowProgress(payload: StoryExtractionReviewPayload): string {
+  const withBody = payload.chunks.filter((c) => c.content != null && c.content.length > 0)
+  const total = withBody.length
+  if (total === 0) return 'No chunks yet'
+  const complete = withBody.filter((c) => deriveChunkLanePhase('claims', c) === 'complete').length
+  return `${complete}/${total} complete`
+}
+
 /** Story-layer rollup for chunk-parallel nodes (read-only on story canvas). */
 export function chunkParallelStepProgress(
   stepId: PipelineStepId,

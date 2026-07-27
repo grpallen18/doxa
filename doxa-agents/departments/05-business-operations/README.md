@@ -1,10 +1,9 @@
 # 05-business-operations
 
-Health reporting, atlas generation, and database maintenance.
+Health reporting and database maintenance.
 
 ## Agents
 
-- [01-generate-atlas-map](01-generate-atlas-map/) — weekly atlas map
 - [02-discord-daily-health](02-discord-daily-health/) — Discord daily health
 
 ## Workflows
@@ -17,7 +16,6 @@ Health reporting, atlas generation, and database maintenance.
 
 | Step | Deploy | Status |
 |------|--------|--------|
-| generate-atlas-map | generate_atlas_map | inactive |
 | discord-daily-health | discord_daily_health | inactive |
 
 <!-- AGENTS:END -->

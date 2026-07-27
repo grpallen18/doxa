@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 
-export const METRIC_RANGES = ['7d', '30d', '3m', '6m', '1y'] as const
-export type MetricRange = (typeof METRIC_RANGES)[number]
+const METRIC_RANGES = ['7d', '30d', '3m', '6m', '1y'] as const
+type MetricRange = (typeof METRIC_RANGES)[number]
 
 const RANGE_DAYS: Record<MetricRange, number> = {
   '7d': 7,

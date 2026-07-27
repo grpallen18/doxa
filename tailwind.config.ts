@@ -22,6 +22,9 @@ const config: Config = {
   				primary: 'var(--accent-primary)',
   				'primary-foreground': 'var(--accent-primary-foreground)',
   				secondary: 'var(--accent-secondary)',
+  				'secondary-foreground': 'var(--accent-secondary-foreground)',
+  				tertiary: 'var(--accent-tertiary)',
+  				'tertiary-foreground': 'var(--accent-tertiary-foreground)',
   				DEFAULT: 'var(--accent)',
   				foreground: 'var(--accent-foreground)'
   			},

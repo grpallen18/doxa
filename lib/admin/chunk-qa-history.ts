@@ -77,6 +77,8 @@ export type ChunkQaHistoryPayload = {
   version_labels: string[]
   version_timeline: string
   claim_versions: ChunkClaimVersionSummary[]
+  /** story_chunks.claims_merge_eligibility — source of truth for per-claim QA tabs */
+  claims_merge_eligibility?: unknown
 }
 
 export type ClaimVersionExportRow = {
@@ -533,7 +535,7 @@ export async function fetchChunkQaHistory(
 ): Promise<ChunkQaHistoryPayload> {
   const context = { storyId, chunkIndex }
 
-  const [artifactsRes, versions] = await Promise.all([
+  const [artifactsRes, versions, chunkRes] = await Promise.all([
     supabase
       .from('story_extraction_qa_artifacts')
       .select(
@@ -562,9 +564,16 @@ export async function fetchChunkQaHistory(
       .in('stage', [...CLAIMS_QA_STAGES])
       .order('created_at', { ascending: true }),
     fetchChunkClaimVersions(supabase, storyId, chunkIndex),
+    supabase
+      .from('story_chunks')
+      .select('claims_merge_eligibility')
+      .eq('story_id', storyId)
+      .eq('chunk_index', chunkIndex)
+      .maybeSingle(),
   ])
 
   if (artifactsRes.error) throw artifactsRes.error
+  if (chunkRes.error) throw chunkRes.error
 
   const events = (artifactsRes.data ?? [])
     .map((raw) => {
@@ -615,5 +624,6 @@ export async function fetchChunkQaHistory(
     version_labels,
     version_timeline,
     claim_versions: versions,
+    claims_merge_eligibility: chunkRes.data?.claims_merge_eligibility ?? null,
   }
 }

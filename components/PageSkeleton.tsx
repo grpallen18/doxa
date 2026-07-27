@@ -2,41 +2,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Panel } from '@/components/Panel'
 import { Separator } from '@/components/ui/separator'
 
-const contentClass = 'min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10'
-
-const LandingHeaderSkeleton = () => (
-  <header className="pt-2">
-    <div className="mb-6 text-center">
-      <Skeleton className="mx-auto h-16 w-48 sm:h-20 sm:w-56" />
-    </div>
-    <Panel
-      as="nav"
-      variant="soft"
-      interactive={false}
-      className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
-    >
-      <div className="flex items-center justify-between gap-4">
-        <Skeleton className="h-4 w-16" />
-        <div className="hidden items-center gap-6 md:flex">
-          <Skeleton className="h-4 w-4 rounded-full" />
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-12" />
-          <Skeleton className="h-4 w-12" />
-          <Skeleton className="h-4 w-16" />
-        </div>
-      </div>
-      <Skeleton className="h-10 w-full" />
-    </Panel>
-  </header>
-)
+const contentClass =
+  'min-h-screen bg-background px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10'
 
 export function PageSkeletonHome() {
   return (
     <main className={contentClass}>
       <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        <LandingHeaderSkeleton />
-
-        {/* Three columns: This week's question | middle | Trending stories */}
         <section className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)]">
           <div className="flex min-h-0 flex-col gap-4">
             <div className="shrink-0">
@@ -87,88 +59,11 @@ export function PageSkeletonHome() {
   )
 }
 
-export function PageSkeletonTopics() {
-  return (
-    <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        {/* Nav panel (LandingHeader) */}
-        <header className="pt-2">
-          <Panel
-            as="nav"
-            variant="soft"
-            interactive={false}
-            className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-4 w-16" />
-              <div className="hidden items-center gap-6 md:flex">
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            </div>
-            <Skeleton className="h-10 w-full" />
-          </Panel>
-        </header>
-
-        <section className="space-y-4">
-          {/* h1 Browse topics */}
-          <Skeleton className="h-8 w-40" />
-          {/* p Click a topic... */}
-          <Skeleton className="h-5 w-80" />
-          <ul className="rounded-md border border-border bg-surface">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <li key={i}>
-                {i > 0 && <Separator />}
-                <div className="px-4 py-3">
-                  <Skeleton className="h-5 w-48" />
-                  <Skeleton className="mt-1 h-4 w-full" />
-                  <Skeleton className="mt-0.5 h-4 w-4/5" />
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className="flex justify-center gap-1">
-            <Skeleton className="h-9 w-9" />
-            <Skeleton className="h-9 w-9" />
-            <Skeleton className="h-9 w-9" />
-          </div>
-        </section>
-      </div>
-    </main>
-  )
-}
-
 export function PageSkeletonAbout() {
   return (
     <main className={contentClass}>
       <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        {/* Nav panel (LandingHeader) */}
-        <header className="pt-2">
-          <Panel
-            as="nav"
-            variant="soft"
-            interactive={false}
-            className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-4 w-16" />
-              <div className="hidden items-center gap-6 md:flex">
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            </div>
-            <Skeleton className="h-10 w-full" />
-          </Panel>
-        </header>
-
         <section className="space-y-8">
-          {/* DOXA definition panel */}
           <Panel
             variant="soft"
             interactive={false}
@@ -184,13 +79,11 @@ export function PageSkeletonAbout() {
             </div>
           </Panel>
 
-          {/* Intro paragraphs */}
           <div className="w-full space-y-4">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
 
-          {/* How it works */}
           <div className="space-y-6">
             <Skeleton className="h-7 w-36" />
             <div className="grid gap-6 md:grid-cols-3">
@@ -212,10 +105,7 @@ export function PageSkeletonSearch() {
   return (
     <main className={contentClass}>
       <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        <LandingHeaderSkeleton />
-
         <section className="space-y-4">
-          {/* h2 Results for "..." */}
           <Skeleton className="h-7 w-48" />
           <ul className="rounded-md border border-border bg-surface">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -244,33 +134,9 @@ export function PageSkeletonProfile() {
   return (
     <main className={contentClass}>
       <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        {/* Nav panel (LandingHeader) */}
-        <header className="pt-2">
-          <Panel
-            as="nav"
-            variant="soft"
-            interactive={false}
-            className="flex flex-col gap-4 px-4 py-3 md:px-6 md:py-4"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-4 w-16" />
-              <div className="hidden items-center gap-6 md:flex">
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            </div>
-            <Skeleton className="h-10 w-full" />
-          </Panel>
-        </header>
-
         <section className="space-y-6">
-          {/* h1 Profile & account */}
           <Skeleton className="h-8 w-48" />
 
-          {/* ProfileSettingsCard */}
           <Panel variant="soft" interactive={false} className="space-y-4 p-5">
             <Skeleton className="h-6 w-36" />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
@@ -286,19 +152,16 @@ export function PageSkeletonProfile() {
           </Panel>
 
           <div className="space-y-4">
-            {/* Your perspective */}
             <div>
               <Skeleton className="mb-2 h-6 w-44" />
               <Skeleton className="h-4 w-full max-w-md" />
             </div>
 
-            {/* Assigned ideology panel */}
             <Panel variant="base" className="p-5">
               <Skeleton className="mb-4 h-3 w-32" />
               <Skeleton className="h-6 w-48" />
             </Panel>
 
-            {/* Factor breakdown */}
             <div>
               <Skeleton className="mb-3 h-3 w-40" />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -331,42 +194,6 @@ export function PageSkeletonTopicDetail() {
             ))}
           </div>
         </section>
-      </div>
-    </main>
-  )
-}
-
-export function PageSkeletonAtlas() {
-  return (
-    <main className="min-h-screen px-4 pb-8 pt-6 text-foreground sm:px-6 md:px-8 md:pt-8">
-      <div className="mx-auto flex max-w-content flex-col gap-6">
-        {/* Atlas header: centered nav (DOXA, Explore, About, Account) */}
-        <header className="flex flex-col gap-4 pt-2">
-          <nav className="flex flex-1 items-center justify-center">
-            <ul className="flex flex-col gap-2 md:flex-row md:gap-1">
-              {[1, 2, 3, 4].map((i) => (
-                <li key={i}>
-                  <Skeleton className="h-9 w-[70px]" />
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </header>
-
-        {/* Living Atlas panel */}
-        <Panel
-          variant="soft"
-          interactive={false}
-          className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
-        >
-          <Skeleton className="h-7 w-28 shrink-0" />
-          <Skeleton className="h-10 w-full max-w-md flex-1" />
-        </Panel>
-
-        {/* Map panel */}
-        <Panel variant="soft" interactive={false} className="overflow-hidden p-0">
-          <Skeleton className="min-h-[400px] w-full" />
-        </Panel>
       </div>
     </main>
   )

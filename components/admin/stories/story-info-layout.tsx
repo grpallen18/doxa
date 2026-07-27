@@ -47,13 +47,13 @@ export function StoryInfoLayout({
           ref={articleViewportRef}
           type="always"
           className={cn(
-            'h-[min(37.5vh,21rem)] min-h-0 overflow-hidden rounded-md border border-surface-canvas bg-surface-soft',
+            'h-[min(37.5vh,21rem)] min-h-0 overflow-hidden rounded-md border border-surface-canvas bg-surface-section',
             '[&_[data-slot=scroll-area-viewport]]:h-full [&_[data-slot=scroll-area-viewport]]:max-h-full',
             '[&_[data-slot=scroll-area-thumb]]:bg-muted-foreground/50'
           )}
         >
           <div className="p-4">
-            <article className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed dark:prose-invert">
+            <article className="prose prose-sm max-w-none font-sans whitespace-pre-wrap text-sm leading-relaxed dark:prose-invert">
               {articleText ? (
                 <HighlightedArticleText
                   text={articleText}

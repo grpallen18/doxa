@@ -1,12 +1,9 @@
 import { Panel } from '@/components/Panel'
-import { LandingHeader } from '@/components/LandingHeader'
 
 export default function AboutPage() {
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-muted sm:px-6 md:px-8 lg:px-10">
+    <main className="min-h-screen bg-background px-4 pb-16 pt-6 text-muted sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        <LandingHeader />
-
         <section aria-labelledby="about-heading" className="space-y-8">
           <Panel variant="soft" interactive={false} className="w-full space-y-6 border-l-4 border-l-accent-primary pl-5 pr-5 py-5 md:pl-6 md:pr-6 md:py-6">
             <div className="space-y-1">

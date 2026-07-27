@@ -27,11 +27,11 @@ import type {
 } from '@/lib/admin/claim-review-workspace'
 import { cn } from '@/lib/utils'
 
-const drawerBodyTextClass = 'text-sm leading-snug text-foreground'
+const drawerBodyTextClass = 'text-sm leading-snug text-muted'
 const drawerClaimTextClass = cn(drawerBodyTextClass, 'italic whitespace-pre-wrap break-words')
-const drawerSectionTitleClass = 'text-xs font-medium uppercase tracking-wide text-muted'
-const drawerSubsectionTitleClass = cn(drawerBodyTextClass, 'font-semibold')
-const drawerMetaTextClass = 'text-sm text-muted-foreground'
+const drawerSectionTitleClass = 'text-xs font-medium uppercase tracking-wide text-foreground'
+const drawerSubsectionTitleClass = 'text-sm font-semibold leading-snug text-foreground'
+const drawerMetaTextClass = 'text-sm text-muted'
 const drawerListClassName = 'space-y-1'
 const drawerListItemClassName = 'rounded bg-muted/20 px-2 py-1'
 
@@ -70,11 +70,12 @@ function verdictTone(verdict: ClaimAuditVerdict | null): string {
     case 'pass':
       return 'text-emerald-600 dark:text-emerald-400'
     case 'needs_repair':
-      return 'text-amber-600 dark:text-amber-400'
+      return 'text-accent-primary'
+    case 'drop':
     case 'reject_final':
       return 'text-destructive'
     default:
-      return 'text-foreground'
+      return 'text-muted'
   }
 }
 
@@ -83,11 +84,11 @@ const metadataDiffGridClass =
 
 function MetadataDiffList({ fields }: { fields: ClaimMetadataFieldDiff[] }) {
   return (
-    <div className="min-w-0 overflow-x-auto rounded-md border border-border">
+    <div className="min-w-0 overflow-x-auto rounded-md border border-border bg-surface">
       <div
         className={cn(
           metadataDiffGridClass,
-          'border-b border-border bg-muted/20 px-2 py-1.5 text-xs font-medium uppercase tracking-wide text-muted'
+          'border-b border-border bg-accent-tertiary px-2 py-1.5 text-xs font-medium uppercase tracking-wide text-inverted'
         )}
       >
         <span>Field</span>
@@ -100,16 +101,11 @@ function MetadataDiffList({ fields }: { fields: ClaimMetadataFieldDiff[] }) {
           className={cn(
             metadataDiffGridClass,
             'border-b border-border px-2 py-1.5 last:border-b-0',
-            index % 2 === 0 ? 'bg-surface-soft' : 'bg-surface-section'
+            index % 2 === 0 ? 'bg-surface' : 'bg-background'
           )}
         >
-          <span className={cn(drawerSubsectionTitleClass, 'self-start')}>{field.label}</span>
-          <span
-            className={cn(
-              drawerBodyTextClass,
-              'self-start whitespace-pre-wrap break-words text-muted-foreground'
-            )}
-          >
+          <span className={cn(drawerBodyTextClass, 'self-start font-medium')}>{field.label}</span>
+          <span className={cn(drawerBodyTextClass, 'self-start whitespace-pre-wrap break-words')}>
             {field.before}
           </span>
           <span className={cn(drawerBodyTextClass, 'self-start whitespace-pre-wrap break-words')}>
@@ -182,25 +178,25 @@ export function ClaimReviewHistoryDrawer({
     <Drawer open={open} onOpenChange={onOpenChange} handleOnly>
       <DrawerContent
         hideHandle
-        className="flex flex-col overflow-hidden border-border bg-surface-soft select-text"
+        className="flex flex-col overflow-hidden border-border bg-background select-text"
       >
         <DrawerHeader className="shrink-0 gap-1 border-b border-border p-0 px-4 pb-2 pt-1.5 text-left">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-3">
-            <DrawerTitle className="col-start-1 min-w-0 truncate">
+            <DrawerTitle className="col-start-1 min-w-0 truncate text-foreground">
               Claim Version History
             </DrawerTitle>
             <DrawerHandle className="col-start-2 mx-0 mt-0 shrink-0 justify-self-center cursor-grab active:cursor-grabbing" />
-            <DrawerClose className="col-start-3 shrink-0 justify-self-end rounded-sm text-muted-foreground opacity-70 ring-offset-background transition-opacity hover:text-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+            <DrawerClose className="col-start-3 shrink-0 justify-self-end rounded-sm text-muted opacity-70 ring-offset-background transition-opacity hover:text-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
               <X className="size-4" />
               <span className="sr-only">Close</span>
             </DrawerClose>
           </div>
           {lifecycle ? (
-            <DrawerDescription className="flex flex-wrap items-center gap-x-1.5">
+            <DrawerDescription className="flex flex-wrap items-center gap-x-1.5 text-muted">
               <span>Claim #{lifecycle.claimNumber}</span>
               {claimVerdictLabel ? (
                 <>
-                  <span aria-hidden className="text-muted-foreground/50">
+                  <span aria-hidden className="text-muted/50">
                     ·
                   </span>
                   <span className={cn('font-medium', verdictTone(claimVerdict))}>
@@ -218,18 +214,20 @@ export function ClaimReviewHistoryDrawer({
         >
           <div className="space-y-3 px-4 py-3">
             {!lifecycle ? (
-              <p className={cn(drawerMetaTextClass, 'text-muted')}>
+              <p className={drawerMetaTextClass}>
                 Select a claim to inspect its history.
               </p>
             ) : lifecycle.steps.length === 0 ? (
-              <p className={cn(drawerMetaTextClass, 'text-muted')}>
+              <p className={drawerMetaTextClass}>
                 No version history recorded for this claim.
               </p>
             ) : (
               <>
                 {sections?.original ? (
                   <LifecycleSection title="Original claim">
-                    <p className={drawerClaimTextClass}>{sections.original.text}</p>
+                    <p className={cn(drawerClaimTextClass, 'text-destructive')}>
+                      {sections.original.text}
+                    </p>
                   </LifecycleSection>
                 ) : null}
 
@@ -273,7 +271,14 @@ export function ClaimReviewHistoryDrawer({
 
                 {sections?.refined ? (
                   <LifecycleSection title="Refined claim">
-                    <p className={drawerClaimTextClass}>{sections.refined.text}</p>
+                    <p
+                      className={cn(
+                        drawerClaimTextClass,
+                        'text-success'
+                      )}
+                    >
+                      {sections.refined.text}
+                    </p>
                   </LifecycleSection>
                 ) : null}
               </>

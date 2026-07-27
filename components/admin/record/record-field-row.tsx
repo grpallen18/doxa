@@ -11,12 +11,12 @@ export function RecordFieldRow({
 
   return (
     <>
-      <dt className="min-w-0 truncate whitespace-nowrap pb-1.5 text-sm font-medium text-muted">
+      <dt className="min-w-0 truncate whitespace-nowrap pb-1.5 text-sm font-medium text-foreground">
         {label}
       </dt>
-      <dd className="min-w-0 border-b border-border pb-1.5 text-sm leading-snug text-foreground">
+      <dd className="min-w-0 border-b border-border pb-1.5 text-sm leading-snug text-muted">
         <div className="min-w-0 truncate whitespace-nowrap">
-          {empty ? <span className="text-muted">—</span> : children}
+          {empty ? <span>—</span> : children}
         </div>
       </dd>
     </>

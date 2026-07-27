@@ -198,18 +198,6 @@ steps:
       schedule: 0 18 * * *
       sql: doxa-agents/departments/05-business-operations/02-discord-daily-health/schedule.sql
       body: "{}"
-  - id: generate-atlas-map
-    department: 05-business-operations
-    workflow: generate-atlas-map
-    kind: edge_function
-    status: inactive
-    source: doxa-agents/departments/05-business-operations/01-generate-atlas-map
-    deploy_name: generate_atlas_map
-    cron:
-      job_name: generate-atlas-map-weekly
-      schedule: 0 3 * * 0
-      sql: doxa-agents/departments/05-business-operations/01-generate-atlas-map/schedule.sql
-      body: "{}"
   - id: purge-drop-stories-monthly
     department: 05-business-operations/maintenance
     workflow: 01-purge-drop-stories

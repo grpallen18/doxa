@@ -39,7 +39,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: SCROLL_RESTORATION_BOOT_SCRIPT }} />
       </head>
-      <body className={`${appFont.variable} font-sans`}>
+      <body className={`${appFont.variable} ${appFont.className} font-sans`}>
         <ThemeProvider>
           <ScrollRestoration />
           <NavigationOverlayProvider>

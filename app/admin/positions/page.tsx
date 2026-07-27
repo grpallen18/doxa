@@ -418,7 +418,7 @@ function PositionsList({
         {items.map((p, i) => (
           <li
             key={p.position_cluster_id}
-            className={i % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''}
+            className={i % 2 === 1 ? 'bg-muted/50' : ''}
           >
             <Link
               href={`/admin/agreements/${p.position_cluster_id}`}
@@ -468,7 +468,7 @@ function ControversiesList({
         {items.map((c, i) => (
           <li
             key={c.controversy_cluster_id}
-            className={i % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''}
+            className={i % 2 === 1 ? 'bg-muted/50' : ''}
           >
             <Link
               href={`/admin/controversies/${c.controversy_cluster_id}`}
@@ -520,7 +520,7 @@ function ViewpointsList({
             onClick={() => onSelect(v.viewpoint_id)}
             onKeyDown={(e) => e.key === 'Enter' && onSelect(v.viewpoint_id)}
             className={`flex cursor-pointer items-baseline justify-between gap-2 rounded-sm px-1.5 py-0.5 text-xs hover:bg-muted/50 ${
-              i % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''
+              i % 2 === 1 ? 'bg-muted/50' : ''
             } ${selectedId === v.viewpoint_id ? 'ring-1 ring-inset ring-accent-primary' : ''}`}
           >
             <span className="min-w-0 flex-1 truncate">
@@ -606,14 +606,9 @@ function DrillDownPanel({
             <ul className="mt-1 space-y-1">
               {(d.viewpoints ?? []).map((v) => (
                 <li key={v.viewpoint_id}>
-                  <Link
-                    href="/atlas"
-                    className="text-xs text-accent-primary hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <span className="text-xs text-foreground">
                     {v.title || v.summary?.slice(0, 40) || v.viewpoint_id.slice(0, 8)}
-                  </Link>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -718,14 +713,9 @@ function DrillDownPanel({
             <ul className="mt-1 space-y-0.5">
               {(d.viewpoints ?? []).map((v) => (
                 <li key={v.viewpoint_id}>
-                  <Link
-                    href={`/atlas/viewpoints/${v.viewpoint_id}`}
-                    className="text-xs text-accent-primary hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <span className="text-xs text-foreground">
                     {v.title || v.summary?.slice(0, 40)}
-                  </Link>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -782,14 +772,6 @@ function DrillDownPanel({
             className="block text-xs text-accent-primary hover:underline"
           >
             {d.position_label || d.position_cluster_id.slice(0, 8)}
-          </Link>
-          <Link
-            href="/atlas"
-            className="mt-2 block text-xs text-accent-primary hover:underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open Atlas
           </Link>
         </div>
       </div>

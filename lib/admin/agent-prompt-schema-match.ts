@@ -11,7 +11,15 @@ export type EnforcedOutputSpec = {
 
 export const ENFORCED_OUTPUT_SPECS: Record<string, EnforcedOutputSpec> = {
   'validate-chunk-claims': {
-    topLevel: ['passes_review', 'recommended_action', 'summary', 'issues', 'patches'],
+    topLevel: [
+      'passes_review',
+      'recommended_action',
+      'summary',
+      'issues',
+      'patches',
+      'claim_audit',
+      'refinement_instruction',
+    ],
     nested: {
       issues: ['severity', 'claim_id', 'claim_index', 'issue_type', 'finding'],
       patches: [
@@ -24,8 +32,9 @@ export const ENFORCED_OUTPUT_SPECS: Record<string, EnforcedOutputSpec> = {
         'reason',
         'source_grounding',
       ],
+      claim_audit: ['claim_id', 'verdict', 'reason'],
     },
-    recommendedActions: ['validate', 'needs_refinement', 'reject'],
+    recommendedActions: ['validate', 'needs_refinement'],
   },
 }
 

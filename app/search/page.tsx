@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { LandingHeader } from '@/components/LandingHeader'
 import { Separator } from '@/components/ui/separator'
 import { stripMarkdownForPreview } from '@/lib/utils'
 import {
@@ -37,10 +36,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const hasPagination = totalPages > 1
 
   return (
-    <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
+    <main className="min-h-screen bg-background px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex w-full max-w-content flex-col gap-10 md:gap-12">
-        <LandingHeader />
-
         <section aria-labelledby="results-heading" className="space-y-4">
           <h2 id="results-heading" className="text-lg font-semibold tracking-tight text-foreground">
             {query ? `Results for "${query}"` : 'Search results'}
@@ -57,7 +54,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                     {i > 0 && <Separator />}
                     <Link
                       href={`/page/${topic.topic_id}`}
-                      className="block px-4 py-3 transition-colors hover:bg-muted/50"
+                      className="block px-4 py-3 transition-colors hover:bg-surface-section"
                     >
                       <p className="font-medium text-foreground">{topic.title}</p>
                       {topic.summary && (

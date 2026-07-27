@@ -1,5 +1,5 @@
-import { PageSkeletonTopics } from '@/components/PageSkeleton'
+import { PageSkeletonTopicDetail } from '@/components/PageSkeleton'
 
 export default function Loading() {
-  return <PageSkeletonTopics />
+  return <PageSkeletonTopicDetail />
 }

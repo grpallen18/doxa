@@ -86,7 +86,12 @@ export function ChunkRecordPage() {
         )}
         subtitle="Story chunk"
         actions={
-          <Button variant="outline" size="sm" className="h-8" asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border-0 bg-accent-tertiary text-inverted shadow-sm hover:bg-accent-tertiary hover:brightness-110 hover:text-inverted"
+            asChild
+          >
             <Link
               href={chunkAgentFlowHref(
                 {
@@ -119,7 +124,7 @@ export function ChunkRecordPage() {
           <div className="grid gap-x-8 sm:grid-cols-2">
             <dl className={recordFieldGridClass}>
               <RecordFieldRow label="Chunk ID">{data.chunk_friendly_id}</RecordFieldRow>
-              <RecordFieldRow label="Chunk index">{data.chunk_index + 1}</RecordFieldRow>
+              <RecordFieldRow label="Chunk number">{data.chunk_index + 1}</RecordFieldRow>
               <RecordFieldRow label="Chunk length">
                 {data.content.length > 0
                   ? `${data.content.length.toLocaleString()} characters`
@@ -135,7 +140,7 @@ export function ChunkRecordPage() {
               <RecordFieldRow label="Validated at">
                 {formatAdminDateTime(data.extraction_qa_validated_at)}
               </RecordFieldRow>
-              <RecordFieldRow label="Refinement cycles">
+              <RecordFieldRow label="Revision round">
                 {data.extraction_qa_refinement_count}
               </RecordFieldRow>
             </dl>

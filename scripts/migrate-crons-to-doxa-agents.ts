@@ -27,8 +27,6 @@ const CRON_MAP: Record<string, string> = {
     'doxa-agents/departments/04-semantic-intelligence-engine/schedules.sql',
   'cron_discord_daily_health.sql':
     'doxa-agents/departments/05-business-operations/02-discord-daily-health/schedule.sql',
-  'cron_generate_atlas_map.sql':
-    'doxa-agents/departments/05-business-operations/01-generate-atlas-map/schedule.sql',
   'cron_cleanup_logs.sql':
     'doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql',
   'cron_purge_drop_stories.sql':

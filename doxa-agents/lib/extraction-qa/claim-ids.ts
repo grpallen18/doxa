@@ -33,6 +33,132 @@ function isValidClaimId(value: unknown): value is string {
   return typeof value === "string" && value.startsWith(CHUNK_CLAIM_ID_PREFIX) && value.length > CHUNK_CLAIM_ID_PREFIX.length;
 }
 
+function claimRawText(claim: Record<string, unknown>): string {
+  return String(claim.raw_text ?? claim.claim_text ?? "").trim();
+}
+
+/**
+ * Force refined claims to keep repair-queue identities. Never trust model claim_id swaps.
+ * Output may drop claims (fewer than input). Extra invented claims are dropped, not kept.
+ */
+export function remapRefinedClaimIds(
+  outputClaims: unknown[],
+  inputClaims: Array<Record<string, unknown>>
+): { claims: Array<Record<string, unknown>>; droppedExtras: number } {
+  const inputs = inputClaims
+    .map((claim) => {
+      const claimId = typeof claim.claim_id === "string" ? claim.claim_id : null;
+      if (!claimId) return null;
+      return {
+        claim_id: claimId,
+        raw_text: claimRawText(claim),
+        norm: normalizeText(claimRawText(claim)),
+      };
+    })
+    .filter((row): row is { claim_id: string; raw_text: string; norm: string } => row != null);
+
+  if (inputs.length === 0) {
+    throw new Error("refiner_claim_id_remap_failed: repair_queue inputs missing claim_id");
+  }
+
+  const allowedIds = new Set(inputs.map((row) => row.claim_id));
+  if (allowedIds.size !== inputs.length) {
+    throw new Error("refiner_claim_id_remap_failed: duplicate claim_id in repair_queue inputs");
+  }
+
+  const outputs = (Array.isArray(outputClaims) ? outputClaims : [])
+    .filter((row): row is Record<string, unknown> => !!row && typeof row === "object" && !Array.isArray(row))
+    .map((row) => ({ ...row }));
+
+  const unused = new Map(inputs.map((row) => [row.claim_id, row]));
+  const assigned: Array<Record<string, unknown> | null> = outputs.map(() => null);
+
+  for (let i = 0; i < outputs.length; i++) {
+    const outNorm = normalizeText(claimRawText(outputs[i]));
+    if (!outNorm) continue;
+    const exact = [...unused.values()].filter((row) => row.norm === outNorm);
+    if (exact.length === 1) {
+      const match = exact[0];
+      unused.delete(match.claim_id);
+      assigned[i] = { ...outputs[i], claim_id: match.claim_id };
+    }
+  }
+
+  for (let i = 0; i < outputs.length; i++) {
+    if (assigned[i]) continue;
+    const outNorm = normalizeText(claimRawText(outputs[i]));
+    if (!outNorm) continue;
+    const partial = [...unused.values()].filter(
+      (row) => row.norm.includes(outNorm) || outNorm.includes(row.norm)
+    );
+    if (partial.length === 1) {
+      const match = partial[0];
+      unused.delete(match.claim_id);
+      assigned[i] = { ...outputs[i], claim_id: match.claim_id };
+    }
+  }
+
+  const remainingOutIndexes = assigned
+    .map((row, index) => (row == null ? index : -1))
+    .filter((index) => index >= 0);
+  const remainingInputs = [...unused.values()];
+
+  let droppedExtras = 0;
+  if (remainingOutIndexes.length > 0) {
+    const zipCount = Math.min(remainingOutIndexes.length, remainingInputs.length);
+    for (let i = 0; i < zipCount; i++) {
+      const outIndex = remainingOutIndexes[i];
+      const match = remainingInputs[i];
+      unused.delete(match.claim_id);
+      assigned[outIndex] = { ...outputs[outIndex], claim_id: match.claim_id };
+    }
+    droppedExtras = remainingOutIndexes.length - zipCount;
+    for (let i = zipCount; i < remainingOutIndexes.length; i++) {
+      assigned[remainingOutIndexes[i]] = null;
+    }
+  }
+
+  if (outputs.length > inputs.length) {
+    droppedExtras = Math.max(droppedExtras, outputs.length - inputs.length);
+  }
+
+  const result = assigned
+    .filter((row): row is Record<string, unknown> => row != null)
+    .map((claim) => {
+      const claimId = String(claim.claim_id);
+      if (!allowedIds.has(claimId)) {
+        throw new Error(`refiner_claim_id_remap_failed: unexpected claim_id ${claimId}`);
+      }
+      return claim;
+    });
+
+  if (result.length === 0) {
+    throw new Error("refiner_claim_id_remap_failed: no repair claims could be mapped from model output");
+  }
+
+  const resultIds = result.map((row) => String(row.claim_id));
+  if (new Set(resultIds).size !== resultIds.length) {
+    throw new Error("refiner_claim_id_remap_failed: duplicate claim_id after remap");
+  }
+
+  return { claims: result, droppedExtras };
+}
+
+export function assertClaimIdsSubsetOf(
+  claims: Array<Record<string, unknown>>,
+  allowedClaimIds: Iterable<string>
+): void {
+  const allowed = new Set(allowedClaimIds);
+  for (const claim of claims) {
+    const claimId = typeof claim.claim_id === "string" ? claim.claim_id : null;
+    if (!claimId || !allowed.has(claimId)) {
+      throw new Error(
+        `refiner_claim_id_drift: claim_id ${claimId ?? "<missing>"} is not in the repair_queue identity set`
+      );
+    }
+  }
+}
+
 export async function ensureStableClaimIds(
   claims: Array<Record<string, unknown>>,
   storyId: string,

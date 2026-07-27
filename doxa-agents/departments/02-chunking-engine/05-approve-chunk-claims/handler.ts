@@ -8,6 +8,7 @@ import {
   applyApprovalVerdicts,
   assembleMergeClaims,
   buildApprovalPayload,
+  finalizeClaimsCycleByDroppingRemainder,
   isChunkMergeReady,
   loadClaimsMergeEligibility,
   repairQueueClaimIds,
@@ -21,7 +22,14 @@ import {
   parseStoryIdFromBody,
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
-import { asExtractionJson, clampInt, corsHeaders, json } from "../../../lib/extraction-qa/types.ts";
+import {
+  asExtractionJson,
+  clampInt,
+  CLAIMS_QA_COMPLETE_STATUS,
+  corsHeaders,
+  json,
+  MAX_REFINEMENT_ATTEMPTS,
+} from "../../../lib/extraction-qa/types.ts";
 import { PipelineDebugTrace } from "../../../lib/pipeline-debug-trace.ts";
 import {
   logBatchChunkStepRuns,
@@ -157,22 +165,43 @@ export const handler = async (req: Request) => {
 
       if (approvalClaims.length === 0) {
         if (!dryRun) {
-          const mergeReady = isChunkMergeReady(mergeState, { allowEmpty: true });
-          const hasPending = (mergeState.pending_approval_claim_ids ?? []).length > 0;
+          let nextMergeState = mergeState;
+          const { data: chunkMeta } = await supabase
+            .from("story_chunks")
+            .select("extraction_qa_refinement_count")
+            .eq("story_id", chunk.story_id)
+            .eq("chunk_index", chunk.chunk_index)
+            .single();
+          const refineCount = chunkMeta?.extraction_qa_refinement_count ?? 0;
+          if (
+            refineCount >= MAX_REFINEMENT_ATTEMPTS &&
+            (repairQueueClaimIds(nextMergeState).length > 0 ||
+              (nextMergeState.pending_approval_claim_ids ?? []).length > 0)
+          ) {
+            nextMergeState = finalizeClaimsCycleByDroppingRemainder(nextMergeState, {
+              artifact_id: "",
+              reason: "cycle_exhausted",
+            });
+          }
+
+          const mergeReady = isChunkMergeReady(nextMergeState, { allowEmpty: true });
+          const hasPending = (nextMergeState.pending_approval_claim_ids ?? []).length > 0;
           const nextStatus = mergeReady
-            ? "passed"
-            : repairQueueClaimIds(mergeState).length > 0
+            ? CLAIMS_QA_COMPLETE_STATUS
+            : repairQueueClaimIds(nextMergeState).length > 0
               ? "needs_refinement"
               : hasPending
                 ? "awaiting_approval"
-                : "needs_human_review";
+                : CLAIMS_QA_COMPLETE_STATUS;
 
           const { error: updateErr } = await supabase
             .from("story_chunks")
             .update({
               extraction_qa_status: nextStatus,
-              extraction_json: assembleMergeClaims(mergeState),
-              extraction_qa_validated_at: mergeReady ? new Date().toISOString() : null,
+              claims_merge_eligibility: nextMergeState,
+              extraction_json: assembleMergeClaims(nextMergeState),
+              extraction_qa_validated_at:
+                nextStatus === CLAIMS_QA_COMPLETE_STATUS ? new Date().toISOString() : null,
             })
             .eq("story_id", chunk.story_id)
             .eq("chunk_index", chunk.chunk_index);
@@ -214,7 +243,7 @@ export const handler = async (req: Request) => {
         });
         if (artifactErr) throw new Error(artifactErr.message);
 
-        const nextMergeState = applyApprovalVerdicts(
+        let nextMergeState = applyApprovalVerdicts(
           mergeState,
           approvalClaims,
           approvalResult.verdicts.map((v) => ({
@@ -229,15 +258,33 @@ export const handler = async (req: Request) => {
           }
         );
 
+        const { data: chunkMeta } = await supabase
+          .from("story_chunks")
+          .select("extraction_qa_refinement_count")
+          .eq("story_id", chunk.story_id)
+          .eq("chunk_index", chunk.chunk_index)
+          .single();
+        const refineCount = chunkMeta?.extraction_qa_refinement_count ?? 0;
+        if (
+          refineCount >= MAX_REFINEMENT_ATTEMPTS &&
+          (repairQueueClaimIds(nextMergeState).length > 0 ||
+            (nextMergeState.pending_approval_claim_ids ?? []).length > 0)
+        ) {
+          nextMergeState = finalizeClaimsCycleByDroppingRemainder(nextMergeState, {
+            artifact_id: savedArtifact?.id ?? "",
+            reason: "cycle_exhausted",
+          });
+        }
+
         const mergeReady = isChunkMergeReady(nextMergeState, { allowEmpty: true });
         const hasPending = (nextMergeState.pending_approval_claim_ids ?? []).length > 0;
         const nextStatus = mergeReady
-          ? "passed"
+          ? CLAIMS_QA_COMPLETE_STATUS
           : repairQueueClaimIds(nextMergeState).length > 0
             ? "needs_refinement"
             : hasPending
               ? "awaiting_approval"
-              : "needs_human_review";
+              : CLAIMS_QA_COMPLETE_STATUS;
 
         const { error: updateErr } = await supabase
           .from("story_chunks")
@@ -245,7 +292,8 @@ export const handler = async (req: Request) => {
             extraction_qa_status: nextStatus,
             claims_merge_eligibility: nextMergeState,
             extraction_json: assembleMergeClaims(nextMergeState),
-            extraction_qa_validated_at: mergeReady ? new Date().toISOString() : null,
+            extraction_qa_validated_at:
+              nextStatus === CLAIMS_QA_COMPLETE_STATUS ? new Date().toISOString() : null,
           })
           .eq("story_id", chunk.story_id)
           .eq("chunk_index", chunk.chunk_index);

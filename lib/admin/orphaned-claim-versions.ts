@@ -353,6 +353,8 @@ export async function resetStaleChunkRefinementCounter(
     run_id: null,
     created_at: '',
     reverted_at: null,
+    claim_version_id: null,
+    input_claim_version_id: null,
     output_claim_version_id: str(row.output_claim_version_id),
   }))
 
@@ -724,6 +726,7 @@ export async function relinkOrphanedClaimVersion(
       run_id: null,
       created_at: '',
       reverted_at: null,
+      claim_version_id: null,
       input_claim_version_id: version.parent_version_id,
       output_claim_version_id: version.id,
     },

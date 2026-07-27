@@ -35,7 +35,7 @@ export function AuditTimeline({
             <th className={HEADER_CELL_CLASS}>User</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-subtle">
+        <tbody className="divide-y divide-border">
           {events.length === 0 ? (
             <tr>
               <td colSpan={5} className="px-3 py-3 text-xs text-muted">
@@ -46,7 +46,7 @@ export function AuditTimeline({
           {events.map((event) => (
             <tr
               key={event.id}
-              className="transition-colors hover:bg-white"
+              className="transition-colors hover:bg-card"
             >
               <td
                 className={cn(VALUE_CELL_CLASS, 'tabular-nums')}

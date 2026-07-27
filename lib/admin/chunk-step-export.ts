@@ -18,6 +18,7 @@ export type ChunkAtomType = QaLaneId
 
 export type ChunkStepOutcome =
   | 'passed'
+  | 'complete'
   | 'needs_refinement'
   | 'needs_human_review'
   | 'failed_runtime'
@@ -128,7 +129,7 @@ export function resolveChunkAtomType(stepId: PipelineStepId): ChunkAtomType | nu
 export function deriveChunkStepOutcome(lane: QaLaneId, chunk: ChunkRow): ChunkStepOutcome {
   const stages = QA_LANE_ARTIFACT_STAGES[lane]
   const status = chunk[stages.qaStatusKey]
-  if (status === 'passed' || status === 'atoms_passed') return 'passed'
+  if (status === 'complete' || status === 'passed' || status === 'atoms_passed') return 'complete'
   if (status === 'needs_refinement') return 'needs_refinement'
   if (status === 'awaiting_approval') return 'needs_refinement'
   if (status === 'needs_human_review') return 'needs_human_review'
@@ -210,19 +211,21 @@ export function reviewOutcomeFromReport(report: unknown): ChunkStepOutcome {
   const row = asRecord(report)
   if (!row) return null
   const resolved = str(row.resolved_status)
-  if (resolved === 'passed' || resolved === 'needs_refinement' || resolved === 'needs_human_review') {
+  if (resolved === 'complete') return 'complete'
+  if (resolved === 'passed') return 'complete'
+  if (resolved === 'needs_refinement' || resolved === 'needs_human_review') {
     return resolved
   }
-  if (row.passes_review === true) return 'passed'
+  if (row.passes_review === true) return 'complete'
   const action = str(row.recommended_action)
   if (action === 'needs_refinement' || action === 'refine') return 'needs_refinement'
   if (action === 'human_review' || action === 'reject') return 'needs_human_review'
-  if (action === 'validate' || action === 'accept') return 'passed'
+  if (action === 'validate' || action === 'accept') return 'complete'
   return null
 }
 
 function nextActionFromReviewOutcome(outcome: ChunkStepOutcome): ChunkStepNextAction {
-  if (outcome === 'passed') return 'merge_ready'
+  if (outcome === 'passed' || outcome === 'complete') return 'merge_ready'
   if (outcome === 'needs_refinement') return 'run_refiner'
   if (outcome === 'needs_human_review') return 'human_review'
   return null
@@ -561,7 +564,7 @@ export function resolveExportActiveVersionId(params: {
     if (visibleVersions.some((version) => version.id === active)) {
       return active
     }
-    const postRefinePhases: ChunkLanePhase[] = ['awaiting_approval', 'merge_ready', 'complete']
+    const postRefinePhases: ChunkLanePhase[] = ['awaiting_approval', 'complete']
     if (postRefinePhases.includes(phase)) {
       return active
     }
@@ -708,7 +711,7 @@ export function buildChunkExportViewState(params: {
     } else if (phase === 'awaiting_review' || nextAction === 'run_review') {
       lifecycleSummary = `${activeLabel} ${activeLine?.source ?? 'refiner'} active → awaiting review`
     } else if (phase === 'complete' || nextAction === 'merge_ready') {
-      lifecycleSummary = `${activeLabel} passed review → merge ready`
+      lifecycleSummary = `${activeLabel} QA complete → merge ready`
     }
   }
 

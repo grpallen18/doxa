@@ -81,46 +81,17 @@ export const VISION_FLOW_NODES: VisionNodeSpec[] = [
     column: COL.chunk,
     row: 1,
   },
-  // Claims lane
+  // Claims lane — story canvas shows one shell; per-chunk steps live on chunk canvas.
   {
-    id: 'extract-story-claims',
-    visionLabel: 'Claim Extractor',
+    id: 'vision:process-k-claims',
+    visionLabel: 'Process K-Claims',
     nodeType: 'agent',
     maturity: 'live',
-    catalogStepId: 'extract-story-claims',
     lane: 'claims',
     column: COL.extract,
     row: 0,
-  },
-  {
-    id: 'validate-chunk-claims',
-    visionLabel: 'Claim Reviewer',
-    nodeType: 'decision',
-    maturity: 'live',
-    catalogStepId: 'validate-chunk-claims',
-    lane: 'claims',
-    column: COL.review,
-    row: 0,
-  },
-  {
-    id: 'refine-chunk-claims',
-    visionLabel: 'Claim Refiner',
-    nodeType: 'agent',
-    maturity: 'live',
-    catalogStepId: 'refine-chunk-claims',
-    lane: 'claims',
-    column: COL.review,
-    row: 1,
-  },
-  {
-    id: 'approve-chunk-claims',
-    visionLabel: 'Claim Approver',
-    nodeType: 'decision',
-    maturity: 'live',
-    catalogStepId: 'approve-chunk-claims',
-    lane: 'claims',
-    column: COL.review,
-    row: 2,
+    opensChunkWorkflows: true,
+    chunkProgressLane: 'claims',
   },
   {
     id: 'merge-story-claims',
@@ -272,6 +243,50 @@ export const VISION_FLOW_NODES: VisionNodeSpec[] = [
   },
 ]
 
+/** Per-chunk claims QA steps — used by the chunk workflow canvas only. */
+export const CHUNK_CLAIMS_VISION_NODES: VisionNodeSpec[] = [
+  {
+    id: 'extract-story-claims',
+    visionLabel: 'Claim Extractor',
+    nodeType: 'agent',
+    maturity: 'live',
+    catalogStepId: 'extract-story-claims',
+    lane: 'claims',
+    column: 0,
+    row: 0,
+  },
+  {
+    id: 'validate-chunk-claims',
+    visionLabel: 'Claim Reviewer',
+    nodeType: 'decision',
+    maturity: 'live',
+    catalogStepId: 'validate-chunk-claims',
+    lane: 'claims',
+    column: 1,
+    row: 0,
+  },
+  {
+    id: 'refine-chunk-claims',
+    visionLabel: 'Claim Refiner',
+    nodeType: 'agent',
+    maturity: 'live',
+    catalogStepId: 'refine-chunk-claims',
+    lane: 'claims',
+    column: 2,
+    row: 0,
+  },
+  {
+    id: 'approve-chunk-claims',
+    visionLabel: 'Claim Approver',
+    nodeType: 'decision',
+    maturity: 'live',
+    catalogStepId: 'approve-chunk-claims',
+    lane: 'claims',
+    column: 3,
+    row: 0,
+  },
+]
+
 export const VISION_FLOW_EDGES: VisionEdgeSpec[] = [
   { id: 'e-gate-keep', source: 'relevance-gate', target: 'scrape-story-content', sourceHandle: 'pass', kind: 'pass' },
   { id: 'e-gate-drop', source: 'relevance-gate', target: 'vision:stop', sourceHandle: 'fail', kind: 'fail' },
@@ -280,17 +295,12 @@ export const VISION_FLOW_EDGES: VisionEdgeSpec[] = [
   { id: 'e-pending-drop', source: 'review-pending-stories', target: 'vision:stop', sourceHandle: 'fail', kind: 'fail' },
   { id: 'e-scrape-clean', source: 'scrape-story-content', target: 'clean-scraped-content', kind: 'pass' },
   { id: 'e-clean-chunk', source: 'clean-scraped-content', target: 'chunk-story-bodies', kind: 'pass' },
-  { id: 'e-chunk-c', source: 'chunk-story-bodies', target: 'extract-story-claims', kind: 'pass' },
+  { id: 'e-chunk-c', source: 'chunk-story-bodies', target: 'vision:process-k-claims', kind: 'pass' },
   { id: 'e-chunk-p', source: 'chunk-story-bodies', target: 'extract-story-positions', kind: 'pass' },
   { id: 'e-chunk-e', source: 'chunk-story-bodies', target: 'vision:extract-story-events', kind: 'neutral' },
   { id: 'e-chunk-v', source: 'chunk-story-bodies', target: 'vision:extract-story-evidence', kind: 'neutral' },
 
-  { id: 'e-c-ext-rev', source: 'extract-story-claims', target: 'validate-chunk-claims', kind: 'pass' },
-  { id: 'e-c-rev-ref', source: 'validate-chunk-claims', target: 'refine-chunk-claims', sourceHandle: 'fail', kind: 'fail' },
-  { id: 'e-c-ref-apr', source: 'refine-chunk-claims', target: 'approve-chunk-claims', kind: 'pass' },
-  { id: 'e-c-apr-ref', source: 'approve-chunk-claims', target: 'refine-chunk-claims', sourceHandle: 'fail', kind: 'return' },
-  { id: 'e-c-rev-merge', source: 'validate-chunk-claims', target: 'merge-story-claims', sourceHandle: 'pass', kind: 'pass' },
-  { id: 'e-c-apr-merge', source: 'approve-chunk-claims', target: 'merge-story-claims', sourceHandle: 'pass', kind: 'pass' },
+  { id: 'e-c-process-merge', source: 'vision:process-k-claims', target: 'merge-story-claims', kind: 'pass' },
 
   { id: 'e-p-ext-rev', source: 'extract-story-positions', target: 'validate-chunk-positions', kind: 'pass' },
   { id: 'e-p-rev-ref', source: 'validate-chunk-positions', target: 'refine-chunk-positions', sourceHandle: 'fail', kind: 'fail' },
@@ -333,6 +343,16 @@ export const VISION_FLOW_EDGES: VisionEdgeSpec[] = [
   },
 ]
 
+/** Linear claims QA on the chunk canvas (no approve→refine loop or merge edges). */
+export const CHUNK_CLAIMS_VISION_EDGES: VisionEdgeSpec[] = [
+  { id: 'e-c-ext-rev', source: 'extract-story-claims', target: 'validate-chunk-claims', kind: 'pass' },
+  { id: 'e-c-rev-ref', source: 'validate-chunk-claims', target: 'refine-chunk-claims', sourceHandle: 'fail', kind: 'fail' },
+  { id: 'e-c-ref-apr', source: 'refine-chunk-claims', target: 'approve-chunk-claims', kind: 'pass' },
+]
+
 export function getVisionNodeById(id: string): VisionNodeSpec | undefined {
-  return VISION_FLOW_NODES.find((n) => n.id === id)
+  return (
+    VISION_FLOW_NODES.find((n) => n.id === id) ??
+    CHUNK_CLAIMS_VISION_NODES.find((n) => n.id === id)
+  )
 }

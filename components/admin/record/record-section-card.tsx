@@ -52,7 +52,7 @@ export function RecordSectionCard({
     >
       <div
         className={cn(
-          'flex items-center gap-2 border-b border-[var(--record-section-header-border)] bg-[var(--record-section-header-bg)] text-[var(--record-section-header-fg)]',
+          'flex items-center gap-2 border-b border-[var(--record-section-header-border)] bg-[var(--record-section-header-bg)]',
           'data-[state=open]:border-[var(--record-section-header-border)]'
         )}
       >
@@ -62,11 +62,13 @@ export function RecordSectionCard({
             headerActions ? 'pr-2' : 'pr-4'
           )}
         >
-          <h2 className="min-w-0 flex-1 text-sm font-semibold tracking-tight sm:text-base">{title}</h2>
+          <h2 className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-foreground sm:text-base">
+            {title}
+          </h2>
           {!headerActions ? (
             <ChevronDown
               className={cn(
-                'size-4 shrink-0 text-[var(--record-section-header-fg)]/80 transition-transform',
+                'size-4 shrink-0 text-foreground/80 transition-transform',
                 open && 'rotate-180'
               )}
               aria-hidden
@@ -74,13 +76,15 @@ export function RecordSectionCard({
           ) : null}
         </CollapsibleTrigger>
         {headerActions ? (
-          <div className="flex shrink-0 items-center gap-1 py-1.5">{headerActions}</div>
+          <div className="flex shrink-0 items-center gap-1 py-1.5 text-foreground">
+            {headerActions}
+          </div>
         ) : null}
         {headerActions ? (
-          <CollapsibleTrigger className="flex shrink-0 items-center py-1.5 pr-4 pl-1 transition-colors">
+          <CollapsibleTrigger className="flex shrink-0 items-center py-1.5 pr-4 pl-1 text-foreground transition-colors">
             <ChevronDown
               className={cn(
-                'size-4 shrink-0 text-[var(--record-section-header-fg)]/80 transition-transform',
+                'size-4 shrink-0 text-foreground/80 transition-transform',
                 open && 'rotate-180'
               )}
               aria-hidden

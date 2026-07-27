@@ -16,6 +16,8 @@ import { mergeSpanGroundingIntoClaimsReview } from "../../../lib/extraction-qa/s
 import {
   assembleMergeClaims,
   ensureClaimAudit,
+  finalizeClaimsCycleByDroppingRemainder,
+  isChunkMergeReady,
   parkAllClaims,
   partitionAfterReview,
   parseClaimsMergeEligibility,
@@ -42,12 +44,13 @@ import {
   asExtractionJson,
   clampInt,
   chunkClaimsReviewPasses,
+  CLAIMS_QA_COMPLETE_STATUS,
   corsHeaders,
   isEmptyExtraction,
   json,
+  MAX_VALIDATION_ATTEMPTS,
   resolveClaimsReviewFailureStatus,
   type ClaimsReviewReport,
-  type ClaimsReviewResolvedStatus,
 } from "../../../lib/extraction-qa/types.ts";
 import { PipelineDebugTrace } from "../../../lib/pipeline-debug-trace.ts";
 import {
@@ -356,7 +359,7 @@ export const handler = async (req: Request) => {
         let validatedAt: string | null = null;
 
         if (chunkClaimsReviewPasses(reviewReport)) {
-          finalStatus = "passed";
+          finalStatus = CLAIMS_QA_COMPLETE_STATUS;
           validatedAt = now;
         } else {
           nextAttemptCount = attemptNumber;
@@ -365,7 +368,7 @@ export const handler = async (req: Request) => {
             reviewReport.recommended_action,
             reviewReport
           );
-          if (finalStatus === "needs_human_review") {
+          if (finalStatus === CLAIMS_QA_COMPLETE_STATUS) {
             validatedAt = now;
           }
         }
@@ -414,23 +417,44 @@ export const handler = async (req: Request) => {
         } else {
           mergeState = partitionAfterReview(mergeState, extraction.claims, reviewReport, mergeMeta);
           mergeState = seedRepairQueueFromAudit(mergeState, reviewReport.claim_audit ?? []);
-          if (finalStatus === "needs_refinement" && repairQueueClaimIds(mergeState).length === 0) {
-            finalStatus = "needs_human_review";
+          if (
+            finalStatus === "needs_refinement" &&
+            repairQueueClaimIds(mergeState).length === 0
+          ) {
+            mergeState = finalizeClaimsCycleByDroppingRemainder(mergeState, {
+              artifact_id: mergeMeta.artifact_id,
+              reason: "review_no_repairable_claims",
+            });
+            finalStatus = CLAIMS_QA_COMPLETE_STATUS;
+            validatedAt = now;
+          } else if (
+            finalStatus === CLAIMS_QA_COMPLETE_STATUS &&
+            (repairQueueClaimIds(mergeState).length > 0 ||
+              (mergeState.pending_approval_claim_ids ?? []).length > 0 ||
+              !isChunkMergeReady(mergeState, { allowEmpty: true }))
+          ) {
+            mergeState = finalizeClaimsCycleByDroppingRemainder(mergeState, {
+              artifact_id: mergeMeta.artifact_id,
+              reason:
+                attemptNumber >= MAX_VALIDATION_ATTEMPTS
+                  ? "max_validation_attempts"
+                  : "review_cycle_complete",
+            });
             validatedAt = now;
           }
         }
 
         reviewReport = applyClaimsReviewResolvedStatus(
           reviewReport,
-          finalStatus as ClaimsReviewResolvedStatus
+          finalStatus === "needs_refinement" ? "needs_refinement" : "complete"
         );
 
         const versionReviewOutcome: ClaimVersionReviewOutcome | null = chunkClaimsReviewPasses(reviewReport)
           ? "passed"
           : finalStatus === "needs_refinement"
             ? "needs_refinement"
-            : finalStatus === "needs_human_review"
-              ? "needs_human_review"
+            : finalStatus === CLAIMS_QA_COMPLETE_STATUS
+              ? "passed"
               : null;
 
         if (!dryRun) {
@@ -494,7 +518,7 @@ export const handler = async (req: Request) => {
             extraction_qa_status: finalStatus,
             extraction_qa_review_report: reviewReport,
             extraction_qa_validation_report: {
-              passes: finalStatus === "passed",
+              passes: finalStatus === CLAIMS_QA_COMPLETE_STATUS || finalStatus === "passed",
               recommended_status: finalStatus,
               summary: reviewReport.summary,
               attempt_number: attemptNumber,

@@ -17,7 +17,7 @@ function EntityHeaderTitle({
   return (
     <div className="flex min-w-0 items-center gap-3">
       {entityType ? <EntityHeaderIcon kind={entityType} size={iconSize} /> : null}
-      <h1 className={cn('min-w-0 flex-1 text-[var(--record-section-header-fg)]', className)}>
+      <h1 className={cn('min-w-0 flex-1 text-foreground', className)}>
         {title}
       </h1>
     </div>
@@ -57,7 +57,7 @@ export function EntityHeader({
       <header
         className={cn(
           embedded
-            ? 'px-4 py-3 sm:px-5'
+            ? 'py-3 pl-4 pr-0 sm:pl-5'
             : 'rounded-lg border border-border bg-card px-4 py-3 sm:px-5',
           className
         )}

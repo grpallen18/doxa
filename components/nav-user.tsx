@@ -24,6 +24,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { ThemePickerMenu } from "@/components/ThemePickerMenu"
 import { headerChromeIconButtonClassName, dropdownChromeBodyClassName, dropdownChromeContentClassName, dropdownChromeHeaderClassName, dropdownChromeSeparatorClassName } from "@/lib/header-chrome-styles"
 
 function getInitials(name: string) {
@@ -38,7 +39,6 @@ function getInitials(name: string) {
 function UserDropdownContent({
   user,
   onSignOut,
-  themeToggle,
 }: {
   user: {
     name: string
@@ -46,15 +46,14 @@ function UserDropdownContent({
     avatar: string
   }
   onSignOut?: () => void
-  themeToggle?: React.ReactNode
 }) {
   return (
     <>
       <div className={dropdownChromeHeaderClassName}>
-        <DropdownMenuLabel className="p-0 font-normal text-sidebar-foreground">
+        <DropdownMenuLabel className="p-0 font-normal text-foreground">
           <div className="grid text-left text-sm leading-tight">
             <span className="truncate font-semibold">{user.name}</span>
-            <span className="truncate text-xs text-sidebar-foreground/70">{user.email}</span>
+            <span className="truncate text-xs text-muted">{user.email}</span>
           </div>
         </DropdownMenuLabel>
       </div>
@@ -65,18 +64,8 @@ function UserDropdownContent({
             <Link href="/profile">Account Settings</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        {themeToggle && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={(e) => e.preventDefault()}
-              className="flex cursor-default items-center gap-2"
-            >
-              <span className="flex-1 text-sm">Theme</span>
-              <div className="ml-auto">{themeToggle}</div>
-            </DropdownMenuItem>
-          </>
-        )}
+        <DropdownMenuSeparator />
+        <ThemePickerMenu />
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut}>Log out</DropdownMenuItem>
       </div>
@@ -87,7 +76,6 @@ function UserDropdownContent({
 function NavUserHeader({
   user,
   onSignOut,
-  themeToggle,
 }: {
   user: {
     name: string
@@ -95,7 +83,6 @@ function NavUserHeader({
     avatar: string
   }
   onSignOut?: () => void
-  themeToggle?: React.ReactNode
 }) {
   return (
     <DropdownMenu modal={false}>
@@ -110,7 +97,7 @@ function NavUserHeader({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom" sideOffset={4} className={dropdownChromeContentClassName}>
-        <UserDropdownContent user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
+        <UserDropdownContent user={user} onSignOut={onSignOut} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -119,7 +106,6 @@ function NavUserHeader({
 function NavUserSidebar({
   user,
   onSignOut,
-  themeToggle,
 }: {
   user: {
     name: string
@@ -127,7 +113,6 @@ function NavUserSidebar({
     avatar: string
   }
   onSignOut?: () => void
-  themeToggle?: React.ReactNode
 }) {
   const { isMobile } = useSidebar()
 
@@ -158,7 +143,7 @@ function NavUserSidebar({
             align="end"
             sideOffset={4}
           >
-            <UserDropdownContent user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
+            <UserDropdownContent user={user} onSignOut={onSignOut} />
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
@@ -169,7 +154,6 @@ function NavUserSidebar({
 export function NavUser({
   user,
   onSignOut,
-  themeToggle,
   variant = "sidebar",
 }: {
   user: {
@@ -178,12 +162,11 @@ export function NavUser({
     avatar: string
   }
   onSignOut?: () => void
-  themeToggle?: React.ReactNode
   variant?: "sidebar" | "header"
 }) {
   if (variant === "header") {
-    return <NavUserHeader user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
+    return <NavUserHeader user={user} onSignOut={onSignOut} />
   }
 
-  return <NavUserSidebar user={user} onSignOut={onSignOut} themeToggle={themeToggle} />
+  return <NavUserSidebar user={user} onSignOut={onSignOut} />
 }

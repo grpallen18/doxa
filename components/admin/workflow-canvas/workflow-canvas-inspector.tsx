@@ -20,6 +20,7 @@ import {
 } from '@/lib/admin/story-pipeline-checklist'
 import { isChunkParallelStep } from '@/lib/admin/pipeline-status/extraction-groups'
 import { getVisionNodeById } from '@/lib/admin/workflow-canvas/vision-flow-layout'
+import { claimsChunkWorkflowProgress } from '@/lib/admin/pipeline-status/chunk-parallel-progress'
 import {
   isScrapeWorkerStep,
   scrapeWorkerSubtitle,
@@ -197,6 +198,53 @@ function WorkflowCanvasInspectorBody({
   if (!catalogStepId || !stepState) {
     const maturity = visionNode?.maturity ?? 'placeholder'
     const title = visionNode?.visionLabel ?? selectedNodeId
+    const isChunkWorkflowShell =
+      Boolean(visionNode?.opensChunkWorkflows) && maturity === 'live' && chunkIndex == null
+
+    if (isChunkWorkflowShell) {
+      const progress = claimsChunkWorkflowProgress(payload)
+      return (
+        <>
+          <header className="grid shrink-0 gap-1.5 border-b border-white/10 p-4 text-left">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold leading-none tracking-tight text-zinc-100">
+                  {title}
+                </h2>
+                <p className="text-sm text-zinc-400">Per-chunk extract → review → refine → approve</p>
+              </div>
+              <button
+                type="button"
+                className={INSPECTOR_ICON_BUTTON}
+                aria-label="Close inspector"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <span className="inline-block w-fit text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border text-indigo-300 border-indigo-500/30 bg-indigo-500/10">
+              Chunk workflows
+            </span>
+          </header>
+
+          <div className="no-scrollbar flex-1 overflow-y-auto px-4 pb-4 pt-4 space-y-3">
+            <p className="text-sm text-zinc-300">
+              Progress: <span className="font-medium text-zinc-100">{progress}</span>
+            </p>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              A chunk is complete when every claim is parked for merge or dropped — no further
+              claims QA work remains.
+            </p>
+          </div>
+
+          <footer className="mt-auto flex shrink-0 flex-col gap-3 border-t border-white/10 p-4">
+            <p className="text-center text-xs text-zinc-500">
+              Open chunk workflows from the toolbar or this node to run or revert steps.
+            </p>
+          </footer>
+        </>
+      )
+    }
 
     return (
       <>

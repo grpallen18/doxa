@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Check, X } from 'lucide-react'
 import { chunkAdminHref } from '@/lib/admin/chunk-record'
 import type { ExtractionQaStatus } from '@/lib/admin/extraction-qa-types'
-import { isChunkClaimsQaComplete } from '@/lib/admin/pipeline-status/extraction'
+import { isChunkClaimsApprovalDone } from '@/lib/admin/pipeline-status/extraction'
 import {
   RecordLedgerCell,
   RecordLedgerTable,
@@ -28,11 +28,16 @@ function QaCompleteIcon({ complete }: { complete: boolean }) {
     return (
       <Check
         className="size-4 text-emerald-600 dark:text-emerald-400"
-        aria-label="QA complete"
+        aria-label="All chunk claims approved or rejected"
       />
     )
   }
-  return <X className="size-4 text-muted" aria-label="QA incomplete" />
+  return (
+    <X
+      className="size-4 text-muted"
+      aria-label="Chunk claims still in review, refine, or approval"
+    />
+  )
 }
 
 export function ChunksTable({
@@ -51,10 +56,10 @@ export function ChunksTable({
       columns={['Chunk ID', 'QA Complete?', 'Chunk Length']}
       gridClass={CHUNKS_GRID}
     >
-      <ol className="divide-y divide-subtle">
+      <ol className="divide-y divide-border">
         {chunks.map((chunk) => {
           const length = chunk.content?.length ?? 0
-          const qaComplete = isChunkClaimsQaComplete(chunk)
+          const qaComplete = isChunkClaimsApprovalDone(chunk)
 
           return (
             <li key={chunk.friendly_id} className={recordLedgerRowClass(CHUNKS_GRID)}>

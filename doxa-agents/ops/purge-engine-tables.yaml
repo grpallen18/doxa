@@ -13,12 +13,7 @@ preserve_tables:
   - topics
 
 # Truncate together (shared FKs); skipped if the first table is missing.
-truncate_groups:
-  - name: viz
-    tables:
-      - viz_maps
-      - viz_nodes
-      - viz_edges
+truncate_groups: []
 
 # Truncated individually with CASCADE when the table exists.
 truncate_tables:

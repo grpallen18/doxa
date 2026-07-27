@@ -155,7 +155,7 @@ export function ClaimRepairGuidanceList({
 
 type ClaimScopedReviewFeedbackProps = {
   report: {
-    claim_verdict?: 'pass' | 'needs_repair' | 'reject_final' | null
+    claim_verdict?: 'pass' | 'needs_repair' | 'drop' | 'reject_final' | null
     claim_verdict_label?: string
     claim_summary?: string | null
     issues?: ClaimsIssue[]

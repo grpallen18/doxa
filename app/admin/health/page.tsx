@@ -379,7 +379,7 @@ function ScrapeDrillDownPanel({
               return (
               <Collapsible key={domain} className="group">
                 <CollapsibleTrigger
-                  className={`flex w-full items-center justify-between gap-2 rounded-sm px-1.5 py-0.5 text-left text-xs font-medium text-muted hover:bg-muted/50 hover:text-foreground ${domainIndex % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''}`}
+                  className={`flex w-full items-center justify-between gap-2 rounded-sm px-1.5 py-0.5 text-left text-xs font-medium text-muted hover:bg-muted/50 hover:text-foreground ${domainIndex % 2 === 1 ? 'bg-muted/50' : ''}`}
                 >
                   <span className="flex items-center gap-1.5 min-w-0">
                     <ChevronDown className="size-3 shrink-0 transition-transform group-data-[state=closed]:-rotate-90" />
@@ -392,7 +392,7 @@ function ScrapeDrillDownPanel({
                     {Object.entries(byTitle).map(([title, info], storyIndex) => (
                       <li
                         key={title}
-                        className={`flex items-baseline justify-between gap-2 px-1.5 py-0.5 text-xs rounded-sm ${storyIndex % 2 === 1 ? 'bg-zinc-100 dark:bg-zinc-800/80' : ''}`}
+                        className={`flex items-baseline justify-between gap-2 px-1.5 py-0.5 text-xs rounded-sm ${storyIndex % 2 === 1 ? 'bg-muted/50' : ''}`}
                       >
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -493,7 +493,7 @@ function DomainScrapeRateList() {
             return (
             <li
               key={domain}
-              className="flex items-center justify-between gap-2 px-1.5 py-0.5 text-xs rounded-sm even:bg-zinc-100 dark:even:bg-zinc-800/80"
+              className="flex items-center justify-between gap-2 px-1.5 py-0.5 text-xs rounded-sm even:bg-muted/50"
             >
               <span className="flex min-w-0 items-center gap-1.5 truncate">
                 {rate < 80 && (
