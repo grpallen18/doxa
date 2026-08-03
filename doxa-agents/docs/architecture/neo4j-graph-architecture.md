@@ -1,8 +1,8 @@
 # Neo4j graph architecture (steering document)
 
-**Status:** Phase 2 implemented (Argument in worker; Viewpoint/Controversy/Dispute Edge Functions + projections)  
+**Status:** Phase 2 implemented (Argument in worker; Viewpoint/Controversy/Dispute Edge Functions + projections); Cross-story Neo hubs implemented  
 **Next:** Phase 3 — Assessments / EvidenceCheck — see [neo4j-overhaul-next.md](neo4j-overhaul-next.md)  
-**Validation:** [phase0-validation.md](phase0-validation.md) · [phase1-validation.md](phase1-validation.md) · [phase2-validation.md](phase2-validation.md)
+**Validation:** [phase0-validation.md](phase0-validation.md) · [phase1-validation.md](phase1-validation.md) · [phase2-validation.md](phase2-validation.md) · [cross-story-neo-validation.md](cross-story-neo-validation.md)
 
 This is the authoritative architecture document for the Neo4j discourse graph. Implementation work should reference this file. Do not maintain contradictory pipeline descriptions elsewhere.
 
@@ -52,7 +52,12 @@ Lower layers never depend on upper layers. Embeddings generate **candidates only
 
 - Assessments, EvidenceCheck, temporal position tracks (Phase 3)
 - Deletion of obsolete handlers/tables (after Phase 2 product path)
-- Cross-story Neo explorer (post-V2)
+
+### Implemented (Admin Neo)
+
+- **Story Neo** — `/admin/neo/[storyId]` document-scoped Phase 0 discourse explorer (provenance + reprocess)
+- **Story union** — `/admin/neo/union?ids=…` manually add/remove up to 10 story graphs in one Sigma view (search succeeded stories; shared Publication/Entity nodes collapse)
+- **Cross-story Neo hubs** — `/admin/neo/hub/{controversy|proposition|entity}/[uid]` Sigma explorer centered on shared L2/L3 nodes (not a corpus dump). Entry: Graph controversies detail → **Open in Neo**. Validation: [cross-story-neo-validation.md](cross-story-neo-validation.md)
 
 ## Data flow (Phase 0)
 

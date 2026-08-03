@@ -52,17 +52,25 @@ function hashSeed(id: string): number {
 function initialPosition(id: string, kind: DoxaGraphNode['kind'], index: number) {
   const seed = hashSeed(id)
   const ring =
-    kind === 'document'
+    kind === 'controversy'
       ? 0
-      : kind === 'publication'
-        ? 40
-        : kind === 'agent'
-          ? 120
-          : kind === 'entity'
-            ? 145
-            : kind === 'utterance'
-              ? 220
-              : 160
+      : kind === 'document'
+        ? 30
+        : kind === 'viewpoint'
+          ? 70
+          : kind === 'publication'
+            ? 50
+            : kind === 'proposition' || kind === 'dispute'
+              ? 110
+              : kind === 'argument'
+                ? 130
+                : kind === 'agent'
+                  ? 150
+                  : kind === 'entity'
+                    ? 165
+                    : kind === 'utterance'
+                      ? 220
+                      : 180
   const angle = ((seed % 360) + index * 11) * (Math.PI / 180)
   const jitter = (seed % 30) - 15
   return {
@@ -147,9 +155,14 @@ export function buildGraphologyFromProjection(
       graph.hasNode(source) &&
       !graph.hasNode(target)
     ) {
-      const docNode = projection.nodes.find((n) => n.kind === 'document')
-      if (docNode && graph.hasNode(docNode.id)) {
-        target = docNode.id
+      const sourceNode = projection.nodes.find((n) => n.id === source)
+      const docUid = sourceNode?.properties?.documentUid
+      const preferredDocId =
+        typeof docUid === 'string' && docUid
+          ? `document:${docUid}`
+          : projection.nodes.find((n) => n.kind === 'document')?.id
+      if (preferredDocId && graph.hasNode(preferredDocId)) {
+        target = preferredDocId
         edgeId = `${source}->${target}:GROUNDED_IN`
       }
     }

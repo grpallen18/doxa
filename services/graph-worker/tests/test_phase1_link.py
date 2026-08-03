@@ -11,6 +11,8 @@ from app.entity_er import (
     link_entities,
     never_merge_kinds,
     parse_speaker_name,
+    parse_speaker_names,
+    split_conjoined_speaker_names,
 )
 from app.proposition_extract import ExtractedProposition
 from app.proposition_link import (
@@ -203,6 +205,30 @@ class EntityErTests(unittest.TestCase):
         self.assertEqual(parsed.office_normalized, "senator")
         self.assertEqual(parsed.title, "Senator")
 
+    def test_split_conjoined_speakers(self) -> None:
+        parts = split_conjoined_speaker_names("Mark Warner and Rep. Jim Himes")
+        self.assertEqual(parts, ["Mark Warner", "Rep. Jim Himes"])
+        parsed = parse_speaker_names("Mark Warner and Rep. Jim Himes")
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0].name, "Mark Warner")
+        self.assertIsNone(parsed[0].title)
+        self.assertEqual(parsed[1].name, "Jim Himes")
+        self.assertEqual(parsed[1].title, "Representative")
+        self.assertEqual(parsed[1].office_normalized, "representative")
+
+    def test_split_oxford_list(self) -> None:
+        parts = split_conjoined_speaker_names(
+            "Sen. Mark Warner, Rep. Jim Himes, and Sen. Maria Chen"
+        )
+        self.assertEqual(
+            parts,
+            ["Sen. Mark Warner", "Rep. Jim Himes", "Sen. Maria Chen"],
+        )
+
+    def test_split_keeps_org_with_and(self) -> None:
+        surface = "Moms and Dads for Liberty"
+        self.assertEqual(split_conjoined_speaker_names(surface), [surface])
+
     def test_collect_mentions_uses_canonical_name(self) -> None:
         utts = [
             ValidatedUtterance(
@@ -224,6 +250,30 @@ class EntityErTests(unittest.TestCase):
         self.assertEqual(mentions[0][1].name, "Donald Trump")
         self.assertEqual(mentions[0][1].normalized_name, "donald trump")
         self.assertEqual(mentions[0][1].office_normalized, "president")
+
+    def test_collect_mentions_splits_conjoined_speakers(self) -> None:
+        utts = [
+            ValidatedUtterance(
+                text="hello",
+                speech_act="claim",
+                attribution_mode="paraphrase",
+                polarity="neutral",
+                modality="assertive",
+                confidence=0.9,
+                explicit=True,
+                speaker_name="Mark Warner and Rep. Jim Himes",
+                segment_ord=0,
+                char_start=0,
+                char_end=5,
+            )
+        ]
+        mentions = collect_mentions(utts)
+        self.assertEqual(len(mentions), 2)
+        names = {m.name for _, m in mentions}
+        self.assertEqual(names, {"Mark Warner", "Jim Himes"})
+        by_name = {m.name: m for _, m in mentions}
+        self.assertEqual(by_name["Jim Himes"].office_normalized, "representative")
+        self.assertIsNone(by_name["Mark Warner"].office_normalized)
 
     def test_link_exact_name(self) -> None:
         mentions = [

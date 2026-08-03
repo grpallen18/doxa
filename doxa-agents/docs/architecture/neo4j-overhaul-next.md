@@ -1,8 +1,10 @@
 # Neo4j discourse graph — next phases (handoff)
 
-**Completed:** Phase 0 — utterance-grounded foundation. Phase 1 — Proposition + cautious Entity ER (signed off 2026-08-03; Agent/office title split in extractor `2.1.2`).  
+**Completed:** Phase 0 — utterance-grounded foundation. Phase 1 — Proposition + cautious Entity ER. Phase 2 — Argument + Viewpoint/Controversy/Dispute + projections. Cross-story Neo hubs (Controversy / Proposition / Entity).  
 **Phase 0 validation:** [phase0-validation.md](phase0-validation.md)  
 **Phase 1 validation:** [phase1-validation.md](phase1-validation.md)  
+**Phase 2 validation:** [phase2-validation.md](phase2-validation.md)  
+**Cross-story Neo:** [cross-story-neo-validation.md](cross-story-neo-validation.md)  
 **Steering:** [neo4j-graph-architecture.md](neo4j-graph-architecture.md)  
 
 Use the copy-paste prompts below to start the next Cursor plan+execute cycle. Do not re-litigate locked decisions in the steering doc (Utterance ≠ Proposition; Decision-backed canonicalization; vectors never auto-merge).

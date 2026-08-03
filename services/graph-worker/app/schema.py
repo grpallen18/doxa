@@ -41,6 +41,7 @@ Rules:
 - polarity must be one of: affirms, negates, questions.
 - For journalist_voice, speakerName may be null.
 - For direct_quote, paraphrase, and reported_speech, speakerName is REQUIRED (named person/org).
+- speakerName must refer to one person or org. Prefer a single primary speaker. Never invent a fused label that mixes titles across people (bad: "Mark Warner and Rep. Jim Himes" as one identity). When the text clearly co-attributes the same span to two people, you may emit "Name A and Name B" — each side one person with their own title — and the pipeline will create separate Agents.
 - If you cannot identify a speaker, you MUST use attributionMode=journalist_voice with speakerName null — never emit paraphrase/direct_quote/reported_speech without a speaker.
 - modality: short note on hedges/necessity (e.g. "may", "will", "allegedly") or empty string.
 - confidence: 0.0–1.0 for extraction confidence.

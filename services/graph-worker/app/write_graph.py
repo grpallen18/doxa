@@ -8,7 +8,7 @@ import uuid
 from typing import Any
 
 from app.config import EXTRACTOR_VERSION, GRAPH_SCHEMA_VERSION
-from app.entity_er import office_uid_from_normalized, parse_speaker_name
+from app.entity_er import office_uid_from_normalized, parse_speaker_names
 from app.segmenter import TextSegment, segment_uid
 from app.validate import ValidatedUtterance
 
@@ -272,27 +272,30 @@ def write_utterances(
     for utt in utterances:
         u_uid = utterance_uid(document_uid, utt.char_start, utt.char_end, utt.text)
         d_uid = f"{document_uid}:dec:{u_uid.split(':')[-1]}"
-        speaker_uid = None
-        speaker_norm = None
-        speaker_name = None
-        speaker_surface = None
-        office_uid = None
-        office_name = None
-        office_norm = None
-        title = None
+        speakers: list[dict[str, Any]] = []
         if utt.speaker_name:
-            parsed = parse_speaker_name(utt.speaker_name)
-            if parsed.normalized_name:
+            for parsed in parse_speaker_names(utt.speaker_name):
+                if not parsed.normalized_name:
+                    continue
                 # Canonical identity only — titles live on Office via REFERRED_AS.
-                speaker_name = parsed.name
-                speaker_norm = parsed.normalized_name
-                speaker_surface = parsed.surface_form
-                speaker_uid = agent_uid(document_uid, speaker_norm)
+                sp: dict[str, Any] = {
+                    "speakerUid": agent_uid(document_uid, parsed.normalized_name),
+                    "speakerName": parsed.name,
+                    "speakerNorm": parsed.normalized_name,
+                    "speakerSurface": parsed.surface_form,
+                    "officeUid": None,
+                    "officeName": None,
+                    "officeNorm": None,
+                    "title": None,
+                }
                 if parsed.office_name and parsed.office_normalized:
-                    office_name = parsed.office_name
-                    office_norm = parsed.office_normalized
-                    office_uid = office_uid_from_normalized(parsed.office_normalized)
-                    title = parsed.title
+                    sp["officeName"] = parsed.office_name
+                    sp["officeNorm"] = parsed.office_normalized
+                    sp["officeUid"] = office_uid_from_normalized(
+                        parsed.office_normalized
+                    )
+                    sp["title"] = parsed.title
+                speakers.append(sp)
         rows.append(
             {
                 "uid": u_uid,
@@ -307,14 +310,7 @@ def write_utterances(
                 "charEnd": utt.char_end,
                 "segmentUid": segment_uid(document_uid, utt.segment_ord),
                 "decisionUid": d_uid,
-                "speakerUid": speaker_uid,
-                "speakerName": speaker_name,
-                "speakerNorm": speaker_norm,
-                "speakerSurface": speaker_surface,
-                "officeUid": office_uid,
-                "officeName": office_name,
-                "officeNorm": office_norm,
-                "title": title,
+                "speakers": speakers,
             }
         )
 
@@ -344,19 +340,19 @@ def write_utterances(
         dec.status = 'accepted',
         dec.createdAt = datetime()
     MERGE (u)-[:DECIDED_BY]->(dec)
-    FOREACH (_ IN CASE WHEN row.speakerUid IS NULL THEN [] ELSE [1] END |
-      MERGE (a:Agent {uid: row.speakerUid})
-      SET a.name = row.speakerName,
-          a.normalizedName = row.speakerNorm
+    FOREACH (sp IN row.speakers |
+      MERGE (a:Agent {uid: sp.speakerUid})
+      SET a.name = sp.speakerName,
+          a.normalizedName = sp.speakerNorm
       MERGE (u)-[ab:ASSERTED_BY]->(a)
-      SET ab.surfaceForm = row.speakerSurface
+      SET ab.surfaceForm = sp.speakerSurface
     )
-    FOREACH (_ IN CASE WHEN row.officeUid IS NULL THEN [] ELSE [1] END |
-      MERGE (a:Agent {uid: row.speakerUid})
-      MERGE (office:Entity {uid: row.officeUid})
+    FOREACH (sp IN [x IN row.speakers WHERE x.officeUid IS NOT NULL] |
+      MERGE (a:Agent {uid: sp.speakerUid})
+      MERGE (office:Entity {uid: sp.officeUid})
       ON CREATE SET
-        office.name = row.officeName,
-        office.normalizedName = row.officeNorm,
+        office.name = sp.officeName,
+        office.normalizedName = sp.officeNorm,
         office.kindHint = 'office',
         office.schemaVersion = $schema_version,
         office.createdAt = datetime(),
@@ -365,7 +361,7 @@ def write_utterances(
         office.schemaVersion = coalesce(office.schemaVersion, $schema_version),
         office.updatedAt = datetime()
       MERGE (a)-[r:REFERRED_AS {documentUid: $document_uid}]->(office)
-      SET r.title = row.title,
+      SET r.title = sp.title,
           r.source = 'mention_title',
           r.updatedAt = datetime()
     )

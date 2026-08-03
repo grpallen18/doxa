@@ -7,7 +7,7 @@ export const NEO_COLORS_CHANGED_EVENT = 'doxa-neo-colors-changed'
 
 export type NeoKindColorMap = Record<NeoNodeKind, string>
 
-/** Defaults match the Phase 0 legend (canvas is always dark). */
+/** Defaults match the Neo legend (canvas is always dark). */
 export const NEO_KIND_COLOR_DEFAULTS: NeoKindColorMap = {
   document: '#2d5a4a',
   publication: '#a68b6d',
@@ -15,6 +15,11 @@ export const NEO_KIND_COLOR_DEFAULTS: NeoKindColorMap = {
   utterance: '#6b8f71',
   segment: '#8a8580',
   entity: '#7a6b9a',
+  proposition: '#c4a35a',
+  argument: '#b07d62',
+  viewpoint: '#5a8f9a',
+  controversy: '#c45c5c',
+  dispute: '#9a5a7a',
 }
 
 export const NEO_KIND_COLOR_FIELDS: Array<{ kind: NeoNodeKind; label: string }> = [
@@ -24,6 +29,11 @@ export const NEO_KIND_COLOR_FIELDS: Array<{ kind: NeoNodeKind; label: string }> 
   { kind: 'utterance', label: 'Utterance' },
   { kind: 'segment', label: 'Segment' },
   { kind: 'entity', label: 'Entity / Office' },
+  { kind: 'proposition', label: 'Proposition' },
+  { kind: 'argument', label: 'Argument' },
+  { kind: 'viewpoint', label: 'Viewpoint' },
+  { kind: 'controversy', label: 'Controversy' },
+  { kind: 'dispute', label: 'Dispute' },
 ]
 
 function isHexColor(value: string): boolean {

@@ -178,6 +178,7 @@ export function projectPhase0Document(
         modality: u.modality,
         confidence: u.confidence,
         explicit: u.explicit,
+        documentUid: u.documentUid,
         segmentUid: u.segmentUid,
         agentUid: u.agentUid,
         agentName: u.agentName,
@@ -240,6 +241,8 @@ export function projectPhase0Document(
   return {
     projectionId: 'phase0-document',
     storyId: graph.document.uid,
+    rootId: graph.document.uid,
+    rootKind: 'document',
     title: graph.document.title,
     nodes,
     edges,

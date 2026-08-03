@@ -77,26 +77,40 @@ export function NeoStoryList() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             Read-only discourse graphs from Neo4j — story-scoped utterances and provenance.
+            Compose stories in a{' '}
+            <Link href="/admin/neo/union" className="underline hover:text-foreground">
+              story union
+            </Link>
+            , or open a{' '}
+            <Link href="/admin/graph-controversies" className="underline hover:text-foreground">
+              graph controversy
+            </Link>{' '}
+            hub.
           </p>
         </div>
-        <form
-          className="flex w-full max-w-md gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setOffset(0)
-            setTitle(titleDraft.trim())
-          }}
-        >
-          <Input
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            placeholder="Search title…"
-            className="h-9"
-          />
-          <Button type="submit" size="sm" variant="outline">
-            Search
+        <div className="flex w-full max-w-lg flex-col gap-2 sm:items-end">
+          <Button asChild size="sm" variant="outline" className="h-9 shrink-0">
+            <Link href="/admin/neo/union">Story union</Link>
           </Button>
-        </form>
+          <form
+            className="flex w-full max-w-md gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setOffset(0)
+              setTitle(titleDraft.trim())
+            }}
+          >
+            <Input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              placeholder="Search title…"
+              className="h-9"
+            />
+            <Button type="submit" size="sm" variant="outline">
+              Search
+            </Button>
+          </form>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

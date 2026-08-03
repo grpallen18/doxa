@@ -63,14 +63,22 @@ export default function AdminGraphControversyDetailPage() {
 
       {detail && (
         <>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {detail.controversy.title || detail.controversy.uid}
-            </h1>
-            <p className="mt-2 text-sm text-muted">{detail.controversy.summary}</p>
-            <p className="mt-1 text-xs text-muted">
-              {detail.controversy.sides_count} sides · {detail.controversy.topic_key || '—'}
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {detail.controversy.title || detail.controversy.uid}
+              </h1>
+              <p className="mt-2 text-sm text-muted">{detail.controversy.summary}</p>
+              <p className="mt-1 text-xs text-muted">
+                {detail.controversy.sides_count} sides · {detail.controversy.topic_key || '—'}
+              </p>
+            </div>
+            <Link
+              href={`/admin/neo/hub/controversy/${encodeURIComponent(detail.controversy.uid)}`}
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40"
+            >
+              Open in Neo
+            </Link>
           </div>
 
           <Panel>

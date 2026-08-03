@@ -53,6 +53,11 @@ _OFFICE_ORG_PATTERNS = re.compile(
 )
 _PERSON_HINT = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b")
 _SINGLE_NAME = re.compile(r"^[A-Z][a-z]+(?:['’-][A-Z]?[a-z]+)*$")
+# Joint attribution: "Mark Warner and Rep. Jim Himes", "A, B, and C".
+_SPEAKER_LIST_SPLIT = re.compile(
+    r"\s*,\s*(?:and\s+|&\s+)?|\s+and\s+|\s+&\s+",
+    re.I,
+)
 
 
 def normalize_entity_name(name: str) -> str:
@@ -119,6 +124,47 @@ class ExistingEntity:
     normalized_name: str
     kind_hint: str
     embedding: list[float]
+
+
+def _looks_like_person_clause(clause: str) -> bool:
+    """True when a list segment is a titled/untitled person (not an org with 'and')."""
+    surface = re.sub(r"\s+", " ", clause.strip())
+    if not surface:
+        return False
+    working = _HONORIFICS.sub("", surface).strip()
+    working = re.sub(r"^(?:the\s+)", "", working, flags=re.I).strip()
+    working = _LEADING_PARTY.sub("", working).strip()
+    remainder = working
+    for pattern, _canon, _norm in _TITLE_OFFICE_MAP:
+        match = pattern.match(working)
+        if match:
+            remainder = working[match.end() :].strip(" ,")
+            break
+    remainder_clean = remainder.strip()
+    if not remainder_clean:
+        return False
+    if _OFFICE_ORG_PATTERNS.search(remainder_clean) or classify_orgish(remainder_clean):
+        return False
+    return bool(
+        _PERSON_HINT.search(remainder_clean) or _SINGLE_NAME.match(remainder_clean)
+    )
+
+
+def split_conjoined_speaker_names(raw: str) -> list[str]:
+    """Split joint attribution into one surface form per person.
+
+    Only splits when every clause looks person-like, so org names that contain
+    'and' (e.g. committee titles) stay intact.
+    """
+    surface = re.sub(r"\s+", " ", raw.strip())
+    if not surface:
+        return []
+    parts = [p.strip(" ,") for p in _SPEAKER_LIST_SPLIT.split(surface) if p.strip(" ,")]
+    if len(parts) <= 1:
+        return [surface]
+    if all(_looks_like_person_clause(p) for p in parts):
+        return parts
+    return [surface]
 
 
 def parse_speaker_name(raw: str) -> ParsedSpeakerName:
@@ -214,6 +260,15 @@ def parse_speaker_name(raw: str) -> ParsedSpeakerName:
     )
 
 
+def parse_speaker_names(raw: str) -> list[ParsedSpeakerName]:
+    """Parse one or more speakers from a possibly conjoined speakerName."""
+    return [
+        parse_speaker_name(part)
+        for part in split_conjoined_speaker_names(raw)
+        if part.strip()
+    ]
+
+
 def classify_orgish(name: str) -> bool:
     return bool(
         re.search(
@@ -241,8 +296,9 @@ def never_merge_kinds(a: str, b: str) -> bool:
 def collect_mentions(utterances: list[ValidatedUtterance]) -> list[tuple[int, EntityMention]]:
     out: list[tuple[int, EntityMention]] = []
     for i, u in enumerate(utterances):
-        if u.speaker_name and u.speaker_name.strip():
-            parsed = parse_speaker_name(u.speaker_name)
+        if not u.speaker_name or not u.speaker_name.strip():
+            continue
+        for parsed in parse_speaker_names(u.speaker_name):
             if not parsed.normalized_name:
                 continue
             out.append(

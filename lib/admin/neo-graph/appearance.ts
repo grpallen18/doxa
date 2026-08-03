@@ -28,6 +28,11 @@ const KIND_SIZE: Record<
   { baseSize: number; priority: number }
 > = {
   document: { baseSize: 16, priority: 100 },
+  controversy: { baseSize: 18, priority: 110 },
+  viewpoint: { baseSize: 14, priority: 95 },
+  proposition: { baseSize: 12, priority: 90 },
+  dispute: { baseSize: 12, priority: 88 },
+  argument: { baseSize: 11, priority: 75 },
   publication: { baseSize: 12, priority: 80 },
   agent: { baseSize: 11, priority: 70 },
   entity: { baseSize: 10, priority: 65 },
@@ -42,6 +47,14 @@ const EDGE_COLOR: Record<NeoEdgeType, string> = {
   ASSERTED_BY: '#3d5a80',
   REFERRED_AS: '#7a6b9a',
   MENTIONS: '#9a8bb0',
+  EXPRESSES: '#c4a35a',
+  HAS_ROLE: '#b07d62',
+  ADVANCES: '#5a8f9a',
+  INCLUDES: '#c45c5c',
+  RELATES_TO: '#d4a017',
+  CONCERNS: '#9a5a7a',
+  VARIANT_OF: '#8a8580',
+  ABOUT: '#8a8580',
 }
 
 export function resolveNodeAppearance(input: {
