@@ -1,9 +1,13 @@
 // Shared enqueue rules for Neo4j graph_processing_jobs (Phase 0+).
 // See doxa-agents/docs/architecture/neo4j-graph-architecture.md
 // Keep in sync with services/graph-worker/app/config.py
+//
+// These values are stamped at enqueue time (Edge Function deploy snapshot).
+// The Azure graph-worker overwrites them on claim/finish with the running
+// image versions — that image is the source of truth for what code executes.
 
-export const GRAPH_SCHEMA_VERSION = "2.1.0";
-export const GRAPH_EXTRACTOR_VERSION = "2.1.2-utterance-proposition";
+export const GRAPH_SCHEMA_VERSION = "2.2.0";
+export const GRAPH_EXTRACTOR_VERSION = "2.2.0-argument-debate";
 
 /** Default stale threshold for force_stale (matches SQL enqueue_graph_processing_job). */
 export const STALE_RUNNING_MINUTES = 360;

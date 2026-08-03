@@ -20,4 +20,16 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | enqueue-graph-job | `enqueue_graph_job` | inactive | — | story_id |
 | trigger-graph-worker | `trigger_graph_worker` | inactive | yes | story_id |
 
+## Debate (Neo) (`debate`)
+
+| Step | Deploy | Status | Optional | Isolation |
+|------|--------|--------|----------|-----------|
+| generate-proposition-pair-candidates | `generate_proposition_pair_candidates` | inactive | — | story_id |
+| classify-proposition-relationships | `classify_proposition_relationships` | inactive | — | story_id |
+| build-viewpoints | `build_viewpoints` | inactive | — | story_id |
+| build-controversies | `build_controversies` | inactive | — | story_id |
+| detect-disputes | `detect_disputes` | inactive | — | story_id |
+| project-debate-summaries | `project_debate_summaries` | inactive | — | story_id |
+| debate-pipeline | `debate_pipeline` | inactive | — | story_id |
+
 _Generated from pipeline-admin-catalog.yaml + manifest.yaml._

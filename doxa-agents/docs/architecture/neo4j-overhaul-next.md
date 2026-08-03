@@ -1,9 +1,9 @@
 # Neo4j discourse graph — next phases (handoff)
 
-**Completed:** Phase 0 — utterance-grounded foundation (Document / Segment / Utterance / Agent / ExtractionRun / Decision).  
-**Phase 0 validation:** signed off 2026-08-02 — see [phase0-validation.md](phase0-validation.md).  
+**Completed:** Phase 0 — utterance-grounded foundation. Phase 1 — Proposition + cautious Entity ER (signed off 2026-08-03; Agent/office title split in extractor `2.1.2`).  
+**Phase 0 validation:** [phase0-validation.md](phase0-validation.md)  
+**Phase 1 validation:** [phase1-validation.md](phase1-validation.md)  
 **Steering:** [neo4j-graph-architecture.md](neo4j-graph-architecture.md)  
-**Phase 0 checklist:** [phase0-validation.md](phase0-validation.md)
 
 Use the copy-paste prompts below to start the next Cursor plan+execute cycle. Do not re-litigate locked decisions in the steering doc (Utterance ≠ Proposition; Decision-backed canonicalization; vectors never auto-merge).
 
@@ -11,7 +11,9 @@ Use the copy-paste prompts below to start the next Cursor plan+execute cycle. Do
 
 ## Phase 1 — Proposition layer + cautious ER
 
-### Cursor plan prompt (copy-paste)
+### Status
+
+**Done.** Checklist below remains for historical reference.
 
 ```text
 Implement Neo4j discourse graph Phase 1 per doxa-agents/docs/architecture/neo4j-graph-architecture.md and neo4j-overhaul-next.md.
@@ -66,11 +68,13 @@ Out of scope: wholesale deletion of obsolete handlers/tables (Phase 2 cleanup / 
 
 ### Checklist
 
-- [ ] Argument HAS_ROLE edges with utterance provenance paths
-- [ ] Controversy + Viewpoint multi-sided assembly
-- [ ] Supabase projections + authenticated Neo4j read API
-- [ ] Vision canvas primary path updated
-- [ ] Claims review UI redirected or removed from primary nav
+- [x] Argument HAS_ROLE edges with utterance provenance paths
+- [x] Controversy + Viewpoint multi-sided assembly
+- [x] Supabase projections + authenticated Neo4j read API
+- [x] Vision canvas primary path updated
+- [x] Claims review UI redirected or removed from primary nav
+
+See [phase2-validation.md](phase2-validation.md) for Aura/runtime sign-off.
 
 ### Key paths
 

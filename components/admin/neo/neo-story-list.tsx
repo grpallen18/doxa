@@ -126,10 +126,14 @@ export function NeoStoryList() {
       ) : (
         <ul className="space-y-2">
           {items.map((item) => {
-            const canOpenGraph = item.graph_status === 'succeeded'
-            const href = canOpenGraph
-              ? `/admin/neo/${item.story_id}`
-              : `/admin/stories/${item.story_id}`
+            const status = item.graph_status
+            const canOpenWorkspace =
+              status === 'succeeded' ||
+              status === 'failed' ||
+              status === 'quarantined' ||
+              status === 'pending' ||
+              status === 'running'
+            const workspaceHref = `/admin/neo/${item.story_id}`
             return (
               <li key={item.story_id}>
                 <Panel variant="soft" interactive={false} className="p-4">
@@ -153,27 +157,23 @@ export function NeoStoryList() {
                         </span>
                       </div>
                       <Link
-                        href={href}
+                        href={canOpenWorkspace ? workspaceHref : `/admin/stories/${item.story_id}`}
                         className="block text-sm font-medium text-foreground hover:underline line-clamp-2"
                       >
                         {item.title || 'Untitled story'}
                       </Link>
                       {item.job_error && (
-                        <p
-                          className={
-                            item.graph_status === 'quarantined'
-                              ? 'text-xs text-amber-800 dark:text-amber-300 whitespace-pre-wrap break-words'
-                              : 'text-xs text-amber-800 dark:text-amber-300 line-clamp-2'
-                          }
-                        >
+                        <p className="text-xs text-amber-800 dark:text-amber-300 whitespace-pre-wrap break-words">
                           {item.job_error}
                         </p>
                       )}
                     </div>
                     <div className="flex shrink-0 gap-2">
-                      {canOpenGraph && (
+                      {canOpenWorkspace && (
                         <Button asChild size="sm">
-                          <Link href={`/admin/neo/${item.story_id}`}>Open graph</Link>
+                          <Link href={workspaceHref}>
+                            {status === 'succeeded' ? 'Open graph' : 'Open workspace'}
+                          </Link>
                         </Button>
                       )}
                       <Button asChild size="sm" variant="outline">

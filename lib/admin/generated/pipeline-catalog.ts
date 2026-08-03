@@ -10,10 +10,18 @@ export type PipelineStepId =
   | "clean-scraped-content"
   | "enqueue-graph-job"
   | "trigger-graph-worker"
+  | "generate-proposition-pair-candidates"
+  | "classify-proposition-relationships"
+  | "build-viewpoints"
+  | "build-controversies"
+  | "detect-disputes"
+  | "project-debate-summaries"
+  | "debate-pipeline"
 
 export type PipelineStageId =
   | "ingestion"
   | "graph"
+  | "debate"
 
 export type PipelineInvokeOptions = {
   usesMaxChunks: boolean
@@ -65,6 +73,20 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
     "stepIds": [
       "enqueue-graph-job",
       "trigger-graph-worker"
+    ]
+  },
+  {
+    "id": "debate",
+    "label": "Debate (Neo)",
+    "scope": "global",
+    "stepIds": [
+      "generate-proposition-pair-candidates",
+      "classify-proposition-relationships",
+      "build-viewpoints",
+      "build-controversies",
+      "detect-disputes",
+      "project-debate-summaries",
+      "debate-pipeline"
     ]
   }
 ]
@@ -195,6 +217,153 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "timeoutMs": 30000
     },
     "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "generate-proposition-pair-candidates",
+    "deployName": "generate_proposition_pair_candidates",
+    "label": "Proposition pair candidates",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "classify-proposition-relationships",
+    "deployName": "classify_proposition_relationships",
+    "label": "Classify proposition relationships",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 300000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "build-viewpoints",
+    "deployName": "build_viewpoints",
+    "label": "Build viewpoints",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "build-controversies",
+    "deployName": "build_controversies",
+    "label": "Build controversies",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "detect-disputes",
+    "deployName": "detect_disputes",
+    "label": "Detect disputes",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "project-debate-summaries",
+    "deployName": "project_debate_summaries",
+    "label": "Project debate summaries",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "debate-pipeline",
+    "deployName": "debate_pipeline",
+    "label": "Debate pipeline (orchestrator)",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 600000
+    },
+    "inactiveNote": "Not active in activation.yaml"
   }
 ]
 
@@ -205,6 +374,13 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "clean_scraped_content",
   "enqueue_graph_job",
   "trigger_graph_worker",
+  "generate_proposition_pair_candidates",
+  "classify_proposition_relationships",
+  "build_viewpoints",
+  "build_controversies",
+  "detect_disputes",
+  "project_debate_summaries",
+  "debate_pipeline",
 ])
 
 const STEP_BY_ID = new Map<PipelineStepId, PipelineCatalogStep>(

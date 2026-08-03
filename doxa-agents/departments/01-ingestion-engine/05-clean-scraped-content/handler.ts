@@ -1,5 +1,6 @@
 // Supabase Edge Function: clean raw article text with LLM (remove site chrome).
-// Selects story_bodies where content_clean IS NULL, sends content_raw to OpenAI, writes content_clean.
+// Prefer story_bodies where content_clean IS NULL; also retries enqueue for rows that
+// already have content_clean but stories.graph_status IS NULL (orphan after enqueue fail).
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY, OPENAI_MODEL. Optional: OPENAI_MODEL_LARGE.
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
 // Body: { max_stories?: number, dry_run?: boolean, story_id?: string } — story_id isolates one row.
@@ -179,27 +180,84 @@ export const handler = async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const requestId = `clean-scraped-${Date.now()}`;
 
-  let fetchQuery = supabase
+  type WorkRow = {
+    story_id: string;
+    content_raw: string;
+    content_clean: string | null;
+    content_length_raw: number | null;
+    needs_clean: boolean;
+  };
+
+  let work: WorkRow | null = null;
+
+  // Prefer rows that still need LLM cleaning.
+  let uncleanQuery = supabase
     .from("story_bodies")
-    .select("story_id, content_raw, content_length_raw")
+    .select("story_id, content_raw, content_clean, content_length_raw")
     .is("content_clean", null)
     .not("content_raw", "is", null);
-  if (singleStoryId) fetchQuery = fetchQuery.eq("story_id", singleStoryId);
-  const { data: rows, error: fetchErr } = await fetchQuery
+  if (singleStoryId) uncleanQuery = uncleanQuery.eq("story_id", singleStoryId);
+  const { data: uncleanRows, error: uncleanErr } = await uncleanQuery
     .order("scraped_at", { ascending: true })
     .limit(singleStoryId ? 1 : maxStories);
 
-  if (fetchErr) {
-    console.error("[clean_scraped_content] story_bodies fetch error:", fetchErr.message);
-    return json({ error: fetchErr.message }, 500);
+  if (uncleanErr) {
+    console.error("[clean_scraped_content] story_bodies fetch error:", uncleanErr.message);
+    return json({ error: uncleanErr.message }, 500);
   }
 
-  const candidates = (Array.isArray(rows) ? rows : []).filter(
-    (r): r is { story_id: string; content_raw: string; content_length_raw: number | null } =>
-      typeof r === "object" && r !== null && typeof (r as { story_id: unknown }).story_id === "string"
+  const unclean = (Array.isArray(uncleanRows) ? uncleanRows : []).find(
+    (r): r is {
+      story_id: string;
+      content_raw: string;
+      content_clean: string | null;
+      content_length_raw: number | null;
+    } =>
+      typeof r === "object" &&
+      r !== null &&
+      typeof (r as { story_id: unknown }).story_id === "string"
   );
 
-  if (candidates.length === 0) {
+  if (unclean) {
+    work = { ...unclean, needs_clean: true };
+  } else {
+    // Retry path: cleaned body exists but graph was never enqueued (graph_status still null).
+    // Query bodies first so older unclean null-graph stories cannot block younger orphans.
+    let orphanBodyQuery = supabase
+      .from("story_bodies")
+      .select("story_id, content_raw, content_clean, content_length_raw, stories!inner(graph_status)")
+      .not("content_clean", "is", null)
+      .not("content_raw", "is", null)
+      .is("stories.graph_status", null);
+    if (singleStoryId) orphanBodyQuery = orphanBodyQuery.eq("story_id", singleStoryId);
+    const { data: orphanBodies, error: orphanBodyErr } = await orphanBodyQuery
+      .order("scraped_at", { ascending: true })
+      .limit(singleStoryId ? 1 : maxStories);
+
+    if (orphanBodyErr) {
+      console.error("[clean_scraped_content] orphan bodies fetch error:", orphanBodyErr.message);
+      return json({ error: orphanBodyErr.message }, 500);
+    }
+
+    const orphanBody = (Array.isArray(orphanBodies) ? orphanBodies : []).find(
+      (r): r is {
+        story_id: string;
+        content_raw: string;
+        content_clean: string | null;
+        content_length_raw: number | null;
+      } =>
+        typeof r === "object" &&
+        r !== null &&
+        typeof (r as { story_id: unknown }).story_id === "string" &&
+        typeof (r as { content_clean: unknown }).content_clean === "string"
+    );
+
+    if (orphanBody) {
+      work = { ...orphanBody, needs_clean: false };
+    }
+  }
+
+  if (!work) {
     if (!dryRun && singleStoryId) {
       await recordStoryStepRun(supabase, {
         storyId: singleStoryId,
@@ -207,18 +265,18 @@ export const handler = async (req: Request) => {
         deployName: DEPLOY_NAME,
         outcome: "no_op",
         trigger: resolveStoryStepTrigger(singleStoryId),
-        meta: { message: "No story_bodies to clean" },
+        meta: { message: "No story_bodies to clean or enqueue" },
       });
     }
     return json({
       ok: true,
       processed: 0,
-      message: "No story_bodies to clean",
+      message: "No story_bodies to clean or enqueue",
       ...testScopeFields({ storyId: singleStoryId }),
     });
   }
 
-  const row = candidates[0];
+  const row = work;
   const contentRaw = (row.content_raw ?? "").trim();
   const contentLengthRaw = row.content_length_raw ?? contentRaw.length;
 
@@ -229,8 +287,9 @@ export const handler = async (req: Request) => {
   const model = contentLengthRaw > LARGE_CONTENT_THRESHOLD ? OPENAI_MODEL_LARGE : OPENAI_MODEL;
 
   let contentClean: string;
-
-  if (contentLengthRaw > VERY_LONG_CONTENT_THRESHOLD) {
+  if (!row.needs_clean && typeof row.content_clean === "string" && row.content_clean.trim()) {
+    contentClean = row.content_clean.trim();
+  } else if (contentLengthRaw > VERY_LONG_CONTENT_THRESHOLD) {
     const start = contentRaw.slice(0, HEAD_TAIL_CHARS);
     const end = contentRaw.slice(-HEAD_TAIL_CHARS);
     const middle = contentRaw.slice(HEAD_TAIL_CHARS, contentRaw.length - HEAD_TAIL_CHARS);
@@ -247,27 +306,29 @@ export const handler = async (req: Request) => {
   }
 
   if (!dryRun) {
-    const now = new Date().toISOString();
-    const { error: updateErr } = await supabase
-      .from("story_bodies")
-      .update({
-        content_clean: contentClean,
-        cleaned_at: now,
-        cleaner_model: model,
-      })
-      .eq("story_id", row.story_id);
+    if (row.needs_clean) {
+      const now = new Date().toISOString();
+      const { error: updateErr } = await supabase
+        .from("story_bodies")
+        .update({
+          content_clean: contentClean,
+          cleaned_at: now,
+          cleaner_model: model,
+        })
+        .eq("story_id", row.story_id);
 
-    if (updateErr) {
-      console.error("[clean_scraped_content] story_bodies update error:", updateErr.message);
-      await recordStoryStepRun(supabase, {
-        storyId: row.story_id,
-        stepId: STEP_ID,
-        deployName: DEPLOY_NAME,
-        outcome: "failure",
-        trigger: resolveStoryStepTrigger(singleStoryId),
-        error: updateErr.message,
-      });
-      return json({ error: updateErr.message }, 500);
+      if (updateErr) {
+        console.error("[clean_scraped_content] story_bodies update error:", updateErr.message);
+        await recordStoryStepRun(supabase, {
+          storyId: row.story_id,
+          stepId: STEP_ID,
+          deployName: DEPLOY_NAME,
+          outcome: "failure",
+          trigger: resolveStoryStepTrigger(singleStoryId),
+          error: updateErr.message,
+        });
+        return json({ error: updateErr.message }, 500);
+      }
     }
 
     const enqueue = await enqueueGraphJob(supabase, row.story_id);
@@ -279,15 +340,24 @@ export const handler = async (req: Request) => {
         deployName: DEPLOY_NAME,
         outcome: "failure",
         trigger: resolveStoryStepTrigger(singleStoryId),
-        error: `content_clean written but graph enqueue failed: ${enqueue.error}`,
-        meta: { content_length_clean: contentClean.length, cleaned: true },
+        error: row.needs_clean
+          ? `content_clean written but graph enqueue failed: ${enqueue.error}`
+          : `graph enqueue retry failed: ${enqueue.error}`,
+        meta: {
+          content_length_clean: contentClean.length,
+          cleaned: row.needs_clean,
+          enqueue_retry: !row.needs_clean,
+        },
       });
       return json(
         {
           ok: false,
-          cleaned: true,
+          cleaned: row.needs_clean || Boolean(row.content_clean),
+          enqueue_retry: !row.needs_clean,
           story_id: row.story_id,
-          error: `content_clean written but graph enqueue failed: ${enqueue.error}`,
+          error: row.needs_clean
+            ? `content_clean written but graph enqueue failed: ${enqueue.error}`
+            : `graph enqueue retry failed: ${enqueue.error}`,
           ...testScopeFields({ storyId: singleStoryId }),
         },
         500
@@ -302,6 +372,8 @@ export const handler = async (req: Request) => {
       trigger: resolveStoryStepTrigger(singleStoryId),
       meta: {
         content_length_clean: contentClean.length,
+        cleaned: row.needs_clean,
+        enqueue_retry: !row.needs_clean,
         graph_enqueued: !enqueue.skipped,
         graph_enqueue_skipped: enqueue.skipped ? enqueue.reason : undefined,
       },
@@ -314,7 +386,9 @@ export const handler = async (req: Request) => {
     story_id: row.story_id,
     content_length_raw: contentLengthRaw,
     content_length_clean: contentClean.length,
-    model,
+    model: row.needs_clean ? model : undefined,
+    cleaned: row.needs_clean,
+    enqueue_retry: !row.needs_clean,
     dry_run: dryRun,
     ...testScopeFields({ storyId: singleStoryId }),
   });

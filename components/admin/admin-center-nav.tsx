@@ -9,9 +9,9 @@ export const ADMIN_QUICK_LINKS = [
   { href: '/admin', label: 'Admin Center', match: 'exact' as const },
   { href: '/admin/stories', label: 'Stories', match: 'prefix' as const },
   { href: '/admin/neo', label: 'Neo', match: 'prefix' as const },
+  { href: '/admin/graph-controversies', label: 'Debate', match: 'prefix' as const },
   { href: '/admin/health', label: 'Health', match: 'prefix' as const },
   { href: '/admin/topics', label: 'Topics', match: 'prefix' as const },
-  { href: '/admin/positions', label: 'Agreements', match: 'prefix' as const },
 ] as const
 
 type AdminCenterNavProps = {

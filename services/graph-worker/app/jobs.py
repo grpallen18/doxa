@@ -87,6 +87,21 @@ def start_attempt(
     return result.data[0]["id"]
 
 
+def stamp_job_runtime_versions(client: Client, job_id: str) -> None:
+    """Overwrite enqueue-time versions with this worker image's versions.
+
+    Edge Function deploys can lag the Azure worker; the running image is SoT for
+    what code actually executes.
+    """
+    client.table("graph_processing_jobs").update(
+        {
+            "schema_version": GRAPH_SCHEMA_VERSION,
+            "extractor_version": EXTRACTOR_VERSION,
+            "updated_at": _now(),
+        }
+    ).eq("id", job_id).execute()
+
+
 def finish_job_success(
     client: Client,
     *,
@@ -177,6 +192,8 @@ def finish_job_failure(
                 "finished_at": now,
                 "updated_at": now,
                 "error": error[:4000],
+                "schema_version": GRAPH_SCHEMA_VERSION,
+                "extractor_version": EXTRACTOR_VERSION,
                 "locked_at": None,
                 "locked_by": None,
             }

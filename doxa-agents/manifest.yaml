@@ -254,6 +254,65 @@ steps:
     status: inactive
     source: doxa-agents/departments/05-business-operations/maintenance/03-clustering-cleanup-unschedule
     description: One-time unschedule of deprecated crons
+  - id: generate-proposition-pair-candidates
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/01-generate-proposition-pair-candidates
+    deploy_name: generate_proposition_pair_candidates
+    verify_jwt: false
+  - id: classify-proposition-relationships
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/02-classify-proposition-relationships
+    deploy_name: classify_proposition_relationships
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: build-viewpoints
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/03-build-viewpoints
+    deploy_name: build_viewpoints
+    verify_jwt: false
+  - id: build-controversies
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/04-build-controversies
+    deploy_name: build_controversies
+    verify_jwt: false
+  - id: detect-disputes
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/05-detect-disputes
+    deploy_name: detect_disputes
+    verify_jwt: false
+  - id: project-debate-summaries
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/06-project-debate-summaries
+    deploy_name: project_debate_summaries
+    verify_jwt: false
+  - id: debate-pipeline
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/07-debate-pipeline
+    deploy_name: debate_pipeline
+    verify_jwt: false
   - id: standardize-chunk-extraction
     department: legacy
     workflow: 02-chunking-engine

@@ -231,7 +231,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
                 ? ` · ${jobStatus?.extractor_version ?? graph?.document.extractorVersion}`
                 : ''}
               {graph
-                ? ` · ${graph.phase1.propositionCount} propositions · ${graph.phase1.entityCount} entities · ${graph.phase1.expressesCount} EXPRESSES`
+                ? ` · ${graph.phase1.propositionCount} propositions · ${graph.phase1.entityCount} entities · ${graph.phase2?.argumentCount ?? 0} arguments · ${graph.phase1.expressesCount} EXPRESSES`
                 : ''}
             </p>
           ) : null}
@@ -241,7 +241,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
           {jobStatus?.job_error &&
           (jobStatus.graph_status === 'failed' ||
             jobStatus.graph_status === 'quarantined') ? (
-            <p className="mt-1 max-w-2xl text-[11px] text-amber-300/90 line-clamp-2">
+            <p className="mt-1 max-w-3xl text-[11px] text-amber-300/90 whitespace-pre-wrap break-words">
               {jobStatus.job_error}
             </p>
           ) : null}

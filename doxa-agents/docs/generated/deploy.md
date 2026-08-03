@@ -19,6 +19,13 @@ supabase functions deploy review_merged_extraction
 supabase functions deploy enqueue_graph_job
 supabase functions deploy trigger_graph_worker
 supabase functions deploy discord_daily_health
+supabase functions deploy generate_proposition_pair_candidates
+supabase functions deploy classify_proposition_relationships
+supabase functions deploy build_viewpoints
+supabase functions deploy build_controversies
+supabase functions deploy detect_disputes
+supabase functions deploy project_debate_summaries
+supabase functions deploy debate_pipeline
 ```
 
 JWT exceptions:
@@ -37,6 +44,13 @@ supabase functions deploy merge_story_claims --no-verify-jwt
 supabase functions deploy review_merged_extraction --no-verify-jwt
 supabase functions deploy enqueue_graph_job --no-verify-jwt
 supabase functions deploy trigger_graph_worker --no-verify-jwt
+supabase functions deploy generate_proposition_pair_candidates --no-verify-jwt
+supabase functions deploy classify_proposition_relationships --no-verify-jwt
+supabase functions deploy build_viewpoints --no-verify-jwt
+supabase functions deploy build_controversies --no-verify-jwt
+supabase functions deploy detect_disputes --no-verify-jwt
+supabase functions deploy project_debate_summaries --no-verify-jwt
+supabase functions deploy debate_pipeline --no-verify-jwt
 supabase functions deploy refine_merged_extraction --no-verify-jwt
 supabase functions deploy validate_merged_extraction --no-verify-jwt
 supabase functions deploy aggregate_position_pair_scores --no-verify-jwt

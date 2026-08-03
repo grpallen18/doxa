@@ -1,4 +1,4 @@
-"""Phase 0+1 pipeline: utterances then propositions + entity ER."""
+"""Phase 0+1+2a pipeline: utterances, propositions/entities, then Arguments."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 
 from neo4j import GraphDatabase
 
+from app.argument_extract import extract_arguments
 from app.config import Settings
 from app.embeddings import embed_texts
 from app.entity_er import (
@@ -26,12 +27,14 @@ from app.validate import validate_utterances
 from app.write_graph import (
     audit_document_provenance,
     audit_phase1_provenance,
+    audit_phase2_provenance,
     delete_document_subgraph,
     fetch_existing_entities,
     fetch_existing_propositions,
     new_run_uid,
     upsert_document_anchors,
     utterance_uids_for_validated,
+    write_arguments,
     write_entities,
     write_extraction_run,
     write_propositions,
@@ -214,12 +217,36 @@ def process_story(settings: Settings, story: dict[str, Any]) -> dict[str, Any]:
                 "Phase 1 provenance audit failed: " + "; ".join(p1_problems[:20])
             )
 
+        # --- Phase 2a: Arguments ---
+        arguments, arg_tokens = extract_arguments(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            document_uid=document_uid,
+            utterances=validated,
+            linked_props=linked_props,
+        )
+        token_usage = _merge_tokens(token_usage, arg_tokens)
+        write_arguments(
+            driver,
+            settings.neo4j_database,
+            document_uid=document_uid,
+            arguments=arguments,
+        )
+        p2_problems = audit_phase2_provenance(
+            driver, settings.neo4j_database, document_uid
+        )
+        if p2_problems:
+            raise QuarantineError(
+                "Phase 2 provenance audit failed: " + "; ".join(p2_problems[:20])
+            )
+
         logger.info(
-            "Phase 0+1 graph write complete document_uid=%s utterances=%s props=%s entities=%s",
+            "Phase 0+1+2a graph write complete document_uid=%s utterances=%s props=%s entities=%s args=%s",
             document_uid,
             len(validated),
             len(linked_props),
             entity_count,
+            len(arguments),
         )
 
         return {
@@ -232,6 +259,7 @@ def process_story(settings: Settings, story: dict[str, Any]) -> dict[str, Any]:
             "segment_count": len(segments),
             "proposition_count": len(linked_props),
             "entity_count": entity_count,
+            "argument_count": len(arguments),
             "extraction_run_uid": run_uid,
         }
     finally:

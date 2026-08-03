@@ -14,11 +14,12 @@ legacy/               → archived merge / canonical / topology (pending deletio
 
 **Steering document:** [docs/architecture/neo4j-graph-architecture.md](docs/architecture/neo4j-graph-architecture.md)  
 **Next phases:** [docs/architecture/neo4j-overhaul-next.md](docs/architecture/neo4j-overhaul-next.md)  
-**Phase 0 validation:** [docs/architecture/phase0-validation.md](docs/architecture/phase0-validation.md)
+**Phase 0 validation:** [docs/architecture/phase0-validation.md](docs/architecture/phase0-validation.md)  
+**Phase 1 validation:** [docs/architecture/phase1-validation.md](docs/architecture/phase1-validation.md)
 
 **Admin runnable catalog:** ingestion + graph enqueue/trigger. Custom claims extract/review/merge is **replaced** by the Neo4j utterance path (Python worker). Old handlers remain under `02-chunking-engine` / `03-merging-engine` / `legacy/` until post–Phase 2 cleanup.
 
-**Important:** Controversy topology is the product surface; Neo4j is the discourse substrate. Phase 0 writes Utterances only. Proposition linking and debate agree/oppose/controversy assembly are Doxa-owned later phases—not assumed from generic GraphRAG output.
+**Important:** Controversy topology is the product surface; Neo4j is the discourse substrate. Phase 0–2a write Utterances → Propositions/Entities → Arguments in the graph-worker. Cross-document Viewpoint / Controversy / Dispute assembly is the Edge `debate_pipeline`.
 
 ## What you edit manually
 

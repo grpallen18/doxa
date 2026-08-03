@@ -86,7 +86,7 @@ class ValidatorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_utterances(raw, document_text=self.body, segments=self.segments)
 
-    def test_requires_speaker_unless_journalist(self) -> None:
+    def test_missing_speaker_coerces_to_journalist_voice(self) -> None:
         seg0 = self.segments[0]
         span = seg0.text[:20]
         raw = [
@@ -104,12 +104,15 @@ class ValidatorTests(unittest.TestCase):
                 "charEnd": seg0.char_start + len(span),
             }
         ]
-        with self.assertRaises(ValueError):
-            validate_utterances(raw, document_text=self.body, segments=self.segments)
+        validated = validate_utterances(
+            raw, document_text=self.body, segments=self.segments
+        )
+        self.assertEqual(len(validated), 1)
+        self.assertEqual(validated[0].attribution_mode, "journalist_voice")
+        self.assertIsNone(validated[0].speaker_name)
+        self.assertLessEqual(validated[0].confidence, 0.55)
 
     def test_locates_truncated_quote(self) -> None:
-        from app.validate import validate_utterances
-
         body = (
             'President said, \u201cI\u2019d like to see it smaller. I think there are a lot '
             'of people in there that shouldn\u2019t be there,\u201d he added.'
@@ -133,29 +136,73 @@ class ValidatorTests(unittest.TestCase):
         validated = validate_utterances(raw, document_text=body, segments=segments)
         self.assertEqual(len(validated), 1)
         self.assertIn("smaller", validated[0].text)
-        self.assertEqual(body[validated[0].char_start : validated[0].char_end], validated[0].text)
+        self.assertEqual(
+            body[validated[0].char_start : validated[0].char_end],
+            validated[0].text,
+        )
 
-        seg1 = self.segments[-1]
-        span = seg1.text
+    def test_locates_mid_sentence_skip_paraphrase(self) -> None:
+        """LLM drops an interrupting clause; longest contiguous n-gram still grounds."""
+        body = (
+            "Sources had previously told CNN that Bill Pulte, Trump's pick to serve "
+            "as director of national intelligence in an acting capacity, was looking "
+            "at cutting hundreds of jobs at the Office of the Director of National "
+            "Intelligence (ODNI)."
+        )
+        segments = segment_text(body, min_chars=1)
         raw = [
             {
-                "text": span,
+                "text": (
+                    "Bill Pulte was looking at cutting hundreds of jobs at the "
+                    "Office of the Director"
+                ),
+                "speechAct": "assertion",
+                "attributionMode": "paraphrase",
+                "polarity": "affirms",
+                "modality": "",
+                "confidence": 0.9,
+                "explicit": True,
+                "speakerName": "source",
+                "segmentOrd": 0,
+                "charStart": 40,
+                "charEnd": 80,
+            }
+        ]
+        validated = validate_utterances(raw, document_text=body, segments=segments)
+        self.assertEqual(len(validated), 1)
+        self.assertIn("was looking at cutting", validated[0].text)
+        self.assertEqual(
+            body[validated[0].char_start : validated[0].char_end],
+            validated[0].text,
+        )
+
+    def test_locates_case_insensitive_contiguous(self) -> None:
+        body = (
+            "The firings came as top Democrats on the Senate and House Intelligence "
+            "Committees sent a letter on Monday."
+        )
+        segments = segment_text(body, min_chars=1)
+        raw = [
+            {
+                "text": (
+                    "the firings came as top Democrats on the Senate and House "
+                    "Intelligence Committee"
+                ),
                 "speechAct": "assertion",
                 "attributionMode": "journalist_voice",
                 "polarity": "affirms",
                 "modality": "",
-                "confidence": 0.7,
+                "confidence": 0.8,
                 "explicit": True,
                 "speakerName": None,
-                "segmentOrd": seg1.ord,
-                "charStart": seg1.char_start,
-                "charEnd": seg1.char_end,
+                "segmentOrd": 0,
+                "charStart": 0,
+                "charEnd": 20,
             }
         ]
-        validated = validate_utterances(
-            raw, document_text=self.body, segments=self.segments
-        )
-        self.assertEqual(validated[0].attribution_mode, "journalist_voice")
+        validated = validate_utterances(raw, document_text=body, segments=segments)
+        self.assertEqual(len(validated), 1)
+        self.assertTrue(validated[0].text.startswith("The firings came"))
 
 
 if __name__ == "__main__":

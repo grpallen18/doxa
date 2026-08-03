@@ -96,6 +96,30 @@ BEGIN
     v_skipped := array_append(v_skipped, 'graph_processing_jobs');
   END IF;
 
+  -- required: graph_controversy_evidence
+  IF 'public.graph_controversy_evidence'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_controversy_evidence RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_controversy_evidence');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_controversy_evidence');
+  END IF;
+
+  -- required: graph_viewpoints
+  IF 'public.graph_viewpoints'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_viewpoints RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_viewpoints');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_viewpoints');
+  END IF;
+
+  -- required: graph_controversies
+  IF 'public.graph_controversies'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_controversies RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_controversies');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_controversies');
+  END IF;
+
   -- required: controversy_viewpoints
   IF 'public.controversy_viewpoints'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.controversy_viewpoints RESTART IDENTITY CASCADE';

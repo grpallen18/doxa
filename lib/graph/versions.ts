@@ -3,8 +3,8 @@
  * Keep in sync with doxa-agents/lib/graph-jobs.ts and
  * services/graph-worker/app/config.py
  */
-export const GRAPH_SCHEMA_VERSION = '2.1.0'
-export const GRAPH_EXTRACTOR_VERSION = '2.1.2-utterance-proposition'
+export const GRAPH_SCHEMA_VERSION = '2.2.0'
+export const GRAPH_EXTRACTOR_VERSION = '2.2.0-argument-debate'
 
 /** Admin reprocess: clear stale running locks after 1 minute. */
 export const ADMIN_STALE_RUNNING_MINUTES = 1

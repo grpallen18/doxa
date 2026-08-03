@@ -71,6 +71,10 @@ export type NeoDocumentGraph = {
     entityCount: number
     expressesCount: number
   }
+  phase2: {
+    argumentCount: number
+    hasRoleCount: number
+  }
 }
 
 function asNumber(value: unknown, fallback = 0): number {
@@ -182,9 +186,14 @@ export async function getDocumentGraph(
       MATCH (u:Utterance {documentUid: $storyId})
       OPTIONAL MATCH (u)-[ex:EXPRESSES]->(p:Proposition)
       OPTIONAL MATCH (u)-[:MENTIONS]->(e:Entity)
-      RETURN count(DISTINCT p) AS propositionCount,
-             count(DISTINCT e) AS entityCount,
-             count(DISTINCT ex) AS expressesCount
+      WITH count(DISTINCT p) AS propositionCount,
+           count(DISTINCT e) AS entityCount,
+           count(DISTINCT ex) AS expressesCount
+      OPTIONAL MATCH (arg:Argument {documentUid: $storyId})
+      OPTIONAL MATCH (arg)-[hr:HAS_ROLE]->(:Proposition)
+      RETURN propositionCount, entityCount, expressesCount,
+             count(DISTINCT arg) AS argumentCount,
+             count(DISTINCT hr) AS hasRoleCount
       `,
       { storyId }
     )
@@ -193,6 +202,10 @@ export async function getDocumentGraph(
       propositionCount: asNumber(counts?.get('propositionCount')),
       entityCount: asNumber(counts?.get('entityCount')),
       expressesCount: asNumber(counts?.get('expressesCount')),
+    }
+    const phase2 = {
+      argumentCount: asNumber(counts?.get('argumentCount')),
+      hasRoleCount: asNumber(counts?.get('hasRoleCount')),
     }
 
     const officeResult = await session.run(
@@ -256,6 +269,7 @@ export async function getDocumentGraph(
       ),
       referredAs,
       phase1,
+      phase2,
     }
   })
 }

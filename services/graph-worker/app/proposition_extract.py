@@ -9,6 +9,7 @@ from typing import Any
 
 from openai import OpenAI
 
+from app.openai_compat import chat_completion_kwargs
 from app.validate import ValidatedUtterance
 
 SYSTEM = """You extract normalized Propositions from political discourse Utterances.
@@ -67,13 +68,15 @@ def extract_propositions(
     }
     client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(
-        model=model,
-        temperature=0,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": json.dumps(payload)},
-        ],
+        **chat_completion_kwargs(
+            model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": SYSTEM},
+                {"role": "user", "content": json.dumps(payload)},
+            ],
+        )
     )
     usage = response.usage
     token_usage = {

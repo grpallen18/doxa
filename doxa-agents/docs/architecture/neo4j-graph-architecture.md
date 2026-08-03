@@ -1,8 +1,8 @@
 # Neo4j graph architecture (steering document)
 
-**Status:** Phase 1 implemented (Proposition + cautious Entity ER; Phase 0 validation signed off)  
-**Next phases:** [neo4j-overhaul-next.md](neo4j-overhaul-next.md)  
-**Validation:** [phase0-validation.md](phase0-validation.md)
+**Status:** Phase 2 implemented (Argument in worker; Viewpoint/Controversy/Dispute Edge Functions + projections)  
+**Next:** Phase 3 — Assessments / EvidenceCheck — see [neo4j-overhaul-next.md](neo4j-overhaul-next.md)  
+**Validation:** [phase0-validation.md](phase0-validation.md) · [phase1-validation.md](phase1-validation.md) · [phase2-validation.md](phase2-validation.md)
 
 This is the authoritative architecture document for the Neo4j discourse graph. Implementation work should reference this file. Do not maintain contradictory pipeline descriptions elsewhere.
 
@@ -50,10 +50,9 @@ Lower layers never depend on upper layers. Embeddings generate **candidates only
 
 ### Deferred
 
-- Proposition / `EXPRESSES` / ER quarantine (Phase 1)
-- Argument / Viewpoint / Controversy (Phase 2)
 - Assessments, EvidenceCheck, temporal position tracks (Phase 3)
 - Deletion of obsolete handlers/tables (after Phase 2 product path)
+- Cross-story Neo explorer (post-V2)
 
 ## Data flow (Phase 0)
 

@@ -95,7 +95,7 @@ def normalize_raw_utterance(raw: Any) -> dict[str, Any]:
 
 
 def _normalize_for_search(value: str) -> str:
-    return (
+    collapsed = (
         value.replace("\u201c", '"')
         .replace("\u201d", '"')
         .replace("\u2018", "'")
@@ -104,6 +104,8 @@ def _normalize_for_search(value: str) -> str:
         .replace("\u2013", "-")
         .replace("\xa0", " ")
     )
+    # Preserve length for ASCII casefold mapping back to original offsets.
+    return "".join(ch.lower() if ("A" <= ch <= "Z") else ch for ch in collapsed)
 
 
 def _find_in_regions(
@@ -118,6 +120,14 @@ def _find_in_regions(
         if idx >= 0:
             return start + idx
     return None
+
+
+def _token_overlap_ratio(a: str, b: str) -> float:
+    ta = {w for w in _normalize_for_search(a).split() if len(w) > 2}
+    tb = {w for w in _normalize_for_search(b).split() if len(w) > 2}
+    if not ta:
+        return 0.0
+    return len(ta & tb) / len(ta)
 
 
 def _expand_span(document_text: str, start: int, min_end: int) -> tuple[int, int]:
@@ -150,17 +160,27 @@ def _locate_span(
         raise ValueError("text is empty")
 
     search_regions: list[tuple[int, int]] = []
-    if (
+    preferred_ok = (
         preferred_start is not None
         and preferred_end is not None
         and 0 <= preferred_start < preferred_end <= len(document_text)
-    ):
-        pad = 120
+    )
+    if preferred_ok:
+        pad = 160
         search_regions.append(
-            (max(0, preferred_start - pad), min(len(document_text), preferred_end + pad))
+            (
+                max(0, preferred_start - pad),
+                min(len(document_text), preferred_end + pad),
+            )
         )
     search_regions.append((segment.char_start, segment.char_end))
     search_regions.append((0, len(document_text)))
+
+    # 0) Prefer model offsets when the window overlaps the claimed text well.
+    if preferred_ok:
+        preferred_text = document_text[preferred_start:preferred_end].strip()
+        if preferred_text and _token_overlap_ratio(needle, preferred_text) >= 0.55:
+            return preferred_start, preferred_end, preferred_text
 
     # 1) Exact / whitespace-collapsed exact in original text.
     for start, end in search_regions:
@@ -171,7 +191,7 @@ def _locate_span(
             abs_end = abs_start + len(text.strip())
             return abs_start, abs_end, document_text[abs_start:abs_end]
 
-    # 2) Quote-normalized full string.
+    # 2) Quote-/case-normalized full string (ASCII casefold keeps offsets aligned).
     norm_doc = _normalize_for_search(document_text)
     norm_needle = _normalize_for_search(needle)
     abs_start = _find_in_regions(norm_doc, norm_needle, search_regions)
@@ -179,8 +199,25 @@ def _locate_span(
         abs_end = abs_start + len(norm_needle)
         return abs_start, abs_end, document_text[abs_start:abs_end]
 
-    # 3) Prefix anchors when the model truncates mid-quote.
     words = norm_needle.split()
+
+    # 3) Longest contiguous word n-gram (not only prefixes) — recovers mid-sentence
+    # skips like "Bill Pulte, …, was looking at cutting…".
+    min_gram = 4 if len(words) >= 4 else max(2, len(words))
+    max_gram = min(len(words), 28)
+    for length in range(max_gram, min_gram - 1, -1):
+        for i in range(0, len(words) - length + 1):
+            phrase = " ".join(words[i : i + length])
+            abs_start = _find_in_regions(norm_doc, phrase, search_regions)
+            if abs_start is None:
+                continue
+            min_end = abs_start + len(phrase)
+            abs_start, abs_end = _expand_span(document_text, abs_start, min_end)
+            grounded = document_text[abs_start:abs_end].strip()
+            if grounded and _token_overlap_ratio(needle, grounded) >= 0.4:
+                return abs_start, abs_end, grounded
+
+    # 4) Short prefix anchors when the model truncates mid-quote.
     for n in range(min(len(words), 16), 3, -1):
         prefix = " ".join(words[:n])
         abs_start = _find_in_regions(norm_doc, prefix, search_regions)
@@ -238,10 +275,11 @@ def validate_utterances(
             speaker_name = raw.get("speakerName")
             if isinstance(speaker_name, str):
                 speaker_name = speaker_name.strip() or None
+            # Under-merge: LLM often tags paraphrase without a speaker. Prefer
+            # journalist_voice over quarantining the whole document.
             if attribution_mode != "journalist_voice" and not speaker_name:
-                raise ValueError(
-                    f"speakerName required for attributionMode={attribution_mode}"
-                )
+                attribution_mode = "journalist_voice"
+                confidence = min(confidence, 0.55)
 
             segment_ord = _as_int(raw.get("segmentOrd"), "segmentOrd")
             if segment_ord not in by_ord:

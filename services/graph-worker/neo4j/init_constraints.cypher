@@ -1,9 +1,9 @@
-# Neo4j constraints and indexes for Doxa discourse graph (Phase 0 + Phase 1).
+# Neo4j constraints and indexes for Doxa discourse graph (Phase 0–2).
 # Run once against AuraDB after creating the instance or after schema upgrades
 # (Neo4j Browser or cypher-shell).
 #
 # Legacy Story/Assertion/Chunk constraints from schema 1.x may remain until
-# manually dropped; they do not conflict with Phase 0/1 labels.
+# manually dropped; they do not conflict with Phase 0–2 labels.
 
 CREATE CONSTRAINT document_uid IF NOT EXISTS
 FOR (d:Document) REQUIRE d.uid IS UNIQUE;
@@ -35,6 +35,18 @@ FOR (p:Proposition) REQUIRE p.uid IS UNIQUE;
 CREATE CONSTRAINT entity_uid IF NOT EXISTS
 FOR (e:Entity) REQUIRE e.uid IS UNIQUE;
 
+CREATE CONSTRAINT argument_uid IF NOT EXISTS
+FOR (a:Argument) REQUIRE a.uid IS UNIQUE;
+
+CREATE CONSTRAINT viewpoint_uid IF NOT EXISTS
+FOR (v:Viewpoint) REQUIRE v.uid IS UNIQUE;
+
+CREATE CONSTRAINT controversy_uid IF NOT EXISTS
+FOR (c:Controversy) REQUIRE c.uid IS UNIQUE;
+
+CREATE CONSTRAINT dispute_uid IF NOT EXISTS
+FOR (d:Dispute) REQUIRE d.uid IS UNIQUE;
+
 CREATE INDEX utterance_document_uid IF NOT EXISTS
 FOR (u:Utterance) ON (u.documentUid);
 
@@ -46,3 +58,12 @@ FOR (p:Proposition) ON (p.normalizedText);
 
 CREATE INDEX entity_normalized_name IF NOT EXISTS
 FOR (e:Entity) ON (e.normalizedName);
+
+CREATE INDEX argument_document_uid IF NOT EXISTS
+FOR (a:Argument) ON (a.documentUid);
+
+CREATE INDEX viewpoint_document_uid IF NOT EXISTS
+FOR (v:Viewpoint) ON (v.documentUid);
+
+CREATE INDEX controversy_topic_key IF NOT EXISTS
+FOR (c:Controversy) ON (c.topicKey);

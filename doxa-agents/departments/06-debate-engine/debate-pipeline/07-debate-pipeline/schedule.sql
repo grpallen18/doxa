@@ -1,0 +1,18 @@
+-- Optional: schedule debate_pipeline via pg_cron after secrets + Neo env are set.
+-- Do not enable until Aura constraints + NEO4J_* secrets are on Edge Functions.
+-- Example (commented):
+-- SELECT cron.schedule(
+--   'debate-pipeline-hourly',
+--   '15 * * * *',
+--   $$
+--   SELECT net.http_post(
+--     url := current_setting('app.settings.supabase_url') || '/functions/v1/debate_pipeline',
+--     headers := jsonb_build_object(
+--       'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
+--       'Content-Type', 'application/json'
+--     ),
+--     body := '{}'::jsonb
+--   );
+--   $$
+-- );
+SELECT 1;

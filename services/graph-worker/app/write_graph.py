@@ -35,9 +35,10 @@ def content_hash(text: str) -> str:
 
 
 def delete_document_subgraph(driver: Any, database: str, document_uid: str) -> None:
-    """Remove Phase 0/1 nodes for this document; keep shared Publication nodes.
+    """Remove Phase 0/1/2a nodes for this document; keep shared Publication + L3 debate nodes.
 
     Propositions/Entities are deleted only when no remaining Utterance links exist.
+    Controversies / Viewpoints / Disputes are shared cross-document and are not deleted here.
     """
     # Collect local proposition/entity uids before deleting utterances.
     collect = """
@@ -50,6 +51,16 @@ def delete_document_subgraph(driver: Any, database: str, document_uid: str) -> N
     RETURN collect(DISTINCT prop.uid) AS prop_uids,
            collect(DISTINCT ent.uid) + collect(DISTINCT office.uid)
              + collect(DISTINCT aoffice.uid) AS ent_uids
+    """
+    delete_arguments = """
+    MATCH (arg:Argument {documentUid: $document_uid})
+    OPTIONAL MATCH (arg)-[:DECIDED_BY]->(adec:Decision)
+    DETACH DELETE adec, arg
+    """
+    delete_arg_decisions = """
+    MATCH (dec:Decision)
+    WHERE dec.uid STARTS WITH $adec_prefix
+    DETACH DELETE dec
     """
     delete_local = """
     MATCH (d:Document {uid: $document_uid})
@@ -113,6 +124,11 @@ def delete_document_subgraph(driver: Any, database: str, document_uid: str) -> N
         rec = session.run(collect, document_uid=document_uid).single()
         prop_uids = [u for u in (rec["prop_uids"] if rec else []) if u]
         all_ent_uids = list({u for u in (rec["ent_uids"] if rec else []) if u})
+        session.run(
+            delete_arg_decisions,
+            adec_prefix=f"{document_uid}:adec:",
+        )
+        session.run(delete_arguments, document_uid=document_uid)
         session.run(
             delete_prop_decisions,
             pdec_prefix=f"{document_uid}:pdec:",
@@ -652,6 +668,101 @@ def audit_phase1_provenance(
                 problems.append(
                     f"{record['uid']}: MENTIONS {record['targetUid']} missing entity_link Decision"
                 )
+    return problems
+
+
+def write_arguments(
+    driver: Any,
+    database: str,
+    *,
+    document_uid: str,
+    arguments: list[Any],
+) -> None:
+    """MERGE Argument nodes, HAS_ROLE edges, and argument_role Decisions."""
+    rows = []
+    for arg in arguments:
+        role_rows = []
+        for role in arg.roles:
+            dec_uid = (
+                f"{document_uid}:adec:"
+                f"{hashlib.sha256(f'{arg.uid}|{role.role}|{role.proposition_uid}'.encode()).hexdigest()[:16]}"
+            )
+            role_rows.append(
+                {
+                    "role": role.role,
+                    "propositionUid": role.proposition_uid,
+                    "decisionUid": dec_uid,
+                }
+            )
+        rows.append(
+            {
+                "uid": arg.uid,
+                "summary": arg.summary,
+                "roles": role_rows,
+            }
+        )
+
+    cypher = """
+    UNWIND $rows AS row
+    MERGE (a:Argument {uid: row.uid})
+    SET a.summary = row.summary,
+        a.documentUid = $document_uid,
+        a.schemaVersion = $schema_version,
+        a.updatedAt = datetime(),
+        a.createdAt = coalesce(a.createdAt, datetime())
+    WITH a, row
+    UNWIND row.roles AS role
+    MATCH (p:Proposition {uid: role.propositionUid})
+    MERGE (a)-[hr:HAS_ROLE]->(p)
+    SET hr.role = role.role,
+        hr.updatedAt = datetime()
+    MERGE (dec:Decision {uid: role.decisionUid})
+    SET dec.decisionType = 'argument_role',
+        dec.confidence = 1.0,
+        dec.actor = 'model',
+        dec.status = 'accepted',
+        dec.role = role.role,
+        dec.createdAt = coalesce(dec.createdAt, datetime())
+    MERGE (a)-[:DECIDED_BY]->(dec)
+    MERGE (dec)-[:ABOUT]->(p)
+    """
+    if not rows:
+        return
+    with driver.session(database=database) as session:
+        session.run(
+            cypher,
+            rows=rows,
+            document_uid=document_uid,
+            schema_version=GRAPH_SCHEMA_VERSION,
+        )
+
+
+def audit_phase2_provenance(
+    driver: Any, database: str, document_uid: str
+) -> list[str]:
+    """Every HAS_ROLE must have argument_role Decision and Prop→Utterance→Segment path."""
+    cypher = """
+    MATCH (a:Argument {documentUid: $document_uid})-[hr:HAS_ROLE]->(p:Proposition)
+    OPTIONAL MATCH (a)-[:DECIDED_BY]->(dec:Decision {decisionType: 'argument_role'})-[:ABOUT]->(p)
+    OPTIONAL MATCH (u:Utterance {documentUid: $document_uid})-[:EXPRESSES]->(p)
+    OPTIONAL MATCH (u)-[:GROUNDED_IN]->(seg:Segment)
+    RETURN a.uid AS argUid,
+           p.uid AS propUid,
+           hr.role AS role,
+           dec IS NOT NULL AS hasDecision,
+           u IS NOT NULL AS hasUtterance,
+           seg IS NOT NULL AS hasSegment
+    """
+    problems: list[str] = []
+    with driver.session(database=database) as session:
+        for record in session.run(cypher, document_uid=document_uid):
+            label = f"{record['argUid']} HAS_ROLE({record['role']})->{record['propUid']}"
+            if not record["hasDecision"]:
+                problems.append(f"{label}: missing argument_role Decision")
+            if not record["hasUtterance"]:
+                problems.append(f"{label}: no Utterance EXPRESSES path in document")
+            elif not record["hasSegment"]:
+                problems.append(f"{label}: Utterance missing GROUNDED_IN Segment")
     return problems
 
 

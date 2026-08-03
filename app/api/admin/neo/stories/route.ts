@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient, createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 
 const GRAPH_STATUSES = new Set([
   'pending',
@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = await createClient()
+    // Jobs table is service-role RLS only — use admin client for error/schema fields.
+    const admin = createAdminClient()
     const sp = request.nextUrl.searchParams
     const limit = Math.min(parseInt(sp.get('limit') || '25', 10) || 25, 100)
     const offset = Math.max(parseInt(sp.get('offset') || '0', 10) || 0, 0)
@@ -63,13 +65,23 @@ export async function GET(request: NextRequest) {
     >()
 
     if (storyIds.length > 0) {
-      const { data: jobs } = await supabase
+      const { data: jobs, error: jobsError } = await admin
         .from('graph_processing_jobs')
         .select(
           'story_id, status, error, finished_at, created_at, schema_version, extractor_version'
         )
         .in('story_id', storyIds)
         .order('created_at', { ascending: false })
+
+      if (jobsError) {
+        return NextResponse.json(
+          {
+            data: null,
+            error: { message: formatSupabaseAdminError(jobsError.message) },
+          },
+          { status: 500 }
+        )
+      }
 
       for (const job of jobs ?? []) {
         const sid = job.story_id as string

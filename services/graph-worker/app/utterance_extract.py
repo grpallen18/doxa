@@ -8,6 +8,7 @@ from typing import Any
 
 from openai import OpenAI
 
+from app.openai_compat import chat_completion_kwargs
 from app.schema import UTTERANCE_EXTRACT_SYSTEM
 from app.segmenter import TextSegment
 
@@ -52,13 +53,15 @@ def extract_utterances(
     )
 
     response = client.chat.completions.create(
-        model=model,
-        temperature=0,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": UTTERANCE_EXTRACT_SYSTEM},
-            {"role": "user", "content": user_prompt},
-        ],
+        **chat_completion_kwargs(
+            model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": UTTERANCE_EXTRACT_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
     )
 
     usage = response.usage

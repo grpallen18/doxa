@@ -19,6 +19,7 @@ from app.jobs import (
     finish_job_success,
     load_story_payload,
     make_supabase,
+    stamp_job_runtime_versions,
     start_attempt,
 )
 from app.pipeline import process_story
@@ -57,6 +58,7 @@ def process_one_batch(settings: Settings) -> int:
                 settings.worker_id,
                 settings.openai_model,
             )
+            stamp_job_runtime_versions(client, job_id)
             story = load_story_payload(client, story_id)
             if not story:
                 raise RuntimeError("Missing story or content_clean")
