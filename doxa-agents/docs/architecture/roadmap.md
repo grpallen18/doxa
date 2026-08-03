@@ -1,25 +1,24 @@
 # Architecture roadmap
 
-Planned departments not yet implemented as runnable automation:
+**Current overhaul:** [neo4j-graph-architecture.md](neo4j-graph-architecture.md) · [neo4j-overhaul-next.md](neo4j-overhaul-next.md)
 
-## 04 Quality assurance
+Claims extract/merge and legacy canonical/topology SQL paths are being replaced by Neo4j AuraDB + Python `neo4j-graphrag` + Doxa debate jobs.
 
-- Extraction validation
-- Canonicalization audits
+## Deferred product areas (post–Build 3)
+
+### Quality assurance
+
 - Graph integrity validation
-- Regression testing
+- Regression testing on the validation corpus
 - Confidence scoring
 - Source reliability review
-- Human review queues
+- Exception / quarantine queues (not full extract QA)
 
-## 05 Knowledge governance
+### Knowledge governance
 
 - Topic taxonomy management
-- Subtopic governance
-- Entity resolution and alias management
-- Canonical merge/split review
+- Entity resolution and alias management (canonical merge/split review)
 - Ontology governance
-- Historical context management
-- Relevance decay monitoring
+- Historical context / relevance decay
 
-When each area gains edge functions or crons, add a department folder under `doxa-agents/departments/` and register steps in `manifest.yaml`.
+When each area gains automation, add a department folder under `doxa-agents/departments/` and register steps via `npm run agents:refresh` (do not hand-edit `manifest.yaml`).

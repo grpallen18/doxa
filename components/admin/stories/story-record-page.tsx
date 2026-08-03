@@ -61,14 +61,19 @@ function StoryRecordPageContent({
         entityType="story"
         title={story.title}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 border-0 bg-accent-tertiary text-inverted shadow-sm hover:bg-accent-tertiary hover:brightness-110 hover:text-inverted"
-            asChild
-          >
-            <Link href={`/admin/stories/${storyId}/agent-flow`}>Agent Flow</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8" asChild>
+              <Link href={`/admin/neo/${storyId}`}>Open in Neo</Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 border-0 bg-accent-tertiary text-inverted shadow-sm hover:bg-accent-tertiary hover:brightness-110 hover:text-inverted"
+              asChild
+            >
+              <Link href={`/admin/stories/${storyId}/agent-flow`}>Agent Flow</Link>
+            </Button>
+          </div>
         }
       />
       <RecordEntityLinkBar

@@ -5,6 +5,7 @@
 // Body: { max_stories?: number, dry_run?: boolean, story_id?: string } — story_id isolates one row.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { enqueueGraphJob } from "../../../lib/graph-jobs.ts";
 import {
   invalidUuidMessage,
   parseStoryIdFromBody,
@@ -268,13 +269,42 @@ export const handler = async (req: Request) => {
       });
       return json({ error: updateErr.message }, 500);
     }
+
+    const enqueue = await enqueueGraphJob(supabase, row.story_id);
+    if (!enqueue.ok) {
+      console.error("[clean_scraped_content] enqueue graph job failed:", enqueue.error);
+      await recordStoryStepRun(supabase, {
+        storyId: row.story_id,
+        stepId: STEP_ID,
+        deployName: DEPLOY_NAME,
+        outcome: "failure",
+        trigger: resolveStoryStepTrigger(singleStoryId),
+        error: `content_clean written but graph enqueue failed: ${enqueue.error}`,
+        meta: { content_length_clean: contentClean.length, cleaned: true },
+      });
+      return json(
+        {
+          ok: false,
+          cleaned: true,
+          story_id: row.story_id,
+          error: `content_clean written but graph enqueue failed: ${enqueue.error}`,
+          ...testScopeFields({ storyId: singleStoryId }),
+        },
+        500
+      );
+    }
+
     await recordStoryStepRun(supabase, {
       storyId: row.story_id,
       stepId: STEP_ID,
       deployName: DEPLOY_NAME,
       outcome: "success",
       trigger: resolveStoryStepTrigger(singleStoryId),
-      meta: { content_length_clean: contentClean.length },
+      meta: {
+        content_length_clean: contentClean.length,
+        graph_enqueued: !enqueue.skipped,
+        graph_enqueue_skipped: enqueue.skipped ? enqueue.reason : undefined,
+      },
     });
   }
 

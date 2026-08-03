@@ -19,6 +19,7 @@ Do not commit secret values to git.
 | validate-chunk-claims | validate_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| trigger-graph-worker | trigger_graph_worker | `GRAPH_WORKER_SECRET`, `GRAPH_WORKER_URL` |
 | discord-daily-health | discord_daily_health | `DISCORD_THREAD_NAME`, `DISCORD_WEBHOOK` |
 | standardize-chunk-extraction | standardize_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |

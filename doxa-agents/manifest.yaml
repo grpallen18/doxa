@@ -183,6 +183,25 @@ steps:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     verify_jwt: false
+  - id: enqueue-graph-job
+    department: 04-graph-engine
+    workflow: enqueue-graph-job
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/04-graph-engine/01-enqueue-graph-job
+    deploy_name: enqueue_graph_job
+    verify_jwt: false
+  - id: trigger-graph-worker
+    department: 04-graph-engine
+    workflow: trigger-graph-worker
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/04-graph-engine/02-trigger-graph-worker
+    deploy_name: trigger_graph_worker
+    secrets:
+      - GRAPH_WORKER_SECRET
+      - GRAPH_WORKER_URL
+    verify_jwt: false
   - id: discord-daily-health
     department: 05-business-operations
     workflow: discord-daily-health

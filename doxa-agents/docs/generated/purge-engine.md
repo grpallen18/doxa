@@ -36,6 +36,8 @@ Initial install: migration `121_purge_engine_data.sql`.
 - `positions_history`
 - `chunk_claim_versions`
 - `story_extraction_qa_artifacts`
+- `graph_processing_attempts`
+- `graph_processing_jobs`
 - `controversy_viewpoints`
 - `topic_controversies`
 - `controversy_cluster_lineage`

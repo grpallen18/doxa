@@ -96,6 +96,8 @@ Doxa publishes structured models of facts, disagreement, and framing, continuous
 - **Backend:** Next.js API routes + Supabase (PostgreSQL)
 - **AI Integration:** OpenAI API
 - **Styling:** Tailwind CSS
+- **UI primitives:** [shadcn/ui](https://ui.shadcn.com/) under `components/ui/`
+- **UI motion:** [Motion Primitives](https://motion-primitives.com) (`motion` + copy-paste components under `components/motion-primitives/`) — prefer these for React animations the same way we prefer shadcn for primitives
 
 ## Design System (UI Aesthetic)
 
@@ -107,6 +109,7 @@ The site uses a **neumorphic, instrument-panel** look: warm light gray surfaces,
 - **Color:** Mostly monochrome. **Primary accent** (`--accent-primary`) for primary CTAs and signal indicators; **secondary accent** (`--accent-secondary`) for secondary states. Text: `--foreground`, `--muted`.
 - **Typography:** Modern sans (system UI / Inter-style), plenty of whitespace, clear hierarchy. No decorative fonts.
 - **Components:** Use `Panel`, `Button`, and (where relevant) `InstrumentModule` from `components/`. Prefer design tokens and Tailwind theme keys from `tailwind.config.ts`; avoid inline hex colors or shadow strings.
+- **Motion:** Prefer [Motion Primitives](https://motion-primitives.com) for animated UI (CLI: `npx motion-primitives@latest add <name>` → `components/motion-primitives/`). Keep motion purposeful; don’t fight the neumorphic design system.
 - **Spacing:** Align to an 8pt grid (e.g. 8, 12, 16, 24, 32) for padding, gaps, and margins.
 
 Tokens and component classes live in `app/globals.css` and `tailwind.config.ts`. New surfaces should follow the same beveled-panel and token usage so the app feels like one piece of equipment.

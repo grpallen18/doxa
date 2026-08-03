@@ -13,7 +13,7 @@ Discover stories, qualify relevance, scrape bodies, and produce `content_clean` 
 
 **Qualify flow:** `relevance-gate` assigns Keep, Drop, or Pending. Pending requires human or LLM re-review (`review-pending-stories`) to reach Keep or Drop before scrape proceeds. Drop ends the story path; scrape and clean require Keep.
 
-Downstream: [02-chunking-engine](../02-chunking-engine/).
+Downstream: [04-graph-engine](../04-graph-engine/) (Neo4j graph jobs). Claims path under `02-chunking-engine` is deprecated.
 
 <!-- AGENTS:BEGIN -->
 

@@ -1,0 +1,48 @@
+# Neo4j constraints and indexes for Doxa discourse graph (Phase 0 + Phase 1).
+# Run once against AuraDB after creating the instance or after schema upgrades
+# (Neo4j Browser or cypher-shell).
+#
+# Legacy Story/Assertion/Chunk constraints from schema 1.x may remain until
+# manually dropped; they do not conflict with Phase 0/1 labels.
+
+CREATE CONSTRAINT document_uid IF NOT EXISTS
+FOR (d:Document) REQUIRE d.uid IS UNIQUE;
+
+CREATE CONSTRAINT segment_uid IF NOT EXISTS
+FOR (s:Segment) REQUIRE s.uid IS UNIQUE;
+
+CREATE CONSTRAINT utterance_uid IF NOT EXISTS
+FOR (u:Utterance) REQUIRE u.uid IS UNIQUE;
+
+CREATE CONSTRAINT publication_uid IF NOT EXISTS
+FOR (p:Publication) REQUIRE p.uid IS UNIQUE;
+
+CREATE CONSTRAINT agent_uid IF NOT EXISTS
+FOR (a:Agent) REQUIRE a.uid IS UNIQUE;
+
+CREATE CONSTRAINT extraction_run_uid IF NOT EXISTS
+FOR (r:ExtractionRun) REQUIRE r.uid IS UNIQUE;
+
+CREATE CONSTRAINT decision_uid IF NOT EXISTS
+FOR (d:Decision) REQUIRE d.uid IS UNIQUE;
+
+CREATE CONSTRAINT media_asset_uid IF NOT EXISTS
+FOR (m:MediaAsset) REQUIRE m.uid IS UNIQUE;
+
+CREATE CONSTRAINT proposition_uid IF NOT EXISTS
+FOR (p:Proposition) REQUIRE p.uid IS UNIQUE;
+
+CREATE CONSTRAINT entity_uid IF NOT EXISTS
+FOR (e:Entity) REQUIRE e.uid IS UNIQUE;
+
+CREATE INDEX utterance_document_uid IF NOT EXISTS
+FOR (u:Utterance) ON (u.documentUid);
+
+CREATE INDEX agent_normalized_name IF NOT EXISTS
+FOR (a:Agent) ON (a.normalizedName);
+
+CREATE INDEX proposition_normalized_text IF NOT EXISTS
+FOR (p:Proposition) ON (p.normalizedText);
+
+CREATE INDEX entity_normalized_name IF NOT EXISTS
+FOR (e:Entity) ON (e.normalizedName);

@@ -80,6 +80,22 @@ BEGIN
     v_skipped := array_append(v_skipped, 'story_extraction_qa_artifacts');
   END IF;
 
+  -- required: graph_processing_attempts
+  IF 'public.graph_processing_attempts'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_processing_attempts RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_processing_attempts');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_processing_attempts');
+  END IF;
+
+  -- required: graph_processing_jobs
+  IF 'public.graph_processing_jobs'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_processing_jobs RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_processing_jobs');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_processing_jobs');
+  END IF;
+
   -- required: controversy_viewpoints
   IF 'public.controversy_viewpoints'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.controversy_viewpoints RESTART IDENTITY CASCADE';

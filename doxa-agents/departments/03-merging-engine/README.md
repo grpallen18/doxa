@@ -1,6 +1,8 @@
 # 03 Merging engine
 
-Story-level merge and merge QA for the claims lane.
+**Deprecated (Neo4j hybrid Build 1).** Claims merge is replaced by the Neo4j evidence graph. Handlers remain until Build 4 deletion.
+
+Story-level merge and merge QA for the claims lane (legacy).
 
 | Step | Deploy |
 |------|--------|

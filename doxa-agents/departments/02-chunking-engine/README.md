@@ -1,10 +1,8 @@
 # 02 Chunking engine
 
-**Active runnable path (admin UI):** chunk → extract claims → review → refine → approve → merge.
+**Deprecated (Neo4j hybrid Build 1).** Claims extract/QA is replaced by the Python graph-worker. Handlers remain until Build 4 deletion. See [neo4j-graph-architecture.md](../../docs/architecture/neo4j-graph-architecture.md).
 
-Downstream merge QA lives in [03-merging-engine](../03-merging-engine/). Positions and legacy multi-atom steps remain under [`../legacy/`](../legacy/README.md).
-
-## Active agents
+## Agents (deprecated)
 
 1. **[01-chunk-story-bodies](01-chunk-story-bodies/)** — split clean text into `story_chunks`
 2. **[02-extract-story-claims](02-extract-story-claims/)** — precision primary-claim extraction per chunk

@@ -16,6 +16,8 @@ supabase functions deploy refine_chunk_claims
 supabase functions deploy validate_chunk_claims
 supabase functions deploy merge_story_claims
 supabase functions deploy review_merged_extraction
+supabase functions deploy enqueue_graph_job
+supabase functions deploy trigger_graph_worker
 supabase functions deploy discord_daily_health
 ```
 
@@ -33,6 +35,8 @@ supabase functions deploy refine_chunk_claims --no-verify-jwt
 supabase functions deploy validate_chunk_claims --no-verify-jwt
 supabase functions deploy merge_story_claims --no-verify-jwt
 supabase functions deploy review_merged_extraction --no-verify-jwt
+supabase functions deploy enqueue_graph_job --no-verify-jwt
+supabase functions deploy trigger_graph_worker --no-verify-jwt
 supabase functions deploy refine_merged_extraction --no-verify-jwt
 supabase functions deploy validate_merged_extraction --no-verify-jwt
 supabase functions deploy aggregate_position_pair_scores --no-verify-jwt

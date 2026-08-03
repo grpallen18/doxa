@@ -2,6 +2,7 @@
 
 import { AdminMetricCards } from '@/components/admin/admin-metric-cards'
 import { GlobalLayoutPanel } from '@/components/admin/global-layout-panel'
+import { NeoColorsPanel } from '@/components/admin/neo-colors-panel'
 import { OpenAiModelConfigPanel } from '@/components/admin/openai-model-config-panel'
 import { ADMIN_STATUS_PLACEHOLDER } from '@/lib/admin/admin-status-placeholder'
 
@@ -41,6 +42,7 @@ function AdminCenterContent() {
       >
         <OpenAiModelConfigPanel />
         <GlobalLayoutPanel />
+        <NeoColorsPanel />
       </section>
     </div>
   )

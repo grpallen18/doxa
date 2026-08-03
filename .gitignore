@@ -30,6 +30,7 @@ yarn-error.log*
 .env.local.main.backup
 .env.local.preview-backup
 .env
+services/graph-worker/azure/.env.azure
 
 # supabase CLI local link state
 supabase/.temp/

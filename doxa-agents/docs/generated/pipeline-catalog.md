@@ -13,21 +13,11 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | scrape-story-content | `scrape_story_content` | active | — | story_id |
 | clean-scraped-content | `clean_scraped_content` | inactive | — | story_id |
 
-## Extraction (`extraction`)
+## Knowledge graph (`graph`)
 
 | Step | Deploy | Status | Optional | Isolation |
 |------|--------|--------|----------|-----------|
-| chunk-story-bodies | `chunk_story_bodies` | inactive | — | story_id |
-| extract-story-claims | `extract_story_claims` | inactive | — | story_id, chunk_index |
-| validate-chunk-claims | `validate_chunk_claims` | inactive | — | story_id, chunk_index |
-| refine-chunk-claims | `refine_chunk_claims` | inactive | — | story_id, chunk_index |
-| approve-chunk-claims | `approve_chunk_claims` | inactive | — | story_id, chunk_index |
-
-## Merging (`merging`)
-
-| Step | Deploy | Status | Optional | Isolation |
-|------|--------|--------|----------|-----------|
-| merge-story-claims | `merge_story_claims` | inactive | — | story_id |
-| review-merged-extraction | `review_merged_extraction` | inactive | — | story_id |
+| enqueue-graph-job | `enqueue_graph_job` | inactive | — | story_id |
+| trigger-graph-worker | `trigger_graph_worker` | inactive | yes | story_id |
 
 _Generated from pipeline-admin-catalog.yaml + manifest.yaml._

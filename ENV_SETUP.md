@@ -91,6 +91,53 @@ The Worker used for article scraping expects these **secrets**. For Git-connecte
 
 See [workers/README.md](workers/README.md) for details.
 
+### Neo4j graph worker (Python)
+
+The hybrid graph path uses AuraDB + [`services/graph-worker`](services/graph-worker/). Steering: [doxa-agents/docs/architecture/neo4j-graph-architecture.md](doxa-agents/docs/architecture/neo4j-graph-architecture.md).
+
+**Supabase Edge secrets** (in addition to existing OpenAI keys):
+
+| Secret | Used by |
+|--------|---------|
+| `GRAPH_WORKER_URL` | `trigger_graph_worker` — base URL of the Azure/Docker worker (no trailing slash) |
+| `GRAPH_WORKER_SECRET` | `trigger_graph_worker` — optional Bearer shared with the worker |
+
+**Next.js admin Neo page** (server-only; same Aura credentials as the worker — add to root `.env.local` and Vercel):
+
+| Variable | Required |
+|----------|----------|
+| `NEO4J_URI` | yes (`neo4j+s://…`) |
+| `NEO4J_USERNAME` | yes (Aura instance id / username) |
+| `NEO4J_PASSWORD` | yes |
+| `NEO4J_DATABASE` | yes on Aura (often the instance id, **not** `neo4j`) |
+
+Restart `npm run dev` after changing these. Credentials never ship to the browser; only `/api/admin/neo/*` (admin JWT) queries Neo4j.
+
+**Graph worker env** (Azure Container Apps / Docker — see `services/graph-worker/.env.example` and `services/graph-worker/azure/`):
+
+| Variable | Required |
+|----------|----------|
+| `SUPABASE_URL` | yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | yes |
+| `NEO4J_URI` | yes (`neo4j+s://…`) |
+| `NEO4J_USERNAME` | yes |
+| `NEO4J_PASSWORD` | yes |
+| `NEO4J_DATABASE` | yes on Aura (instance id; default `neo4j` only for local) |
+| `OPENAI_API_KEY` | yes |
+| `OPENAI_MODEL` | no |
+| `GRAPH_WORKER_ID` | no |
+| `GRAPH_WORKER_POLL_INTERVAL_SEC` | no |
+| `GRAPH_WORKER_SECRET` | no (must match Edge if set) |
+| `PORT` | no (host sets `PORT`) |
+
+**One-time setup**
+
+1. Create a Neo4j AuraDB instance; run [`services/graph-worker/neo4j/init_constraints.cypher`](services/graph-worker/neo4j/init_constraints.cypher).
+2. Apply migration `192_graph_processing_jobs.sql` in the Supabase SQL Editor.
+3. Deploy the graph-worker on **Azure Container Apps**: see [`services/graph-worker/azure/README.md`](services/graph-worker/azure/README.md) (`.\azure\deploy.ps1`). No local Docker required.
+4. Set Supabase Edge secrets `GRAPH_WORKER_URL` + `GRAPH_WORKER_SECRET` from the deploy script output.
+5. Deploy Edge functions: `clean_scraped_content`, `enqueue_graph_job`, `trigger_graph_worker` (use `--no-verify-jwt` where listed in [deploy.md](doxa-agents/docs/generated/deploy.md)).
+6. Keep ingestion crons active so at least one cleaned story is enqueued per day; the Azure worker polls continuously (`min-replicas=1`).
 ### Check if variables are loaded:
 
 Add this temporarily to any API route to debug:

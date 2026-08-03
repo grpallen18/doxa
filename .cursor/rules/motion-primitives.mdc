@@ -1,0 +1,43 @@
+---
+description: Prefer Motion Primitives for React UI animations (like shadcn for motion)
+globs: app/**/*.{tsx,jsx},components/**/*.{tsx,jsx},lib/**/*.{tsx,jsx}
+alwaysApply: false
+---
+
+# Motion Primitives
+
+For React UI animations in Doxa, prefer **[Motion Primitives](https://motion-primitives.com)** the same way we prefer **shadcn/ui** for primitives.
+
+## Source of truth
+
+- Docs / catalog: https://motion-primitives.com/docs
+- Installation: https://motion-primitives.com/docs/installation
+- GitHub: https://github.com/ibelick/motion-primitives
+- Runtime dependency: `motion` (already in root `package.json`)
+
+## How to add a component
+
+1. Prefer the CLI (copies owned source into the repo):
+
+```bash
+npx motion-primitives@latest add <component-name>
+```
+
+Example: `npx motion-primitives@latest add text-effect`
+
+2. Or copy from the docs page into [`components/motion-primitives/`](components/motion-primitives/).
+
+Do **not** invent one-off Framer/Motion wrappers when a Motion Primitive already covers the interaction (text effects, in-view reveals, morphing dialogs, infinite sliders, spotlight, tilt, etc.).
+
+## Conventions
+
+- Keep copied components under `components/motion-primitives/` (CLI default).
+- Customize copied source to match Doxa tokens (`app/globals.css`, neumorphic panel language)—same ownership model as shadcn under `components/ui/`.
+- Use existing `cn` from `@/lib/utils`; do not add a second utils helper for motion components.
+- Prefer purposeful motion that supports hierarchy and presence. Avoid decorative noise, endless loops on dense admin surfaces, and purple/glow demos that fight the design system.
+- shadcn/ui remains the default for non-animated primitives (Button, Dialog shell, forms, etc.). Compose: shadcn structure + Motion Primitive motion where helpful.
+
+## When not to use it
+
+- Pipeline / agents / Supabase Edge / workers — no UI animation stack there.
+- Data-heavy tables and critical admin workflows — keep motion minimal or none.

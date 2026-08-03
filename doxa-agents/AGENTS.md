@@ -1,19 +1,24 @@
 # Doxa Agents
 
-Pipeline agents for ingesting stories, extracting structured knowledge from text, canonicalizing entities, and building debate intelligence across stories.
+Pipeline agents for ingesting stories, building a Neo4j evidence graph, and (upcoming) debate topology across stories.
 
 ## Pipeline layers
 
 ```text
-01 Ingestion          → stories + clean bodies
-02 Chunking (active)  → chunk, extract claims, chunk QA review
-03–04 (archived)      → merge, canonicalization, topology — under departments/legacy/
+01 Ingestion          → stories + clean bodies → enqueue graph job
+04 Graph engine       → enqueue / trigger Python utterance graph-worker → AuraDB
+02–03 Claims path     → DEPRECATED (pending cleanup after Phase 2; handlers still on disk)
+legacy/               → archived merge / canonical / topology (pending deletion)
 05 Ops                → health, maintenance
 ```
 
-**Admin runnable catalog** ends at `validate-chunk-claims`. Downstream steps remain on the **agent-flow canvas** as roadmap placeholders (not runnable). Handlers live under [departments/legacy](departments/legacy/) until re-enabled.
+**Steering document:** [docs/architecture/neo4j-graph-architecture.md](docs/architecture/neo4j-graph-architecture.md)  
+**Next phases:** [docs/architecture/neo4j-overhaul-next.md](docs/architecture/neo4j-overhaul-next.md)  
+**Phase 0 validation:** [docs/architecture/phase0-validation.md](docs/architecture/phase0-validation.md)
 
-**Important:** Positions are **extracted from article text** in legacy `extract-story-entities`, then **canonicalized** in legacy `link-canonical-positions`. Topology agents operate on **canonical** positions—not raw article text.
+**Admin runnable catalog:** ingestion + graph enqueue/trigger. Custom claims extract/review/merge is **replaced** by the Neo4j utterance path (Python worker). Old handlers remain under `02-chunking-engine` / `03-merging-engine` / `legacy/` until post–Phase 2 cleanup.
+
+**Important:** Controversy topology is the product surface; Neo4j is the discourse substrate. Phase 0 writes Utterances only. Proposition linking and debate agree/oppose/controversy assembly are Doxa-owned later phases—not assumed from generic GraphRAG output.
 
 ## What you edit manually
 
@@ -51,16 +56,20 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 
 | Department | Path | Purpose |
 |------------|------|---------|
-| 01 Ingestion | [departments/01-ingestion-engine](departments/01-ingestion-engine) | NewsAPI, relevance, scrape, clean |
-| 02 Chunking | [departments/02-chunking-engine](departments/02-chunking-engine) | **Active:** chunk, extract claims, chunk QA review |
+| 01 Ingestion | [departments/01-ingestion-engine](departments/01-ingestion-engine) | NewsAPI, relevance, scrape, clean → enqueue graph job |
+| 04 Graph | [departments/04-graph-engine](departments/04-graph-engine) | Enqueue / trigger Neo4j graph worker |
+| 02 Chunking | [departments/02-chunking-engine](departments/02-chunking-engine) | **Deprecated** claims extract/QA (Build 4 delete) |
+| 03 Merging | [departments/03-merging-engine](departments/03-merging-engine) | **Deprecated** claims merge (Build 4 delete) |
 | 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, maintenance |
-| Legacy | [departments/legacy](departments/legacy) | Archived merge, canonicalization, topology, multi-atom chunk steps |
+| Legacy | [departments/legacy](departments/legacy) | Archived multi-atom / canonical / topology (Build 4 delete) |
 
-### 02 Chunking (active)
+### 04 Graph (Phase 0)
 
-**Runnable path:** `chunk-story-bodies` → `extract-story-claims` → `validate-chunk-claims` (human review loop).
+**Path:** `clean-scraped-content` enqueues `graph_processing_jobs` → Python [`services/graph-worker`](../services/graph-worker/) → Neo4j AuraDB (Document / Segment / Utterance). Manual: `enqueue-graph-job`, `trigger-graph-worker`.
 
-Refine/merge/canonical steps are archived under [departments/legacy/02-chunking-engine](departments/legacy/02-chunking-engine/), [legacy/03-merging-engine](departments/legacy/03-merging-engine/), and [legacy/04-semantic-intelligence-engine](departments/legacy/04-semantic-intelligence-engine/).
+### 02 Chunking / 03 Merging (deprecated)
+
+Claims extract → validate → refine → approve → merge remain on disk for reference until Build 4 deletion. They are **not** in the admin runnable catalog.
 
 ### Legacy (archived detail)
 

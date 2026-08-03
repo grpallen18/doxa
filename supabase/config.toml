@@ -329,6 +329,10 @@ verify_jwt = false
 verify_jwt = false
 [functions.clean_scraped_content]
 verify_jwt = false
+[functions.enqueue_graph_job]
+verify_jwt = false
+[functions.trigger_graph_worker]
+verify_jwt = false
 [functions.chunk_story_bodies]
 verify_jwt = false
 [functions.extract_story_claims]
