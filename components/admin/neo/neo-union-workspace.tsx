@@ -4,8 +4,17 @@ import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { NeoPassagePanel } from '@/components/admin/neo/neo-passage-panel'
 import type { UtteranceHighlight } from '@/components/admin/neo/projection-explorer'
 import {
@@ -77,7 +86,7 @@ export function NeoUnionWorkspace() {
   const [error, setError] = useState<string | null>(null)
   const [activeDocUid, setActiveDocUid] = useState<string | null>(null)
   const [passage, setPassage] = useState<PassagePayload | null>(null)
-  const [passageOpen, setPassageOpen] = useState(true)
+  const [passageOpen, setPassageOpen] = useState(false)
   const [highlight, setHighlight] = useState<{ start: number; end: number } | null>(
     null
   )
@@ -262,89 +271,171 @@ export function NeoUnionWorkspace() {
   const activeDoc = documents.find((d) => d.uid === activeDocUid) ?? null
   const atCap = storyIds.length >= UNION_MAX_STORIES
 
+  const selectedStories = useMemo(() => {
+    if (documents.length > 0) return documents
+    return storyIds.map((uid) => ({
+      uid,
+      title: null as string | null,
+      found: true,
+      utteranceCount: 0,
+      agentCount: 0,
+    }))
+  }, [documents, storyIds])
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#0f0f0f]">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-zinc-950/80 px-4 py-2.5 sm:px-6">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <Link href="/admin/neo" className="hover:text-zinc-300 hover:underline">
-              Neo
-            </Link>
-            <span aria-hidden>/</span>
-            <span>union</span>
+      <header className="shrink-0 border-b border-white/10 bg-zinc-950/80 px-4 py-2.5 sm:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500">
+                <Link
+                  href="/admin/neo"
+                  className="hover:text-zinc-300 hover:underline"
+                >
+                  Neo
+                </Link>
+                <span aria-hidden>/</span>
+                <span className="text-zinc-300">Story union</span>
+              </div>
+            </div>
           </div>
-          <h1 className="mt-0.5 truncate text-base font-semibold tracking-tight text-zinc-100">
-            Story union
-          </h1>
-          <p className="mt-1 text-[11px] text-zinc-500">
-            Manually compose up to {UNION_MAX_STORIES} story graphs. Shared publications and
-            office entities collapse; agents with the same normalized name collapse for display
-            only (Aura ids stay document-scoped).
-            {projection
-              ? ` · ${projection.nodes.length} nodes · ${projection.edges.length} edges`
-              : ''}
-          </p>
-          {error ? <p className="mt-1 text-[11px] text-amber-300/90">{error}</p> : null}
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
-            onClick={() => setPassageOpen((v) => !v)}
-            disabled={storyIds.length === 0}
+
+          <form
+            className="flex min-w-[12rem] max-w-md flex-1 gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setSearchQuery(searchDraft.trim())
+            }}
           >
-            {passageOpen ? 'Hide passage' : 'Show passage'}
-          </Button>
-          {activeDocUid ? (
+            <Input
+              value={searchDraft}
+              onChange={(e) => {
+                setSearchDraft(e.target.value)
+                setSearchQuery(e.target.value.trim())
+              }}
+              placeholder="Search succeeded stories to add…"
+              className="h-8 border-white/15 bg-black/40 text-zinc-100 placeholder:text-zinc-500"
+            />
+            <Button
+              type="submit"
+              size="sm"
+              className="h-8 shrink-0 bg-white/15 text-zinc-100 hover:bg-white/25"
+            >
+              Search
+            </Button>
+          </form>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
+              >
+                In graph ({storyIds.length}/{UNION_MAX_STORIES})
+                <ChevronDown className="size-3.5 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="w-[min(100vw-2rem,22rem)] border-white/10 bg-zinc-950 text-zinc-100"
+            >
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-zinc-500">
+                Selected stories
+              </DropdownMenuLabel>
+              {selectedStories.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-zinc-500">
+                  None yet — search and add stories.
+                </p>
+              ) : (
+                selectedStories.map((doc) => (
+                  <DropdownMenuItem
+                    key={doc.uid}
+                    className={cn(
+                      'cursor-pointer gap-2 focus:bg-white/10',
+                      activeDocUid === doc.uid && 'bg-white/10',
+                      !doc.found && 'text-amber-200'
+                    )}
+                    onSelect={() => {
+                      setActiveDocUid(doc.uid)
+                      setHighlight(null)
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-xs">
+                      {doc.title || `${doc.uid.slice(0, 8)}…`}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${doc.title || doc.uid}`}
+                      className="rounded px-1 text-zinc-500 hover:bg-white/10 hover:text-zinc-100"
+                      onPointerDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        removeStory(doc.uid)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </DropdownMenuItem>
+                ))
+              )}
+              {storyIds.length > 0 ? (
+                <>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem
+                    className="cursor-pointer text-xs text-zinc-400 focus:bg-white/10 focus:text-zinc-100"
+                    onSelect={() => setStoryIds([])}
+                  >
+                    Clear all
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="ml-auto flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
+              onClick={() => setPassageOpen((v) => !v)}
+              disabled={storyIds.length === 0}
+            >
+              {passageOpen ? 'Hide passage' : 'Show passage'}
+            </Button>
+            {activeDocUid ? (
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="h-8 border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
+              >
+                <Link href={`/admin/neo/${encodeURIComponent(activeDocUid)}`}>
+                  Open story Neo
+                </Link>
+              </Button>
+            ) : null}
             <Button
               asChild
               size="sm"
               variant="outline"
-              className="border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
+              className="h-8 border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
             >
-              <Link href={`/admin/neo/${encodeURIComponent(activeDocUid)}`}>
-                Open story Neo
-              </Link>
+              <Link href="/admin/neo">All Neo</Link>
             </Button>
-          ) : null}
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
-          >
-            <Link href="/admin/neo">All Neo</Link>
-          </Button>
+          </div>
         </div>
-      </header>
 
-      <div className="shrink-0 border-b border-white/10 bg-zinc-950/60 px-4 py-3 sm:px-6">
-        <form
-          className="flex max-w-xl gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setSearchQuery(searchDraft.trim())
-          }}
-        >
-          <Input
-            value={searchDraft}
-            onChange={(e) => {
-              setSearchDraft(e.target.value)
-              setSearchQuery(e.target.value.trim())
-            }}
-            placeholder="Search succeeded stories to add…"
-            className="h-9 border-white/15 bg-black/40 text-zinc-100 placeholder:text-zinc-500"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            className="h-9 bg-white/15 text-zinc-100 hover:bg-white/25"
-          >
-            Search
-          </Button>
-        </form>
+        {error ? (
+          <p className="mt-2 text-[11px] text-amber-300/90">{error}</p>
+        ) : null}
 
         {searchQuery ? (
           <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-black/40">
@@ -385,65 +476,7 @@ export function NeoUnionWorkspace() {
             )}
           </div>
         ) : null}
-
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <span className="mr-1 self-center text-[10px] uppercase tracking-wide text-zinc-500">
-            In graph ({storyIds.length}/{UNION_MAX_STORIES})
-          </span>
-          {documents.length === 0 && storyIds.length === 0 ? (
-            <span className="text-xs text-zinc-500">None yet — search and add stories.</span>
-          ) : null}
-          {(documents.length > 0 ? documents : storyIds.map((uid) => ({
-              uid,
-              title: null as string | null,
-              found: true,
-              utteranceCount: 0,
-              agentCount: 0,
-            }))).map((doc) => (
-            <span
-              key={doc.uid}
-              className={cn(
-                'inline-flex max-w-[18rem] items-center gap-1 rounded-full border px-2 py-1 text-[11px]',
-                activeDocUid === doc.uid
-                  ? 'border-white/25 bg-white/15 text-zinc-100'
-                  : 'border-white/10 bg-transparent text-zinc-300',
-                !doc.found && 'border-amber-500/40 text-amber-200'
-              )}
-            >
-              <button
-                type="button"
-                className="min-w-0 truncate hover:underline"
-                title={doc.title || doc.uid}
-                onClick={() => {
-                  setActiveDocUid(doc.uid)
-                  setHighlight(null)
-                }}
-              >
-                {doc.title || `${doc.uid.slice(0, 8)}…`}
-              </button>
-              <button
-                type="button"
-                aria-label={`Remove ${doc.title || doc.uid}`}
-                className="rounded-full px-1 text-zinc-500 hover:bg-white/10 hover:text-zinc-100"
-                onClick={() => removeStory(doc.uid)}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          {storyIds.length > 0 ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 text-[11px] text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-              onClick={() => setStoryIds([])}
-            >
-              Clear all
-            </Button>
-          ) : null}
-        </div>
-      </div>
+      </header>
 
       {storyIds.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">

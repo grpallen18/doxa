@@ -118,41 +118,7 @@ export const DEFAULT_NEO_FILTERS: NeoGraphFilters = {
     publication: true,
     agent: true,
     utterance: true,
-    /** Segments add density; off by default for discourse-first view. */
-    segment: false,
-    entity: true,
-    proposition: false,
-    argument: false,
-    viewpoint: false,
-    controversy: false,
-    dispute: false,
-  },
-  edgeTypes: {
-    PUBLISHED_BY: true,
-    CONTAINS: true,
-    GROUNDED_IN: true,
-    ASSERTED_BY: true,
-    REFERRED_AS: true,
-    MENTIONS: false,
-    EXPRESSES: false,
-    HAS_ROLE: false,
-    ADVANCES: false,
-    INCLUDES: false,
-    RELATES_TO: false,
-    CONCERNS: false,
-    VARIANT_OF: false,
-    ABOUT: false,
-  },
-}
-
-/** Default filters for Controversy / Proposition / Entity hub explorers. */
-export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
-  kinds: {
-    document: true,
-    publication: false,
-    agent: true,
-    utterance: true,
-    segment: false,
+    segment: true,
     entity: true,
     proposition: true,
     argument: true,
@@ -161,8 +127,8 @@ export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
     dispute: true,
   },
   edgeTypes: {
-    PUBLISHED_BY: false,
-    CONTAINS: false,
+    PUBLISHED_BY: true,
+    CONTAINS: true,
     GROUNDED_IN: true,
     ASSERTED_BY: true,
     REFERRED_AS: true,
@@ -173,8 +139,41 @@ export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
     INCLUDES: true,
     RELATES_TO: true,
     CONCERNS: true,
-    VARIANT_OF: false,
-    ABOUT: false,
+    VARIANT_OF: true,
+    ABOUT: true,
+  },
+}
+
+/** Default filters for Controversy / Proposition / Entity hub explorers. */
+export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
+  kinds: {
+    document: true,
+    publication: true,
+    agent: true,
+    utterance: true,
+    segment: true,
+    entity: true,
+    proposition: true,
+    argument: true,
+    viewpoint: true,
+    controversy: true,
+    dispute: true,
+  },
+  edgeTypes: {
+    PUBLISHED_BY: true,
+    CONTAINS: true,
+    GROUNDED_IN: true,
+    ASSERTED_BY: true,
+    REFERRED_AS: true,
+    MENTIONS: true,
+    EXPRESSES: true,
+    HAS_ROLE: true,
+    ADVANCES: true,
+    INCLUDES: true,
+    RELATES_TO: true,
+    CONCERNS: true,
+    VARIANT_OF: true,
+    ABOUT: true,
   },
 }
 

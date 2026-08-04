@@ -93,18 +93,72 @@ export function getNeoKindColor(kind: NeoNodeKind): string {
   return loadNeoKindColors()[kind] ?? NEO_KIND_COLOR_DEFAULTS[kind]
 }
 
-/** Darken a fill hex for node borders. */
-export function deriveNeoBorderColor(hex: string): string {
+function parseHexRgb(hex: string): { r: number; g: number; b: number } {
   const normalized = normalizeNeoColor(hex, '#000000')
-  const r = parseInt(normalized.slice(1, 3), 16)
-  const g = parseInt(normalized.slice(3, 5), 16)
-  const b = parseInt(normalized.slice(5, 7), 16)
-  const factor = 0.72
-  const toHex = (n: number) =>
-    Math.max(0, Math.min(255, Math.round(n * factor)))
-      .toString(16)
-      .padStart(2, '0')
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+  return {
+    r: parseInt(normalized.slice(1, 3), 16),
+    g: parseInt(normalized.slice(3, 5), 16),
+    b: parseInt(normalized.slice(5, 7), 16),
+  }
+}
+
+function toHexChannel(n: number): string {
+  return Math.max(0, Math.min(255, Math.round(n)))
+    .toString(16)
+    .padStart(2, '0')
+}
+
+/** Darken a fill hex for node borders / rim shading. */
+export function deriveNeoBorderColor(hex: string, factor = 0.72): string {
+  const { r, g, b } = parseHexRgb(hex)
+  return `#${toHexChannel(r * factor)}${toHexChannel(g * factor)}${toHexChannel(b * factor)}`
+}
+
+/** Lift a fill hex toward white (center highlight / shine). */
+export function deriveNeoHighlightColor(hex: string, amount = 0.42): string {
+  const { r, g, b } = parseHexRgb(hex)
+  const lift = (c: number) => c + (255 - c) * amount
+  return `#${toHexChannel(lift(r))}${toHexChannel(lift(g))}${toHexChannel(lift(b))}`
+}
+
+/** Linear interpolate two #rrggbb colors. */
+export function lerpHex(from: string, to: string, t: number): string {
+  const a = parseHexRgb(from)
+  const b = parseHexRgb(to)
+  const u = Math.max(0, Math.min(1, t))
+  return `#${toHexChannel(a.r + (b.r - a.r) * u)}${toHexChannel(a.g + (b.g - a.g) * u)}${toHexChannel(a.b + (b.b - a.b) * u)}`
+}
+
+/** Canvas label color with alpha (non-premultiplied; for 2D text fillStyle). */
+export function withLabelAlpha(hex: string, alpha: number): string {
+  const { r, g, b } = parseHexRgb(hex)
+  const a = Math.max(0, Math.min(1, alpha))
+  return `rgba(${r}, ${g}, ${b}, ${a})`
+}
+
+/** Append 00–ff alpha to a #rrggbb color (Sigma supports 8-digit hex). */
+export function withHexAlpha(hex: string, alpha: number): string {
+  const { r, g, b } = parseHexRgb(hex)
+  const a = Math.max(0, Math.min(1, alpha))
+  return `#${toHexChannel(r)}${toHexChannel(g)}${toHexChannel(b)}${toHexChannel(a * 255)}`
+}
+
+/**
+ * Premultiplied RGBA for Sigma WebGL (`blendFunc ONE, ONE_MINUS_SRC_ALPHA`).
+ * Plain #rrggbbaa looks nearly opaque with that blend mode.
+ */
+export function withPremultipliedAlpha(hex: string, alpha: number): string {
+  const { r, g, b } = parseHexRgb(hex)
+  const a = Math.max(0, Math.min(1, alpha))
+  return `rgba(${Math.round(r * a)}, ${Math.round(g * a)}, ${Math.round(b * a)}, ${a})`
+}
+
+/** CSS radial matching the WebGL node fill (center lift → base → dark rim). */
+export function neoNodeFillGradient(hex: string): string {
+  const lift = deriveNeoHighlightColor(hex, 0.42)
+  const rim = deriveNeoBorderColor(hex, 0.48)
+  const lip = deriveNeoBorderColor(hex, 0.36)
+  return `radial-gradient(circle at 32% 28%, ${lift} 0%, ${hex} 46%, ${rim} 82%, ${lip} 100%)`
 }
 
 export function isDefaultNeoKindColors(colors: NeoKindColorMap): boolean {

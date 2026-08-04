@@ -35,9 +35,19 @@ export type NeoEntity = {
   kindHint: string | null
 }
 
+/** Agent or person-Entity → office Entity title link. */
 export type NeoReferredAs = {
-  fromAgentUid: string
+  fromUid: string
+  fromKind: 'agent' | 'entity'
   officeUid: string
+  title: string | null
+}
+
+/** Utterance → Entity (person/office/org) from Phase 1 ER. */
+export type NeoMention = {
+  utteranceUid: string
+  entityUid: string
+  surfaceForm: string | null
   title: string | null
 }
 
@@ -66,6 +76,7 @@ export type NeoDocumentGraph = {
   agents: NeoAgent[]
   entities: NeoEntity[]
   referredAs: NeoReferredAs[]
+  mentions: NeoMention[]
   phase1: {
     propositionCount: number
     entityCount: number
@@ -213,7 +224,20 @@ export async function getDocumentGraph(
       MATCH (u:Utterance {documentUid: $storyId})-[:ASSERTED_BY]->(a:Agent)
       MATCH (a)-[r:REFERRED_AS {documentUid: $storyId}]->(office:Entity)
       RETURN DISTINCT
-        a.uid AS agentUid,
+        a.uid AS fromUid,
+        'agent' AS fromKind,
+        office.uid AS officeUid,
+        office.name AS officeName,
+        office.normalizedName AS officeNorm,
+        office.kindHint AS kindHint,
+        r.title AS title
+      UNION
+      MATCH (u:Utterance {documentUid: $storyId})-[:MENTIONS]->(person:Entity)
+      MATCH (person)-[r:REFERRED_AS {documentUid: $storyId}]->(office:Entity)
+      WHERE coalesce(person.kindHint, '') <> 'office'
+      RETURN DISTINCT
+        person.uid AS fromUid,
+        'entity' AS fromKind,
         office.uid AS officeUid,
         office.name AS officeName,
         office.normalizedName AS officeNorm,
@@ -223,12 +247,29 @@ export async function getDocumentGraph(
       { storyId }
     )
 
+    const mentionResult = await session.run(
+      `
+      MATCH (u:Utterance {documentUid: $storyId})-[m:MENTIONS]->(e:Entity)
+      RETURN DISTINCT
+        u.uid AS utteranceUid,
+        e.uid AS entityUid,
+        e.name AS name,
+        e.normalizedName AS normalizedName,
+        e.kindHint AS kindHint,
+        m.surfaceForm AS surfaceForm,
+        m.title AS title
+      `,
+      { storyId }
+    )
+
     const entitiesByUid = new Map<string, NeoEntity>()
     const referredAs: NeoReferredAs[] = []
     for (const rec of officeResult.records) {
       const officeUid = asString(rec.get('officeUid'))
-      const agentUid = asString(rec.get('agentUid'))
-      if (!officeUid || !agentUid) continue
+      const fromUid = asString(rec.get('fromUid'))
+      const fromKindRaw = asString(rec.get('fromKind'))
+      const fromKind = fromKindRaw === 'entity' ? 'entity' : 'agent'
+      if (!officeUid || !fromUid) continue
       if (!entitiesByUid.has(officeUid)) {
         entitiesByUid.set(officeUid, {
           uid: officeUid,
@@ -238,8 +279,30 @@ export async function getDocumentGraph(
         })
       }
       referredAs.push({
-        fromAgentUid: agentUid,
+        fromUid,
+        fromKind,
         officeUid,
+        title: asString(rec.get('title')),
+      })
+    }
+
+    const mentions: NeoMention[] = []
+    for (const rec of mentionResult.records) {
+      const utteranceUid = asString(rec.get('utteranceUid'))
+      const entityUid = asString(rec.get('entityUid'))
+      if (!utteranceUid || !entityUid) continue
+      if (!entitiesByUid.has(entityUid)) {
+        entitiesByUid.set(entityUid, {
+          uid: entityUid,
+          name: asString(rec.get('name')),
+          normalizedName: asString(rec.get('normalizedName')),
+          kindHint: asString(rec.get('kindHint')),
+        })
+      }
+      mentions.push({
+        utteranceUid,
+        entityUid,
+        surfaceForm: asString(rec.get('surfaceForm')),
         title: asString(rec.get('title')),
       })
     }
@@ -268,6 +331,7 @@ export async function getDocumentGraph(
         (a.name ?? a.uid).localeCompare(b.name ?? b.uid)
       ),
       referredAs,
+      mentions,
       phase1,
       phase2,
     }

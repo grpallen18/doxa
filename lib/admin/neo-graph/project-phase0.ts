@@ -143,19 +143,43 @@ export function projectPhase0Document(
   }
 
   for (const ref of graph.referredAs ?? []) {
-    if (!ref.fromAgentUid || !ref.officeUid) continue
-    const agentId = nodeId('agent', ref.fromAgentUid)
+    if (!ref.fromUid || !ref.officeUid) continue
+    const sourceId =
+      ref.fromKind === 'entity'
+        ? nodeId('entity', ref.fromUid)
+        : nodeId('agent', ref.fromUid)
     const officeId = nodeId('entity', ref.officeUid)
     edges.push({
-      id: `${agentId}->${officeId}:REFERRED_AS`,
-      source: agentId,
+      id: `${sourceId}->${officeId}:REFERRED_AS`,
+      source: sourceId,
       target: officeId,
       type: 'REFERRED_AS',
       label: ref.title ? `REFERRED_AS (${ref.title})` : 'REFERRED_AS',
-      properties: { title: ref.title },
+      properties: { title: ref.title, fromKind: ref.fromKind },
     })
-    bump(agentId)
+    bump(sourceId)
     bump(officeId)
+  }
+
+  for (const mention of graph.mentions ?? []) {
+    if (!mention.utteranceUid || !mention.entityUid) continue
+    const uttId = nodeId('utterance', mention.utteranceUid)
+    const entId = nodeId('entity', mention.entityUid)
+    edges.push({
+      id: `${uttId}->${entId}:MENTIONS`,
+      source: uttId,
+      target: entId,
+      type: 'MENTIONS',
+      label: mention.title
+        ? `MENTIONS (${mention.title})`
+        : 'MENTIONS',
+      properties: {
+        surfaceForm: mention.surfaceForm,
+        title: mention.title,
+      },
+    })
+    bump(uttId)
+    bump(entId)
   }
 
   for (const u of graph.utterances) {

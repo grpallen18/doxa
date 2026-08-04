@@ -45,7 +45,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
   const [highlight, setHighlight] = useState<{ start: number; end: number } | null>(
     null
   )
-  const [passageOpen, setPassageOpen] = useState(true)
+  const [passageOpen, setPassageOpen] = useState(false)
   const [reprocessPending, setReprocessPending] = useState(false)
   const [reprocessError, setReprocessError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)

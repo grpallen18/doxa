@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { searchProjectionNodes } from '@/lib/admin/neo-graph/graphology-adapter'
@@ -10,38 +10,67 @@ import { cn } from '@/lib/utils'
 export function NeoGraphSearch({
   projection,
   onSelect,
+  onHoverNode,
+  onClose,
   className,
 }: {
   projection: DoxaGraphProjection
   onSelect: (nodeId: string) => void
+  onHoverNode?: (nodeId: string | null) => void
+  onClose?: () => void
   className?: string
 }) {
   const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const results = useMemo(
     () => searchProjectionNodes(projection, query, 12),
     [projection, query]
   )
 
+  const clearHover = () => onHoverNode?.(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        clearHover()
+        onClose?.()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose])
+
   return (
-    <div className={cn('relative w-64 max-w-[70vw]', className)}>
+    <div className={cn('relative w-full', className)}>
       <Input
+        ref={inputRef}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value)
-          setOpen(true)
+          setListOpen(true)
         }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        onFocus={() => setListOpen(true)}
+        onBlur={() => {
+          window.setTimeout(() => {
+            setListOpen(false)
+            clearHover()
+          }, 150)
+        }}
         placeholder="Search this view…"
-        className="h-9 border-white/10 bg-black/55 text-sm text-zinc-100 placeholder:text-zinc-500 backdrop-blur"
+        className="h-8 border-white/10 bg-black/70 text-sm text-zinc-100 placeholder:text-zinc-500 shadow-none backdrop-blur"
       />
-      <p className="mt-1 px-0.5 text-[10px] text-zinc-500">
-        Searches loaded nodes only (story-scoped)
-      </p>
-      {open && query.trim() && (
-        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-zinc-950/95 py-1 shadow-xl backdrop-blur">
+      {listOpen && query.trim() ? (
+        <ul
+          className="absolute left-0 right-0 top-full z-40 mt-1 max-h-56 overflow-auto rounded-lg border border-white/10 bg-zinc-950/95 py-1 shadow-xl backdrop-blur"
+          onMouseLeave={clearHover}
+        >
           {results.length === 0 ? (
             <li className="px-3 py-2 text-xs text-zinc-500">No matches</li>
           ) : (
@@ -52,10 +81,13 @@ export function NeoGraphSearch({
                   variant="ghost"
                   className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-xs text-zinc-200 hover:bg-white/10 hover:text-white"
                   onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => onHoverNode?.(node.id)}
                   onClick={() => {
                     onSelect(node.id)
                     setQuery(node.label)
-                    setOpen(false)
+                    setListOpen(false)
+                    clearHover()
+                    onClose?.()
                   }}
                 >
                   <span className="mr-2 uppercase tracking-wide text-zinc-500">
@@ -67,7 +99,7 @@ export function NeoGraphSearch({
             ))
           )}
         </ul>
-      )}
+      ) : null}
     </div>
   )
 }

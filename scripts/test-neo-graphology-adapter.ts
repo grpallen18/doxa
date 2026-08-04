@@ -38,8 +38,23 @@ const fixture: NeoDocumentGraph = {
     },
   ],
   agents: [{ uid: 'agent-1', name: 'Alice', normalizedName: 'alice' }],
-  entities: [],
+  entities: [
+    {
+      uid: 'ent:alice',
+      name: 'Alice',
+      normalizedName: 'alice',
+      kindHint: 'person',
+    },
+  ],
   referredAs: [],
+  mentions: [
+    {
+      utteranceUid: 'utt-1',
+      entityUid: 'ent:alice',
+      surfaceForm: 'Alice',
+      title: null,
+    },
+  ],
   utterances: [
     {
       uid: 'utt-1',
@@ -156,19 +171,31 @@ function main() {
   assert.ok(projection.edges.some((e) => e.type === 'GROUNDED_IN'))
   assert.ok(projection.edges.some((e) => e.type === 'PUBLISHED_BY'))
   assert.ok(projection.edges.some((e) => e.type === 'CONTAINS'))
+  assert.ok(projection.nodes.some((n) => n.id === 'entity:ent:alice'))
+  assert.ok(
+    projection.edges.some(
+      (e) =>
+        e.type === 'MENTIONS' &&
+        e.source === 'utterance:utt-1' &&
+        e.target === 'entity:ent:alice'
+    )
+  )
 
   const built = buildGraphologyFromProjection(projection, DEFAULT_NEO_FILTERS)
   assert.equal(built.graph.hasNode('document:story-1'), true)
   assert.equal(built.graph.hasNode('utterance:utt-1'), true)
-  assert.equal(built.graph.hasNode('segment:seg-1'), false)
+  assert.equal(built.graph.hasNode('entity:ent:alice'), true)
+  assert.equal(built.graph.hasEdge('utterance:utt-1', 'entity:ent:alice'), true)
+  assert.equal(built.graph.hasNode('segment:seg-1'), true)
   assert.ok(built.edgeCount >= 1)
-  assert.equal(built.graph.hasEdge('utterance:utt-1', 'document:story-1'), true)
+  // GROUNDED_IN targets the segment when it is visible
+  assert.equal(built.graph.hasEdge('utterance:utt-1', 'segment:seg-1'), true)
 
-  const withSegments = buildGraphologyFromProjection(projection, {
+  const withoutSegments = buildGraphologyFromProjection(projection, {
     ...DEFAULT_NEO_FILTERS,
-    kinds: { ...DEFAULT_NEO_FILTERS.kinds, segment: true },
+    kinds: { ...DEFAULT_NEO_FILTERS.kinds, segment: false },
   })
-  assert.equal(withSegments.graph.hasNode('segment:seg-1'), true)
+  assert.equal(withoutSegments.graph.hasNode('segment:seg-1'), false)
 
   const noPub = projectPhase0Document({ ...fixture, publication: null })
   assert.equal(
@@ -190,6 +217,30 @@ function main() {
   const hits = searchProjectionNodes(projection, 'alice')
   assert.ok(hits.some((n) => n.id === 'agent:agent-1'))
 
+  // Position cache: retained nodes keep coords; seed is id-stable across rebuilds
+  const firstBuilt = buildGraphologyFromProjection(projection, DEFAULT_NEO_FILTERS)
+  const docId = 'document:story-1'
+  assert.equal(firstBuilt.graph.hasNode(docId), true)
+  firstBuilt.graph.setNodeAttribute(docId, 'x', 42)
+  firstBuilt.graph.setNodeAttribute(docId, 'y', -17)
+  const cached = new Map([[docId, { x: 42, y: -17 }]])
+  const rebuilt = buildGraphologyFromProjection(projection, DEFAULT_NEO_FILTERS, {
+    positions: cached,
+  })
+  assert.equal(rebuilt.newNodeCount, rebuilt.graph.order - 1)
+  assert.equal(rebuilt.graph.getNodeAttribute(docId, 'x'), 42)
+  assert.equal(rebuilt.graph.getNodeAttribute(docId, 'y'), -17)
+  const a = buildGraphologyFromProjection(projection, DEFAULT_NEO_FILTERS)
+  const b = buildGraphologyFromProjection(projection, DEFAULT_NEO_FILTERS)
+  assert.equal(
+    a.graph.getNodeAttribute(docId, 'x'),
+    b.graph.getNodeAttribute(docId, 'x')
+  )
+  assert.equal(
+    a.graph.getNodeAttribute(docId, 'y'),
+    b.graph.getNodeAttribute(docId, 'y')
+  )
+
   const emptyUtts = projectPhase0Document({
     ...fixture,
     utterances: [],
@@ -202,10 +253,7 @@ function main() {
     ...projection,
     edges: [...projection.edges, ...projection.edges],
   }
-  const dupBuilt = buildGraphologyFromProjection(dupProjection, {
-    ...DEFAULT_NEO_FILTERS,
-    kinds: { ...DEFAULT_NEO_FILTERS.kinds, segment: true },
-  })
+  const dupBuilt = buildGraphologyFromProjection(dupProjection, DEFAULT_NEO_FILTERS)
   assert.ok(dupBuilt.droppedEdges >= projection.edges.length)
 
   const hubProj = projectHubGraph(hubFixture)
@@ -282,6 +330,42 @@ function main() {
         normalizedName: 'donald trump',
       },
     ],
+    entities: [
+      {
+        uid: 'ent:trump',
+        name: 'Donald Trump',
+        normalizedName: 'donald trump',
+        kindHint: 'person',
+      },
+      {
+        uid: 'ent:president',
+        name: 'President',
+        normalizedName: 'president',
+        kindHint: 'office',
+      },
+    ],
+    referredAs: [
+      {
+        fromUid: 'story-1:agent:donald-trump',
+        fromKind: 'agent',
+        officeUid: 'ent:president',
+        title: 'President',
+      },
+      {
+        fromUid: 'ent:trump',
+        fromKind: 'entity',
+        officeUid: 'ent:president',
+        title: 'President',
+      },
+    ],
+    mentions: [
+      {
+        utteranceUid: 'utt-1',
+        entityUid: 'ent:trump',
+        surfaceForm: 'Donald Trump',
+        title: null,
+      },
+    ],
     utterances: [
       {
         ...fixture.utterances[0],
@@ -290,7 +374,27 @@ function main() {
       },
     ],
   }
-  const unionProj = projectUnionDocuments([story1WithTrump, story2])
+  const story2WithTrump: NeoDocumentGraph = {
+    ...story2,
+    entities: [
+      {
+        uid: 'ent:trump',
+        name: 'Donald Trump',
+        normalizedName: 'donald trump',
+        kindHint: 'person',
+      },
+    ],
+    mentions: [
+      {
+        utteranceUid: 'utt-2',
+        entityUid: 'ent:trump',
+        surfaceForm: 'Donald Trump',
+        title: null,
+      },
+    ],
+    referredAs: [],
+  }
+  const unionProj = projectUnionDocuments([story1WithTrump, story2WithTrump])
   assert.equal(unionProj.projectionId, 'union-documents')
   assert.equal(unionProj.rootKind, 'union')
   assert.equal(unionProj.documents?.length, 2)
@@ -300,31 +404,19 @@ function main() {
     unionProj.nodes.filter((n) => n.id === 'publication:pub-1').length,
     1
   )
-  // Display-only Agent collapse by normalizedName
-  const trumpNodes = unionProj.nodes.filter(
+  // Display: Agents stay document-scoped; shared person Entity bridges stories
+  const trumpAgents = unionProj.nodes.filter(
     (n) => n.kind === 'agent' && n.properties.normalizedName === 'donald trump'
   )
-  assert.equal(trumpNodes.length, 1)
-  assert.equal(trumpNodes[0].id, 'agent:union:donald-trump')
-  assert.equal(trumpNodes[0].properties.unionCollapsed, true)
-  assert.ok(
-    String(trumpNodes[0].properties.sourceAgentUids).includes(
-      'story-1:agent:donald-trump'
-    )
-  )
-  assert.ok(
-    String(trumpNodes[0].properties.sourceAgentUids).includes(
-      'story-2:agent:donald-trump'
-    )
-  )
-  // Distinct people stay separate
-  assert.ok(unionProj.nodes.some((n) => n.id === 'agent:union:bob'))
+  assert.equal(trumpAgents.length, 2)
+  assert.ok(trumpAgents.some((n) => n.id === 'agent:story-1:agent:donald-trump'))
+  assert.ok(trumpAgents.some((n) => n.id === 'agent:story-2:agent:donald-trump'))
   assert.ok(
     unionProj.edges.some(
       (e) =>
         e.type === 'ASSERTED_BY' &&
         e.source === 'utterance:utt-1' &&
-        e.target === 'agent:union:donald-trump'
+        e.target === 'agent:story-1:agent:donald-trump'
     )
   )
   assert.ok(
@@ -332,16 +424,40 @@ function main() {
       (e) =>
         e.type === 'ASSERTED_BY' &&
         e.source === 'utterance:utt-2' &&
-        e.target === 'agent:union:donald-trump'
+        e.target === 'agent:story-2:agent:donald-trump'
     )
   )
+  // Distinct people stay separate
+  assert.ok(unionProj.nodes.some((n) => n.id === 'agent:agent-2'))
 
   const unionBuilt = buildGraphologyFromProjection(unionProj, DEFAULT_NEO_FILTERS)
   assert.equal(unionBuilt.graph.hasNode('document:story-1'), true)
   assert.equal(unionBuilt.graph.hasNode('document:story-2'), true)
   assert.equal(unionBuilt.graph.hasNode('publication:pub-1'), true)
-  assert.equal(unionBuilt.graph.hasNode('agent:union:donald-trump'), true)
-  assert.equal(unionBuilt.graph.hasNode('agent:story-1:agent:donald-trump'), false)
+  assert.equal(unionBuilt.graph.hasNode('agent:story-1:agent:donald-trump'), true)
+  assert.equal(unionBuilt.graph.hasNode('agent:story-2:agent:donald-trump'), true)
+  assert.equal(unionBuilt.graph.hasNode('agent:union:donald-trump'), false)
+  // Shared person Entity collapses by global uid across stories
+  assert.equal(
+    unionProj.nodes.filter((n) => n.id === 'entity:ent:trump').length,
+    1
+  )
+  assert.ok(
+    unionProj.edges.some(
+      (e) =>
+        e.type === 'MENTIONS' &&
+        e.source === 'utterance:utt-1' &&
+        e.target === 'entity:ent:trump'
+    )
+  )
+  assert.ok(
+    unionProj.edges.some(
+      (e) =>
+        e.type === 'MENTIONS' &&
+        e.source === 'utterance:utt-2' &&
+        e.target === 'entity:ent:trump'
+    )
+  )
 
   console.log('neo-graphology-adapter: all assertions passed')
 }

@@ -2,11 +2,10 @@
 
 import { Button } from '@/components/ui/button'
 import { NEO_KIND_LEGEND } from '@/lib/admin/neo-graph/appearance'
+import { neoNodeFillGradient } from '@/lib/admin/neo-graph/colors'
 import { useNeoKindColors } from '@/lib/admin/neo-graph/use-neo-colors'
 import {
-  ALL_EDGE_TYPES,
   ALL_NODE_KINDS,
-  type NeoEdgeType,
   type NeoGraphFilters,
   type NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
@@ -25,13 +24,6 @@ export function NeoGraphFiltersPanel({
     onChange({
       ...filters,
       kinds: { ...filters.kinds, [kind]: !filters.kinds[kind] },
-    })
-  }
-
-  const toggleEdge = (type: NeoEdgeType) => {
-    onChange({
-      ...filters,
-      edgeTypes: { ...filters.edgeTypes, [type]: !filters.edgeTypes[type] },
     })
   }
 
@@ -64,34 +56,17 @@ export function NeoGraphFiltersPanel({
           </Button>
         ))}
       </div>
-
-      <p className="mt-3 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-        Relationships
-      </p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {ALL_EDGE_TYPES.map((type) => (
-          <Button
-            key={type}
-            type="button"
-            size="sm"
-            variant={filters.edgeTypes[type] ? 'default' : 'outline'}
-            className={cn(
-              'h-7 rounded-full px-2.5 text-[10px]',
-              filters.edgeTypes[type]
-                ? 'bg-white/15 text-zinc-100 hover:bg-white/20'
-                : 'border-white/15 bg-transparent text-zinc-500 hover:bg-white/5'
-            )}
-            onClick={() => toggleEdge(type)}
-          >
-            {type}
-          </Button>
-        ))}
-      </div>
     </div>
   )
 }
 
-export function NeoGraphLegend({ className }: { className?: string }) {
+export function NeoGraphLegend({
+  className,
+  highlightKind = null,
+}: {
+  className?: string
+  highlightKind?: NeoNodeKind | null
+}) {
   const colors = useNeoKindColors()
   const items = NEO_KIND_LEGEND.map((item) => ({
     ...item,
@@ -101,23 +76,34 @@ export function NeoGraphLegend({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-white/10 bg-black/55 px-3 py-2 shadow-xl backdrop-blur',
+        'max-w-full overflow-hidden px-1 py-0.5',
         className
       )}
     >
-      <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-        Legend
-      </p>
-      <ul className="mt-1.5 space-y-1">
-        {items.map((item) => (
-          <li key={item.kind} className="flex items-center gap-2 text-[11px] text-zinc-300">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
-            {item.label}
-          </li>
-        ))}
+      <ul className="flex min-w-0 items-center justify-center gap-x-3 gap-y-1 overflow-x-auto">
+        {items.map((item) => {
+          const active = highlightKind === item.kind
+          return (
+            <li
+              key={item.kind}
+              className="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-300"
+            >
+              <span
+                className={cn(
+                  'inline-block h-2.5 w-2.5 rounded-full transition-[box-shadow,transform,opacity] duration-300 ease-out',
+                  active ? 'scale-110 opacity-100' : 'opacity-90'
+                )}
+                style={{
+                  backgroundImage: neoNodeFillGradient(item.color),
+                  boxShadow: active
+                    ? `0 0 0 1px rgba(255,255,255,0.18), 0 0 4px 1px ${item.color}`
+                    : '0 0 0 0 transparent',
+                }}
+              />
+              {item.label}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

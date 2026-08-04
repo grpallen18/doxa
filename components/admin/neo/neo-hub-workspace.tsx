@@ -52,7 +52,7 @@ export function NeoHubWorkspace({
   const [error, setError] = useState<string | null>(null)
   const [activeDocUid, setActiveDocUid] = useState<string | null>(null)
   const [passage, setPassage] = useState<PassagePayload | null>(null)
-  const [passageOpen, setPassageOpen] = useState(true)
+  const [passageOpen, setPassageOpen] = useState(false)
   const [highlight, setHighlight] = useState<{ start: number; end: number } | null>(
     null
   )

@@ -14,126 +14,10 @@ export type UnionDocumentMeta = {
   found: boolean
 }
 
-function agentCollapseKey(node: DoxaGraphNode): string | null {
-  if (node.kind !== 'agent') return null
-  const norm =
-    (typeof node.properties.normalizedName === 'string' &&
-      node.properties.normalizedName.trim().toLowerCase()) ||
-    (typeof node.properties.name === 'string' &&
-      node.properties.name.trim().toLowerCase()) ||
-    node.label.trim().toLowerCase()
-  const collapsed = norm.replace(/\s+/g, ' ').trim()
-  return collapsed || null
-}
-
-function unionAgentId(normalizedKey: string): string {
-  const slug =
-    normalizedKey
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 80) || 'unknown'
-  return `agent:union:${slug}`
-}
-
-/**
- * Display-only: collapse document-scoped Agents that share a normalized name
- * into one visual node. Aura Agent uids remain unchanged.
- */
-function collapseAgentsForDisplay(
-  nodesById: Map<string, DoxaGraphNode>,
-  edgesById: Map<string, DoxaGraphEdge>
-): void {
-  const keyToCanonical = new Map<string, string>()
-  const idRemap = new Map<string, string>()
-
-  for (const node of nodesById.values()) {
-    const key = agentCollapseKey(node)
-    if (!key) continue
-    let canonicalId = keyToCanonical.get(key)
-    if (!canonicalId) {
-      canonicalId = unionAgentId(key)
-      keyToCanonical.set(key, canonicalId)
-    }
-    idRemap.set(node.id, canonicalId)
-  }
-
-  if (idRemap.size === 0) return
-
-  // Merge agent nodes into canonical ids
-  for (const [oldId, canonicalId] of idRemap) {
-    const node = nodesById.get(oldId)
-    if (!node) continue
-    nodesById.delete(oldId)
-    const existing = nodesById.get(canonicalId)
-    const sourceUid =
-      typeof node.properties.uid === 'string' ? node.properties.uid : oldId
-    if (!existing) {
-      const sourceUids = [sourceUid]
-      nodesById.set(canonicalId, {
-        ...node,
-        id: canonicalId,
-        degreeHint: 0,
-        aliases: Array.from(
-          new Set([...node.aliases, sourceUid, 'union-collapsed'])
-        ),
-        properties: {
-          ...node.properties,
-          uid: canonicalId,
-          sourceAgentUids: sourceUids.join(','),
-          unionCollapsed: true,
-        },
-      })
-      continue
-    }
-    const prevSources =
-      typeof existing.properties.sourceAgentUids === 'string'
-        ? existing.properties.sourceAgentUids.split(',').filter(Boolean)
-        : []
-    const sourceUids = Array.from(new Set([...prevSources, sourceUid]))
-    nodesById.set(canonicalId, {
-      ...existing,
-      label:
-        (node.label?.length ?? 0) > (existing.label?.length ?? 0)
-          ? node.label
-          : existing.label,
-      aliases: Array.from(
-        new Set([...existing.aliases, ...node.aliases, sourceUid])
-      ),
-      properties: {
-        ...existing.properties,
-        ...node.properties,
-        uid: canonicalId,
-        sourceAgentUids: sourceUids.join(','),
-        unionCollapsed: true,
-      },
-    })
-  }
-
-  // Rewrite edges onto canonical agent ids
-  const rewritten = new Map<string, DoxaGraphEdge>()
-  for (const edge of edgesById.values()) {
-    const source = idRemap.get(edge.source) ?? edge.source
-    const target = idRemap.get(edge.target) ?? edge.target
-    if (source === target) continue
-    const id = `${source}->${target}:${edge.type}`
-    if (rewritten.has(id)) continue
-    rewritten.set(id, {
-      ...edge,
-      id,
-      source,
-      target,
-    })
-  }
-  edgesById.clear()
-  for (const [id, edge] of rewritten) {
-    edgesById.set(id, edge)
-  }
-}
-
 /**
  * Merge multiple Phase 0 document projections into one union graph.
- * Shared Publication / Entity nodes collapse by id.
- * Agents with the same normalizedName collapse for display only.
+ * Shared Publication / Entity nodes collapse by global uid.
+ * Agents stay document-scoped; cross-story identity is via person Entities.
  */
 export function projectUnionDocuments(
   graphs: NeoDocumentGraph[],
@@ -175,8 +59,6 @@ export function projectUnionDocuments(
       }
     }
   }
-
-  collapseAgentsForDisplay(nodesById, edgesById)
 
   const degree = new Map<string, number>()
   for (const edge of edgesById.values()) {

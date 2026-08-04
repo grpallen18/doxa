@@ -1,82 +1,133 @@
 import type { NodeHoverDrawingFunction } from 'sigma/rendering'
 import { drawDiscNodeLabel } from 'sigma/rendering'
+import { NEO_LABEL_COLOR_EMPHASIS } from '@/lib/admin/neo-graph/appearance'
+import {
+  deriveNeoBorderColor,
+  deriveNeoHighlightColor,
+} from '@/lib/admin/neo-graph/colors'
+import type { NeoHoverFadeController } from '@/lib/admin/neo-graph/hover-fade'
 
-/** Resolve Doxa --inverted for text on Sigma's white hover chip. */
+/** Hover label uses app --foreground (no chip background). */
 export function resolveNeoHoverLabelColor(): string {
-  if (typeof window === 'undefined') return '#000000'
-  const root = document.documentElement
-  const inverted = getComputedStyle(root).getPropertyValue('--inverted').trim()
-  if (!inverted) return '#000000'
-  // Light theme sets --inverted to white (text on dark fills); that fails on a
-  // white hover chip — fall back to --foreground.
-  if (isLightCssColor(inverted)) {
-    return getComputedStyle(root).getPropertyValue('--foreground').trim() || '#000000'
-  }
-  return inverted
+  if (typeof window === 'undefined') return NEO_LABEL_COLOR_EMPHASIS
+  const foreground = getComputedStyle(document.documentElement)
+    .getPropertyValue('--foreground')
+    .trim()
+  return foreground || NEO_LABEL_COLOR_EMPHASIS
 }
 
-function isLightCssColor(color: string): boolean {
-  const hex = color.trim()
-  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) {
-    const full =
-      hex.length === 4
-        ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
-        : hex
-    const r = parseInt(full.slice(1, 3), 16)
-    const g = parseInt(full.slice(3, 5), 16)
-    const b = parseInt(full.slice(5, 7), 16)
-    return (r * 299 + g * 587 + b * 114) / 1000 > 180
-  }
-  return false
+type HoverDrawData = Parameters<NodeHoverDrawingFunction>[1]
+type HoverDrawSettings = Parameters<NodeHoverDrawingFunction>[2]
+
+function fillNeoDisc(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  color: string
+): void {
+  const lift = deriveNeoHighlightColor(color, 0.42)
+  const rim = deriveNeoBorderColor(color, 0.48)
+  const gradient = context.createRadialGradient(
+    x - radius * 0.32,
+    y - radius * 0.38,
+    radius * 0.05,
+    x,
+    y,
+    radius
+  )
+  gradient.addColorStop(0, lift)
+  gradient.addColorStop(0.45, color)
+  gradient.addColorStop(0.82, rim)
+  gradient.addColorStop(1, deriveNeoBorderColor(color, 0.36))
+
+  context.beginPath()
+  context.arc(x, y, radius, 0, Math.PI * 2)
+  context.fillStyle = gradient
+  context.fill()
+
+  // Soft specular glint (matches WebGL shine)
+  const shine = context.createRadialGradient(
+    x - radius * 0.32,
+    y - radius * 0.38,
+    0,
+    x - radius * 0.32,
+    y - radius * 0.38,
+    radius * 0.55
+  )
+  shine.addColorStop(0, 'rgba(255, 255, 255, 0.34)')
+  shine.addColorStop(0.45, 'rgba(255, 255, 255, 0.08)')
+  shine.addColorStop(1, 'rgba(255, 255, 255, 0)')
+  context.beginPath()
+  context.arc(x, y, radius, 0, Math.PI * 2)
+  context.fillStyle = shine
+  context.fill()
 }
 
 /**
- * Sigma default hover draws a white label chip then reuses idle labelColor.
- * Override so hover text uses --inverted (dark text on the white chip).
+ * Hover: dense node-colored glow (no white border/chip) + foreground label.
+ * `opacity` fades glow + label (legend-matched 300ms ease-out when animated).
  */
-export const drawNeoNodeHover: NodeHoverDrawingFunction = (context, data, settings) => {
-  const size = settings.labelSize
-  const font = settings.labelFont
-  const weight = settings.labelWeight
-  context.font = `${weight} ${size}px ${font}`
+export function drawNeoNodeHoverAt(
+  context: CanvasRenderingContext2D,
+  data: HoverDrawData,
+  settings: HoverDrawSettings,
+  opacity: number
+): void {
+  if (opacity <= 0.001) return
 
-  context.fillStyle = '#FFF'
-  context.shadowOffsetX = 0
-  context.shadowOffsetY = 0
-  context.shadowBlur = 8
-  context.shadowColor = '#000'
-  const PADDING = 2
+  const color = typeof data.color === 'string' && data.color ? data.color : '#e8e4df'
+  const radius = data.size
+  const alpha = Math.max(0, Math.min(1, opacity))
 
-  if (typeof data.label === 'string') {
-    const textWidth = context.measureText(data.label).width
-    const boxWidth = Math.round(textWidth + 5)
-    const boxHeight = Math.round(size + 2 * PADDING)
-    const radius = Math.max(data.size, size / 2) + PADDING
-    const angleRadian = Math.asin(boxHeight / 2 / radius)
-    const xDeltaCoord = Math.sqrt(Math.abs(radius ** 2 - (boxHeight / 2) ** 2))
-
-    context.beginPath()
-    context.moveTo(data.x + xDeltaCoord, data.y + boxHeight / 2)
-    context.lineTo(data.x + radius + boxWidth, data.y + boxHeight / 2)
-    context.lineTo(data.x + radius + boxWidth, data.y - boxHeight / 2)
-    context.lineTo(data.x + xDeltaCoord, data.y - boxHeight / 2)
-    context.arc(data.x, data.y, radius, angleRadian, -angleRadian)
-    context.closePath()
-    context.fill()
-  } else {
-    context.beginPath()
-    context.arc(data.x, data.y, data.size + PADDING, 0, Math.PI * 2)
-    context.closePath()
-    context.fill()
-  }
+  context.save()
+  context.globalAlpha = alpha
 
   context.shadowOffsetX = 0
   context.shadowOffsetY = 0
+  context.shadowBlur = 5
+  context.shadowColor = color
+  fillNeoDisc(context, data.x, data.y, radius, color)
+
   context.shadowBlur = 0
+  context.beginPath()
+  context.arc(data.x, data.y, radius, 0, Math.PI * 2)
+  context.strokeStyle = 'rgba(255, 255, 255, 0.14)'
+  context.lineWidth = 1
+  context.stroke()
 
   const hoverSettings = {
     ...settings,
     labelColor: { color: resolveNeoHoverLabelColor() },
   }
   drawDiscNodeLabel(context, data, hoverSettings)
+  context.restore()
+}
+
+/** Full-opacity hover (selection highlight / no fade controller). */
+export const drawNeoNodeHover: NodeHoverDrawingFunction = (context, data, settings) => {
+  drawNeoNodeHoverAt(context, data, settings, 1)
+}
+
+/**
+ * Sigma hover drawer bound to a fade controller.
+ * Live/lingering hover uses fade progress; other highlighted nodes (e.g. selection) stay solid.
+ */
+export function createFadedNeoNodeHover(
+  getFade: () => NeoHoverFadeController | null,
+  getSolidNodeId?: () => string | null
+): NodeHoverDrawingFunction {
+  return (context, data, settings) => {
+    const fade = getFade()
+    const key = typeof data.key === 'string' ? data.key : null
+    let opacity = 1
+    if (fade && key && key === fade.getNodeId()) {
+      const solid = getSolidNodeId?.() === key
+      // Selection owns solid hover chrome after leave; only fade non-selected linger.
+      if (fade.isLive() || (fade.isLingering() && !solid)) {
+        opacity = fade.getProgress()
+      }
+    }
+    drawNeoNodeHoverAt(context, data, settings, opacity)
+  }
 }

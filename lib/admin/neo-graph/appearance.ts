@@ -4,6 +4,7 @@ import {
   getNeoKindColor,
   loadNeoKindColors,
   NEO_KIND_COLOR_DEFAULTS,
+  withPremultipliedAlpha,
 } from '@/lib/admin/neo-graph/colors'
 
 export type NodeAppearance = {
@@ -73,8 +74,31 @@ export function resolveNodeAppearance(input: {
   }
 }
 
+export const NEO_EDGE_SIZE_IDLE = 0.7
+export const NEO_EDGE_SIZE_ACTIVE = 2.2
+export const NEO_EDGE_IDLE_ALPHA = 0.5
+
 export function resolveEdgeColor(type: NeoEdgeType): string {
   return EDGE_COLOR[type] ?? '#6b6560'
+}
+
+export function resolveIdleEdgeColor(type: NeoEdgeType): string {
+  return withPremultipliedAlpha(resolveEdgeColor(type), NEO_EDGE_IDLE_ALPHA)
+}
+
+/** Lerp idle → active edge chrome (`t` 0..1, same timing as node hover fade). */
+export function resolveEdgeAppearanceAt(type: NeoEdgeType, t: number): {
+  color: string
+  size: number
+} {
+  const u = Math.max(0, Math.min(1, t))
+  const solid = resolveEdgeColor(type)
+  const alpha = NEO_EDGE_IDLE_ALPHA + (1 - NEO_EDGE_IDLE_ALPHA) * u
+  const size = NEO_EDGE_SIZE_IDLE + (NEO_EDGE_SIZE_ACTIVE - NEO_EDGE_SIZE_IDLE) * u
+  return {
+    color: withPremultipliedAlpha(solid, alpha),
+    size,
+  }
 }
 
 export function getNeoKindLegend(): Array<{

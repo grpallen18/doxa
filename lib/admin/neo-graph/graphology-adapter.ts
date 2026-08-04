@@ -6,7 +6,8 @@ import type {
   NeoGraphFilters,
 } from '@/lib/admin/neo-graph/types'
 import {
-  resolveEdgeColor,
+  resolveIdleEdgeColor,
+  NEO_EDGE_SIZE_IDLE,
   resolveNodeAppearance,
 } from '@/lib/admin/neo-graph/appearance'
 
@@ -41,6 +42,8 @@ export type SigmaEdgeAttributes = {
 
 export type NeoSigmaGraph = Graph<SigmaNodeAttributes, SigmaEdgeAttributes>
 
+export type NeoNodePosition = { x: number; y: number }
+
 const MAX_NODES = 400
 
 function hashSeed(id: string): number {
@@ -49,7 +52,8 @@ function hashSeed(id: string): number {
   return Math.abs(h)
 }
 
-function initialPosition(id: string, kind: DoxaGraphNode['kind'], index: number) {
+/** Id-stable seed (no filtered-list index) so the same node keeps the same start. */
+function initialPosition(id: string, kind: DoxaGraphNode['kind']): NeoNodePosition {
   const seed = hashSeed(id)
   const ring =
     kind === 'controversy'
@@ -71,12 +75,17 @@ function initialPosition(id: string, kind: DoxaGraphNode['kind'], index: number)
                     : kind === 'utterance'
                       ? 220
                       : 180
-  const angle = ((seed % 360) + index * 11) * (Math.PI / 180)
+  const angle = (seed % 360) * (Math.PI / 180)
   const jitter = (seed % 30) - 15
   return {
     x: Math.cos(angle) * (ring + jitter),
     y: Math.sin(angle) * (ring + jitter),
   }
+}
+
+export type GraphologyBuildOptions = {
+  /** Prior layout positions keyed by node id (filter toggles / color refresh). */
+  positions?: ReadonlyMap<string, NeoNodePosition>
 }
 
 export type GraphologyBuildResult = {
@@ -86,21 +95,26 @@ export type GraphologyBuildResult = {
   edgeCount: number
   droppedNodes: number
   droppedEdges: number
+  /** Nodes that were not in `positions` and needed a fresh seed. */
+  newNodeCount: number
 }
 
 /**
  * Primary visualization boundary: DoxaGraphProjection → Graphology.
  * Idempotent for duplicate node/edge ids; no Neo4j access.
+ * When `positions` is provided, retained nodes keep their layout.
  */
 export function buildGraphologyFromProjection(
   projection: DoxaGraphProjection,
-  filters?: NeoGraphFilters
+  filters?: NeoGraphFilters,
+  options?: GraphologyBuildOptions
 ): GraphologyBuildResult {
   const graph: NeoSigmaGraph = new Graph({
     multi: false,
     type: 'directed',
     allowSelfLoops: false,
   })
+  const positions = options?.positions
 
   const kindOk = (kind: DoxaGraphNode['kind']) =>
     !filters || filters.kinds[kind] !== false
@@ -112,13 +126,21 @@ export function buildGraphologyFromProjection(
   const capped = visibleNodes.slice(0, MAX_NODES)
   droppedNodes = visibleNodes.length - capped.length
 
-  capped.forEach((node, index) => {
-    if (graph.hasNode(node.id)) return
+  const newNodeIds: string[] = []
+  const newNodeIdSet = new Set<string>()
+
+  for (const node of capped) {
+    if (graph.hasNode(node.id)) continue
     const appearance = resolveNodeAppearance({
       kind: node.kind,
       degreeHint: node.degreeHint,
     })
-    const pos = initialPosition(node.id, node.kind, index)
+    const cached = positions?.get(node.id)
+    const pos = cached ?? initialPosition(node.id, node.kind)
+    if (!cached) {
+      newNodeIds.push(node.id)
+      newNodeIdSet.add(node.id)
+    }
     graph.addNode(node.id, {
       label: node.label,
       fullLabel: node.label,
@@ -135,7 +157,7 @@ export function buildGraphologyFromProjection(
       properties: node.properties,
       aliases: node.aliases,
     })
-  })
+  }
 
   let droppedEdges = 0
   for (const edge of projection.edges) {
@@ -183,10 +205,31 @@ export function buildGraphologyFromProjection(
       label: edge.label,
       type: 'curvedArrow',
       edgeType: edge.type,
-      size: 1.2,
-      color: resolveEdgeColor(edge.type),
+      size: NEO_EDGE_SIZE_IDLE,
+      color: resolveIdleEdgeColor(edge.type),
       properties: edge.properties,
     })
+  }
+
+  // Place newly visible nodes near existing neighbors when possible.
+  for (const id of newNodeIds) {
+    if (!graph.hasNode(id)) continue
+    let sx = 0
+    let sy = 0
+    let count = 0
+    graph.forEachNeighbor(id, (neighborId) => {
+      // Prefer settled neighbors over other freshly seeded nodes.
+      if (newNodeIdSet.has(neighborId)) return
+      const n = graph.getNodeAttributes(neighborId)
+      sx += n.x
+      sy += n.y
+      count += 1
+    })
+    if (count === 0) continue
+    const seed = hashSeed(id)
+    const jitter = ((seed % 21) - 10) * 0.35
+    graph.setNodeAttribute(id, 'x', sx / count + jitter)
+    graph.setNodeAttribute(id, 'y', sy / count - jitter)
   }
 
   return {
@@ -196,7 +239,18 @@ export function buildGraphologyFromProjection(
     edgeCount: graph.size,
     droppedNodes,
     droppedEdges,
+    newNodeCount: newNodeIds.length,
   }
+}
+
+export function snapshotGraphPositions(
+  graph: NeoSigmaGraph
+): Map<string, NeoNodePosition> {
+  const next = new Map<string, NeoNodePosition>()
+  graph.forEachNode((id, attrs) => {
+    next.set(id, { x: attrs.x, y: attrs.y })
+  })
+  return next
 }
 
 export function searchProjectionNodes(
