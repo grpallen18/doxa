@@ -36,6 +36,7 @@ Do **not** invent one-off Framer/Motion wrappers when a Motion Primitive already
 - Use existing `cn` from `@/lib/utils`; do not add a second utils helper for motion components.
 - Prefer purposeful motion that supports hierarchy and presence. Avoid decorative noise, endless loops on dense admin surfaces, and purple/glow demos that fight the design system.
 - shadcn/ui remains the default for non-animated primitives (Button, Dialog shell, forms, etc.). Compose: shadcn structure + Motion Primitive motion where helpful.
+- **Text fields:** `components/ui/input.tsx` and `textarea.tsx` always use `SpotlightBorder` (`--accent-primary` gradient) on focus. Do not reintroduce `focus-visible:ring-ring` / accent border rings on those primitives. Use `@/components/ui/input` and `@/components/ui/textarea` instead of raw `<input>` / `<textarea>` for text fields.
 
 ## When not to use it
 

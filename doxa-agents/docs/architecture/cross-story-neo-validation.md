@@ -22,7 +22,7 @@ Cross-story Neo is **hub-centered**, not a dump of every Document. Primary hub: 
 - [ ] Truncation surfaces when Cypher caps or Graphology 400-node cap apply (`truncated` in chrome)
 - [ ] Proposition hub `/admin/neo/hub/proposition/{uid}` and Entity hub `/admin/neo/hub/entity/{uid}` load (ER/debug)
 - [ ] Browser network panel shows only same-origin `/api/admin/neo/...` — **no Aura credentials** in the client
-- [ ] **Story union** `/admin/neo/union`: search succeeded stories, Add / × remove, graph refreshes; `?ids=` URL updates; passage follows selected utterance’s document
+- [ ] **Story union** `/admin/neo/union`: auto-loads all succeeded stories; Refresh; Stories dropdown; passage follows selected utterance’s document
 
 ## Non-goals (do not fail checklist)
 

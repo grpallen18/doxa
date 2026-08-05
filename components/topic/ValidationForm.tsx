@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Viewpoint } from '@/lib/types'
+import { Textarea } from '@/components/ui/textarea'
 
 interface ValidationFormProps {
   topicId: string
@@ -129,10 +130,9 @@ export default function ValidationForm({ topicId, viewpoints, onSuccess }: Valid
         <label className="block text-sm font-medium mb-2">
           Feedback (optional):
         </label>
-        <textarea
+        <Textarea
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
-          className="w-full rounded border border-input bg-background p-2"
           rows={3}
           placeholder="What's missing or incorrect?"
         />

@@ -18,6 +18,7 @@ Agent guidance: [`.cursor/rules/motion-primitives.mdc`](../../.cursor/rules/moti
 | Progressive Blur | `@/components/motion-primitives/progressive-blur` |
 | Morphing Dialog | `@/components/motion-primitives/morphing-dialog` |
 | Spotlight | `@/components/motion-primitives/spotlight` |
+| Spotlight Border | `@/components/motion-primitives/spotlight-border` |
 | Scroll Progress | `@/components/motion-primitives/scroll-progress` |
 | Dock | `@/components/motion-primitives/dock` |
 | Sliding Number | `@/components/motion-primitives/sliding-number` |

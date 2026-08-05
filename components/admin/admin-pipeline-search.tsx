@@ -202,7 +202,7 @@ function AdminHeaderSearchInner({ className }: { className?: string }) {
     <div ref={containerRef} className={cn('relative w-full', className)}>
       <div className="relative">
         <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+          className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted"
           aria-hidden
         />
         <Input
@@ -228,7 +228,7 @@ function AdminHeaderSearchInner({ className }: { className?: string }) {
           aria-autocomplete="list"
           role="combobox"
           autoComplete="off"
-          className="h-9 w-full bg-surface-section pl-9 pr-3 text-foreground placeholder:text-muted"
+          className="h-9 bg-surface-section pl-9 pr-3 text-foreground placeholder:text-muted"
         />
       </div>
 

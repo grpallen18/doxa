@@ -42,7 +42,7 @@ export function NeoProjectionExplorer({
   /** Used for "Story hub" when selection has no documentUid. */
   contextStoryId: string | null
   defaultFilters?: NeoGraphFilters
-  onUtteranceHighlight: (span: UtteranceHighlight | null) => void
+  onUtteranceHighlight?: (span: UtteranceHighlight | null) => void
   className?: string
 }) {
   const kindColors = useNeoKindColors()
@@ -97,13 +97,13 @@ export function NeoProjectionExplorer({
           typeof next.properties?.documentUid === 'string'
             ? next.properties.documentUid
             : contextStoryId
-        onUtteranceHighlight({
+        onUtteranceHighlight?.({
           start: next.charStart,
           end: next.charEnd,
           documentUid,
         })
       } else {
-        onUtteranceHighlight(null)
+        onUtteranceHighlight?.(null)
       }
     },
     [contextStoryId, onUtteranceHighlight]

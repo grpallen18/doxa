@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AgentDetail } from '@/lib/admin/agent-detail'
 import type { AgentPromptResponse } from '@/lib/admin/agent-prompt-store'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -350,7 +352,7 @@ export function AgentPromptSection({
             </div>
           )}
         </div>
-        <textarea
+        <Textarea
           readOnly={!editing}
           value={draft}
           onChange={(e) => {
@@ -358,7 +360,7 @@ export function AgentPromptSection({
           }}
           rows={14}
           className={cn(
-            'w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-xs leading-relaxed',
+            'resize-y font-mono text-xs leading-relaxed',
             !editing && 'text-muted-foreground'
           )}
         />
@@ -369,12 +371,12 @@ export function AgentPromptSection({
           <Label htmlFor="change-note" className="text-xs text-muted">
             Change note (optional)
           </Label>
-          <input
+          <Input
             id="change-note"
             type="text"
             value={changeNote}
             onChange={(e) => setChangeNote(e.target.value)}
-            className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            className="mt-1"
             placeholder="What changed and why"
           />
           <p className="mt-2 text-xs text-muted">

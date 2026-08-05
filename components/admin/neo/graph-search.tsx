@@ -64,7 +64,7 @@ export function NeoGraphSearch({
           }, 150)
         }}
         placeholder="Search this view…"
-        className="h-8 border-white/10 bg-black/70 text-sm text-zinc-100 placeholder:text-zinc-500 shadow-none backdrop-blur"
+        className="h-8 border-white/10 bg-[#121212] text-sm text-zinc-100 placeholder:text-zinc-500 shadow-none"
       />
       {listOpen && query.trim() ? (
         <ul

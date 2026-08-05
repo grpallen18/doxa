@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 export function HeaderSearch({ className }: { className?: string }) {
@@ -11,16 +12,16 @@ export function HeaderSearch({ className }: { className?: string }) {
       </label>
       <div className="relative">
         <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+          className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted"
           aria-hidden
         />
-        <input
+        <Input
           id="header-search"
           name="q"
           type="search"
           placeholder="Search topics…"
           autoComplete="off"
-          className="h-9 w-full rounded-md border border-border bg-surface-section pl-9 pr-3 text-sm font-medium text-foreground shadow-none outline-none transition-shadow placeholder:text-muted focus:ring-2 focus:ring-ring"
+          className="h-9 bg-surface-section pl-9 pr-3 text-foreground placeholder:text-muted"
         />
       </div>
     </form>

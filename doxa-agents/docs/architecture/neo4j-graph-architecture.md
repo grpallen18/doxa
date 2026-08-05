@@ -56,7 +56,7 @@ Lower layers never depend on upper layers. Embeddings generate **candidates only
 ### Implemented (Admin Neo)
 
 - **Story Neo** — `/admin/neo/[storyId]` document-scoped discourse explorer (Agents, office + person Entities via `MENTIONS`/`REFERRED_AS`, provenance + reprocess). Filter kinds/edges in the canvas.
-- **Story union** — `/admin/neo/union?ids=…` manually add/remove up to 10 story graphs in one Sigma view (search succeeded stories; shared Publication/Entity nodes collapse)
+- **Story union** — `/admin/neo/union` auto-loads all succeeded story graphs in one Sigma view (dev; capped; shared Publication/Entity nodes collapse)
 - **Cross-story Neo hubs** — `/admin/neo/hub/{controversy|proposition|entity}/[uid]` Sigma explorer centered on shared L2/L3 nodes (not a corpus dump). Entry: Graph controversies detail → **Open in Neo**. Validation: [cross-story-neo-validation.md](cross-story-neo-validation.md)
 
 ## Data flow (Phase 0)

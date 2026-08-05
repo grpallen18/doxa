@@ -77,7 +77,7 @@ export function NeoStoryList() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             Read-only discourse graphs from Neo4j — story-scoped utterances and provenance.
-            Compose stories in a{' '}
+            View all stories in a{' '}
             <Link href="/admin/neo/union" className="underline hover:text-foreground">
               story union
             </Link>

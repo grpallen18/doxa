@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { PanelLeft } from 'lucide-react'
 
@@ -104,12 +105,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <header
         className={cn(
-          'fixed top-0 z-50 flex w-full shrink-0 items-center gap-2 border-b border-border bg-surface px-4 transition-transform duration-300 ease-in-out motion-reduce:transition-none',
+          'fixed top-0 z-50 flex w-full shrink-0 items-center gap-2 border-b border-border bg-surface transition-transform duration-300 ease-in-out motion-reduce:transition-none',
           !headerVisible && '-translate-y-full'
         )}
       >
         <div className="relative flex h-[--header-height] w-full items-stretch">
-          <div className="inline-flex w-fit shrink-0 flex-col items-stretch gap-0.5 py-px">
+          <Link
+            href="/admin"
+            className="inline-flex w-fit shrink-0 items-center py-2 pl-3"
+            aria-label="Admin Center"
+          >
             <Image
               src="/logo-color-no-bg.png"
               alt="DOXA"
@@ -126,10 +131,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               priority
               className="hidden h-[calc(var(--header-height)-1rem)] w-auto dark:block"
             />
-            <p className="w-full pb-px text-center text-[11px] font-medium leading-none tracking-[0.14em] text-muted/70">
-              Belief, Mapped.
-            </p>
-          </div>
+          </Link>
           <div
             className={cn(
               'pointer-events-none absolute inset-y-0 left-1/2 flex w-full -translate-x-1/2 items-center px-4',
@@ -142,7 +144,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <HeaderSearch className="pointer-events-auto w-full" />
             )}
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1 self-center">
+          <div className="ml-auto flex shrink-0 items-center gap-1 self-center pr-4">
             <HeaderPagesMenu />
             {role === 'admin' && <HeaderAdminMenu />}
             <HeaderUserMenu />
@@ -163,7 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex min-h-screen flex-col [--header-height:calc(theme(spacing.14))]">
+    <div className="flex min-h-screen flex-col [--header-height:calc(theme(spacing.12))]">
       <TopicExploreProvider>
         {isAdmin ? (
           <div className="flex min-h-0 flex-1 flex-col">{shellBody}</div>

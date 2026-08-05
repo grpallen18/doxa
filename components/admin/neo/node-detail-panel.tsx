@@ -18,10 +18,6 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-function hubHref(kind: string, uid: string): string {
-  return `/admin/neo/hub/${encodeURIComponent(kind)}/${encodeURIComponent(uid)}`
-}
-
 export function NeoNodeDetailPanel({
   selection,
   storyId,
@@ -49,13 +45,6 @@ export function NeoNodeDetailPanel({
       : selection.kind === 'document' && uid
         ? uid
         : storyId
-
-  const hubKind =
-    selection.kind === 'controversy' ||
-    selection.kind === 'proposition' ||
-    selection.kind === 'entity'
-      ? selection.kind
-      : null
 
   return (
     <aside
@@ -153,28 +142,6 @@ export function NeoNodeDetailPanel({
             onClick={onFocus}
           >
             Recenter
-          </Button>
-        ) : null}
-        {documentUid ? (
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-transparent"
-          >
-            <Link href={`/admin/neo/${encodeURIComponent(documentUid)}`}>
-              Open story Neo
-            </Link>
-          </Button>
-        ) : null}
-        {hubKind && uid ? (
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-transparent"
-          >
-            <Link href={hubHref(hubKind, uid)}>Open hub</Link>
           </Button>
         ) : null}
         {documentUid ? (

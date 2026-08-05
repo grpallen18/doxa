@@ -6,7 +6,7 @@ import type {
 } from '@/lib/admin/neo-graph/types'
 import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
 
-export const UNION_MAX_STORIES = 10
+export const UNION_MAX_STORIES = 100
 
 export type UnionDocumentMeta = {
   uid: string

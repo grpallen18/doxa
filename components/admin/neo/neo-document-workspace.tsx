@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/admin/record/status-badge'
-import { NeoPassagePanel } from '@/components/admin/neo/neo-passage-panel'
 import {
   formatNeoDate,
   graphStatusBadgeVariant,
@@ -26,26 +25,13 @@ const NeoGraphExplorer = dynamic(
   }
 )
 
-type PassagePayload = {
-  story_id: string
-  title: string | null
-  graph_status: string | null
-  url: string | null
-  content_clean: string
-}
-
 const POLL_MS = 2500
 
 export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
   const [graph, setGraph] = useState<NeoDocumentGraph | null>(null)
-  const [passage, setPassage] = useState<PassagePayload | null>(null)
   const [jobStatus, setJobStatus] = useState<GraphJobStatusPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [highlight, setHighlight] = useState<{ start: number; end: number } | null>(
-    null
-  )
-  const [passageOpen, setPassageOpen] = useState(false)
   const [reprocessPending, setReprocessPending] = useState(false)
   const [reprocessError, setReprocessError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -69,15 +55,11 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
     return json.data as GraphJobStatusPayload
   }, [storyId])
 
-  const loadGraphAndPassage = useCallback(async () => {
-    const [graphRes, passageRes] = await Promise.all([
-      fetch(`/api/admin/neo/documents/${encodeURIComponent(storyId)}`),
-      fetch(`/api/admin/neo/documents/${encodeURIComponent(storyId)}/passage`),
-    ])
-    const [graphJson, passageJson] = await Promise.all([
-      graphRes.json(),
-      passageRes.json(),
-    ])
+  const loadGraph = useCallback(async () => {
+    const graphRes = await fetch(
+      `/api/admin/neo/documents/${encodeURIComponent(storyId)}`
+    )
+    const graphJson = await graphRes.json()
 
     if (!graphRes.ok || graphJson.error) {
       setGraph(null)
@@ -85,12 +67,6 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
     } else {
       setGraph(graphJson.data as NeoDocumentGraph)
       setError(null)
-    }
-
-    if (passageRes.ok && !passageJson.error) {
-      setPassage(passageJson.data as PassagePayload)
-    } else {
-      setPassage(null)
     }
   }, [storyId])
 
@@ -100,7 +76,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
     try {
       const [status] = await Promise.all([
         fetchStatus().catch(() => null),
-        loadGraphAndPassage(),
+        loadGraph(),
       ])
       if (status) setJobStatus(status)
     } catch {
@@ -109,7 +85,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
     } finally {
       setLoading(false)
     }
-  }, [fetchStatus, loadGraphAndPassage])
+  }, [fetchStatus, loadGraph])
 
   useEffect(() => {
     void load()
@@ -136,7 +112,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
             setReprocessPending(false)
             stopPolling()
             if (wasProcessingRef.current) {
-              await loadGraphAndPassage()
+              await loadGraph()
             }
             wasProcessingRef.current = false
           } else {
@@ -153,7 +129,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
     jobStatus?.is_processing,
     reprocessPending,
     fetchStatus,
-    loadGraphAndPassage,
+    loadGraph,
     stopPolling,
   ])
 
@@ -186,7 +162,7 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
     }
   }
 
-  const title = graph?.document.title ?? passage?.title ?? 'Neo document'
+  const title = graph?.document.title ?? 'Neo document'
   const isProcessing = Boolean(jobStatus?.is_processing) || reprocessPending
   const displayStatus = isProcessing
     ? jobStatus?.graph_status === 'running' || jobStatus?.job_status === 'running'
@@ -258,29 +234,12 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
             {isProcessing ? 'Reprocessing…' : 'Reprocess'}
           </Button>
           <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
-            onClick={() => setPassageOpen((v) => !v)}
-          >
-            {passageOpen ? 'Hide passage' : 'Show passage'}
-          </Button>
-          <Button
             asChild
             size="sm"
             variant="outline"
             className="border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
           >
             <Link href={`/admin/stories/${storyId}`}>Story hub</Link>
-          </Button>
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
-          >
-            <Link href="/admin/neo">All Neo</Link>
           </Button>
         </div>
       </header>
@@ -290,41 +249,19 @@ export function NeoDocumentWorkspace({ storyId }: { storyId: string }) {
       ) : error && !graph ? (
         <div className="space-y-3 p-6">
           <p className="text-sm text-red-400">{error}</p>
-          <Button asChild size="sm" variant="outline" className="border-white/15">
-            <Link href="/admin/neo">Back to Neo list</Link>
-          </Button>
         </div>
       ) : isProcessing && !graph ? (
         <p className="p-6 text-sm text-zinc-400">
           Graph job is running. This view will refresh when it finishes…
         </p>
       ) : graph ? (
-        <div
-          className={
-            passageOpen
-              ? 'relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(160px,28%)]'
-              : 'relative flex min-h-0 flex-1 flex-col'
-          }
-        >
+        <div className="relative flex min-h-0 flex-1 flex-col">
           {isProcessing ? (
             <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-md border border-amber-500/30 bg-zinc-950/95 px-3 py-1.5 text-xs text-amber-200 shadow-lg">
               Reprocessing graph… results will refresh when done
             </div>
           ) : null}
-          <NeoGraphExplorer
-            graph={graph}
-            storyId={storyId}
-            onUtteranceHighlight={setHighlight}
-          />
-          {passageOpen ? (
-            <div className="min-h-0 border-t border-white/10 bg-zinc-950">
-              <NeoPassagePanel
-                title={passage?.title ?? graph.document.title}
-                content={passage?.content_clean ?? ''}
-                highlight={highlight}
-              />
-            </div>
-          ) : null}
+          <NeoGraphExplorer graph={graph} storyId={storyId} />
         </div>
       ) : null}
     </div>

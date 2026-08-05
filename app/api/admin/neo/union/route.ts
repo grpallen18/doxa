@@ -8,21 +8,58 @@ import {
 import { getDocumentGraph } from '@/lib/neo4j/queries/phase0'
 import { getNeo4jConfig } from '@/lib/neo4j/server'
 import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
+import { createClient } from '@/lib/supabase/server'
 
-async function resolveStoryIds(request: NextRequest): Promise<string[]> {
+async function listSucceededStoryIds(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('stories')
+    .select('story_id')
+    .eq('graph_status', 'succeeded')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(UNION_MAX_STORIES)
+
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((row) => row.story_id as string)
+}
+
+async function resolveStoryIds(request: NextRequest): Promise<{
+  storyIds: string[]
+  mode: 'all' | 'ids'
+}> {
   if (request.method === 'POST') {
     try {
-      const body = (await request.json()) as { storyIds?: unknown; ids?: unknown }
+      const body = (await request.json()) as {
+        storyIds?: unknown
+        ids?: unknown
+        all?: unknown
+      }
+      if (body.all === true) {
+        return { storyIds: await listSucceededStoryIds(), mode: 'all' }
+      }
       const raw = body.storyIds ?? body.ids
       if (Array.isArray(raw)) {
-        return parseUnionStoryIds(raw.map(String).join(','))
+        return {
+          storyIds: parseUnionStoryIds(raw.map(String).join(',')),
+          mode: 'ids',
+        }
       }
-      if (typeof raw === 'string') return parseUnionStoryIds(raw)
+      if (typeof raw === 'string') {
+        return { storyIds: parseUnionStoryIds(raw), mode: 'ids' }
+      }
     } catch {
-      return []
+      return { storyIds: [], mode: 'ids' }
     }
   }
-  return parseUnionStoryIds(request.nextUrl.searchParams.get('ids'))
+
+  const sp = request.nextUrl.searchParams
+  if (sp.get('all') === '1' || sp.get('all') === 'true') {
+    return { storyIds: await listSucceededStoryIds(), mode: 'all' }
+  }
+  return {
+    storyIds: parseUnionStoryIds(sp.get('ids')),
+    mode: 'ids',
+  }
 }
 
 async function buildUnionResponse(storyIds: string[]) {
@@ -88,7 +125,7 @@ async function buildUnionResponse(storyIds: string[]) {
   }
 }
 
-/** Manual multi-story union graph. Admin only. */
+/** All-story (or explicit ids) union graph. Admin only. */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
@@ -107,16 +144,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const storyIds = await resolveStoryIds(request)
+    const { storyIds, mode } = await resolveStoryIds(request)
     const data = await buildUnionResponse(storyIds)
-    return NextResponse.json({ data, error: null })
+    return NextResponse.json({
+      data: { ...data, mode, storyCount: storyIds.length },
+      error: null,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Neo4j query failed'
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })
   }
 }
 
-/** Same as GET; prefer POST when composing many UUIDs. */
+/** Same as GET; prefer POST with `{ all: true }` for the full union. */
 export async function POST(request: NextRequest) {
   return GET(request)
 }

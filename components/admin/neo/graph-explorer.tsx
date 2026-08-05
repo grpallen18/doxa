@@ -17,13 +17,14 @@ export function NeoGraphExplorer({
 }: {
   graph: NeoDocumentGraph
   storyId: string
-  onUtteranceHighlight: (span: { start: number; end: number } | null) => void
+  onUtteranceHighlight?: (span: { start: number; end: number } | null) => void
   className?: string
 }) {
   const projection = useMemo(() => projectPhase0Document(graph), [graph])
 
   const handleHighlight = useCallback(
     (span: UtteranceHighlight | null) => {
+      if (!onUtteranceHighlight) return
       if (!span) {
         onUtteranceHighlight(null)
         return
@@ -38,7 +39,7 @@ export function NeoGraphExplorer({
       projection={projection}
       contextStoryId={storyId}
       defaultFilters={DEFAULT_NEO_FILTERS}
-      onUtteranceHighlight={handleHighlight}
+      onUtteranceHighlight={onUtteranceHighlight ? handleHighlight : undefined}
       className={className}
     />
   )
