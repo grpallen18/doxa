@@ -76,9 +76,78 @@ export type DoxaGraphProjection = {
   queryTruncated?: boolean
 }
 
+/** ForceAtlas2 knobs exposed in the neo explorer UI. */
+export type NeoFa2Settings = {
+  gravity: number
+  scalingRatio: number
+}
+
+export const DEFAULT_NEO_FA2_SETTINGS: NeoFa2Settings = {
+  gravity: 1.2,
+  scalingRatio: 48,
+}
+
+export const NEO_FA2_GRAVITY_RANGE = { min: 0.1, max: 20, step: 0.1 } as const
+export const NEO_FA2_SCALING_RANGE = { min: 1, max: 200, step: 1 } as const
+
+export function clampNeoFa2Settings(raw: {
+  gravity: unknown
+  scalingRatio: unknown
+}): NeoFa2Settings {
+  const gravityNum =
+    typeof raw.gravity === 'number'
+      ? raw.gravity
+      : typeof raw.gravity === 'string'
+        ? Number.parseFloat(raw.gravity)
+        : Number.NaN
+  const scalingNum =
+    typeof raw.scalingRatio === 'number'
+      ? raw.scalingRatio
+      : typeof raw.scalingRatio === 'string'
+        ? Number.parseFloat(raw.scalingRatio)
+        : Number.NaN
+
+  const gravity = Number.isFinite(gravityNum)
+    ? Math.min(
+        NEO_FA2_GRAVITY_RANGE.max,
+        Math.max(NEO_FA2_GRAVITY_RANGE.min, gravityNum)
+      )
+    : DEFAULT_NEO_FA2_SETTINGS.gravity
+
+  const scalingRatio = Number.isFinite(scalingNum)
+    ? Math.min(
+        NEO_FA2_SCALING_RANGE.max,
+        Math.max(NEO_FA2_SCALING_RANGE.min, Math.round(scalingNum))
+      )
+    : DEFAULT_NEO_FA2_SETTINGS.scalingRatio
+
+  return {
+    gravity: Math.round(gravity * 10) / 10,
+    scalingRatio,
+  }
+}
+
 export type NeoGraphFilters = {
   kinds: Record<NeoNodeKind, boolean>
   edgeTypes: Record<NeoEdgeType, boolean>
+}
+
+/** Which node kinds force-render their name labels on the Sigma canvas. */
+export type NeoLabelVisibility = Record<NeoNodeKind, boolean>
+
+/** Default: only Publication names are visible; legend toggles the rest. */
+export const DEFAULT_NEO_LABEL_VISIBILITY: NeoLabelVisibility = {
+  document: false,
+  publication: true,
+  agent: false,
+  utterance: false,
+  segment: false,
+  entity: false,
+  proposition: false,
+  argument: false,
+  viewpoint: false,
+  controversy: false,
+  dispute: false,
 }
 
 export const ALL_NODE_KINDS: NeoNodeKind[] = [

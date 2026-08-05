@@ -38,12 +38,33 @@ import {
   type SigmaNodeAttributes,
 } from '@/lib/admin/neo-graph/graphology-adapter'
 import { createNeoHoverFade } from '@/lib/admin/neo-graph/hover-fade'
+import {
+  assignEdgeWeights,
+  BACKBONE_ITERS_INITIAL,
+  BACKBONE_ITERS_RELAYOUT,
+  buildWorkerFa2Settings,
+  layoutBackboneSync,
+  placeLeavesInOrbits,
+  separateOverlaps,
+} from '@/lib/admin/neo-graph/layout-pipeline'
+import {
+  applyNeoLod,
+  collectForceVisibleLeafPath,
+  lodLevelFromRatio,
+  type NeoLodLevel,
+} from '@/lib/admin/neo-graph/lod'
 import { NeoNodeProgram } from '@/lib/admin/neo-graph/node-program'
 import { collectNeighborhood } from '@/lib/admin/neo-graph/neighborhood'
 import type {
   DoxaGraphProjection,
+  NeoFa2Settings,
   NeoGraphFilters,
+  NeoLabelVisibility,
   NeoNodeKind,
+} from '@/lib/admin/neo-graph/types'
+import {
+  DEFAULT_NEO_FA2_SETTINGS,
+  DEFAULT_NEO_LABEL_VISIBILITY,
 } from '@/lib/admin/neo-graph/types'
 
 export type NeoSelection = {
@@ -74,21 +95,12 @@ const EMPTY_SELECTION: NeoSelection = {
   edgeTarget: null,
 }
 
-const LAYOUT_MS_FULL = 2800
-const LAYOUT_MS_RELAYOUT = 2500
-/** First load: ring seeds + enough FA2 to settle past the circular look (≈ load + Relayout). */
-const LAYOUT_MS_INITIAL = LAYOUT_MS_FULL + LAYOUT_MS_RELAYOUT
-const LAYOUT_MS_FILTER_NEW = 900
-const LAYOUT_MS_FILTER_PRESERVE = 450
+const LAYOUT_MS_INITIAL = 1800
+const LAYOUT_MS_RELAYOUT = 1500
+const LAYOUT_MS_FILTER_NEW = 700
+const LAYOUT_MS_FILTER_PRESERVE = 300
 
-const FA2_LAYOUT_PARAMS = {
-  settings: {
-    slowDown: 10,
-    gravity: 2.5,
-    scalingRatio: 36,
-    barnesHutOptimize: true,
-  },
-} as const
+type LayoutPassMode = 'initial' | 'relayout' | 'filter-new' | 'filter-preserve'
 
 function projectionLayoutKey(projection: DoxaGraphProjection): string {
   return (
@@ -102,6 +114,9 @@ function projectionLayoutKey(projection: DoxaGraphProjection): string {
 function GraphLifecycle({
   projection,
   filters,
+  fa2Settings,
+  fa2ApplyToken,
+  labelVisibility,
   colorRevision,
   selectedNodeId,
   focusNodeId,
@@ -111,9 +126,13 @@ function GraphLifecycle({
   onHoverLabel,
   onHoverKind,
   onLayoutBusy,
+  onLodLevel,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
+  fa2Settings: NeoFa2Settings
+  fa2ApplyToken: number
+  labelVisibility: NeoLabelVisibility
   colorRevision: string
   selectedNodeId: string | null
   focusNodeId: string | null
@@ -127,6 +146,7 @@ function GraphLifecycle({
   onHoverLabel: (label: string | null) => void
   onHoverKind: (kind: NeoNodeKind | null) => void
   onLayoutBusy?: (busy: boolean, durationMs?: number) => void
+  onLodLevel?: (level: NeoLodLevel) => void
 }) {
   const sigma = useSigma()
   const loadGraph = useLoadGraph()
@@ -141,6 +161,18 @@ function GraphLifecycle({
   const fa2Ref = useRef<InstanceType<typeof FA2Layout> | null>(null)
   const selectedRef = useRef<string | null>(selectedNodeId)
   selectedRef.current = selectedNodeId
+  const focusRef = useRef<string | null>(focusNodeId)
+  focusRef.current = focusNodeId
+  const previewRef = useRef<string | null>(previewNodeId)
+  previewRef.current = previewNodeId
+  const labelVisibilityRef = useRef(labelVisibility)
+  labelVisibilityRef.current = labelVisibility
+  const fa2SettingsRef = useRef(fa2Settings)
+  fa2SettingsRef.current = fa2Settings
+  const fa2ApplyTokenRef = useRef(fa2ApplyToken)
+  const lodLevelRef = useRef<NeoLodLevel>('near')
+  const onLodLevelRef = useRef(onLodLevel)
+  onLodLevelRef.current = onLodLevel
   const hoveredNodeRef = useRef<string | null>(null)
   const hoveredEdgeRef = useRef<string | null>(null)
   const previewHoverActiveRef = useRef(false)
@@ -161,6 +193,21 @@ function GraphLifecycle({
       ),
     []
   )
+
+  const syncLod = (graph: NeoSigmaGraph) => {
+    const forceVisible = new Set<string>()
+    for (const id of [
+      selectedRef.current,
+      focusRef.current,
+      previewRef.current,
+    ]) {
+      for (const n of collectForceVisibleLeafPath(graph, id)) forceVisible.add(n)
+    }
+    applyNeoLod(graph, {
+      level: lodLevelRef.current,
+      forceVisibleIds: forceVisible,
+    })
+  }
 
   // Flex parents often settle after Sigma mounts at 0–1px; keep canvases in sync.
   useEffect(() => {
@@ -215,13 +262,37 @@ function GraphLifecycle({
    * That hook binds asynchronously and start() is a no-op until the next
    * render — so initial load showed a veil while the graph sat idle.
    * Creating FA2 after loadGraph ties it to the populated Sigma graph.
+   *
+   * Pipeline: edge weights → backbone FA2 → leaf orbits → worker settle → collision.
    */
-  const runLayout = (durationMs: number, onComplete?: () => void) => {
+  const runLayout = (
+    mode: LayoutPassMode,
+    durationMs: number,
+    newNodeIds: string[] = [],
+    onComplete?: () => void
+  ) => {
     const epoch = ++layoutEpochRef.current
     onLayoutBusyRef.current?.(true, durationMs)
     disposeFa2()
 
-    const layout = new FA2Layout(sigma.getGraph(), FA2_LAYOUT_PARAMS)
+    const graph = sigma.getGraph() as NeoSigmaGraph
+    assignEdgeWeights(graph)
+
+    if (mode === 'initial' || mode === 'relayout') {
+      layoutBackboneSync(
+        graph,
+        fa2SettingsRef.current,
+        mode === 'initial' ? BACKBONE_ITERS_INITIAL : BACKBONE_ITERS_RELAYOUT
+      )
+      placeLeavesInOrbits(graph)
+    } else if (newNodeIds.length > 0) {
+      placeLeavesInOrbits(graph, { onlyNodeIds: new Set(newNodeIds) })
+    }
+
+    const layout = new FA2Layout(
+      graph,
+      buildWorkerFa2Settings(fa2SettingsRef.current)
+    )
     fa2Ref.current = layout
     layout.start()
 
@@ -231,6 +302,13 @@ function GraphLifecycle({
         layout.stop()
       } catch {
         /* ignore */
+      }
+      try {
+        separateOverlaps(sigma.getGraph() as NeoSigmaGraph)
+        syncLod(sigma.getGraph() as NeoSigmaGraph)
+        sigma.refresh()
+      } catch {
+        /* graph may be unmounted */
       }
       commitPositionsFromSigma()
       onComplete?.()
@@ -271,15 +349,21 @@ function GraphLifecycle({
     })
 
     // Parent re-renders / color hydration used to restart this effect and
-    // downgrade a fresh load to a ~450ms filter settle — keep INITIAL until done.
+    // downgrade a fresh load to a short filter settle — keep INITIAL until done.
     const awaitingInitial = !initialCompleteRef.current
-    const duration = awaitingInitial
-      ? LAYOUT_MS_INITIAL
+    const mode: LayoutPassMode = awaitingInitial
+      ? 'initial'
       : built.newNodeCount > 0
-        ? LAYOUT_MS_FILTER_NEW
-        : LAYOUT_MS_FILTER_PRESERVE
+        ? 'filter-new'
+        : 'filter-preserve'
+    const duration =
+      mode === 'initial'
+        ? LAYOUT_MS_INITIAL
+        : mode === 'filter-new'
+          ? LAYOUT_MS_FILTER_NEW
+          : LAYOUT_MS_FILTER_PRESERVE
 
-    const timer = runLayout(duration, () => {
+    const timer = runLayout(mode, duration, built.newNodeIds, () => {
       initialCompleteRef.current = true
     })
     return () => {
@@ -293,12 +377,70 @@ function GraphLifecycle({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projection, filters, colorRevision])
 
+  // Restart FA2 when the filters panel applies gravity / scalingRatio.
+  useEffect(() => {
+    if (fa2ApplyTokenRef.current === fa2ApplyToken) return
+    fa2ApplyTokenRef.current = fa2ApplyToken
+    if (fa2ApplyToken <= 0) return
+
+    const timer = runLayout('relayout', LAYOUT_MS_RELAYOUT, [], () => {
+      initialCompleteRef.current = true
+    })
+    return () => {
+      window.clearTimeout(timer)
+      layoutEpochRef.current += 1
+      commitPositionsFromSigma()
+      disposeFa2()
+      onLayoutBusyRef.current?.(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fa2ApplyToken])
+
   useEffect(() => {
     return () => {
       disposeFa2()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Zoom LOD: collapse leaf kinds when camera is far out.
+  useEffect(() => {
+    const camera = sigma.getCamera()
+    const applyFromRatio = (ratio: number) => {
+      const next = lodLevelFromRatio(ratio)
+      const changed = next !== lodLevelRef.current
+      lodLevelRef.current = next
+      if (changed) onLodLevelRef.current?.(next)
+      try {
+        const graph = sigma.getGraph() as NeoSigmaGraph
+        syncLod(graph)
+        sigma.refresh()
+      } catch {
+        /* unmounted */
+      }
+    }
+    applyFromRatio(camera.ratio)
+    const onUpdated = (state: { ratio: number }) => {
+      applyFromRatio(state.ratio)
+    }
+    camera.on('updated', onUpdated)
+    return () => {
+      camera.off('updated', onUpdated)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sigma])
+
+  // Keep focused/selected leaves visible while far.
+  useEffect(() => {
+    try {
+      const graph = sigma.getGraph() as NeoSigmaGraph
+      syncLod(graph)
+      sigma.refresh()
+    } catch {
+      /* graph not ready */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeId, focusNodeId, previewNodeId, sigma])
 
   useEffect(() => {
     const fade = hoverFadeRef.current
@@ -453,7 +595,26 @@ function GraphLifecycle({
         const selectionFade = selectionFadeRef.current
         const selId = selectionFade.getNodeId()
         const selT = selectionFade.getProgress()
+        const kindLabelsOn = Boolean(
+          labelVisibilityRef.current[data.kind as NeoNodeKind]
+        )
+        const fullLabel =
+          typeof data.fullLabel === 'string' && data.fullLabel
+            ? data.fullLabel
+            : typeof data.label === 'string'
+              ? data.label
+              : ''
         const res = { ...data }
+        if (data.lodHidden) {
+          res.hidden = true
+          return res
+        }
+        const densifiedDoc =
+          data.kind === 'document' &&
+          typeof data.label === 'string' &&
+          data.label.length > 0 &&
+          data.label !== fullLabel
+        const shownLabel = densifiedDoc ? data.label : fullLabel
         // Keep fading node on Sigma's hover layer after leaveNode clears hoveredNode.
         // Skip when it's the selection — that node is already highlighted.
         if (
@@ -464,37 +625,53 @@ function GraphLifecycle({
           res.highlighted = true
         }
         if (!selId || selT <= 0) {
-          res.forceLabel = data.kind === 'document' || data.kind === 'agent'
+          if (densifiedDoc) {
+            res.forceLabel = true
+            res.label = shownLabel
+            res.labelColor = NEO_LABEL_COLOR_IDLE
+            return res
+          }
+          res.forceLabel = kindLabelsOn
+          res.label = kindLabelsOn ? shownLabel : ''
           res.labelColor = NEO_LABEL_COLOR_IDLE
           return res
         }
-        const idleForcedLabel =
-          data.kind === 'document' || data.kind === 'agent'
         const { nodes } = collectNeighborhood(g as NeoSigmaGraph, selId)
         if (node === selId) {
           res.highlighted = true
           res.forceLabel = true
+          res.label = shownLabel
           res.zIndex = 2
           const tone = lerpHex(
             NEO_LABEL_COLOR_IDLE,
             NEO_LABEL_COLOR_EMPHASIS,
             selT
           )
-          // Always-visible labels only shift color; selection-forced labels fade alpha.
-          res.labelColor = idleForcedLabel ? tone : withLabelAlpha(tone, selT)
+          // Legend-visible labels only shift color; selection-forced labels fade alpha.
+          res.labelColor =
+            kindLabelsOn || densifiedDoc ? tone : withLabelAlpha(tone, selT)
         } else if (nodes.has(node)) {
           res.forceLabel = true
+          res.label = shownLabel
           res.zIndex = 1
           const tone = lerpHex(
             NEO_LABEL_COLOR_IDLE,
             NEO_LABEL_COLOR_EMPHASIS,
             selT
           )
-          res.labelColor = idleForcedLabel ? tone : withLabelAlpha(tone, selT)
+          res.labelColor =
+            kindLabelsOn || densifiedDoc ? tone : withLabelAlpha(tone, selT)
         } else {
           const base =
             typeof data.color === 'string' && data.color ? data.color : '#888888'
           res.color = lerpHex(base, '#3a3a3a', selT)
+          if (densifiedDoc) {
+            res.forceLabel = true
+            res.label = shownLabel
+          } else {
+            res.forceLabel = kindLabelsOn
+            res.label = kindLabelsOn ? shownLabel : ''
+          }
           res.labelColor = lerpHex(
             NEO_LABEL_COLOR_IDLE,
             NEO_LABEL_COLOR_DIMMED,
@@ -514,6 +691,10 @@ function GraphLifecycle({
         const hoverNodeId = hoverFade.getNodeId()
         const hoverT = hoverFade.getProgress()
         const res = { ...data }
+        if (data.lodHidden) {
+          res.hidden = true
+          return res
+        }
         const [source, target] = g.extremities(edge)
 
         const fadeEdgeId = edgeFade.getNodeId()
@@ -569,7 +750,11 @@ function GraphLifecycle({
         return res
       },
     })
-  }, [drawNodeHover, setSettings, sigma, selectedNodeId])
+  }, [drawNodeHover, labelVisibility, setSettings, sigma, selectedNodeId])
+
+  useEffect(() => {
+    sigma.refresh()
+  }, [labelVisibility, sigma])
 
   useEffect(() => {
     // Search/detail "focus" used to pan the camera via getNodeDisplayData.
@@ -619,6 +804,9 @@ function GraphLifecycle({
 export function NeoSigmaCanvas({
   projection,
   filters,
+  fa2Settings = DEFAULT_NEO_FA2_SETTINGS,
+  fa2ApplyToken = 0,
+  labelVisibility = DEFAULT_NEO_LABEL_VISIBILITY,
   colorRevision,
   selectedNodeId,
   focusNodeId,
@@ -628,9 +816,14 @@ export function NeoSigmaCanvas({
   onHoverLabel,
   onHoverKind,
   onLayoutBusy,
+  onLodLevel,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
+  fa2Settings?: NeoFa2Settings
+  /** Incremented each time the UI applies FA2 params (forces a relayout). */
+  fa2ApplyToken?: number
+  labelVisibility?: NeoLabelVisibility
   colorRevision: string
   selectedNodeId: string | null
   focusNodeId: string | null
@@ -644,6 +837,7 @@ export function NeoSigmaCanvas({
   onHoverLabel: (label: string | null) => void
   onHoverKind: (kind: NeoNodeKind | null) => void
   onLayoutBusy?: (busy: boolean, durationMs?: number) => void
+  onLodLevel?: (level: NeoLodLevel) => void
 }) {
   return (
     <SigmaContainer
@@ -670,6 +864,9 @@ export function NeoSigmaCanvas({
       <GraphLifecycle
         projection={projection}
         filters={filters}
+        fa2Settings={fa2Settings}
+        fa2ApplyToken={fa2ApplyToken}
+        labelVisibility={labelVisibility}
         colorRevision={colorRevision}
         selectedNodeId={selectedNodeId}
         focusNodeId={focusNodeId}
@@ -679,6 +876,7 @@ export function NeoSigmaCanvas({
         onHoverLabel={onHoverLabel}
         onHoverKind={onHoverKind}
         onLayoutBusy={onLayoutBusy}
+        onLodLevel={onLodLevel}
       />
       <ControlsContainer position="bottom-right">
         <ZoomControl />
@@ -688,3 +886,4 @@ export function NeoSigmaCanvas({
 }
 
 export { EMPTY_SELECTION }
+export type { NeoLodLevel }

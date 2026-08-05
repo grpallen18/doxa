@@ -12,11 +12,16 @@ import {
 import { NeoNodeDetailPanel } from '@/components/admin/neo/node-detail-panel'
 import { useNeoKindColors } from '@/lib/admin/neo-graph/use-neo-colors'
 import {
+  DEFAULT_NEO_FA2_SETTINGS,
   DEFAULT_NEO_FILTERS,
+  DEFAULT_NEO_LABEL_VISIBILITY,
   type DoxaGraphProjection,
+  type NeoFa2Settings,
   type NeoGraphFilters,
+  type NeoLabelVisibility,
   type NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
+import type { NeoLodLevel } from '@/lib/admin/neo-graph/lod'
 import { cn } from '@/lib/utils'
 
 /**
@@ -48,12 +53,20 @@ export function NeoProjectionExplorer({
   const kindColors = useNeoKindColors()
   const colorRevision = useMemo(() => JSON.stringify(kindColors), [kindColors])
   const [filters, setFilters] = useState<NeoGraphFilters>(defaultFilters)
+  const [fa2Settings, setFa2Settings] = useState<NeoFa2Settings>(
+    DEFAULT_NEO_FA2_SETTINGS
+  )
+  const [fa2ApplyToken, setFa2ApplyToken] = useState(0)
+  const [labelVisibility, setLabelVisibility] = useState<NeoLabelVisibility>(
+    DEFAULT_NEO_LABEL_VISIBILITY
+  )
   const [selection, setSelection] = useState<NeoSelection>(EMPTY_SELECTION)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
   const [previewNodeId, setPreviewNodeId] = useState<string | null>(null)
   const [hoverLabel, setHoverLabel] = useState<string | null>(null)
   const [hoverKind, setHoverKind] = useState<NeoNodeKind | null>(null)
   const [stats, setStats] = useState({ nodes: 0, edges: 0, truncated: false })
+  const [lodLevel, setLodLevel] = useState<NeoLodLevel>('near')
   const [showFilters, setShowFilters] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [layoutBusy, setLayoutBusy] = useState(false)
@@ -113,6 +126,18 @@ export function NeoProjectionExplorer({
     handleSelection(EMPTY_SELECTION)
   }, [handleSelection])
 
+  const toggleLabelVisibility = useCallback((kind: NeoNodeKind) => {
+    setLabelVisibility((prev) => ({
+      ...prev,
+      [kind]: !prev[kind],
+    }))
+  }, [])
+
+  const handleFa2Change = useCallback((next: NeoFa2Settings) => {
+    setFa2Settings(next)
+    setFa2ApplyToken((token) => token + 1)
+  }, [])
+
   const selectFromSearch = useCallback(
     (nodeId: string) => {
       const node = projection.nodes.find((n) => n.id === nodeId)
@@ -165,6 +190,8 @@ export function NeoProjectionExplorer({
           <NeoGraphLegend
             className="min-w-0 flex-1"
             highlightKind={hoverKind}
+            labelVisibility={labelVisibility}
+            onToggleLabel={toggleLabelVisibility}
           />
           <button
             type="button"
@@ -221,7 +248,12 @@ export function NeoProjectionExplorer({
 
         {showFilters ? (
           <div className="absolute right-3 top-full z-30 mt-1 w-[min(calc(100vw-1.5rem),22rem)]">
-            <NeoGraphFiltersPanel filters={filters} onChange={setFilters} />
+            <NeoGraphFiltersPanel
+              filters={filters}
+              onChange={setFilters}
+              fa2Settings={fa2Settings}
+              onFa2Change={handleFa2Change}
+            />
           </div>
         ) : null}
       </div>
@@ -239,6 +271,9 @@ export function NeoProjectionExplorer({
           <NeoSigmaCanvas
             projection={projection}
             filters={filters}
+            fa2Settings={fa2Settings}
+            fa2ApplyToken={fa2ApplyToken}
+            labelVisibility={labelVisibility}
             colorRevision={colorRevision}
             selectedNodeId={selection.nodeId}
             focusNodeId={focusNodeId}
@@ -248,6 +283,7 @@ export function NeoProjectionExplorer({
             onHoverLabel={setHoverLabel}
             onHoverKind={setHoverKind}
             onLayoutBusy={handleLayoutBusy}
+            onLodLevel={setLodLevel}
           />
         </div>
         <div
@@ -281,6 +317,7 @@ export function NeoProjectionExplorer({
               {stats.truncated || projection.queryTruncated
                 ? ' · truncated'
                 : ''}
+              {lodLevel === 'far' ? ' · LOD: backbone' : ''}
               {hoverLabel ? ` · ${hoverLabel}` : ''}
             </p>
           </div>

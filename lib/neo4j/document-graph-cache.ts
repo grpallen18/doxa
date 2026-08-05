@@ -1,0 +1,74 @@
+import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
+import { getDocumentGraph } from '@/lib/neo4j/queries/phase0'
+
+/**
+ * Process-local TTL LRU for Phase-0 document graphs.
+ * Multi-instance deploys each keep their own cache (fine for admin Neo explorer).
+ */
+const MAX_ENTRIES = 200
+const HIT_TTL_MS = 5 * 60 * 1000
+const NULL_TTL_MS = 30 * 1000
+
+type CacheEntry = {
+  value: NeoDocumentGraph | null
+  expiresAt: number
+}
+
+const cache = new Map<string, CacheEntry>()
+
+function touch(key: string, entry: CacheEntry): void {
+  cache.delete(key)
+  cache.set(key, entry)
+}
+
+function evictIfNeeded(): void {
+  while (cache.size > MAX_ENTRIES) {
+    const oldest = cache.keys().next().value
+    if (oldest === undefined) break
+    cache.delete(oldest)
+  }
+}
+
+export function peekDocumentGraphCache(storyId: string): NeoDocumentGraph | null | undefined {
+  const entry = cache.get(storyId)
+  if (!entry) return undefined
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(storyId)
+    return undefined
+  }
+  touch(storyId, entry)
+  return entry.value
+}
+
+export function setDocumentGraphCache(
+  storyId: string,
+  value: NeoDocumentGraph | null
+): void {
+  const ttl = value == null ? NULL_TTL_MS : HIT_TTL_MS
+  touch(storyId, { value, expiresAt: Date.now() + ttl })
+  evictIfNeeded()
+}
+
+export function clearDocumentGraphCache(storyId?: string): void {
+  if (storyId) cache.delete(storyId)
+  else cache.clear()
+}
+
+/**
+ * Cached Neo4j document graph fetch. Pass `bypass: true` after ingestion Refresh.
+ */
+export async function getDocumentGraphCached(
+  storyId: string,
+  options?: { bypass?: boolean }
+): Promise<NeoDocumentGraph | null> {
+  if (!options?.bypass) {
+    const hit = peekDocumentGraphCache(storyId)
+    if (hit !== undefined) return hit
+  } else {
+    cache.delete(storyId)
+  }
+
+  const graph = await getDocumentGraph(storyId)
+  setDocumentGraphCache(storyId, graph)
+  return graph
+}

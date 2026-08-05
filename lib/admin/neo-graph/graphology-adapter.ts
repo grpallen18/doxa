@@ -10,6 +10,12 @@ import {
   NEO_EDGE_SIZE_IDLE,
   resolveNodeAppearance,
 } from '@/lib/admin/neo-graph/appearance'
+import {
+  edgeLayoutWeight,
+  hashSeed,
+  isLeafKind,
+  placeLeavesInOrbits,
+} from '@/lib/admin/neo-graph/layout-pipeline'
 
 export type SigmaNodeAttributes = {
   label: string
@@ -22,6 +28,10 @@ export type SigmaNodeAttributes = {
   x: number
   y: number
   hidden?: boolean
+  /** Zoom LOD: leaf collapsed when far (filters still omit kinds entirely). */
+  lodHidden?: boolean
+  /** Leaf neighbors of a document — used for far-zoom density cue. */
+  leafCount?: number
   forceLabel?: boolean
   zIndex?: number
   charStart?: number
@@ -36,7 +46,9 @@ export type SigmaEdgeAttributes = {
   edgeType: DoxaGraphEdge['type']
   size: number
   color: string
+  weight: number
   hidden?: boolean
+  lodHidden?: boolean
   properties: DoxaGraphEdge['properties']
 }
 
@@ -44,12 +56,30 @@ export type NeoSigmaGraph = Graph<SigmaNodeAttributes, SigmaEdgeAttributes>
 
 export type NeoNodePosition = { x: number; y: number }
 
-const MAX_NODES = 400
+/** Soft render ceiling — large enough for a ~100-story union with discourse nodes. */
+const MAX_NODES = 8000
 
-function hashSeed(id: string): number {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
-  return Math.abs(h)
+const KIND_KEEP_PRIORITY: Record<DoxaGraphNode['kind'], number> = {
+  document: 0,
+  publication: 1,
+  entity: 2,
+  agent: 3,
+  controversy: 4,
+  viewpoint: 5,
+  proposition: 6,
+  dispute: 7,
+  argument: 8,
+  utterance: 9,
+  segment: 10,
+}
+
+function prioritizeNodesForCap(nodes: DoxaGraphNode[]): DoxaGraphNode[] {
+  return [...nodes].sort((a, b) => {
+    const pa = KIND_KEEP_PRIORITY[a.kind] ?? 99
+    const pb = KIND_KEEP_PRIORITY[b.kind] ?? 99
+    if (pa !== pb) return pa - pb
+    return (b.degreeHint ?? 0) - (a.degreeHint ?? 0)
+  })
 }
 
 /** Id-stable seed (no filtered-list index) so the same node keeps the same start. */
@@ -97,6 +127,7 @@ export type GraphologyBuildResult = {
   droppedEdges: number
   /** Nodes that were not in `positions` and needed a fresh seed. */
   newNodeCount: number
+  newNodeIds: string[]
 }
 
 /**
@@ -123,7 +154,10 @@ export function buildGraphologyFromProjection(
 
   let droppedNodes = 0
   const visibleNodes = projection.nodes.filter((n) => kindOk(n.kind))
-  const capped = visibleNodes.slice(0, MAX_NODES)
+  const capped =
+    visibleNodes.length <= MAX_NODES
+      ? visibleNodes
+      : prioritizeNodesForCap(visibleNodes).slice(0, MAX_NODES)
   droppedNodes = visibleNodes.length - capped.length
 
   const newNodeIds: string[] = []
@@ -207,18 +241,27 @@ export function buildGraphologyFromProjection(
       edgeType: edge.type,
       size: NEO_EDGE_SIZE_IDLE,
       color: resolveIdleEdgeColor(edge.type),
+      weight: edgeLayoutWeight(edge.type),
       properties: edge.properties,
     })
   }
 
-  // Place newly visible nodes near existing neighbors when possible.
+  // Orbit new leaves around settled parents; non-leaves keep kind-ring / avg seed.
+  const newLeafIds = newNodeIds.filter((id) => {
+    if (!graph.hasNode(id)) return false
+    return isLeafKind(graph.getNodeAttribute(id, 'kind'))
+  })
+  if (newLeafIds.length > 0) {
+    placeLeavesInOrbits(graph, { onlyNodeIds: new Set(newLeafIds) })
+  }
+
   for (const id of newNodeIds) {
     if (!graph.hasNode(id)) continue
+    if (isLeafKind(graph.getNodeAttribute(id, 'kind'))) continue
     let sx = 0
     let sy = 0
     let count = 0
     graph.forEachNeighbor(id, (neighborId) => {
-      // Prefer settled neighbors over other freshly seeded nodes.
       if (newNodeIdSet.has(neighborId)) return
       const n = graph.getNodeAttributes(neighborId)
       sx += n.x
@@ -240,6 +283,7 @@ export function buildGraphologyFromProjection(
     droppedNodes,
     droppedEdges,
     newNodeCount: newNodeIds.length,
+    newNodeIds,
   }
 }
 

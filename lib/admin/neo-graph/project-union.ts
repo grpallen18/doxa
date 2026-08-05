@@ -5,8 +5,16 @@ import type {
   DoxaGraphProjection,
 } from '@/lib/admin/neo-graph/types'
 import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
+import {
+  clampUnionStoryLimit,
+  UNION_MAX_STORIES,
+} from '@/lib/admin/neo-graph/union-limits'
 
-export const UNION_MAX_STORIES = 100
+export {
+  clampUnionStoryLimit,
+  UNION_DEFAULT_STORIES,
+  UNION_MAX_STORIES,
+} from '@/lib/admin/neo-graph/union-limits'
 
 export type UnionDocumentMeta = {
   uid: string
@@ -91,8 +99,12 @@ export function projectUnionDocuments(
   }
 }
 
-export function parseUnionStoryIds(raw: string | null | undefined): string[] {
+export function parseUnionStoryIds(
+  raw: string | null | undefined,
+  limit: number = UNION_MAX_STORIES
+): string[] {
   if (!raw?.trim()) return []
+  const capped = clampUnionStoryLimit(limit)
   const seen = new Set<string>()
   const out: string[] = []
   for (const part of raw.split(/[,+\s]+/)) {
@@ -100,7 +112,7 @@ export function parseUnionStoryIds(raw: string | null | undefined): string[] {
     if (!id || seen.has(id)) continue
     seen.add(id)
     out.push(id)
-    if (out.length >= UNION_MAX_STORIES) break
+    if (out.length >= capped) break
   }
   return out
 }
