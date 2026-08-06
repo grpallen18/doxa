@@ -8,6 +8,35 @@ import { Panel } from '@/components/Panel'
 import { PostLoginLoader } from '@/components/auth/PostLoginLoader'
 import { LoginFadeWrapper } from '@/components/LoginFadeWrapper'
 import { LOADER_DURATION_MS } from '@/lib/constants'
+import { cn } from '@/lib/utils'
+
+const LOGO_REVEAL_DELAY_MS = 500
+
+function LoginBrandLogo() {
+  const [reveal, setReveal] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setReveal(true), LOGO_REVEAL_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [])
+
+  return (
+    <div className="flex h-20 justify-center sm:h-24">
+      <Image
+        src="/logo-color-no-bg.png"
+        alt="DOXA"
+        width={2172}
+        height={724}
+        priority
+        className={cn(
+          'doxa-logo-ltr h-20 w-auto sm:h-24',
+          reveal ? 'animate-doxa-logo-ltr' : 'invisible'
+        )}
+        style={reveal ? undefined : { opacity: 0, visibility: 'hidden' }}
+      />
+    </div>
+  )
+}
 
 function LoginFormWrapper() {
   const router = useRouter()
@@ -37,16 +66,7 @@ function LoginFormWrapper() {
           className={`mx-auto flex max-w-md flex-col gap-8 pt-12 transition-opacity duration-500 ${transitioning ? 'opacity-0' : 'opacity-100'}`}
           aria-hidden={transitioning}
         >
-          <div className="flex justify-center">
-            <Image
-              src="/logo-color-no-bg.png"
-              alt="DOXA"
-              width={2172}
-              height={724}
-              priority
-              className="doxa-logo-ltr h-20 w-auto animate-doxa-logo-ltr opacity-0 [animation-delay:500ms] sm:h-24"
-            />
-          </div>
+          <LoginBrandLogo />
           <Panel variant="soft" interactive={false} className="animate-panel-fade-in p-6 opacity-0">
             <LoginForm onLoginSuccess={() => setTransitioning(true)} />
           </Panel>
@@ -75,16 +95,8 @@ function LoginPageFallback() {
   return (
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex max-w-md flex-col gap-8 pt-12">
-        <div className="flex justify-center">
-          <Image
-            src="/logo-color-no-bg.png"
-            alt="DOXA"
-            width={2172}
-            height={724}
-            priority
-            className="h-20 w-auto sm:h-24"
-          />
-        </div>
+        {/* Spacer only — never show the logo before the controlled reveal */}
+        <div className="h-20 sm:h-24" aria-hidden />
         <Panel variant="soft" interactive={false} className="flex flex-col gap-6 p-6">
           <div className="h-8 w-48 animate-pulse rounded bg-muted" />
           <div className="h-4 w-full animate-pulse rounded bg-muted" />

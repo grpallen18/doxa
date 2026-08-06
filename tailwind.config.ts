@@ -205,7 +205,7 @@ const config: Config = {
 		},
 		animation: {
 			'doxa-letter': 'doxa-letter 1.2s ease-out forwards',
-			'doxa-logo-ltr': 'doxa-logo-ltr 1.8s ease-out forwards',
+			'doxa-logo-ltr': 'doxa-logo-ltr 1.8s ease-out both',
 			'panel-fade-in': 'panel-fade-in 2.5s ease-out forwards',
 			'accordion-down': 'accordion-down 0.3s ease-out',
 			'accordion-up': 'accordion-up 0.3s ease-out',
