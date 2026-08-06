@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useState, useEffect } from 'react'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LoginForm } from '@/components/auth/login-form'
 import { Panel } from '@/components/Panel'
@@ -36,18 +37,15 @@ function LoginFormWrapper() {
           className={`mx-auto flex max-w-md flex-col gap-8 pt-12 transition-opacity duration-500 ${transitioning ? 'opacity-0' : 'opacity-100'}`}
           aria-hidden={transitioning}
         >
-          <div className="text-center">
-            <span className="text-6xl font-semibold uppercase tracking-[0.18em] text-muted sm:text-7xl">
-              {'DOXA'.split('').map((letter, i) => (
-                <span
-                  key={i}
-                  className="inline-block animate-doxa-letter opacity-0"
-                  style={{ animationDelay: `${i * 360}ms` }}
-                >
-                  {letter}
-                </span>
-              ))}
-            </span>
+          <div className="flex justify-center">
+            <Image
+              src="/logo-color-no-bg.png"
+              alt="DOXA"
+              width={2172}
+              height={724}
+              priority
+              className="doxa-logo-ltr h-20 w-auto animate-doxa-logo-ltr opacity-0 [animation-delay:500ms] sm:h-24"
+            />
           </div>
           <Panel variant="soft" interactive={false} className="animate-panel-fade-in p-6 opacity-0">
             <LoginForm onLoginSuccess={() => setTransitioning(true)} />
@@ -77,8 +75,15 @@ function LoginPageFallback() {
   return (
     <main className="min-h-screen px-4 pb-16 pt-6 text-foreground sm:px-6 md:px-8 lg:px-10">
       <div className="mx-auto flex max-w-md flex-col gap-8 pt-12">
-        <div className="text-center">
-          <span className="text-6xl font-semibold uppercase tracking-[0.18em] text-muted sm:text-7xl">DOXA</span>
+        <div className="flex justify-center">
+          <Image
+            src="/logo-color-no-bg.png"
+            alt="DOXA"
+            width={2172}
+            height={724}
+            priority
+            className="h-20 w-auto sm:h-24"
+          />
         </div>
         <Panel variant="soft" interactive={false} className="flex flex-col gap-6 p-6">
           <div className="h-8 w-48 animate-pulse rounded bg-muted" />

@@ -401,6 +401,13 @@ body {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  .doxa-logo-ltr {
+    -webkit-mask-image: linear-gradient(to right, #000 40%, transparent 70%);
+    mask-image: linear-gradient(to right, #000 40%, transparent 70%);
+    -webkit-mask-size: 250% 100%;
+    mask-size: 250% 100%;
+  }
 }
 
 @layer components {
