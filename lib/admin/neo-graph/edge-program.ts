@@ -384,10 +384,8 @@ function createNeoGradientCurveProgram(
       }
 
       const { from, to } = endpointColors(sourceData, targetData, colorData)
-      const curvature =
-        typeof (data as { curvature?: number }).curvature === 'number'
-          ? (data as { curvature: number }).curvature
-          : 0.25
+      const curvatureValue = (data as { curvature?: number }).curvature
+      const curvature = typeof curvatureValue === 'number' ? curvatureValue : 0.25
 
       const array = this.array
       array[startIndex++] = sourceData.x
