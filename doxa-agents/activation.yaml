@@ -10,6 +10,21 @@
 #
 # Everything else (manifest.yaml, docs/generated/*) is auto-synced from code.
 
-active: 
+active:
   - ingest-newsapi
   - scrape-story-content
+  - generate-proposition-pair-candidates
+  - classify-proposition-relationships
+  - build-viewpoints
+  - build-controversies
+  - detect-disputes
+  - project-debate-summaries
+  - debate-pipeline
+  - generate-evidence-check-candidates
+  - run-evidence-checks
+  - extract-citations
+  - run-controversy-assessments
+  - update-held-by-tracks
+  - link-derived-media-clips
+  - project-analysis-summaries
+  - analysis-pipeline

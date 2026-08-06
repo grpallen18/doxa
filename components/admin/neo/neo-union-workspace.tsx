@@ -2,9 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { SpotlightBorder } from '@/components/motion-primitives/spotlight-border'
 import {
   DEFAULT_NEO_FILTERS,
   type DoxaGraphProjection,
@@ -61,6 +59,7 @@ export function NeoUnionWorkspace() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ all: true, limit: capped, fresh }),
+        cache: 'no-store',
       })
       const json = await res.json()
       if (!res.ok || json.error) {
@@ -102,59 +101,57 @@ export function NeoUnionWorkspace() {
     [documents]
   )
 
-  const refresh = () => {
-    const next = clampUnionStoryLimit(capDraft)
-    setCapDraft(String(next))
-    void loadUnion(next, true)
-  }
+  const commitCap = useCallback(
+    (opts?: { fresh?: boolean }) => {
+      const next = clampUnionStoryLimit(capDraft)
+      setCapDraft(String(next))
+      const changed = next !== appliedCap
+      if (!changed && !opts?.fresh) return
+      void loadUnion(next, opts?.fresh ?? true)
+    },
+    [appliedCap, capDraft, loadUnion]
+  )
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#0f0f0f]">
-      <div className="relative z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-[#121212] px-3 py-2">
-        <label
-          htmlFor="union-story-cap"
-          className="text-[11px] font-medium uppercase tracking-wide text-zinc-500"
-        >
-          Story cap
-        </label>
-        <Input
+  const [capFocused, setCapFocused] = useState(false)
+
+  const storyCapControl = (
+    <>
+      <label htmlFor="union-story-cap" className="sr-only">
+        Story cap
+      </label>
+      <SpotlightBorder
+        active={capFocused && !loading}
+        className="w-auto bg-white/20 shadow-lg"
+      >
+        <input
           id="union-story-cap"
           type="number"
           min={1}
           max={UNION_MAX_STORIES}
           inputMode="numeric"
+          title={`Story cap (1–${UNION_MAX_STORIES})`}
           value={capDraft}
           disabled={loading}
           onChange={(e) => setCapDraft(e.target.value)}
+          onFocus={() => setCapFocused(true)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
-              refresh()
+              commitCap({ fresh: true })
             }
           }}
-          className="h-8 w-20 border-white/15 bg-black/40 text-zinc-100"
+          onBlur={() => {
+            setCapFocused(false)
+            commitCap()
+          }}
+          className="relative flex h-8 w-16 rounded-[calc(theme(borderRadius.md)-1px)] border-0 bg-black/80 px-2 text-center text-sm font-medium text-zinc-200 outline-none transition-colors hover:bg-black/90 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
-        <span className="text-[11px] text-zinc-500">
-          / {UNION_MAX_STORIES} · newest Neo graphs first
-        </span>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={loading}
-          className="h-8 gap-1.5 border-white/15 bg-transparent text-zinc-200 hover:bg-white/5"
-          onClick={refresh}
-        >
-          <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-        {!loading && foundCount > 0 ? (
-          <span className="ml-auto text-[11px] text-zinc-500">
-            Showing {foundCount} of up to {appliedCap} stories
-          </span>
-        ) : null}
-      </div>
+      </SpotlightBorder>
+    </>
+  )
 
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col bg-[#0f0f0f]">
       {loading && !projection ? (
         <p className="p-6 text-sm text-zinc-400">Loading all story graphs…</p>
       ) : projection && foundCount > 0 ? (
@@ -170,6 +167,7 @@ export function NeoUnionWorkspace() {
             projection={projection}
             contextStoryId={contextStoryId}
             defaultFilters={DEFAULT_NEO_FILTERS}
+            canvasOverlay={storyCapControl}
           />
         </div>
       ) : (

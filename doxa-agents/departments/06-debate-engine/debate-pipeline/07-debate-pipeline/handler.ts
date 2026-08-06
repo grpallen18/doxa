@@ -45,9 +45,18 @@ export const handler = async (req: Request) => {
 
     for (const name of STEP_NAMES) {
       const t0 = performance.now();
-      const res = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, name, {
-        dry_run: dryRun,
-      });
+      const stepBody: Record<string, unknown> = { dry_run: dryRun };
+      // Candidate gen may enqueue a larger backlog; classify is capped so hourly
+      // cron (`limit: 50`) stays under the Edge idle timeout (~150s).
+      if (name === "generate_proposition_pair_candidates") {
+        if (body.limit != null) stepBody.limit = body.limit;
+        if (body.min_similarity != null) stepBody.min_similarity = body.min_similarity;
+      }
+      if (name === "classify_proposition_relationships" && body.limit != null) {
+        const n = typeof body.limit === "number" ? body.limit : Number(body.limit);
+        stepBody.limit = Number.isFinite(n) ? Math.min(Math.max(1, Math.floor(n)), 25) : 25;
+      }
+      const res = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, name, stepBody);
       const duration_ms = Math.round(performance.now() - t0);
       steps.push({
         name,

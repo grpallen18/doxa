@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const [{ data: viewpoints }, { data: evidence }] = await Promise.all([
+  const [vpRes, evRes, assessRes] = await Promise.all([
     supabase
       .from('graph_viewpoints')
       .select('uid, label, summary, topic_key, member_count, updated_at')
@@ -35,13 +35,27 @@ export async function GET(_req: Request, { params }: Params) {
       .select('document_uid, utterance_count, updated_at')
       .eq('controversy_uid', uid)
       .order('utterance_count', { ascending: false }),
+    supabase
+      .from('graph_assessments')
+      .select(
+        'uid, kind, summary, confidence, method_run_uid, layer, updated_at'
+      )
+      .eq('target_kind', 'controversy')
+      .eq('target_uid', uid)
+      .order('updated_at', { ascending: false }),
   ])
+
+  const detailError = vpRes.error ?? evRes.error ?? assessRes.error
+  if (detailError) {
+    return NextResponse.json({ error: detailError.message }, { status: 500 })
+  }
 
   return NextResponse.json({
     data: {
       controversy,
-      viewpoints: viewpoints ?? [],
-      evidence: evidence ?? [],
+      viewpoints: vpRes.data ?? [],
+      evidence: evRes.data ?? [],
+      assessments: assessRes.data ?? [],
     },
   })
 }

@@ -1,19 +1,15 @@
-import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
+import type { ForceAtlas2Settings } from 'graphology-layout-forceatlas2'
 import type {
   NeoEdgeType,
   NeoFa2Settings,
   NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
-import type {
-  NeoSigmaGraph,
-  SigmaEdgeAttributes,
-  SigmaNodeAttributes,
-} from '@/lib/admin/neo-graph/graphology-adapter'
+import type { NeoSigmaGraph } from '@/lib/admin/neo-graph/graphology-adapter'
 
 export const BACKBONE_KINDS = new Set<NeoNodeKind>([
-  'document',
   'publication',
+  'document',
   'controversy',
   'viewpoint',
   'dispute',
@@ -26,30 +22,63 @@ export const LEAF_KINDS = new Set<NeoNodeKind>([
   'utterance',
   'segment',
   'argument',
+  'assessment',
+  'evidence_check',
+  'citation',
+  'method_run',
 ])
 
+/** Publication-first parent chain for orbits / hierarchy placement. */
 const PARENT_PRIORITY: NeoNodeKind[] = [
-  'document',
   'publication',
+  'document',
+  'segment',
+  'utterance',
   'controversy',
   'viewpoint',
   'dispute',
   'proposition',
+  'agent',
+  'entity',
 ]
 
+/**
+ * Hierarchy edges pull harder; cross-cutting / shared edges stay softer so
+ * FA2 refines clusters instead of collapsing shared hubs.
+ */
 const STAR_EDGE_WEIGHT: Partial<Record<NeoEdgeType, number>> = {
-  MENTIONS: 0.25,
-  CONTAINS: 0.25,
-  GROUNDED_IN: 0.25,
-  REFERRED_AS: 0.25,
-  ASSERTED_BY: 0.25,
-  PUBLISHED_BY: 0.6,
+  PUBLISHED_BY: 1.8,
+  CONTAINS: 1.6,
+  GROUNDED_IN: 1.5,
+  ASSERTED_BY: 1.0,
+  MENTIONS: 0.7,
+  REFERRED_AS: 0.6,
+  EXPRESSES: 1.1,
+  HAS_ROLE: 0.9,
+  ADVANCES: 1.0,
+  INCLUDES: 1.0,
+  RELATES_TO: 0.9,
+  CONCERNS: 0.9,
+  VARIANT_OF: 0.8,
+  ABOUT: 0.8,
+  CHECKS: 0.85,
+  CITES: 0.7,
+  HELD_BY: 1.0,
+  DERIVED_FROM: 0.9,
+  PRODUCED_BY: 0.6,
 }
 
-export const ORBIT_BASE_GAP = 18
-export const ORBIT_SPREAD = 14
-export const COLLISION_PADDING = 2
+const DEFAULT_EDGE_WEIGHT = 0.9
+
+export const ORBIT_BASE_GAP = 28
+export const ORBIT_SPREAD = 22
+export const COLLISION_PADDING = 3
 export const COLLISION_ITERATIONS = 10
+
+const DOC_ORBIT = 72
+const SEG_ORBIT = 36
+const UTT_ORBIT = 28
+const AGENT_ORBIT = 22
 
 export function isBackboneKind(kind: NeoNodeKind): boolean {
   return BACKBONE_KINDS.has(kind)
@@ -66,7 +95,7 @@ export function hashSeed(id: string): number {
 }
 
 export function edgeLayoutWeight(type: NeoEdgeType): number {
-  return STAR_EDGE_WEIGHT[type] ?? 1
+  return STAR_EDGE_WEIGHT[type] ?? DEFAULT_EDGE_WEIGHT
 }
 
 export function assignEdgeWeights(graph: NeoSigmaGraph): void {
@@ -85,15 +114,76 @@ export function primaryParentId(
   graph.forEachNeighbor(nodeId, (neighborId) => {
     const kind = graph.getNodeAttribute(neighborId, 'kind') as NeoNodeKind
     if (!fallback) fallback = neighborId
-    if (isBackboneKind(kind) && !byKind.has(kind)) {
-      byKind.set(kind, neighborId)
-    }
+    if (!byKind.has(kind)) byKind.set(kind, neighborId)
   })
   for (const kind of PARENT_PRIORITY) {
     const id = byKind.get(kind)
     if (id) return id
   }
   return fallback
+}
+
+function neighborsOfKind(
+  graph: NeoSigmaGraph,
+  nodeId: string,
+  kind: NeoNodeKind
+): string[] {
+  const out: string[] = []
+  if (!graph.hasNode(nodeId)) return out
+  graph.forEachNeighbor(nodeId, (neighborId) => {
+    if (graph.getNodeAttribute(neighborId, 'kind') === kind) out.push(neighborId)
+  })
+  return out
+}
+
+function scatterPoint(
+  id: string,
+  scale: number
+): { x: number; y: number } {
+  const sx = hashSeed(id)
+  const sy = hashSeed(`${id}:y`)
+  return {
+    x: ((sx % 1000) / 1000 - 0.5) * scale,
+    y: ((sy % 1000) / 1000 - 0.5) * scale,
+  }
+}
+
+function offsetFromParent(
+  parentX: number,
+  parentY: number,
+  childId: string,
+  radius: number,
+  index: number,
+  total: number
+): { x: number; y: number } {
+  const seed = hashSeed(childId)
+  const baseAngle = ((seed % 360) * Math.PI) / 180
+  const angle =
+    total > 1 ? baseAngle + (index / total) * Math.PI * 2 : baseAngle
+  const jitter = ((seed % 17) - 8) * 0.35
+  const r = radius + jitter
+  return {
+    x: parentX + Math.cos(angle) * r,
+    y: parentY + Math.sin(angle) * r,
+  }
+}
+
+function centroidOf(
+  graph: NeoSigmaGraph,
+  ids: string[]
+): { x: number; y: number } | null {
+  if (ids.length === 0) return null
+  let sx = 0
+  let sy = 0
+  let n = 0
+  for (const id of ids) {
+    if (!graph.hasNode(id)) continue
+    sx += graph.getNodeAttribute(id, 'x')
+    sy += graph.getNodeAttribute(id, 'y')
+    n += 1
+  }
+  if (n === 0) return null
+  return { x: sx / n, y: sy / n }
 }
 
 function orbitRadius(
@@ -109,7 +199,8 @@ function orbitRadius(
 
 /**
  * Place leaf nodes on circles around their primary parent.
- * When `onlyNodeIds` is set, only those leaves are repositioned (filter-new).
+ * Used only for filter-new nodes so they appear near a settled parent
+ * without restarting full FA2.
  */
 export function placeLeavesInOrbits(
   graph: NeoSigmaGraph,
@@ -149,73 +240,407 @@ export function placeLeavesInOrbits(
   }
 }
 
-function buildFa2Settings(settings: NeoFa2Settings) {
-  return {
-    barnesHutOptimize: true,
-    linLogMode: true,
-    outboundAttractionDistribution: true,
-    adjustSizes: true,
-    slowDown: 10,
-    gravity: settings.gravity,
-    scalingRatio: settings.scalingRatio,
+/** Publication ring radius so neighboring pubs keep breathing room. */
+export function targetPublicationRingRadius(pubCount: number): number {
+  const n = Math.max(pubCount, 1)
+  const gap = 200
+  return Math.max(360, (n * gap) / (2 * Math.PI))
+}
+
+/**
+ * Place one node using the publication-first hierarchy rules.
+ * Safe when parents are already positioned.
+ */
+export function placeNodeNearHierarchyParent(
+  graph: NeoSigmaGraph,
+  nodeId: string,
+  siblingIndex = 0,
+  siblingTotal = 1
+): void {
+  if (!graph.hasNode(nodeId)) return
+  const kind = graph.getNodeAttribute(nodeId, 'kind') as NeoNodeKind
+  if (kind === 'cluster' || graph.getNodeAttribute(nodeId, 'properties')?.lodSynthetic) {
+    return
+  }
+
+  const scale = 420 + Math.sqrt(Math.max(graph.order, 1)) * 10
+
+  if (kind === 'publication') {
+    const pubs: string[] = []
+    graph.forEachNode((id, attrs) => {
+      if (attrs.kind === 'publication') pubs.push(id)
+    })
+    pubs.sort()
+    const i = Math.max(0, pubs.indexOf(nodeId))
+    const n = Math.max(pubs.length, 1)
+    const radius = targetPublicationRingRadius(n)
+    const angle = (2 * Math.PI * i) / n
+    graph.setNodeAttribute(nodeId, 'x', Math.cos(angle) * radius)
+    graph.setNodeAttribute(nodeId, 'y', Math.sin(angle) * radius)
+    return
+  }
+
+  if (kind === 'document') {
+    const pubs = neighborsOfKind(graph, nodeId, 'publication')
+    const c = centroidOf(graph, pubs)
+    if (c) {
+      const pos = offsetFromParent(
+        c.x,
+        c.y,
+        nodeId,
+        DOC_ORBIT,
+        siblingIndex,
+        siblingTotal
+      )
+      graph.setNodeAttribute(nodeId, 'x', pos.x)
+      graph.setNodeAttribute(nodeId, 'y', pos.y)
+      return
+    }
+    const p = scatterPoint(nodeId, scale)
+    graph.setNodeAttribute(nodeId, 'x', p.x)
+    graph.setNodeAttribute(nodeId, 'y', p.y)
+    return
+  }
+
+  if (kind === 'segment') {
+    const docs = neighborsOfKind(graph, nodeId, 'document')
+    const c = centroidOf(graph, docs)
+    if (c) {
+      const pos = offsetFromParent(
+        c.x,
+        c.y,
+        nodeId,
+        SEG_ORBIT,
+        siblingIndex,
+        siblingTotal
+      )
+      graph.setNodeAttribute(nodeId, 'x', pos.x)
+      graph.setNodeAttribute(nodeId, 'y', pos.y)
+      return
+    }
+  }
+
+  if (kind === 'utterance') {
+    const segs = neighborsOfKind(graph, nodeId, 'segment')
+    const docs = neighborsOfKind(graph, nodeId, 'document')
+    const c = centroidOf(graph, segs.length > 0 ? segs : docs)
+    if (c) {
+      const pos = offsetFromParent(
+        c.x,
+        c.y,
+        nodeId,
+        UTT_ORBIT,
+        siblingIndex,
+        siblingTotal
+      )
+      graph.setNodeAttribute(nodeId, 'x', pos.x)
+      graph.setNodeAttribute(nodeId, 'y', pos.y)
+      return
+    }
+  }
+
+  if (kind === 'entity') {
+    const utts = neighborsOfKind(graph, nodeId, 'utterance')
+    const c = centroidOf(graph, utts)
+    if (c) {
+      const jitter = ((hashSeed(nodeId) % 21) - 10) * 0.8
+      graph.setNodeAttribute(nodeId, 'x', c.x + jitter)
+      graph.setNodeAttribute(nodeId, 'y', c.y - jitter)
+      return
+    }
+  }
+
+  if (kind === 'agent') {
+    const utts = neighborsOfKind(graph, nodeId, 'utterance')
+    const c = centroidOf(graph, utts)
+    if (c) {
+      const pos = offsetFromParent(
+        c.x,
+        c.y,
+        nodeId,
+        AGENT_ORBIT,
+        siblingIndex,
+        siblingTotal
+      )
+      graph.setNodeAttribute(nodeId, 'x', pos.x)
+      graph.setNodeAttribute(nodeId, 'y', pos.y)
+      return
+    }
+  }
+
+  const parent = primaryParentId(graph, nodeId)
+  if (parent && graph.hasNode(parent)) {
+    const p = graph.getNodeAttributes(parent)
+    const pos = offsetFromParent(
+      p.x,
+      p.y,
+      nodeId,
+      ORBIT_BASE_GAP + 12,
+      siblingIndex,
+      siblingTotal
+    )
+    graph.setNodeAttribute(nodeId, 'x', pos.x)
+    graph.setNodeAttribute(nodeId, 'y', pos.y)
+    return
+  }
+
+  const p = scatterPoint(nodeId, scale)
+  graph.setNodeAttribute(nodeId, 'x', p.x)
+  graph.setNodeAttribute(nodeId, 'y', p.y)
+}
+
+/**
+ * Place newly visible nodes with the hierarchy rules (filter-new).
+ * Order matters: pubs → docs → segs → utts → agents/entities → rest.
+ */
+export function placeNodesHierarchically(
+  graph: NeoSigmaGraph,
+  nodeIds: ReadonlySet<string> | string[]
+): void {
+  const ids = [...nodeIds].filter((id) => graph.hasNode(id))
+  const byKind = (kind: NeoNodeKind) =>
+    ids
+      .filter((id) => graph.getNodeAttribute(id, 'kind') === kind)
+      .sort((a, b) => a.localeCompare(b))
+
+  const waves: NeoNodeKind[] = [
+    'publication',
+    'document',
+    'segment',
+    'utterance',
+    'agent',
+    'entity',
+    'argument',
+    'proposition',
+    'dispute',
+    'viewpoint',
+    'controversy',
+  ]
+
+  const placed = new Set<string>()
+  for (const kind of waves) {
+    const group = byKind(kind)
+    group.forEach((id, i) => {
+      placeNodeNearHierarchyParent(graph, id, i, group.length)
+      placed.add(id)
+    })
+  }
+  for (const id of ids) {
+    if (placed.has(id)) continue
+    placeNodeNearHierarchyParent(graph, id)
   }
 }
 
 /**
- * Run sync FA2 on backbone-only subgraph, then copy positions back.
+ * Full hierarchical seed: publications as primary hubs, then docs / segments /
+ * utterances / entity centroids / agents near utterances.
  */
-export function layoutBackboneSync(
-  graph: NeoSigmaGraph,
-  settings: NeoFa2Settings,
-  iterations: number
-): void {
-  const backbone = new Graph<SigmaNodeAttributes, SigmaEdgeAttributes>({
-    multi: false,
-    type: 'directed',
-    allowSelfLoops: false,
-  })
+export function seedHierarchicalPositions(graph: NeoSigmaGraph): void {
+  const pubs: string[] = []
+  const docs: string[] = []
+  const segs: string[] = []
+  const utts: string[] = []
+  const ents: string[] = []
+  const agents: string[] = []
+  const other: string[] = []
 
   graph.forEachNode((id, attrs) => {
-    if (!isBackboneKind(attrs.kind)) return
-    backbone.addNode(id, { ...attrs })
-  })
-
-  if (backbone.order < 2) return
-
-  graph.forEachEdge((edge, attrs, source, target) => {
-    if (!backbone.hasNode(source) || !backbone.hasNode(target)) return
-    if (backbone.hasEdge(source, target) || backbone.hasEdge(target, source)) {
-      return
+    if (attrs.kind === 'cluster') return
+    if (attrs.properties?.lodSynthetic === true) return
+    switch (attrs.kind) {
+      case 'publication':
+        pubs.push(id)
+        break
+      case 'document':
+        docs.push(id)
+        break
+      case 'segment':
+        segs.push(id)
+        break
+      case 'utterance':
+        utts.push(id)
+        break
+      case 'entity':
+        ents.push(id)
+        break
+      case 'agent':
+        agents.push(id)
+        break
+      default:
+        other.push(id)
+        break
     }
-    if (backbone.hasEdge(edge)) return
-    backbone.addEdgeWithKey(edge, source, target, {
-      ...attrs,
-      weight: edgeLayoutWeight(attrs.edgeType),
+  })
+
+  pubs.sort()
+  docs.sort()
+  segs.sort()
+  utts.sort()
+  ents.sort()
+  agents.sort()
+  other.sort()
+
+  const pubRadius = targetPublicationRingRadius(pubs.length || 1)
+  pubs.forEach((id, i) => {
+    const n = Math.max(pubs.length, 1)
+    const angle = (2 * Math.PI * i) / n
+    graph.setNodeAttribute(id, 'x', Math.cos(angle) * pubRadius)
+    graph.setNodeAttribute(id, 'y', Math.sin(angle) * pubRadius)
+  })
+
+  // Group documents by primary publication for even local orbits.
+  const docsByPub = new Map<string, string[]>()
+  const orphanDocs: string[] = []
+  for (const id of docs) {
+    const pubNeighbors = neighborsOfKind(graph, id, 'publication').sort()
+    const pubId = pubNeighbors[0]
+    if (!pubId) {
+      orphanDocs.push(id)
+      continue
+    }
+    const list = docsByPub.get(pubId)
+    if (list) list.push(id)
+    else docsByPub.set(pubId, [id])
+  }
+  for (const [pubId, group] of docsByPub) {
+    group.sort()
+    group.forEach((id, i) => {
+      placeNodeNearHierarchyParent(graph, id, i, group.length)
+      // Ensure we used the grouped pub even if multiple exist.
+      if (graph.hasNode(pubId)) {
+        const pub = graph.getNodeAttributes(pubId)
+        const pos = offsetFromParent(
+          pub.x,
+          pub.y,
+          id,
+          DOC_ORBIT,
+          i,
+          group.length
+        )
+        graph.setNodeAttribute(id, 'x', pos.x)
+        graph.setNodeAttribute(id, 'y', pos.y)
+      }
     })
+  }
+  orphanDocs.forEach((id, i) => {
+    placeNodeNearHierarchyParent(graph, id, i, orphanDocs.length)
   })
 
-  forceAtlas2.assign(backbone, {
-    iterations,
-    getEdgeWeight: 'weight',
-    settings: buildFa2Settings(settings),
-  })
+  const segsByDoc = new Map<string, string[]>()
+  for (const id of segs) {
+    const docNeighbors = neighborsOfKind(graph, id, 'document').sort()
+    const docId = docNeighbors[0] ?? '__orphan__'
+    const list = segsByDoc.get(docId)
+    if (list) list.push(id)
+    else segsByDoc.set(docId, [id])
+  }
+  for (const [, group] of segsByDoc) {
+    group.sort()
+    group.forEach((id, i) =>
+      placeNodeNearHierarchyParent(graph, id, i, group.length)
+    )
+  }
 
-  backbone.forEachNode((id, attrs) => {
-    if (!graph.hasNode(id)) return
-    graph.setNodeAttribute(id, 'x', attrs.x)
-    graph.setNodeAttribute(id, 'y', attrs.y)
+  const uttsByParent = new Map<string, string[]>()
+  for (const id of utts) {
+    const segsN = neighborsOfKind(graph, id, 'segment').sort()
+    const docsN = neighborsOfKind(graph, id, 'document').sort()
+    const parentId = segsN[0] ?? docsN[0] ?? '__orphan__'
+    const list = uttsByParent.get(parentId)
+    if (list) list.push(id)
+    else uttsByParent.set(parentId, [id])
+  }
+  for (const [, group] of uttsByParent) {
+    group.sort()
+    group.forEach((id, i) =>
+      placeNodeNearHierarchyParent(graph, id, i, group.length)
+    )
+  }
+
+  ents.forEach((id) => placeNodeNearHierarchyParent(graph, id))
+
+  const agentsByUtt = new Map<string, string[]>()
+  for (const id of agents) {
+    const uttNeighbors = neighborsOfKind(graph, id, 'utterance').sort()
+    const parentId = uttNeighbors[0] ?? '__orphan__'
+    const list = agentsByUtt.get(parentId)
+    if (list) list.push(id)
+    else agentsByUtt.set(parentId, [id])
+  }
+  for (const [, group] of agentsByUtt) {
+    group.sort()
+    group.forEach((id, i) =>
+      placeNodeNearHierarchyParent(graph, id, i, group.length)
+    )
+  }
+
+  other.forEach((id) => placeNodeNearHierarchyParent(graph, id))
+}
+
+/**
+ * Soft settle budget after hierarchical seed.
+ * Long enough for repulsion to open the tight seed before we freeze.
+ */
+export function workerBudgetMs(order: number): number {
+  return Math.min(1600 + order / 10, 7000)
+}
+
+/**
+ * Soft FA2 refine after hierarchical seed.
+ */
+export function buildFa2WorkerSettings(
+  graph: NeoSigmaGraph,
+  user?: NeoFa2Settings
+): ForceAtlas2Settings {
+  const inferred = forceAtlas2.inferSettings(graph.order)
+  return {
+    ...inferred,
+    adjustSizes: true,
+    strongGravityMode: false,
+    edgeWeightInfluence: 1,
+    gravity: user?.gravity ?? inferred.gravity ?? 0.01,
+    scalingRatio: user?.scalingRatio ?? inferred.scalingRatio ?? 200,
+    slowDown: Math.max(inferred.slowDown ?? 5, 5),
+  }
+}
+
+/** @deprecated Prefer seedHierarchicalPositions for full layouts. */
+export function seedOrganicPositions(graph: NeoSigmaGraph): void {
+  seedHierarchicalPositions(graph)
+}
+
+export function computeDocumentLeafCounts(
+  graph: NeoSigmaGraph
+): Map<string, number> {
+  const counts = new Map<string, number>()
+  graph.forEachNode((id, attrs) => {
+    if (attrs.kind !== 'document') return
+    let leaves = 0
+    graph.forEachNeighbor(id, (neighborId) => {
+      const kind = graph.getNodeAttribute(neighborId, 'kind') as NeoNodeKind
+      if (isLeafKind(kind)) leaves += 1
+    })
+    counts.set(id, leaves)
+    graph.setNodeAttribute(id, 'leafCount', leaves)
   })
+  return counts
 }
 
 /**
  * Spatial-hash size-aware separation so discs do not stack.
+ * When `pinKind` returns true, that node is not moved (used to protect hubs).
  */
 export function separateOverlaps(
   graph: NeoSigmaGraph,
   iterations = COLLISION_ITERATIONS,
-  padding = COLLISION_PADDING
+  padding = COLLISION_PADDING,
+  options?: { pinKind?: (kind: NeoNodeKind) => boolean }
 ): void {
   if (graph.order < 2) return
+  const pinKind = options?.pinKind
+
+  const cappedIters =
+    graph.order > 5000 ? Math.min(iterations, 4) : iterations
 
   let maxSize = 1
   graph.forEachNode((_id, attrs) => {
@@ -223,9 +648,10 @@ export function separateOverlaps(
   })
   const cellSize = Math.max(4, maxSize * 2 + padding)
 
-  for (let iter = 0; iter < iterations; iter++) {
+  for (let iter = 0; iter < cappedIters; iter++) {
     const cells = new Map<string, string[]>()
     graph.forEachNode((id, attrs) => {
+      if (attrs.lodHidden) return
       const cx = Math.floor(attrs.x / cellSize)
       const cy = Math.floor(attrs.y / cellSize)
       const key = `${cx}:${cy}`
@@ -235,6 +661,8 @@ export function separateOverlaps(
     })
 
     graph.forEachNode((id, attrs) => {
+      if (attrs.lodHidden) return
+      const pinned = Boolean(pinKind?.(attrs.kind))
       const cx = Math.floor(attrs.x / cellSize)
       const cy = Math.floor(attrs.y / cellSize)
       let dx = 0
@@ -248,6 +676,8 @@ export function separateOverlaps(
           for (const otherId of neighbors) {
             if (otherId <= id) continue
             const other = graph.getNodeAttributes(otherId)
+            if (other.lodHidden) continue
+            const otherPinned = Boolean(pinKind?.(other.kind))
             const minDist = attrs.size + other.size + padding
             let vx = attrs.x - other.x
             let vy = attrs.y - other.y
@@ -261,49 +691,28 @@ export function separateOverlaps(
               dist = 1e-6
             }
             const push = ((minDist - dist) / dist) * 0.5
-            dx += vx * push
-            dy += vy * push
-            hits += 1
-            graph.setNodeAttribute(otherId, 'x', other.x - vx * push)
-            graph.setNodeAttribute(otherId, 'y', other.y - vy * push)
+            if (!pinned && !otherPinned) {
+              dx += vx * push
+              dy += vy * push
+              hits += 1
+              graph.setNodeAttribute(otherId, 'x', other.x - vx * push)
+              graph.setNodeAttribute(otherId, 'y', other.y - vy * push)
+            } else if (pinned && !otherPinned) {
+              graph.setNodeAttribute(otherId, 'x', other.x - vx * push * 2)
+              graph.setNodeAttribute(otherId, 'y', other.y - vy * push * 2)
+            } else if (!pinned && otherPinned) {
+              dx += vx * push * 2
+              dy += vy * push * 2
+              hits += 1
+            }
           }
         }
       }
 
-      if (hits > 0) {
-        graph.setNodeAttribute(id, 'x', attrs.x + dx)
-        graph.setNodeAttribute(id, 'y', attrs.y + dy)
+      if (hits > 0 && !pinned) {
+        graph.setNodeAttribute(id, 'x', attrs.x + dx / hits)
+        graph.setNodeAttribute(id, 'y', attrs.y + dy / hits)
       }
     })
   }
 }
-
-/** Count leaf neighbors per document for LOD density cues. */
-export function computeDocumentLeafCounts(
-  graph: NeoSigmaGraph
-): Map<string, number> {
-  const counts = new Map<string, number>()
-  graph.forEachNode((id, attrs) => {
-    if (attrs.kind !== 'document') return
-    let n = 0
-    graph.forEachNeighbor(id, (neighborId) => {
-      const kind = graph.getNodeAttribute(neighborId, 'kind') as NeoNodeKind
-      if (isLeafKind(kind)) n += 1
-    })
-    counts.set(id, n)
-    graph.setNodeAttribute(id, 'leafCount', n)
-  })
-  return counts
-}
-
-export function buildWorkerFa2Settings(settings: NeoFa2Settings) {
-  return {
-    getEdgeWeight: 'weight' as const,
-    settings: {
-      ...buildFa2Settings(settings),
-    },
-  }
-}
-
-export const BACKBONE_ITERS_INITIAL = 400
-export const BACKBONE_ITERS_RELAYOUT = 200

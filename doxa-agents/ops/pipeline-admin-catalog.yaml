@@ -73,3 +73,40 @@ stages:
         label: Debate pipeline (orchestrator)
         invoke_options:
           timeout_ms: 600000
+
+  - id: analysis
+    label: Analysis (Neo L4)
+    scope: global
+    steps:
+      - id: generate-evidence-check-candidates
+        label: Evidence-check candidates
+        invoke_options:
+          timeout_ms: 120000
+      - id: run-evidence-checks
+        label: Run evidence checks
+        invoke_options:
+          timeout_ms: 300000
+      - id: extract-citations
+        label: Extract citations
+        invoke_options:
+          timeout_ms: 120000
+      - id: run-controversy-assessments
+        label: Controversy assessments
+        invoke_options:
+          timeout_ms: 300000
+      - id: update-held-by-tracks
+        label: Update HELD_BY tracks
+        invoke_options:
+          timeout_ms: 120000
+      - id: link-derived-media-clips
+        label: Link derived media clips
+        invoke_options:
+          timeout_ms: 120000
+      - id: project-analysis-summaries
+        label: Project analysis summaries
+        invoke_options:
+          timeout_ms: 120000
+      - id: analysis-pipeline
+        label: Analysis pipeline (orchestrator)
+        invoke_options:
+          timeout_ms: 600000

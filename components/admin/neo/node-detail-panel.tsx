@@ -23,18 +23,23 @@ export function NeoNodeDetailPanel({
   storyId,
   onClose,
   onFocus,
+  onExpandCluster,
+  memberLabels,
   className,
 }: {
   selection: NeoSelection
   storyId: string
   onClose: () => void
   onFocus: () => void
+  onExpandCluster?: () => void
+  memberLabels?: Array<{ id: string; label: string }>
   className?: string
 }) {
   const hasNode = Boolean(selection.nodeId)
   const hasEdge = Boolean(selection.edgeId)
   if (!hasNode && !hasEdge) return null
 
+  const isCluster = selection.kind === 'cluster'
   const uid =
     typeof selection.properties?.uid === 'string'
       ? selection.properties.uid
@@ -56,7 +61,7 @@ export function NeoNodeDetailPanel({
       <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold">
-            {hasNode ? 'Node' : 'Relationship'}
+            {hasNode ? (isCluster ? 'Cluster' : 'Node') : 'Relationship'}
           </h2>
           {hasNode && selection.kind ? (
             <StatusBadge label={selection.kind} variant="muted" />
@@ -81,6 +86,29 @@ export function NeoNodeDetailPanel({
           <>
             <Field label="Label" value={selection.label} />
             <Field label="Id" value={selection.nodeId} />
+            {isCluster && memberLabels && memberLabels.length > 0 ? (
+              <div className="space-y-1.5">
+                <dt className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                  Stories ({memberLabels.length})
+                </dt>
+                <ul className="space-y-1">
+                  {memberLabels.slice(0, 24).map((m) => (
+                    <li
+                      key={m.id}
+                      className="truncate text-sm text-zinc-200"
+                      title={m.label}
+                    >
+                      {m.label}
+                    </li>
+                  ))}
+                  {memberLabels.length > 24 ? (
+                    <li className="text-xs text-zinc-500">
+                      +{memberLabels.length - 24} more
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            ) : null}
             {selection.charStart != null && selection.charEnd != null ? (
               <Field
                 label="Char span"
@@ -93,7 +121,9 @@ export function NeoNodeDetailPanel({
                   key === 'uid' ||
                   key === 'text' ||
                   key === 'title' ||
-                  key === 'name'
+                  key === 'name' ||
+                  key === 'lodSynthetic' ||
+                  key === 'memberIds'
                 )
                   return null
                 if (value == null || value === '') return null
@@ -134,7 +164,17 @@ export function NeoNodeDetailPanel({
       </div>
 
       <div className="flex flex-wrap gap-2 border-t border-white/10 px-4 py-3">
-        {hasNode ? (
+        {isCluster && onExpandCluster ? (
+          <Button
+            type="button"
+            size="sm"
+            className="bg-white/15 text-zinc-100 hover:bg-white/25"
+            onClick={onExpandCluster}
+          >
+            Expand
+          </Button>
+        ) : null}
+        {hasNode && !isCluster ? (
           <Button
             type="button"
             size="sm"
@@ -144,7 +184,7 @@ export function NeoNodeDetailPanel({
             Recenter
           </Button>
         ) : null}
-        {documentUid ? (
+        {!isCluster && documentUid ? (
           <Button
             asChild
             size="sm"

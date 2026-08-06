@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ListFilter, Search, X } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { NeoSigmaCanvas, EMPTY_SELECTION, type NeoSelection } from '@/components/admin/neo/sigma-canvas'
@@ -12,16 +12,14 @@ import {
 import { NeoNodeDetailPanel } from '@/components/admin/neo/node-detail-panel'
 import { useNeoKindColors } from '@/lib/admin/neo-graph/use-neo-colors'
 import {
-  DEFAULT_NEO_FA2_SETTINGS,
   DEFAULT_NEO_FILTERS,
   DEFAULT_NEO_LABEL_VISIBILITY,
   type DoxaGraphProjection,
-  type NeoFa2Settings,
   type NeoGraphFilters,
   type NeoLabelVisibility,
   type NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
-import type { NeoLodLevel } from '@/lib/admin/neo-graph/lod'
+import { lodLevelLabel, type NeoLodLevel } from '@/lib/admin/neo-graph/lod'
 import { cn } from '@/lib/utils'
 
 /**
@@ -41,6 +39,7 @@ export function NeoProjectionExplorer({
   contextStoryId,
   defaultFilters = DEFAULT_NEO_FILTERS,
   onUtteranceHighlight,
+  canvasOverlay,
   className,
 }: {
   projection: DoxaGraphProjection
@@ -48,15 +47,13 @@ export function NeoProjectionExplorer({
   contextStoryId: string | null
   defaultFilters?: NeoGraphFilters
   onUtteranceHighlight?: (span: UtteranceHighlight | null) => void
+  /** Floated over the Sigma canvas (e.g. union story-cap control). */
+  canvasOverlay?: ReactNode
   className?: string
 }) {
   const kindColors = useNeoKindColors()
   const colorRevision = useMemo(() => JSON.stringify(kindColors), [kindColors])
   const [filters, setFilters] = useState<NeoGraphFilters>(defaultFilters)
-  const [fa2Settings, setFa2Settings] = useState<NeoFa2Settings>(
-    DEFAULT_NEO_FA2_SETTINGS
-  )
-  const [fa2ApplyToken, setFa2ApplyToken] = useState(0)
   const [labelVisibility, setLabelVisibility] = useState<NeoLabelVisibility>(
     DEFAULT_NEO_LABEL_VISIBILITY
   )
@@ -67,6 +64,8 @@ export function NeoProjectionExplorer({
   const [hoverKind, setHoverKind] = useState<NeoNodeKind | null>(null)
   const [stats, setStats] = useState({ nodes: 0, edges: 0, truncated: false })
   const [lodLevel, setLodLevel] = useState<NeoLodLevel>('near')
+  const [expandClusterId, setExpandClusterId] = useState<string | null>(null)
+  const [expandClusterToken, setExpandClusterToken] = useState(0)
   const [showFilters, setShowFilters] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [layoutBusy, setLayoutBusy] = useState(false)
@@ -131,11 +130,6 @@ export function NeoProjectionExplorer({
       ...prev,
       [kind]: !prev[kind],
     }))
-  }, [])
-
-  const handleFa2Change = useCallback((next: NeoFa2Settings) => {
-    setFa2Settings(next)
-    setFa2ApplyToken((token) => token + 1)
   }, [])
 
   const selectFromSearch = useCallback(
@@ -251,8 +245,6 @@ export function NeoProjectionExplorer({
             <NeoGraphFiltersPanel
               filters={filters}
               onChange={setFilters}
-              fa2Settings={fa2Settings}
-              onFa2Change={handleFa2Change}
             />
           </div>
         ) : null}
@@ -271,8 +263,6 @@ export function NeoProjectionExplorer({
           <NeoSigmaCanvas
             projection={projection}
             filters={filters}
-            fa2Settings={fa2Settings}
-            fa2ApplyToken={fa2ApplyToken}
             labelVisibility={labelVisibility}
             colorRevision={colorRevision}
             selectedNodeId={selection.nodeId}
@@ -284,6 +274,8 @@ export function NeoProjectionExplorer({
             onHoverKind={setHoverKind}
             onLayoutBusy={handleLayoutBusy}
             onLodLevel={setLodLevel}
+            expandClusterId={expandClusterId}
+            expandClusterToken={expandClusterToken}
           />
         </div>
         <div
@@ -311,13 +303,18 @@ export function NeoProjectionExplorer({
         </div>
 
         <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+          {canvasOverlay ? (
+            <div className="pointer-events-auto absolute left-3 top-3">
+              {canvasOverlay}
+            </div>
+          ) : null}
           <div className="pointer-events-auto absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)]">
-            <p className="rounded-lg border border-white/10 bg-black/55 px-2.5 py-1.5 text-[11px] text-zinc-400 backdrop-blur">
+            <p className="rounded-lg border border-white/10 bg-black/80 px-2.5 py-1.5 text-[11px] text-zinc-400 backdrop-blur">
               {stats.nodes} nodes · {stats.edges} edges
               {stats.truncated || projection.queryTruncated
                 ? ' · truncated'
                 : ''}
-              {lodLevel === 'far' ? ' · LOD: backbone' : ''}
+              {lodLevel !== 'near' ? ` · ${lodLevelLabel(lodLevel)}` : ''}
               {hoverLabel ? ` · ${hoverLabel}` : ''}
             </p>
           </div>
@@ -331,6 +328,25 @@ export function NeoProjectionExplorer({
                 onFocus={() => {
                   if (selection.nodeId) setFocusNodeId(selection.nodeId)
                 }}
+                onExpandCluster={
+                  selection.kind === 'cluster' && selection.nodeId
+                    ? () => {
+                        setExpandClusterId(selection.nodeId)
+                        setExpandClusterToken((t) => t + 1)
+                      }
+                    : undefined
+                }
+                memberLabels={
+                  selection.kind === 'cluster' && selection.memberIds
+                    ? selection.memberIds.map((id) => {
+                        const node = projection.nodes.find((n) => n.id === id)
+                        return {
+                          id,
+                          label: node?.label ?? id,
+                        }
+                      })
+                    : undefined
+                }
               />
             </div>
           )}

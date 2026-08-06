@@ -258,6 +258,75 @@ export function projectPhase0Document(
     }
   }
 
+  for (const p of graph.propositions ?? []) {
+    if (!p.uid) continue
+    const propId = nodeId('proposition', p.uid)
+    nodes.push({
+      id: propId,
+      kind: 'proposition',
+      label: truncate(p.text || 'Proposition', 72),
+      aliases: [p.uid, p.certainty, p.timeframe, p.scope].filter(
+        (v): v is string => Boolean(v)
+      ),
+      degreeHint: 0,
+      properties: {
+        uid: p.uid,
+        text: p.text,
+        certainty: p.certainty,
+        timeframe: p.timeframe,
+        scope: p.scope,
+      },
+    })
+  }
+
+  for (const ex of graph.expresses ?? []) {
+    if (!ex.utteranceUid || !ex.propositionUid) continue
+    const uttId = nodeId('utterance', ex.utteranceUid)
+    const propId = nodeId('proposition', ex.propositionUid)
+    edges.push({
+      id: `${uttId}->${propId}:EXPRESSES`,
+      source: uttId,
+      target: propId,
+      type: 'EXPRESSES',
+      label: 'EXPRESSES',
+      properties: {},
+    })
+    bump(uttId)
+    bump(propId)
+  }
+
+  for (const arg of graph.arguments ?? []) {
+    if (!arg.uid) continue
+    const argId = nodeId('argument', arg.uid)
+    nodes.push({
+      id: argId,
+      kind: 'argument',
+      label: truncate(arg.summary || 'Argument', 60),
+      aliases: [arg.uid],
+      degreeHint: 0,
+      properties: {
+        uid: arg.uid,
+        summary: arg.summary,
+      },
+    })
+  }
+
+  for (const hr of graph.hasRoles ?? []) {
+    if (!hr.argumentUid || !hr.propositionUid) continue
+    const argId = nodeId('argument', hr.argumentUid)
+    const propId = nodeId('proposition', hr.propositionUid)
+    edges.push({
+      id: `${argId}->${propId}:HAS_ROLE`,
+      source: argId,
+      target: propId,
+      type: 'HAS_ROLE',
+      label: hr.role ? `HAS_ROLE (${hr.role})` : 'HAS_ROLE',
+      properties: { role: hr.role },
+    })
+    bump(argId)
+    bump(propId)
+  }
+
   for (const n of nodes) {
     n.degreeHint = degree.get(n.id) ?? 0
   }

@@ -1,9 +1,9 @@
-# Neo4j constraints and indexes for Doxa discourse graph (Phase 0–2).
+# Neo4j constraints and indexes for Doxa discourse graph (Phase 0–3).
 # Run once against AuraDB after creating the instance or after schema upgrades
 # (Neo4j Browser or cypher-shell).
 #
 # Legacy Story/Assertion/Chunk constraints from schema 1.x may remain until
-# manually dropped; they do not conflict with Phase 0–2 labels.
+# manually dropped; they do not conflict with Phase 0–3 labels.
 
 CREATE CONSTRAINT document_uid IF NOT EXISTS
 FOR (d:Document) REQUIRE d.uid IS UNIQUE;
@@ -47,6 +47,19 @@ FOR (c:Controversy) REQUIRE c.uid IS UNIQUE;
 CREATE CONSTRAINT dispute_uid IF NOT EXISTS
 FOR (d:Dispute) REQUIRE d.uid IS UNIQUE;
 
+# Phase 3 — L4 Analytical
+CREATE CONSTRAINT assessment_uid IF NOT EXISTS
+FOR (a:Assessment) REQUIRE a.uid IS UNIQUE;
+
+CREATE CONSTRAINT evidence_check_uid IF NOT EXISTS
+FOR (e:EvidenceCheck) REQUIRE e.uid IS UNIQUE;
+
+CREATE CONSTRAINT citation_uid IF NOT EXISTS
+FOR (c:Citation) REQUIRE c.uid IS UNIQUE;
+
+CREATE CONSTRAINT method_run_uid IF NOT EXISTS
+FOR (m:MethodRun) REQUIRE m.uid IS UNIQUE;
+
 CREATE INDEX utterance_document_uid IF NOT EXISTS
 FOR (u:Utterance) ON (u.documentUid);
 
@@ -67,3 +80,12 @@ FOR (v:Viewpoint) ON (v.documentUid);
 
 CREATE INDEX controversy_topic_key IF NOT EXISTS
 FOR (c:Controversy) ON (c.topicKey);
+
+CREATE INDEX assessment_target_uid IF NOT EXISTS
+FOR (a:Assessment) ON (a.targetUid);
+
+CREATE INDEX evidence_check_proposition_uid IF NOT EXISTS
+FOR (e:EvidenceCheck) ON (e.propositionUid);
+
+CREATE INDEX method_run_method_id IF NOT EXISTS
+FOR (m:MethodRun) ON (m.methodId);

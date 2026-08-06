@@ -26,6 +26,14 @@ supabase functions deploy build_controversies
 supabase functions deploy detect_disputes
 supabase functions deploy project_debate_summaries
 supabase functions deploy debate_pipeline
+supabase functions deploy generate_evidence_check_candidates
+supabase functions deploy run_evidence_checks
+supabase functions deploy extract_citations
+supabase functions deploy run_controversy_assessments
+supabase functions deploy update_held_by_tracks
+supabase functions deploy link_derived_media_clips
+supabase functions deploy project_analysis_summaries
+supabase functions deploy analysis_pipeline
 ```
 
 JWT exceptions:
@@ -51,6 +59,14 @@ supabase functions deploy build_controversies --no-verify-jwt
 supabase functions deploy detect_disputes --no-verify-jwt
 supabase functions deploy project_debate_summaries --no-verify-jwt
 supabase functions deploy debate_pipeline --no-verify-jwt
+supabase functions deploy generate_evidence_check_candidates --no-verify-jwt
+supabase functions deploy run_evidence_checks --no-verify-jwt
+supabase functions deploy extract_citations --no-verify-jwt
+supabase functions deploy run_controversy_assessments --no-verify-jwt
+supabase functions deploy update_held_by_tracks --no-verify-jwt
+supabase functions deploy link_derived_media_clips --no-verify-jwt
+supabase functions deploy project_analysis_summaries --no-verify-jwt
+supabase functions deploy analysis_pipeline --no-verify-jwt
 supabase functions deploy refine_merged_extraction --no-verify-jwt
 supabase functions deploy validate_merged_extraction --no-verify-jwt
 supabase functions deploy aggregate_position_pair_scores --no-verify-jwt

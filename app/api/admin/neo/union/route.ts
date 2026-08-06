@@ -234,10 +234,17 @@ export async function GET(request: NextRequest) {
   try {
     const { storyIds, mode, limit, fresh } = await resolveStoryIds(request)
     const data = await buildUnionResponse(storyIds, limit, fresh)
-    return NextResponse.json({
+    const res = NextResponse.json({
       data: { ...data, mode, storyCount: storyIds.length },
       error: null,
     })
+    if (process.env.NODE_ENV === 'development') {
+      res.headers.set(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate, max-age=0'
+      )
+    }
+    return res
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Neo4j query failed'
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { projectHubGraph } from '@/lib/admin/neo-graph/project-hub'
 import { DEFAULT_HUB_FILTERS } from '@/lib/admin/neo-graph/types'
+import type { NeoHeldByInterval } from '@/lib/neo4j/queries/held-by'
 import type { NeoHubGraph, NeoHubRootKind } from '@/lib/neo4j/queries/hub'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +41,7 @@ export function NeoHubWorkspace({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeDocUid, setActiveDocUid] = useState<string | null>(null)
+  const [heldBy, setHeldBy] = useState<NeoHeldByInterval[]>([])
 
   const loadHub = useCallback(async () => {
     setLoading(true)
@@ -57,6 +59,22 @@ export function NeoHubWorkspace({
       const data = json.data as NeoHubGraph
       setHub(data)
       setActiveDocUid(data.documents[0]?.uid ?? null)
+
+      if (kind === 'proposition') {
+        try {
+          const hb = await fetch(
+            `/api/admin/neo/held-by/${encodeURIComponent(uid)}`
+          )
+          const hbJson = await hb.json()
+          setHeldBy(
+            hb.ok ? ((hbJson.data?.intervals as NeoHeldByInterval[]) ?? []) : []
+          )
+        } catch {
+          setHeldBy([])
+        }
+      } else {
+        setHeldBy([])
+      }
     } catch {
       setHub(null)
       setError('Failed to load hub graph')
@@ -137,6 +155,32 @@ export function NeoHubWorkspace({
               {doc.title || `${doc.uid.slice(0, 8)}…`}
             </button>
           ))}
+        </div>
+      ) : null}
+
+      {kind === 'proposition' && heldBy.length > 0 ? (
+        <div className="shrink-0 border-b border-white/10 bg-zinc-950/60 px-4 py-2 sm:px-6">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+            Held-by timeline (analyzed intervals — not utterance text)
+          </p>
+          <ul className="mt-1.5 max-h-28 space-y-1 overflow-y-auto">
+            {heldBy.map((h, i) => (
+              <li
+                key={`${h.agentUid}-${h.validFrom}-${i}`}
+                className="text-[11px] text-zinc-400"
+              >
+                <span className="text-zinc-200">
+                  {h.agentName || h.agentUid}
+                </span>
+                {' · '}
+                {h.polarity || '—'}
+                {' · '}
+                {h.validFrom || '?'}
+                {' → '}
+                {h.open ? 'present' : h.validTo || '?'}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 

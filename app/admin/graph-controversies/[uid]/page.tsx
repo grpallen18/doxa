@@ -23,6 +23,14 @@ type Detail = {
     document_uid: string
     utterance_count: number
   }>
+  assessments: Array<{
+    uid: string
+    kind: string | null
+    summary: string | null
+    confidence: number | null
+    method_run_uid: string | null
+    layer: string
+  }>
 }
 
 export default function AdminGraphControversyDetailPage() {
@@ -80,6 +88,38 @@ export default function AdminGraphControversyDetailPage() {
               Open in Neo
             </Link>
           </div>
+
+          <Panel>
+            <h2 className="mb-1 text-sm font-medium">Analyzed</h2>
+            <p className="mb-3 text-xs text-muted">
+              Model-derived assessments — not extracted facts from source text.
+            </p>
+            {(detail.assessments ?? []).length === 0 ? (
+              <p className="text-sm text-muted">No assessments projected yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {(detail.assessments ?? []).map((a) => (
+                  <li
+                    key={a.uid}
+                    className="rounded-md border border-border/60 bg-muted/20 px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Analyzed
+                      </span>
+                      <span className="text-xs text-muted">{a.kind || 'other'}</span>
+                      {a.confidence != null && (
+                        <span className="text-xs text-muted">
+                          conf {Number(a.confidence).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm">{a.summary}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
 
           <Panel>
             <h2 className="mb-3 text-sm font-medium">Viewpoints</h2>

@@ -44,12 +44,35 @@ export async function withNeoSession<T>(
   }
 }
 
+/** Neo4j LIMIT / integer params reject JS floats (e.g. 10.0). */
+export function neoInt(n: number): ReturnType<typeof neo4j.int> {
+  return neo4j.int(Math.trunc(n));
+}
+
+function coerceNeoParams(
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      Number.isInteger(value)
+    ) {
+      out[key] = neo4j.int(value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 export async function runCypher<T extends Record<string, unknown> = Record<string, unknown>>(
   cypher: string,
   params: Record<string, unknown> = {}
 ): Promise<T[]> {
   return withNeoSession(async (session) => {
-    const result = await session.run(cypher, params);
+    const result = await session.run(cypher, coerceNeoParams(params));
     return result.records.map((r) => r.toObject() as T);
   });
 }

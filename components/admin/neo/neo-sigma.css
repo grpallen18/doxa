@@ -1,0 +1,22 @@
+/* Force Sigma to fill its absolute parent. Library CSS uses height:100% +
+   position:relative, which collapses to ~1px under flex/HMR remounts. */
+.neo-sigma-root.react-sigma {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  background: #121212 !important;
+}
+
+.neo-sigma-root .sigma-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Stock ZoomControl removed; hide if anything remounts it during HMR. */
+.neo-sigma-root .react-sigma-controls {
+  display: none !important;
+}

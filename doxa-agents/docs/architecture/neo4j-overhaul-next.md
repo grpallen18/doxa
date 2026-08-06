@@ -95,6 +95,14 @@ See [phase2-validation.md](phase2-validation.md) for Aura/runtime sign-off.
 Implement Phase 3 per neo4j-graph-architecture.md: EvidenceCheck vs Citation dual tracks, Assessment/MethodRun, HELD_BY temporal position tracks, clip DERIVED_FROM for multimodal excerpts. UI must label extracted vs analyzed. Do not present Assessments as objective facts.
 ```
 
+### Checklist
+
+- [x] Architecture Phase 3 schema tables documented
+- [x] Aura constraints for Assessment / EvidenceCheck / Citation / MethodRun
+- [x] Edge `analysis_pipeline` (evidence checks, citations, assessments, HELD_BY, clip DERIVED_FROM)
+- [x] Supabase `graph_assessments` projection + Admin Analyzed UI
+- [ ] Runtime validation — see [phase3-validation.md](phase3-validation.md)
+
 ---
 
 ## Cleanup — after Phase 2 product path

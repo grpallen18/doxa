@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
+  fetchNeoKindColors,
   getNeoKindColor,
   loadNeoKindColors,
   subscribeNeoKindColors,
@@ -11,14 +12,18 @@ import type { NeoNodeKind } from '@/lib/admin/neo-graph/types'
 
 export function useNeoKindColors(): NeoKindColorMap {
   const [colors, setColors] = useState<NeoKindColorMap>(() =>
-    typeof window === 'undefined'
-      ? loadNeoKindColors()
-      : loadNeoKindColors()
+    loadNeoKindColors()
   )
 
   useEffect(() => {
     setColors(loadNeoKindColors())
-    return subscribeNeoKindColors(setColors)
+    const unsub = subscribeNeoKindColors(setColors)
+    void fetchNeoKindColors()
+      .then(setColors)
+      .catch(() => {
+        /* keep cache / defaults */
+      })
+    return unsub
   }, [])
 
   return colors

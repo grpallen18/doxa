@@ -13,6 +13,12 @@ export type NeoNodeKind =
   | 'viewpoint'
   | 'controversy'
   | 'dispute'
+  | 'assessment'
+  | 'evidence_check'
+  | 'citation'
+  | 'method_run'
+  /** LOD-only synthetic overview node (not a Neo4j label). */
+  | 'cluster'
 
 export type NeoEdgeType =
   | 'PUBLISHED_BY'
@@ -29,6 +35,11 @@ export type NeoEdgeType =
   | 'CONCERNS'
   | 'VARIANT_OF'
   | 'ABOUT'
+  | 'CHECKS'
+  | 'CITES'
+  | 'HELD_BY'
+  | 'DERIVED_FROM'
+  | 'PRODUCED_BY'
 
 export type NeoProjectionId =
   | 'phase0-document'
@@ -76,55 +87,15 @@ export type DoxaGraphProjection = {
   queryTruncated?: boolean
 }
 
-/** ForceAtlas2 knobs exposed in the neo explorer UI. */
+/** Fixed ForceAtlas2 knobs for neo explorer layout. */
 export type NeoFa2Settings = {
   gravity: number
   scalingRatio: number
 }
 
 export const DEFAULT_NEO_FA2_SETTINGS: NeoFa2Settings = {
-  gravity: 1.2,
-  scalingRatio: 48,
-}
-
-export const NEO_FA2_GRAVITY_RANGE = { min: 0.1, max: 20, step: 0.1 } as const
-export const NEO_FA2_SCALING_RANGE = { min: 1, max: 200, step: 1 } as const
-
-export function clampNeoFa2Settings(raw: {
-  gravity: unknown
-  scalingRatio: unknown
-}): NeoFa2Settings {
-  const gravityNum =
-    typeof raw.gravity === 'number'
-      ? raw.gravity
-      : typeof raw.gravity === 'string'
-        ? Number.parseFloat(raw.gravity)
-        : Number.NaN
-  const scalingNum =
-    typeof raw.scalingRatio === 'number'
-      ? raw.scalingRatio
-      : typeof raw.scalingRatio === 'string'
-        ? Number.parseFloat(raw.scalingRatio)
-        : Number.NaN
-
-  const gravity = Number.isFinite(gravityNum)
-    ? Math.min(
-        NEO_FA2_GRAVITY_RANGE.max,
-        Math.max(NEO_FA2_GRAVITY_RANGE.min, gravityNum)
-      )
-    : DEFAULT_NEO_FA2_SETTINGS.gravity
-
-  const scalingRatio = Number.isFinite(scalingNum)
-    ? Math.min(
-        NEO_FA2_SCALING_RANGE.max,
-        Math.max(NEO_FA2_SCALING_RANGE.min, Math.round(scalingNum))
-      )
-    : DEFAULT_NEO_FA2_SETTINGS.scalingRatio
-
-  return {
-    gravity: Math.round(gravity * 10) / 10,
-    scalingRatio,
-  }
+  gravity: 0.01,
+  scalingRatio: 200,
 }
 
 export type NeoGraphFilters = {
@@ -148,6 +119,11 @@ export const DEFAULT_NEO_LABEL_VISIBILITY: NeoLabelVisibility = {
   viewpoint: false,
   controversy: false,
   dispute: false,
+  assessment: false,
+  evidence_check: false,
+  citation: false,
+  method_run: false,
+  cluster: true,
 }
 
 export const ALL_NODE_KINDS: NeoNodeKind[] = [
@@ -162,7 +138,17 @@ export const ALL_NODE_KINDS: NeoNodeKind[] = [
   'viewpoint',
   'controversy',
   'dispute',
+  'assessment',
+  'evidence_check',
+  'citation',
+  'method_run',
+  'cluster',
 ]
+
+/** Kinds exposed in the filter panel (cluster is LOD-owned, not user-toggled). */
+export const FILTERABLE_NODE_KINDS: NeoNodeKind[] = ALL_NODE_KINDS.filter(
+  (kind) => kind !== 'cluster'
+)
 
 export const ALL_EDGE_TYPES: NeoEdgeType[] = [
   'PUBLISHED_BY',
@@ -179,6 +165,11 @@ export const ALL_EDGE_TYPES: NeoEdgeType[] = [
   'CONCERNS',
   'VARIANT_OF',
   'ABOUT',
+  'CHECKS',
+  'CITES',
+  'HELD_BY',
+  'DERIVED_FROM',
+  'PRODUCED_BY',
 ]
 
 export const DEFAULT_NEO_FILTERS: NeoGraphFilters = {
@@ -194,6 +185,11 @@ export const DEFAULT_NEO_FILTERS: NeoGraphFilters = {
     viewpoint: true,
     controversy: true,
     dispute: true,
+    assessment: false,
+    evidence_check: false,
+    citation: false,
+    method_run: false,
+    cluster: true,
   },
   edgeTypes: {
     PUBLISHED_BY: true,
@@ -210,6 +206,11 @@ export const DEFAULT_NEO_FILTERS: NeoGraphFilters = {
     CONCERNS: true,
     VARIANT_OF: true,
     ABOUT: true,
+    CHECKS: false,
+    CITES: false,
+    HELD_BY: false,
+    DERIVED_FROM: false,
+    PRODUCED_BY: false,
   },
 }
 
@@ -227,6 +228,11 @@ export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
     viewpoint: true,
     controversy: true,
     dispute: true,
+    assessment: true,
+    evidence_check: true,
+    citation: false,
+    method_run: false,
+    cluster: true,
   },
   edgeTypes: {
     PUBLISHED_BY: true,
@@ -243,6 +249,11 @@ export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
     CONCERNS: true,
     VARIANT_OF: true,
     ABOUT: true,
+    CHECKS: true,
+    CITES: false,
+    HELD_BY: true,
+    DERIVED_FROM: true,
+    PRODUCED_BY: true,
   },
 }
 

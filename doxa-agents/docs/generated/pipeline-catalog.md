@@ -24,12 +24,25 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 
 | Step | Deploy | Status | Optional | Isolation |
 |------|--------|--------|----------|-----------|
-| generate-proposition-pair-candidates | `generate_proposition_pair_candidates` | inactive | — | story_id |
-| classify-proposition-relationships | `classify_proposition_relationships` | inactive | — | story_id |
-| build-viewpoints | `build_viewpoints` | inactive | — | story_id |
-| build-controversies | `build_controversies` | inactive | — | story_id |
-| detect-disputes | `detect_disputes` | inactive | — | story_id |
-| project-debate-summaries | `project_debate_summaries` | inactive | — | story_id |
-| debate-pipeline | `debate_pipeline` | inactive | — | story_id |
+| generate-proposition-pair-candidates | `generate_proposition_pair_candidates` | active | — | story_id |
+| classify-proposition-relationships | `classify_proposition_relationships` | active | — | story_id |
+| build-viewpoints | `build_viewpoints` | active | — | story_id |
+| build-controversies | `build_controversies` | active | — | story_id |
+| detect-disputes | `detect_disputes` | active | — | story_id |
+| project-debate-summaries | `project_debate_summaries` | active | — | story_id |
+| debate-pipeline | `debate_pipeline` | active | — | story_id |
+
+## Analysis (Neo L4) (`analysis`)
+
+| Step | Deploy | Status | Optional | Isolation |
+|------|--------|--------|----------|-----------|
+| generate-evidence-check-candidates | `generate_evidence_check_candidates` | active | — | story_id |
+| run-evidence-checks | `run_evidence_checks` | active | — | story_id |
+| extract-citations | `extract_citations` | active | — | story_id |
+| run-controversy-assessments | `run_controversy_assessments` | active | — | story_id |
+| update-held-by-tracks | `update_held_by_tracks` | active | — | story_id |
+| link-derived-media-clips | `link_derived_media_clips` | active | — | story_id |
+| project-analysis-summaries | `project_analysis_summaries` | active | — | story_id |
+| analysis-pipeline | `analysis_pipeline` | active | — | story_id |
 
 _Generated from pipeline-admin-catalog.yaml + manifest.yaml._

@@ -1,8 +1,8 @@
 # Neo4j graph architecture (steering document)
 
-**Status:** Phase 2 implemented (Argument in worker; Viewpoint/Controversy/Dispute Edge Functions + projections); Cross-story Neo hubs implemented  
-**Next:** Phase 3 — Assessments / EvidenceCheck — see [neo4j-overhaul-next.md](neo4j-overhaul-next.md)  
-**Validation:** [phase0-validation.md](phase0-validation.md) · [phase1-validation.md](phase1-validation.md) · [phase2-validation.md](phase2-validation.md) · [cross-story-neo-validation.md](cross-story-neo-validation.md)
+**Status:** Phase 2 runtime-validated; Phase 3 L4 Analytical in progress  
+**Next:** Phase 3 — Assessments / EvidenceCheck — see [neo4j-overhaul-next.md](neo4j-overhaul-next.md) · [phase3-validation.md](phase3-validation.md)  
+**Validation:** [phase0-validation.md](phase0-validation.md) · [phase1-validation.md](phase1-validation.md) · [phase2-validation.md](phase2-validation.md) · [phase3-validation.md](phase3-validation.md) · [cross-story-neo-validation.md](cross-story-neo-validation.md)
 
 This is the authoritative architecture document for the Neo4j discourse graph. Implementation work should reference this file. Do not maintain contradictory pipeline descriptions elsewhere.
 
@@ -50,8 +50,53 @@ Lower layers never depend on upper layers. Embeddings generate **candidates only
 
 ### Deferred
 
-- Assessments, EvidenceCheck, temporal position tracks (Phase 3)
 - Deletion of obsolete handlers/tables (after Phase 2 product path)
+
+### Phase 3 — L4 Analytical (implemented as Edge `analysis_pipeline`)
+
+Lower layers never depend on L4. Assessments and EvidenceChecks are **rebuildable**, Decision + MethodRun backed, and must never be presented as extracted facts in UI.
+
+#### Node labels
+
+| Label | Role | Key identity |
+|-------|------|----------------|
+| `MethodRun` | Versioned method/model/prompt bundle | `uid` = `mrun:{methodId}:{iso}` |
+| `EvidenceCheck` | Analytical support verdict for a Proposition | `uid` = `echeck:{propositionUid}:{segmentUid}` |
+| `Citation` | Explicit source pointer (Segment/Document) — not a verdict | `uid` = `cite:{propositionUid}:{segmentUid}` |
+| `Assessment` | Model judgment on Controversy / Viewpoint / Proposition | `uid` = `assess:{targetKind}:{targetUid}:{methodRunUid}` |
+
+#### Relationship types
+
+| Type | From → To | Notes |
+|------|-----------|--------|
+| `PRODUCED_BY` | EvidenceCheck / Assessment → MethodRun | Provenance |
+| `CHECKS` | EvidenceCheck → Proposition | Verdict target |
+| `GROUNDED_IN` | EvidenceCheck / Citation → Segment | Text span |
+| `CITES` | Citation → Segment (or Document) | Source pointer only |
+| `ABOUT` | Assessment / Decision → Controversy\|Viewpoint\|Proposition | Target |
+| `HELD_BY` | Agent → Proposition | Temporal: `validFrom`, `validTo`, `decisionUid` |
+| `DERIVED_FROM` | MediaAsset (clip) → MediaAsset (parent) | Multimodal excerpt |
+
+#### EvidenceCheck properties
+
+- `verdict`: `supported | weak | unsupported | not_applicable`
+- `confidence` (0–1), `rationale`, `schemaVersion`, `propositionUid`, `segmentUid`
+- Decision: `decisionType: 'evidence_check'`, status `accepted` \| `quarantined`
+
+#### Citation properties
+
+- `surfaceForm`, `documentUid`, `segmentUid` — never carries a support verdict
+
+#### Assessment properties
+
+- `kind`: `framing | strength | coherence | other`
+- `summary`, `confidence`, `targetKind`, `targetUid`, `schemaVersion`
+- UI must label **Analyzed** (not extracted)
+
+#### HELD_BY
+
+- Closes prior open interval when a new contradicting hold is written for the same Agent+Proposition
+- `validFrom` / `validTo` (null `validTo` = current)
 
 ### Implemented (Admin Neo)
 

@@ -258,7 +258,7 @@ steps:
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/01-generate-proposition-pair-candidates
     deploy_name: generate_proposition_pair_candidates
     verify_jwt: false
@@ -266,7 +266,7 @@ steps:
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/02-classify-proposition-relationships
     deploy_name: classify_proposition_relationships
     secrets:
@@ -277,7 +277,7 @@ steps:
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/03-build-viewpoints
     deploy_name: build_viewpoints
     verify_jwt: false
@@ -285,7 +285,7 @@ steps:
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/04-build-controversies
     deploy_name: build_controversies
     verify_jwt: false
@@ -293,7 +293,7 @@ steps:
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/05-detect-disputes
     deploy_name: detect_disputes
     verify_jwt: false
@@ -301,7 +301,7 @@ steps:
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/06-project-debate-summaries
     deploy_name: project_debate_summaries
     verify_jwt: false
@@ -309,9 +309,84 @@ steps:
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
-    status: inactive
+    status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/07-debate-pipeline
     deploy_name: debate_pipeline
+    verify_jwt: false
+    cron:
+      job_name: debate-pipeline-hourly
+      schedule: 15 * * * *
+      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/07-debate-pipeline/schedule.sql
+      body: '{"limit": 50}'
+  - id: generate-evidence-check-candidates
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/01-generate-evidence-check-candidates
+    deploy_name: generate_evidence_check_candidates
+    verify_jwt: false
+  - id: run-evidence-checks
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/02-run-evidence-checks
+    deploy_name: run_evidence_checks
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: extract-citations
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/03-extract-citations
+    deploy_name: extract_citations
+    verify_jwt: false
+  - id: run-controversy-assessments
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/04-run-controversy-assessments
+    deploy_name: run_controversy_assessments
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: update-held-by-tracks
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/05-update-held-by-tracks
+    deploy_name: update_held_by_tracks
+    verify_jwt: false
+  - id: link-derived-media-clips
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/06-link-derived-media-clips
+    deploy_name: link_derived_media_clips
+    verify_jwt: false
+  - id: project-analysis-summaries
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/07-project-analysis-summaries
+    deploy_name: project_analysis_summaries
+    verify_jwt: false
+  - id: analysis-pipeline
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/08-analysis-pipeline
+    deploy_name: analysis_pipeline
     verify_jwt: false
   - id: standardize-chunk-extraction
     department: legacy

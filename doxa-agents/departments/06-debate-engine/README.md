@@ -12,12 +12,12 @@ See [neo4j-graph-architecture.md](../../docs/architecture/neo4j-graph-architectu
 
 | Step | Deploy | Status |
 |------|--------|--------|
-| generate-proposition-pair-candidates | generate_proposition_pair_candidates | inactive |
-| classify-proposition-relationships | classify_proposition_relationships | inactive |
-| build-viewpoints | build_viewpoints | inactive |
-| build-controversies | build_controversies | inactive |
-| detect-disputes | detect_disputes | inactive |
-| project-debate-summaries | project_debate_summaries | inactive |
-| debate-pipeline | debate_pipeline | inactive |
+| generate-proposition-pair-candidates | generate_proposition_pair_candidates | active |
+| classify-proposition-relationships | classify_proposition_relationships | active |
+| build-viewpoints | build_viewpoints | active |
+| build-controversies | build_controversies | active |
+| detect-disputes | detect_disputes | active |
+| project-debate-summaries | project_debate_summaries | active |
+| debate-pipeline | debate_pipeline | active |
 
 <!-- AGENTS:END -->

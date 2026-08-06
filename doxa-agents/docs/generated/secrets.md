@@ -22,6 +22,8 @@ Do not commit secret values to git.
 | trigger-graph-worker | trigger_graph_worker | `GRAPH_WORKER_SECRET`, `GRAPH_WORKER_URL` |
 | discord-daily-health | discord_daily_health | `DISCORD_THREAD_NAME`, `DISCORD_WEBHOOK` |
 | classify-proposition-relationships | classify_proposition_relationships | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| run-evidence-checks | run_evidence_checks | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| run-controversy-assessments | run_controversy_assessments | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | standardize-chunk-extraction | standardize_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
 | validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |

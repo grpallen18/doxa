@@ -2,8 +2,10 @@ import type { NeoNodeKind } from '@/lib/admin/neo-graph/types'
 import { ALL_NODE_KINDS } from '@/lib/admin/neo-graph/types'
 import { toPickerHex } from '@/lib/admin/global-layout-theme'
 
+/** @deprecated Kept for one-time migration from browser-local themes. */
 export const NEO_COLORS_STORAGE_KEY = 'doxa-neo-colors'
 export const NEO_COLORS_CHANGED_EVENT = 'doxa-neo-colors-changed'
+const NEO_COLORS_MIGRATED_KEY = 'doxa-neo-colors-migrated-v1'
 
 export type NeoKindColorMap = Record<NeoNodeKind, string>
 
@@ -20,6 +22,11 @@ export const NEO_KIND_COLOR_DEFAULTS: NeoKindColorMap = {
   viewpoint: '#5a8f9a',
   controversy: '#c45c5c',
   dispute: '#9a5a7a',
+  assessment: '#6a7a9a',
+  evidence_check: '#5a9a7a',
+  citation: '#8a9a6a',
+  method_run: '#6a6a7a',
+  cluster: '#4a7c6f',
 }
 
 export const NEO_KIND_COLOR_FIELDS: Array<{ kind: NeoNodeKind; label: string }> = [
@@ -34,63 +41,166 @@ export const NEO_KIND_COLOR_FIELDS: Array<{ kind: NeoNodeKind; label: string }> 
   { kind: 'viewpoint', label: 'Viewpoint' },
   { kind: 'controversy', label: 'Controversy' },
   { kind: 'dispute', label: 'Dispute' },
+  { kind: 'assessment', label: 'Assessment (analyzed)' },
+  { kind: 'evidence_check', label: 'Evidence check (analyzed)' },
+  { kind: 'citation', label: 'Citation' },
+  { kind: 'method_run', label: 'Method run' },
+  { kind: 'cluster', label: 'Cluster' },
 ]
 
-function isHexColor(value: string): boolean {
-  return /^#[0-9a-fA-F]{6}$/.test(value.trim())
-}
+/** In-memory cache — hydrated from the server; sync reads stay fast. */
+let cachedColors: NeoKindColorMap = { ...NEO_KIND_COLOR_DEFAULTS }
+let hydratedFromServer = false
 
 export function normalizeNeoColor(value: string, fallback: string): string {
   return toPickerHex(value, fallback)
 }
 
-export function loadNeoKindColors(): NeoKindColorMap {
+export function mergeNeoKindColors(
+  partial: Partial<Record<string, unknown>> | null | undefined
+): NeoKindColorMap {
   const base = { ...NEO_KIND_COLOR_DEFAULTS }
-  if (typeof window === 'undefined') return base
-  try {
-    const raw = localStorage.getItem(NEO_COLORS_STORAGE_KEY)
-    if (!raw) return base
-    const parsed = JSON.parse(raw) as Partial<Record<string, string>>
-    for (const kind of ALL_NODE_KINDS) {
-      const next = parsed[kind]
-      if (typeof next === 'string' && next.trim()) {
-        base[kind] = normalizeNeoColor(next, NEO_KIND_COLOR_DEFAULTS[kind])
-      }
+  if (!partial || typeof partial !== 'object') return base
+  for (const kind of ALL_NODE_KINDS) {
+    const next = partial[kind]
+    if (typeof next === 'string' && next.trim()) {
+      base[kind] = normalizeNeoColor(next, NEO_KIND_COLOR_DEFAULTS[kind])
     }
-  } catch {
-    /* ignore corrupt storage */
   }
   return base
 }
 
-export function saveNeoKindColors(colors: NeoKindColorMap): void {
-  if (typeof window === 'undefined') return
-  const normalized = { ...NEO_KIND_COLOR_DEFAULTS }
-  for (const kind of ALL_NODE_KINDS) {
-    normalized[kind] = normalizeNeoColor(
-      colors[kind] ?? NEO_KIND_COLOR_DEFAULTS[kind],
-      NEO_KIND_COLOR_DEFAULTS[kind]
-    )
+export function normalizeNeoKindColorMap(raw: unknown): NeoKindColorMap {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ...NEO_KIND_COLOR_DEFAULTS }
   }
-  localStorage.setItem(NEO_COLORS_STORAGE_KEY, JSON.stringify(normalized))
+  return mergeNeoKindColors(raw as Partial<Record<string, unknown>>)
+}
+
+function publishColors(colors: NeoKindColorMap): void {
+  cachedColors = colors
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(NEO_COLORS_STORAGE_KEY, JSON.stringify(colors))
+  } catch {
+    /* ignore quota */
+  }
   window.dispatchEvent(
-    new CustomEvent(NEO_COLORS_CHANGED_EVENT, { detail: normalized })
+    new CustomEvent(NEO_COLORS_CHANGED_EVENT, { detail: colors })
   )
 }
 
-export function resetNeoKindColors(): NeoKindColorMap {
-  const defaults = { ...NEO_KIND_COLOR_DEFAULTS }
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(NEO_COLORS_STORAGE_KEY)
-    window.dispatchEvent(
-      new CustomEvent(NEO_COLORS_CHANGED_EVENT, { detail: defaults })
-    )
+function readLegacyLocalColors(): NeoKindColorMap | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(NEO_COLORS_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<Record<string, string>>
+    const merged = mergeNeoKindColors(parsed)
+    if (isDefaultNeoKindColors(merged)) return null
+    return merged
+  } catch {
+    return null
   }
-  return defaults
+}
+
+/** Sync read of the current (cached / last-known) Neo colors. */
+export function loadNeoKindColors(): NeoKindColorMap {
+  return { ...cachedColors }
 }
 
 export function getNeoKindColor(kind: NeoNodeKind): string {
-  return loadNeoKindColors()[kind] ?? NEO_KIND_COLOR_DEFAULTS[kind]
+  return cachedColors[kind] ?? NEO_KIND_COLOR_DEFAULTS[kind]
+}
+
+/**
+ * Apply colors locally (optimistic UI). Prefer saveNeoKindColors / reset for
+ * durable writes.
+ */
+export function applyNeoKindColorsLocally(colors: NeoKindColorMap): void {
+  publishColors(normalizeNeoKindColorMap(colors))
+}
+
+/** Fetch global Neo colors from the server and hydrate the cache. */
+export async function fetchNeoKindColors(): Promise<NeoKindColorMap> {
+  const res = await fetch('/api/admin/neo/kind-colors', { cache: 'no-store' })
+  const json = (await res.json()) as {
+    data?: { colors?: NeoKindColorMap; isDefault?: boolean }
+    error?: { message?: string }
+  }
+  if (!res.ok || json.error || !json.data?.colors) {
+    throw new Error(json.error?.message ?? 'Failed to load Neo colors')
+  }
+
+  let colors = mergeNeoKindColors(json.data.colors)
+
+  // One-time: if the server still has defaults but this browser has a custom
+  // local palette, promote it so existing admin themes are not lost.
+  if (
+    typeof window !== 'undefined' &&
+    json.data.isDefault &&
+    !localStorage.getItem(NEO_COLORS_MIGRATED_KEY)
+  ) {
+    const legacy = readLegacyLocalColors()
+    if (legacy && !isDefaultNeoKindColors(legacy)) {
+      try {
+        colors = await persistNeoKindColors(legacy)
+      } catch {
+        /* keep server defaults */
+      }
+    }
+    try {
+      localStorage.setItem(NEO_COLORS_MIGRATED_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+  }
+
+  hydratedFromServer = true
+  publishColors(colors)
+  return colors
+}
+
+async function persistNeoKindColors(
+  colors: NeoKindColorMap,
+  reset = false
+): Promise<NeoKindColorMap> {
+  const res = await fetch('/api/admin/neo/kind-colors', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reset ? { reset: true } : { colors }),
+    cache: 'no-store',
+  })
+  const json = (await res.json()) as {
+    data?: { colors?: NeoKindColorMap }
+    error?: { message?: string }
+  }
+  if (!res.ok || json.error || !json.data?.colors) {
+    throw new Error(json.error?.message ?? 'Failed to save Neo colors')
+  }
+  const merged = mergeNeoKindColors(json.data.colors)
+  hydratedFromServer = true
+  publishColors(merged)
+  return merged
+}
+
+/** Save global Neo colors (all admins / browsers). */
+export async function saveNeoKindColors(
+  colors: NeoKindColorMap
+): Promise<NeoKindColorMap> {
+  const normalized = normalizeNeoKindColorMap(colors)
+  publishColors(normalized)
+  return persistNeoKindColors(normalized)
+}
+
+/** Reset global Neo colors to defaults. */
+export async function resetNeoKindColors(): Promise<NeoKindColorMap> {
+  publishColors({ ...NEO_KIND_COLOR_DEFAULTS })
+  return persistNeoKindColors(NEO_KIND_COLOR_DEFAULTS, true)
+}
+
+export function hasHydratedNeoKindColors(): boolean {
+  return hydratedFromServer
 }
 
 function parseHexRgb(hex: string): { r: number; g: number; b: number } {
@@ -178,13 +288,14 @@ export function subscribeNeoKindColors(
     const detail = (event as CustomEvent<NeoKindColorMap>).detail
     listener(detail ?? loadNeoKindColors())
   }
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === NEO_COLORS_STORAGE_KEY) listener(loadNeoKindColors())
-  }
   window.addEventListener(NEO_COLORS_CHANGED_EVENT, handler)
-  window.addEventListener('storage', onStorage)
   return () => {
     window.removeEventListener(NEO_COLORS_CHANGED_EVENT, handler)
-    window.removeEventListener('storage', onStorage)
   }
+}
+
+// Seed cache from localStorage mirror on module load (client only) for less flash.
+if (typeof window !== 'undefined') {
+  const legacy = readLegacyLocalColors()
+  if (legacy) cachedColors = legacy
 }

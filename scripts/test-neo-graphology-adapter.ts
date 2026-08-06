@@ -55,6 +55,20 @@ const fixture: NeoDocumentGraph = {
       title: null,
     },
   ],
+  propositions: [
+    {
+      uid: 'prop-1',
+      text: 'We should act now',
+      certainty: 'asserted',
+      timeframe: null,
+      scope: null,
+    },
+  ],
+  expresses: [{ utteranceUid: 'utt-1', propositionUid: 'prop-1' }],
+  arguments: [{ uid: 'arg-1', summary: 'Act now because delay costs lives' }],
+  hasRoles: [
+    { argumentUid: 'arg-1', propositionUid: 'prop-1', role: 'claim' },
+  ],
   utterances: [
     {
       uid: 'utt-1',
@@ -73,8 +87,8 @@ const fixture: NeoDocumentGraph = {
       agentName: 'Alice',
     },
   ],
-  phase1: { propositionCount: 0, entityCount: 0, expressesCount: 0 },
-  phase2: { argumentCount: 0, hasRoleCount: 0 },
+  phase1: { propositionCount: 1, entityCount: 1, expressesCount: 1 },
+  phase2: { argumentCount: 1, hasRoleCount: 1 },
 }
 
 const hubFixture: NeoHubGraph = {
@@ -172,6 +186,8 @@ function main() {
   assert.ok(projection.edges.some((e) => e.type === 'PUBLISHED_BY'))
   assert.ok(projection.edges.some((e) => e.type === 'CONTAINS'))
   assert.ok(projection.nodes.some((n) => n.id === 'entity:ent:alice'))
+  assert.ok(projection.nodes.some((n) => n.id === 'proposition:prop-1'))
+  assert.ok(projection.nodes.some((n) => n.id === 'argument:arg-1'))
   assert.ok(
     projection.edges.some(
       (e) =>
@@ -180,12 +196,38 @@ function main() {
         e.target === 'entity:ent:alice'
     )
   )
+  assert.ok(
+    projection.edges.some(
+      (e) =>
+        e.type === 'EXPRESSES' &&
+        e.source === 'utterance:utt-1' &&
+        e.target === 'proposition:prop-1'
+    )
+  )
+  assert.ok(
+    projection.edges.some(
+      (e) =>
+        e.type === 'HAS_ROLE' &&
+        e.source === 'argument:arg-1' &&
+        e.target === 'proposition:prop-1'
+    )
+  )
 
   const built = buildGraphologyFromProjection(projection, DEFAULT_NEO_FILTERS)
   assert.equal(built.graph.hasNode('document:story-1'), true)
   assert.equal(built.graph.hasNode('utterance:utt-1'), true)
   assert.equal(built.graph.hasNode('entity:ent:alice'), true)
+  assert.equal(built.graph.hasNode('proposition:prop-1'), true)
+  assert.equal(built.graph.hasNode('argument:arg-1'), true)
   assert.equal(built.graph.hasEdge('utterance:utt-1', 'entity:ent:alice'), true)
+  assert.equal(
+    built.graph.hasEdge('utterance:utt-1', 'proposition:prop-1'),
+    true
+  )
+  assert.equal(
+    built.graph.hasEdge('argument:arg-1', 'proposition:prop-1'),
+    true
+  )
   assert.equal(built.graph.hasNode('segment:seg-1'), true)
   assert.ok(built.edgeCount >= 1)
   // GROUNDED_IN targets the segment when it is visible
@@ -208,7 +250,7 @@ function main() {
   assert.equal(asserted!.source, 'utterance:utt-1')
   assert.equal(asserted!.target, 'agent:agent-1')
 
-  assert.equal(resolveNodeAppearance({ kind: 'document' }).priority, 100)
+  assert.equal(resolveNodeAppearance({ kind: 'document' }).priority, 90)
   assert.equal(resolveNodeAppearance({ kind: 'document' }).color, '#2d5a4a')
   assert.equal(resolveEdgeColor('ASSERTED_BY'), '#3d5a80')
   assert.equal(resolveNodeAppearance({ kind: 'controversy' }).color, '#c45c5c')
@@ -319,6 +361,10 @@ function main() {
         charEnd: 14,
       },
     ],
+    propositions: [],
+    expresses: [],
+    arguments: [],
+    hasRoles: [],
   }
   // Story 1 also has Donald Trump under a document-scoped agent uid
   const story1WithTrump: NeoDocumentGraph = {

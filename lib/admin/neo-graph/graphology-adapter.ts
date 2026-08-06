@@ -6,15 +6,15 @@ import type {
   NeoGraphFilters,
 } from '@/lib/admin/neo-graph/types'
 import {
-  resolveIdleEdgeColor,
+  NEO_EDGE_IDLE_ALPHA,
   NEO_EDGE_SIZE_IDLE,
   resolveNodeAppearance,
 } from '@/lib/admin/neo-graph/appearance'
+import { withPremultipliedAlpha } from '@/lib/admin/neo-graph/colors'
 import {
   edgeLayoutWeight,
   hashSeed,
-  isLeafKind,
-  placeLeavesInOrbits,
+  placeNodesHierarchically,
 } from '@/lib/admin/neo-graph/layout-pipeline'
 
 export type SigmaNodeAttributes = {
@@ -22,6 +22,8 @@ export type SigmaNodeAttributes = {
   fullLabel: string
   kind: DoxaGraphNode['kind']
   size: number
+  /** Pre-LOD size so mid boost can restore cleanly. */
+  baseSize?: number
   color: string
   borderColor: string
   labelColor: string
@@ -32,6 +34,10 @@ export type SigmaNodeAttributes = {
   lodHidden?: boolean
   /** Leaf neighbors of a document — used for far-zoom density cue. */
   leafCount?: number
+  /** Soft halo radius in graph units (mid zoom envelopes). */
+  envelopeRadius?: number
+  /** Overview cluster membership (synthetic cluster nodes). */
+  memberIds?: string[]
   forceLabel?: boolean
   zIndex?: number
   charStart?: number
@@ -45,7 +51,10 @@ export type SigmaEdgeAttributes = {
   type: string
   edgeType: DoxaGraphEdge['type']
   size: number
+  /** Premultiplied color at the source end (node-colored gradient). */
   color: string
+  /** Premultiplied color at the target end. */
+  targetColor: string
   weight: number
   hidden?: boolean
   lodHidden?: boolean
@@ -68,9 +77,14 @@ const KIND_KEEP_PRIORITY: Record<DoxaGraphNode['kind'], number> = {
   viewpoint: 5,
   proposition: 6,
   dispute: 7,
-  argument: 8,
-  utterance: 9,
-  segment: 10,
+  assessment: 8,
+  evidence_check: 9,
+  argument: 10,
+  citation: 11,
+  method_run: 12,
+  utterance: 13,
+  segment: 14,
+  cluster: 99,
 }
 
 function prioritizeNodesForCap(nodes: DoxaGraphNode[]): DoxaGraphNode[] {
@@ -82,34 +96,14 @@ function prioritizeNodesForCap(nodes: DoxaGraphNode[]): DoxaGraphNode[] {
   })
 }
 
-/** Id-stable seed (no filtered-list index) so the same node keeps the same start. */
-function initialPosition(id: string, kind: DoxaGraphNode['kind']): NeoNodePosition {
-  const seed = hashSeed(id)
-  const ring =
-    kind === 'controversy'
-      ? 0
-      : kind === 'document'
-        ? 30
-        : kind === 'viewpoint'
-          ? 70
-          : kind === 'publication'
-            ? 50
-            : kind === 'proposition' || kind === 'dispute'
-              ? 110
-              : kind === 'argument'
-                ? 130
-                : kind === 'agent'
-                  ? 150
-                  : kind === 'entity'
-                    ? 165
-                    : kind === 'utterance'
-                      ? 220
-                      : 180
-  const angle = (seed % 360) * (Math.PI / 180)
-  const jitter = (seed % 30) - 15
+/** Id-stable organic scatter so ForceAtlas2 starts from a natural field. */
+function initialPosition(id: string, _kind: DoxaGraphNode['kind']): NeoNodePosition {
+  const sx = hashSeed(id)
+  const sy = hashSeed(`${id}:y`)
+  const scale = 480
   return {
-    x: Math.cos(angle) * (ring + jitter),
-    y: Math.sin(angle) * (ring + jitter),
+    x: ((sx % 1000) / 1000 - 0.5) * scale,
+    y: ((sy % 1000) / 1000 - 0.5) * scale,
   }
 }
 
@@ -161,7 +155,6 @@ export function buildGraphologyFromProjection(
   droppedNodes = visibleNodes.length - capped.length
 
   const newNodeIds: string[] = []
-  const newNodeIdSet = new Set<string>()
 
   for (const node of capped) {
     if (graph.hasNode(node.id)) continue
@@ -173,13 +166,13 @@ export function buildGraphologyFromProjection(
     const pos = cached ?? initialPosition(node.id, node.kind)
     if (!cached) {
       newNodeIds.push(node.id)
-      newNodeIdSet.add(node.id)
     }
     graph.addNode(node.id, {
       label: node.label,
       fullLabel: node.label,
       kind: node.kind,
       size: appearance.size,
+      baseSize: appearance.size,
       color: appearance.color,
       borderColor: appearance.borderColor,
       labelColor: appearance.labelColor,
@@ -235,44 +228,25 @@ export function buildGraphologyFromProjection(
       droppedEdges += 1
       continue
     }
+    const sourceColor =
+      (graph.getNodeAttribute(source, 'color') as string) || '#888888'
+    const targetColor =
+      (graph.getNodeAttribute(target, 'color') as string) || '#888888'
     graph.addEdgeWithKey(edgeId, source, target, {
       label: edge.label,
       type: 'curvedArrow',
       edgeType: edge.type,
       size: NEO_EDGE_SIZE_IDLE,
-      color: resolveIdleEdgeColor(edge.type),
+      color: withPremultipliedAlpha(sourceColor, NEO_EDGE_IDLE_ALPHA),
+      targetColor: withPremultipliedAlpha(targetColor, NEO_EDGE_IDLE_ALPHA),
       weight: edgeLayoutWeight(edge.type),
       properties: edge.properties,
     })
   }
 
-  // Orbit new leaves around settled parents; non-leaves keep kind-ring / avg seed.
-  const newLeafIds = newNodeIds.filter((id) => {
-    if (!graph.hasNode(id)) return false
-    return isLeafKind(graph.getNodeAttribute(id, 'kind'))
-  })
-  if (newLeafIds.length > 0) {
-    placeLeavesInOrbits(graph, { onlyNodeIds: new Set(newLeafIds) })
-  }
-
-  for (const id of newNodeIds) {
-    if (!graph.hasNode(id)) continue
-    if (isLeafKind(graph.getNodeAttribute(id, 'kind'))) continue
-    let sx = 0
-    let sy = 0
-    let count = 0
-    graph.forEachNeighbor(id, (neighborId) => {
-      if (newNodeIdSet.has(neighborId)) return
-      const n = graph.getNodeAttributes(neighborId)
-      sx += n.x
-      sy += n.y
-      count += 1
-    })
-    if (count === 0) continue
-    const seed = hashSeed(id)
-    const jitter = ((seed % 21) - 10) * 0.35
-    graph.setNodeAttribute(id, 'x', sx / count + jitter)
-    graph.setNodeAttribute(id, 'y', sy / count - jitter)
+  // Place newly visible nodes with the publication-first hierarchy.
+  if (newNodeIds.length > 0) {
+    placeNodesHierarchically(graph, newNodeIds)
   }
 
   return {
@@ -292,6 +266,8 @@ export function snapshotGraphPositions(
 ): Map<string, NeoNodePosition> {
   const next = new Map<string, NeoNodePosition>()
   graph.forEachNode((id, attrs) => {
+    if (attrs.kind === 'cluster') return
+    if (attrs.properties?.lodSynthetic === true) return
     next.set(id, { x: attrs.x, y: attrs.y })
   })
   return next

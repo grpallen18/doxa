@@ -396,6 +396,24 @@ verify_jwt = false
 [functions.project_debate_summaries]
 verify_jwt = false
 
+# Analysis pipeline (Neo Phase 3 L4): internal service-role chain — JWT off.
+[functions.analysis_pipeline]
+verify_jwt = false
+[functions.generate_evidence_check_candidates]
+verify_jwt = false
+[functions.run_evidence_checks]
+verify_jwt = false
+[functions.extract_citations]
+verify_jwt = false
+[functions.run_controversy_assessments]
+verify_jwt = false
+[functions.update_held_by_tracks]
+verify_jwt = false
+[functions.link_derived_media_clips]
+verify_jwt = false
+[functions.project_analysis_summaries]
+verify_jwt = false
+
 # Admin model config: validates OpenAI model IDs using Edge OPENAI_API_KEY.
 [functions.test_openai_model]
 verify_jwt = false

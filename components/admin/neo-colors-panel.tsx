@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AdminDashboardWidget } from '@/components/admin/admin-dashboard-widget'
 import { Button } from '@/components/ui/button'
 import {
+  fetchNeoKindColors,
   isDefaultNeoKindColors,
   loadNeoKindColors,
   NEO_KIND_COLOR_DEFAULTS,
@@ -20,11 +21,24 @@ import type { NeoNodeKind } from '@/lib/admin/neo-graph/types'
 export function NeoColorsPanel() {
   const [colors, setColors] = useState<NeoKindColorMap>(NEO_KIND_COLOR_DEFAULTS)
   const [ready, setReady] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setColors(loadNeoKindColors())
-    setReady(true)
-    return subscribeNeoKindColors(setColors)
+    const unsub = subscribeNeoKindColors(setColors)
+    void fetchNeoKindColors()
+      .then((next) => {
+        setColors(next)
+        setReady(true)
+      })
+      .catch(() => {
+        setReady(true)
+      })
+    return () => {
+      unsub()
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
   }, [])
 
   const setKindColor = useCallback((kind: NeoNodeKind, value: string) => {
@@ -33,15 +47,31 @@ export function NeoColorsPanel() {
         ...prev,
         [kind]: normalizeNeoColor(value, NEO_KIND_COLOR_DEFAULTS[kind]),
       }
-      saveNeoKindColors(next)
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(() => {
+        setSaving(true)
+        void saveNeoKindColors(next)
+          .then((saved) => {
+            setColors(saved)
+            showPipelineSuccess('Neo colors saved for all admins')
+          })
+          .catch(() => {
+            /* keep optimistic UI */
+          })
+          .finally(() => setSaving(false))
+      }, 400)
       return next
     })
   }, [])
 
   const handleReset = useCallback(() => {
-    const defaults = resetNeoKindColors()
-    setColors(defaults)
-    showPipelineSuccess('Neo colors reset to defaults')
+    setSaving(true)
+    void resetNeoKindColors()
+      .then((defaults) => {
+        setColors(defaults)
+        showPipelineSuccess('Neo colors reset for all admins')
+      })
+      .finally(() => setSaving(false))
   }, [])
 
   const usingDefaults = ready && isDefaultNeoKindColors(colors)
@@ -55,7 +85,7 @@ export function NeoColorsPanel() {
           type="button"
           size="sm"
           onClick={handleReset}
-          disabled={usingDefaults}
+          disabled={usingDefaults || saving}
           className="h-7 px-2 text-xs border-0 bg-[var(--accent-primary)] text-inverted shadow-sm hover:bg-[var(--accent-primary)] hover:brightness-110 hover:text-inverted disabled:opacity-50"
         >
           Reset
@@ -64,8 +94,9 @@ export function NeoColorsPanel() {
     >
       <div className="flex flex-col gap-3">
         <p className="text-xs text-muted">
-          Node colors for the Neo graph explorer and legend. Saved in this
-          browser and applied globally.
+          Node colors for the Neo graph explorer and legend. Saved globally for
+          every admin session.
+          {saving ? ' Saving…' : null}
         </p>
         <ul className="space-y-1.5">
           {NEO_KIND_COLOR_FIELDS.map(({ kind, label }) => {

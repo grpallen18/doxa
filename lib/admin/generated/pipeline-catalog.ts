@@ -17,11 +17,20 @@ export type PipelineStepId =
   | "detect-disputes"
   | "project-debate-summaries"
   | "debate-pipeline"
+  | "generate-evidence-check-candidates"
+  | "run-evidence-checks"
+  | "extract-citations"
+  | "run-controversy-assessments"
+  | "update-held-by-tracks"
+  | "link-derived-media-clips"
+  | "project-analysis-summaries"
+  | "analysis-pipeline"
 
 export type PipelineStageId =
   | "ingestion"
   | "graph"
   | "debate"
+  | "analysis"
 
 export type PipelineInvokeOptions = {
   usesMaxChunks: boolean
@@ -87,6 +96,21 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
       "detect-disputes",
       "project-debate-summaries",
       "debate-pipeline"
+    ]
+  },
+  {
+    "id": "analysis",
+    "label": "Analysis (Neo L4)",
+    "scope": "global",
+    "stepIds": [
+      "generate-evidence-check-candidates",
+      "run-evidence-checks",
+      "extract-citations",
+      "run-controversy-assessments",
+      "update-held-by-tracks",
+      "link-derived-media-clips",
+      "project-analysis-summaries",
+      "analysis-pipeline"
     ]
   }
 ]
@@ -226,7 +250,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "stageLabel": "Debate (Neo)",
     "scope": "global",
     "optional": false,
-    "manifestStatus": "inactive",
+    "manifestStatus": "active",
     "promptKind": "none",
     "userPayloadDoc": null,
     "isolationParams": [
@@ -237,7 +261,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 120000
     },
-    "inactiveNote": "Not active in activation.yaml"
+    "inactiveNote": null
   },
   {
     "id": "classify-proposition-relationships",
@@ -247,7 +271,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "stageLabel": "Debate (Neo)",
     "scope": "global",
     "optional": false,
-    "manifestStatus": "inactive",
+    "manifestStatus": "active",
     "promptKind": "none",
     "userPayloadDoc": null,
     "isolationParams": [
@@ -258,7 +282,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 300000
     },
-    "inactiveNote": "Not active in activation.yaml"
+    "inactiveNote": null
   },
   {
     "id": "build-viewpoints",
@@ -268,7 +292,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "stageLabel": "Debate (Neo)",
     "scope": "global",
     "optional": false,
-    "manifestStatus": "inactive",
+    "manifestStatus": "active",
     "promptKind": "none",
     "userPayloadDoc": null,
     "isolationParams": [
@@ -279,7 +303,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 120000
     },
-    "inactiveNote": "Not active in activation.yaml"
+    "inactiveNote": null
   },
   {
     "id": "build-controversies",
@@ -289,7 +313,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "stageLabel": "Debate (Neo)",
     "scope": "global",
     "optional": false,
-    "manifestStatus": "inactive",
+    "manifestStatus": "active",
     "promptKind": "none",
     "userPayloadDoc": null,
     "isolationParams": [
@@ -300,7 +324,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 120000
     },
-    "inactiveNote": "Not active in activation.yaml"
+    "inactiveNote": null
   },
   {
     "id": "detect-disputes",
@@ -310,7 +334,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "stageLabel": "Debate (Neo)",
     "scope": "global",
     "optional": false,
-    "manifestStatus": "inactive",
+    "manifestStatus": "active",
     "promptKind": "none",
     "userPayloadDoc": null,
     "isolationParams": [
@@ -321,7 +345,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 120000
     },
-    "inactiveNote": "Not active in activation.yaml"
+    "inactiveNote": null
   },
   {
     "id": "project-debate-summaries",
@@ -331,7 +355,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "stageLabel": "Debate (Neo)",
     "scope": "global",
     "optional": false,
-    "manifestStatus": "inactive",
+    "manifestStatus": "active",
     "promptKind": "none",
     "userPayloadDoc": null,
     "isolationParams": [
@@ -342,7 +366,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 120000
     },
-    "inactiveNote": "Not active in activation.yaml"
+    "inactiveNote": null
   },
   {
     "id": "debate-pipeline",
@@ -352,7 +376,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "stageLabel": "Debate (Neo)",
     "scope": "global",
     "optional": false,
-    "manifestStatus": "inactive",
+    "manifestStatus": "active",
     "promptKind": "none",
     "userPayloadDoc": null,
     "isolationParams": [
@@ -363,7 +387,175 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "maxChunks": null,
       "timeoutMs": 600000
     },
-    "inactiveNote": "Not active in activation.yaml"
+    "inactiveNote": null
+  },
+  {
+    "id": "generate-evidence-check-candidates",
+    "deployName": "generate_evidence_check_candidates",
+    "label": "Evidence-check candidates",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "run-evidence-checks",
+    "deployName": "run_evidence_checks",
+    "label": "Run evidence checks",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 300000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "extract-citations",
+    "deployName": "extract_citations",
+    "label": "Extract citations",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "run-controversy-assessments",
+    "deployName": "run_controversy_assessments",
+    "label": "Controversy assessments",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 300000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "update-held-by-tracks",
+    "deployName": "update_held_by_tracks",
+    "label": "Update HELD_BY tracks",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "link-derived-media-clips",
+    "deployName": "link_derived_media_clips",
+    "label": "Link derived media clips",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "project-analysis-summaries",
+    "deployName": "project_analysis_summaries",
+    "label": "Project analysis summaries",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "analysis-pipeline",
+    "deployName": "analysis_pipeline",
+    "label": "Analysis pipeline (orchestrator)",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 600000
+    },
+    "inactiveNote": null
   }
 ]
 
@@ -381,6 +573,14 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "detect_disputes",
   "project_debate_summaries",
   "debate_pipeline",
+  "generate_evidence_check_candidates",
+  "run_evidence_checks",
+  "extract_citations",
+  "run_controversy_assessments",
+  "update_held_by_tracks",
+  "link_derived_media_clips",
+  "project_analysis_summaries",
+  "analysis_pipeline",
 ])
 
 const STEP_BY_ID = new Map<PipelineStepId, PipelineCatalogStep>(

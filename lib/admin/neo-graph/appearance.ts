@@ -28,17 +28,22 @@ const KIND_SIZE: Record<
   NeoNodeKind,
   { baseSize: number; priority: number }
 > = {
-  document: { baseSize: 16, priority: 100 },
-  controversy: { baseSize: 18, priority: 110 },
-  viewpoint: { baseSize: 14, priority: 95 },
-  proposition: { baseSize: 12, priority: 90 },
-  dispute: { baseSize: 12, priority: 88 },
-  argument: { baseSize: 11, priority: 75 },
-  publication: { baseSize: 12, priority: 80 },
-  agent: { baseSize: 11, priority: 70 },
-  entity: { baseSize: 10, priority: 65 },
-  utterance: { baseSize: 7, priority: 50 },
-  segment: { baseSize: 5, priority: 20 },
+  document: { baseSize: 4, priority: 90 },
+  controversy: { baseSize: 9, priority: 110 },
+  viewpoint: { baseSize: 7, priority: 95 },
+  proposition: { baseSize: 6, priority: 88 },
+  dispute: { baseSize: 6, priority: 86 },
+  assessment: { baseSize: 5, priority: 82 },
+  evidence_check: { baseSize: 4, priority: 78 },
+  citation: { baseSize: 3, priority: 55 },
+  method_run: { baseSize: 4, priority: 60 },
+  argument: { baseSize: 5, priority: 75 },
+  publication: { baseSize: 14, priority: 100 },
+  agent: { baseSize: 5, priority: 70 },
+  entity: { baseSize: 4, priority: 65 },
+  utterance: { baseSize: 3, priority: 50 },
+  segment: { baseSize: 2, priority: 20 },
+  cluster: { baseSize: 14, priority: 120 },
 }
 
 const EDGE_COLOR: Record<NeoEdgeType, string> = {
@@ -56,6 +61,11 @@ const EDGE_COLOR: Record<NeoEdgeType, string> = {
   CONCERNS: '#9a5a7a',
   VARIANT_OF: '#8a8580',
   ABOUT: '#8a8580',
+  CHECKS: '#5a9a7a',
+  CITES: '#8a9a6a',
+  HELD_BY: '#3d5a80',
+  DERIVED_FROM: '#8a8580',
+  PRODUCED_BY: '#6a6a7a',
 }
 
 export function resolveNodeAppearance(input: {
@@ -64,7 +74,7 @@ export function resolveNodeAppearance(input: {
 }): NodeAppearance {
   const sizeBase = KIND_SIZE[input.kind]
   const color = getNeoKindColor(input.kind)
-  const degreeBoost = Math.min(6, Math.max(0, (input.degreeHint ?? 0) * 0.35))
+  const degreeBoost = Math.min(12, Math.max(0, (input.degreeHint ?? 0) * 0.7))
   return {
     color,
     borderColor: deriveNeoBorderColor(color),
@@ -86,7 +96,23 @@ export function resolveIdleEdgeColor(type: NeoEdgeType): string {
   return withPremultipliedAlpha(resolveEdgeColor(type), NEO_EDGE_IDLE_ALPHA)
 }
 
-/** Lerp idle → active edge chrome (`t` 0..1, same timing as node hover fade). */
+/** Source→target node-colored edge chrome at fade progress `t` (0..1). */
+export function resolveEdgeGradientAt(
+  sourceHex: string,
+  targetHex: string,
+  t: number
+): { color: string; targetColor: string; size: number } {
+  const u = Math.max(0, Math.min(1, t))
+  const alpha = NEO_EDGE_IDLE_ALPHA + (1 - NEO_EDGE_IDLE_ALPHA) * u
+  const size = NEO_EDGE_SIZE_IDLE + (NEO_EDGE_SIZE_ACTIVE - NEO_EDGE_SIZE_IDLE) * u
+  return {
+    color: withPremultipliedAlpha(sourceHex, alpha),
+    targetColor: withPremultipliedAlpha(targetHex, alpha),
+    size,
+  }
+}
+
+/** @deprecated Prefer resolveEdgeGradientAt for node-colored edges. */
 export function resolveEdgeAppearanceAt(type: NeoEdgeType, t: number): {
   color: string
   size: number

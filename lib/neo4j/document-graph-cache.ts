@@ -56,12 +56,17 @@ export function clearDocumentGraphCache(storyId?: string): void {
 
 /**
  * Cached Neo4j document graph fetch. Pass `bypass: true` after ingestion Refresh.
+ * In development the cache is always bypassed so hot-reload / multi-browser
+ * testing does not serve a stale process-local snapshot.
  */
 export async function getDocumentGraphCached(
   storyId: string,
   options?: { bypass?: boolean }
 ): Promise<NeoDocumentGraph | null> {
-  if (!options?.bypass) {
+  const bypass =
+    Boolean(options?.bypass) || process.env.NODE_ENV === 'development'
+
+  if (!bypass) {
     const hit = peekDocumentGraphCache(storyId)
     if (hit !== undefined) return hit
   } else {
@@ -69,6 +74,8 @@ export async function getDocumentGraphCached(
   }
 
   const graph = await getDocumentGraph(storyId)
-  setDocumentGraphCache(storyId, graph)
+  if (process.env.NODE_ENV !== 'development') {
+    setDocumentGraphCache(storyId, graph)
+  }
   return graph
 }

@@ -46,8 +46,40 @@ export const handler = async (req: Request) => {
 
   const components = assembleComponents(edges, (k) => isCoreViewpointUnion(k as "agree"));
 
+  // Singleton viewpoints for props that participate in accepted oppose / dispute
+  // edges but are not yet in an agree cluster (common early in the backlog).
+  const orphanRows = await runCypher<{
+    propUid: string;
+    topicKey: string;
+  }>(
+    `
+    MATCH (pa:Proposition)-[r:RELATES_TO]->(pb:Proposition)
+    WHERE r.kind IN ['oppose','definitional_conflict','talking_past','assumption_conflict']
+      AND r.decisionUid IS NOT NULL
+    MATCH (dec:Decision {uid: r.decisionUid, status: 'accepted'})
+    UNWIND [pa, pb] AS p
+    RETURN DISTINCT p.uid AS propUid, coalesce(dec.topicKey, 'general') AS topicKey
+    `
+  );
+  const covered = new Set(components.flatMap((c) => c.memberIds));
+  for (const row of orphanRows) {
+    if (!row.propUid || covered.has(row.propUid)) continue;
+    covered.add(row.propUid);
+    components.push({
+      topicKey: row.topicKey || "general",
+      memberIds: [row.propUid],
+      edgeDecisionUids: [],
+    });
+  }
+
   if (dryRun) {
-    return json({ ok: true, dry_run: true, viewpoint_count: components.length });
+    return json({
+      ok: true,
+      dry_run: true,
+      viewpoint_count: components.length,
+      agree_clusters: components.filter((c) => c.memberIds.length > 1).length,
+      singletons: components.filter((c) => c.memberIds.length === 1).length,
+    });
   }
 
   // Drop prior ADVANCES so rebuild does not keep stale memberships.

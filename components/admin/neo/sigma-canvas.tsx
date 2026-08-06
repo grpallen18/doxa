@@ -2,26 +2,22 @@
 
 import { useEffect, useMemo, useRef } from 'react'
 import {
-  ControlsContainer,
   SigmaContainer,
   useLoadGraph,
   useRegisterEvents,
   useSetSettings,
   useSigma,
-  ZoomControl,
 } from '@react-sigma/core'
-import FA2Layout from 'graphology-layout-forceatlas2/worker'
 import '@react-sigma/core/lib/style.css'
+import '@/components/admin/neo/neo-sigma.css'
+import { NeoZoomControls } from '@/components/admin/neo/neo-zoom-controls'
 import {
   NEO_LABEL_COLOR_DIMMED,
   NEO_LABEL_COLOR_EMPHASIS,
   NEO_LABEL_COLOR_IDLE,
-  NEO_EDGE_SIZE_ACTIVE,
   NEO_EDGE_SIZE_IDLE,
   NEO_EDGE_IDLE_ALPHA,
-  resolveEdgeAppearanceAt,
-  resolveEdgeColor,
-  resolveIdleEdgeColor,
+  resolveEdgeGradientAt,
 } from '@/lib/admin/neo-graph/appearance'
 import { withPremultipliedAlpha, lerpHex, withLabelAlpha } from '@/lib/admin/neo-graph/colors'
 import {
@@ -40,24 +36,32 @@ import {
 import { createNeoHoverFade } from '@/lib/admin/neo-graph/hover-fade'
 import {
   assignEdgeWeights,
-  BACKBONE_ITERS_INITIAL,
-  BACKBONE_ITERS_RELAYOUT,
-  buildWorkerFa2Settings,
-  layoutBackboneSync,
-  placeLeavesInOrbits,
+  buildFa2WorkerSettings,
+  hashSeed,
+  isBackboneKind,
+  placeNodesHierarchically,
+  seedHierarchicalPositions,
   separateOverlaps,
+  workerBudgetMs,
 } from '@/lib/admin/neo-graph/layout-pipeline'
+import forceAtlas2 from 'graphology-layout-forceatlas2'
+import FA2LayoutSupervisor from 'graphology-layout-forceatlas2/worker'
 import {
   applyNeoLod,
   collectForceVisibleLeafPath,
   lodLevelFromRatio,
+  NEO_LOD_FAR_RATIO,
   type NeoLodLevel,
 } from '@/lib/admin/neo-graph/lod'
+import { drawDocumentEnvelopes } from '@/lib/admin/neo-graph/draw-envelopes'
+import { frameGraphInViewport } from '@/lib/admin/neo-graph/frame-viewport'
+import {
+  clusterMemberBounds,
+} from '@/lib/admin/neo-graph/overview-clusters'
 import { NeoNodeProgram } from '@/lib/admin/neo-graph/node-program'
 import { collectNeighborhood } from '@/lib/admin/neo-graph/neighborhood'
 import type {
   DoxaGraphProjection,
-  NeoFa2Settings,
   NeoGraphFilters,
   NeoLabelVisibility,
   NeoNodeKind,
@@ -74,6 +78,8 @@ export type NeoSelection = {
   charStart?: number
   charEnd?: number
   properties: SigmaNodeAttributes['properties'] | null
+  /** Overview cluster members (document node ids). */
+  memberIds?: string[] | null
   edgeId: string | null
   edgeType: SigmaEdgeAttributes['edgeType'] | null
   edgeLabel: string | null
@@ -87,6 +93,7 @@ const EMPTY_SELECTION: NeoSelection = {
   kind: null,
   label: null,
   properties: null,
+  memberIds: null,
   edgeId: null,
   edgeType: null,
   edgeLabel: null,
@@ -95,27 +102,35 @@ const EMPTY_SELECTION: NeoSelection = {
   edgeTarget: null,
 }
 
-const LAYOUT_MS_INITIAL = 1800
-const LAYOUT_MS_RELAYOUT = 1500
-const LAYOUT_MS_FILTER_NEW = 700
-const LAYOUT_MS_FILTER_PRESERVE = 300
+const LAYOUT_MS_FILTER_NEW = 120
+const LAYOUT_MS_FILTER_PRESERVE = 40
 
 type LayoutPassMode = 'initial' | 'relayout' | 'filter-new' | 'filter-preserve'
 
+/**
+ * Union projections all share projectionId `union-documents`. Include the
+ * document set so changing the story cap forces a fresh layout instead of
+ * preserving a crushed 26-story arrangement when loading 27.
+ */
 function projectionLayoutKey(projection: DoxaGraphProjection): string {
-  return (
+  const docIds =
+    projection.documents?.map((d) => d.uid).sort().join(',') ||
+    projection.nodes
+      .filter((n) => n.kind === 'document')
+      .map((n) => n.id)
+      .sort()
+      .join(',')
+  const base =
     projection.projectionId ||
     projection.storyId ||
     projection.rootId ||
     'neo-graph'
-  )
+  return `${base}|${docIds.length}|${hashSeed(docIds)}`
 }
 
 function GraphLifecycle({
   projection,
   filters,
-  fa2Settings,
-  fa2ApplyToken,
   labelVisibility,
   colorRevision,
   selectedNodeId,
@@ -127,11 +142,11 @@ function GraphLifecycle({
   onHoverKind,
   onLayoutBusy,
   onLodLevel,
+  expandClusterId = null,
+  expandClusterToken = 0,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
-  fa2Settings: NeoFa2Settings
-  fa2ApplyToken: number
   labelVisibility: NeoLabelVisibility
   colorRevision: string
   selectedNodeId: string | null
@@ -147,6 +162,9 @@ function GraphLifecycle({
   onHoverKind: (kind: NeoNodeKind | null) => void
   onLayoutBusy?: (busy: boolean, durationMs?: number) => void
   onLodLevel?: (level: NeoLodLevel) => void
+  /** When token increments, animate camera to expand this cluster. */
+  expandClusterId?: string | null
+  expandClusterToken?: number
 }) {
   const sigma = useSigma()
   const loadGraph = useLoadGraph()
@@ -158,7 +176,9 @@ function GraphLifecycle({
   /** Until the first full FA2 finishes for this key, every rebuild keeps the long initial duration. */
   const initialCompleteRef = useRef(false)
   const layoutEpochRef = useRef(0)
-  const fa2Ref = useRef<InstanceType<typeof FA2Layout> | null>(null)
+  const fa2SupervisorRef = useRef<InstanceType<
+    typeof FA2LayoutSupervisor
+  > | null>(null)
   const selectedRef = useRef<string | null>(selectedNodeId)
   selectedRef.current = selectedNodeId
   const focusRef = useRef<string | null>(focusNodeId)
@@ -167,12 +187,10 @@ function GraphLifecycle({
   previewRef.current = previewNodeId
   const labelVisibilityRef = useRef(labelVisibility)
   labelVisibilityRef.current = labelVisibility
-  const fa2SettingsRef = useRef(fa2Settings)
-  fa2SettingsRef.current = fa2Settings
-  const fa2ApplyTokenRef = useRef(fa2ApplyToken)
   const lodLevelRef = useRef<NeoLodLevel>('near')
   const onLodLevelRef = useRef(onLodLevel)
   onLodLevelRef.current = onLodLevel
+  const expandTokenRef = useRef(expandClusterToken)
   const hoveredNodeRef = useRef<string | null>(null)
   const hoveredEdgeRef = useRef<string | null>(null)
   const previewHoverActiveRef = useRef(false)
@@ -194,7 +212,10 @@ function GraphLifecycle({
     []
   )
 
-  const syncLod = (graph: NeoSigmaGraph) => {
+  const syncLod = (
+    graph: NeoSigmaGraph,
+    options?: { rebuildClusters?: boolean }
+  ) => {
     const forceVisible = new Set<string>()
     for (const id of [
       selectedRef.current,
@@ -206,28 +227,89 @@ function GraphLifecycle({
     applyNeoLod(graph, {
       level: lodLevelRef.current,
       forceVisibleIds: forceVisible,
+      rebuildClusters: options?.rebuildClusters ?? false,
     })
   }
 
-  // Flex parents often settle after Sigma mounts at 0–1px; keep canvases in sync.
+  const expandClusterCamera = (clusterId: string) => {
+    const graph = sigma.getGraph() as NeoSigmaGraph
+    if (!graph.hasNode(clusterId)) return
+    const bounds = clusterMemberBounds(graph, clusterId)
+    const attrs = graph.getNodeAttributes(clusterId)
+    const cx = bounds ? (bounds.minX + bounds.maxX) / 2 : attrs.x
+    const cy = bounds ? (bounds.minY + bounds.maxY) / 2 : attrs.y
+    const camera = sigma.getCamera()
+    void camera.animate(
+      {
+        x: cx,
+        y: cy,
+        ratio: Math.min(camera.ratio, NEO_LOD_FAR_RATIO * 0.85),
+      },
+      { duration: 450 }
+    )
+  }
+
+  // Flex parents / Fast Refresh often mount Sigma at 0–1px. ResizeObserver
+  // alone is not enough: if the first measure is tiny we used to bail, and if
+  // the container is already "full size" when we attach, RO never fires again
+  // — canvases stay stuck at 1px until a hard reload.
   useEffect(() => {
     const container = sigma.getContainer()
     if (!container) return
 
+    let raf = 0
+    let tries = 0
+    let wasTiny = false
+    const MAX_TRIES = 180
+
     const syncSize = () => {
       const { width, height } = container.getBoundingClientRect()
-      if (width < 2 || height < 2) return
-      sigma.resize(true)
-      sigma.refresh()
+      if (width < 2 || height < 2) {
+        wasTiny = true
+        if (tries < MAX_TRIES) {
+          tries += 1
+          raf = window.requestAnimationFrame(syncSize)
+        }
+        return
+      }
+      tries = 0
+      try {
+        sigma.resize(true)
+        sigma.refresh()
+        // After HMR / flex collapse recovery, re-frame so the graph fills
+        // the restored canvas instead of sitting in a leftover subsection.
+        if (wasTiny && initialCompleteRef.current) {
+          wasTiny = false
+          frameGraphInViewport(sigma)
+        } else {
+          wasTiny = false
+        }
+      } catch {
+        /* sigma torn down mid-HMR */
+      }
     }
 
     syncSize()
-    const raf = window.requestAnimationFrame(syncSize)
-    const observer = new ResizeObserver(syncSize)
+    const observer = new ResizeObserver(() => {
+      tries = 0
+      syncSize()
+    })
     observer.observe(container)
+    const parent = container.parentElement
+    if (parent) observer.observe(parent)
+
+    const onViewport = () => {
+      tries = 0
+      syncSize()
+    }
+    window.addEventListener('resize', onViewport)
+    document.addEventListener('visibilitychange', onViewport)
+
     return () => {
       window.cancelAnimationFrame(raf)
       observer.disconnect()
+      window.removeEventListener('resize', onViewport)
+      document.removeEventListener('visibilitychange', onViewport)
     }
   }, [sigma])
 
@@ -242,78 +324,119 @@ function GraphLifecycle({
   }
 
   const disposeFa2 = () => {
-    const layout = fa2Ref.current
-    fa2Ref.current = null
+    const layout = fa2SupervisorRef.current
+    fa2SupervisorRef.current = null
     if (!layout) return
-    try {
-      layout.stop()
-    } catch {
-      /* already stopped */
-    }
     try {
       layout.kill()
     } catch {
-      /* already killed */
+      /* already stopped */
     }
   }
 
+  const finishLayoutPass = (
+    graph: NeoSigmaGraph,
+    epoch: number,
+    onComplete?: () => void,
+    options?: { frameViewport?: boolean }
+  ) => {
+    if (layoutEpochRef.current !== epoch) return
+    separateOverlaps(graph, undefined, undefined, {
+      pinKind: isBackboneKind,
+    })
+    syncLod(graph, {
+      rebuildClusters: lodLevelRef.current === 'overview',
+    })
+    try {
+      sigma.setCustomBBox(null)
+    } catch {
+      /* older sigma */
+    }
+    sigma.refresh()
+    if (options?.frameViewport) {
+      frameGraphInViewport(sigma)
+    }
+    commitPositionsFromSigma()
+    onComplete?.()
+    onLayoutBusyRef.current?.(false)
+  }
+
   /**
-   * Own the FA2 supervisor (do not use useWorkerLayoutForceAtlas2).
-   * That hook binds asynchronously and start() is a no-op until the next
-   * render — so initial load showed a veil while the graph sat idle.
-   * Creating FA2 after loadGraph ties it to the populated Sigma graph.
-   *
-   * Pipeline: edge weights → backbone FA2 → leaf orbits → worker settle → collision.
+   * Hierarchical seed (publication-first) + soft FA2 polish.
+   * Filter toggles preserve positions; Apply / new projection reconstruts.
    */
   const runLayout = (
     mode: LayoutPassMode,
-    durationMs: number,
     newNodeIds: string[] = [],
     onComplete?: () => void
   ) => {
     const epoch = ++layoutEpochRef.current
-    onLayoutBusyRef.current?.(true, durationMs)
     disposeFa2()
 
     const graph = sigma.getGraph() as NeoSigmaGraph
     assignEdgeWeights(graph)
 
-    if (mode === 'initial' || mode === 'relayout') {
-      layoutBackboneSync(
-        graph,
-        fa2SettingsRef.current,
-        mode === 'initial' ? BACKBONE_ITERS_INITIAL : BACKBONE_ITERS_RELAYOUT
-      )
-      placeLeavesInOrbits(graph)
-    } else if (newNodeIds.length > 0) {
-      placeLeavesInOrbits(graph, { onlyNodeIds: new Set(newNodeIds) })
+    if (mode === 'filter-preserve') {
+      onLayoutBusyRef.current?.(true, LAYOUT_MS_FILTER_PRESERVE)
+      finishLayoutPass(graph, epoch, onComplete, { frameViewport: false })
+      return window.setTimeout(() => {
+        /* busy already cleared in finishLayoutPass */
+      }, LAYOUT_MS_FILTER_PRESERVE)
     }
 
-    const layout = new FA2Layout(
-      graph,
-      buildWorkerFa2Settings(fa2SettingsRef.current)
-    )
-    fa2Ref.current = layout
-    layout.start()
+    if (mode === 'filter-new') {
+      onLayoutBusyRef.current?.(true, LAYOUT_MS_FILTER_NEW)
+      if (newNodeIds.length > 0) {
+        placeNodesHierarchically(graph, newNodeIds)
+      }
+      finishLayoutPass(graph, epoch, onComplete, { frameViewport: false })
+      return window.setTimeout(() => {}, LAYOUT_MS_FILTER_NEW)
+    }
+
+    // initial — hierarchical seed then soft FA2 polish
+    // relayout — FA2 from current positions (internal; no user re-apply UI)
+    if (mode === 'initial') {
+      seedHierarchicalPositions(graph)
+    }
+    const budget = workerBudgetMs(graph.order)
+    onLayoutBusyRef.current?.(true, budget)
+
+    const settings = buildFa2WorkerSettings(graph, DEFAULT_NEO_FA2_SETTINGS)
+
+    try {
+      const layout = new FA2LayoutSupervisor(graph, {
+        getEdgeWeight: 'weight',
+        settings,
+      })
+      fa2SupervisorRef.current = layout
+      layout.start()
+    } catch {
+      // Worker unavailable — fall back to a short sync FA2 pass.
+      forceAtlas2.assign(graph, {
+        iterations: Math.min(60, Math.max(15, Math.floor(graph.order / 40))),
+        getEdgeWeight: 'weight',
+        settings,
+      })
+      finishLayoutPass(graph, epoch, onComplete, { frameViewport: true })
+      return window.setTimeout(() => {}, 50)
+    }
 
     return window.setTimeout(() => {
       if (layoutEpochRef.current !== epoch) return
+      const layout = fa2SupervisorRef.current
+      fa2SupervisorRef.current = null
       try {
-        layout.stop()
+        layout?.stop()
       } catch {
         /* ignore */
       }
       try {
-        separateOverlaps(sigma.getGraph() as NeoSigmaGraph)
-        syncLod(sigma.getGraph() as NeoSigmaGraph)
-        sigma.refresh()
+        layout?.kill()
       } catch {
-        /* graph may be unmounted */
+        /* ignore */
       }
-      commitPositionsFromSigma()
-      onComplete?.()
-      onLayoutBusyRef.current?.(false)
-    }, durationMs)
+      finishLayoutPass(graph, epoch, onComplete, { frameViewport: true })
+    }, budget)
   }
 
   useEffect(() => {
@@ -324,7 +447,7 @@ function GraphLifecycle({
       projectionKeyRef.current = key
       initialCompleteRef.current = false
     } else {
-      // Prefer live Sigma positions (post-FA2) over last committed snapshot.
+      // Prefer live Sigma positions over last committed snapshot.
       try {
         positionsRef.current = snapshotGraphPositions(
           sigma.getGraph() as NeoSigmaGraph
@@ -340,7 +463,17 @@ function GraphLifecycle({
 
     graphRef.current = built.graph
     loadGraph(built.graph)
-    sigma.resize(true)
+    // Double-rAF: after HMR, the first layout pass can still see a 1px box.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        try {
+          sigma.resize(true)
+          sigma.refresh()
+        } catch {
+          /* unmounted */
+        }
+      })
+    })
     positionsRef.current = snapshotGraphPositions(built.graph)
     onGraphStats({
       nodes: built.nodeCount,
@@ -351,50 +484,27 @@ function GraphLifecycle({
     // Parent re-renders / color hydration used to restart this effect and
     // downgrade a fresh load to a short filter settle — keep INITIAL until done.
     const awaitingInitial = !initialCompleteRef.current
+    // Kind filter toggles must not force a full FA2 reconstruct (documents
+    // reappearing used to look like "new docs" and trigger Arranging graph…).
     const mode: LayoutPassMode = awaitingInitial
       ? 'initial'
       : built.newNodeCount > 0
         ? 'filter-new'
         : 'filter-preserve'
-    const duration =
-      mode === 'initial'
-        ? LAYOUT_MS_INITIAL
-        : mode === 'filter-new'
-          ? LAYOUT_MS_FILTER_NEW
-          : LAYOUT_MS_FILTER_PRESERVE
 
-    const timer = runLayout(mode, duration, built.newNodeIds, () => {
+    const timer = runLayout(mode, built.newNodeIds, () => {
       initialCompleteRef.current = true
     })
     return () => {
       window.clearTimeout(timer)
       layoutEpochRef.current += 1
-      commitPositionsFromSigma()
       disposeFa2()
+      commitPositionsFromSigma()
       onLayoutBusyRef.current?.(false)
     }
     // colorRevision forces rebuild so kind colors refresh on nodes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projection, filters, colorRevision])
-
-  // Restart FA2 when the filters panel applies gravity / scalingRatio.
-  useEffect(() => {
-    if (fa2ApplyTokenRef.current === fa2ApplyToken) return
-    fa2ApplyTokenRef.current = fa2ApplyToken
-    if (fa2ApplyToken <= 0) return
-
-    const timer = runLayout('relayout', LAYOUT_MS_RELAYOUT, [], () => {
-      initialCompleteRef.current = true
-    })
-    return () => {
-      window.clearTimeout(timer)
-      layoutEpochRef.current += 1
-      commitPositionsFromSigma()
-      disposeFa2()
-      onLayoutBusyRef.current?.(false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fa2ApplyToken])
 
   useEffect(() => {
     return () => {
@@ -403,18 +513,21 @@ function GraphLifecycle({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Zoom LOD: collapse leaf kinds when camera is far out.
+  // Zoom LOD: mid envelopes / overview clusters by camera ratio.
   useEffect(() => {
     const camera = sigma.getCamera()
     const applyFromRatio = (ratio: number) => {
+      const prev = lodLevelRef.current
       const next = lodLevelFromRatio(ratio)
-      const changed = next !== lodLevelRef.current
+      const changed = next !== prev
       lodLevelRef.current = next
       if (changed) onLodLevelRef.current?.(next)
       try {
         const graph = sigma.getGraph() as NeoSigmaGraph
-        syncLod(graph)
+        const enteringOverview = changed && next === 'overview'
+        syncLod(graph, { rebuildClusters: enteringOverview })
         sigma.refresh()
+        drawDocumentEnvelopes(sigma, next)
       } catch {
         /* unmounted */
       }
@@ -424,23 +537,38 @@ function GraphLifecycle({
       applyFromRatio(state.ratio)
     }
     camera.on('updated', onUpdated)
+    const onAfterRender = () => {
+      drawDocumentEnvelopes(sigma, lodLevelRef.current)
+    }
+    sigma.on('afterRender', onAfterRender)
     return () => {
       camera.off('updated', onUpdated)
+      sigma.off('afterRender', onAfterRender)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sigma])
 
-  // Keep focused/selected leaves visible while far.
+  // Keep focused/selected leaves visible while collapsed.
   useEffect(() => {
     try {
       const graph = sigma.getGraph() as NeoSigmaGraph
-      syncLod(graph)
+      syncLod(graph, { rebuildClusters: false })
       sigma.refresh()
+      drawDocumentEnvelopes(sigma, lodLevelRef.current)
     } catch {
       /* graph not ready */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId, focusNodeId, previewNodeId, sigma])
+
+  // Detail-panel / double-click expand request.
+  useEffect(() => {
+    if (expandTokenRef.current === expandClusterToken) return
+    expandTokenRef.current = expandClusterToken
+    if (expandClusterToken <= 0 || !expandClusterId) return
+    expandClusterCamera(expandClusterId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandClusterId, expandClusterToken, sigma])
 
   useEffect(() => {
     const fade = hoverFadeRef.current
@@ -472,7 +600,19 @@ function GraphLifecycle({
           charStart: attrs.charStart,
           charEnd: attrs.charEnd,
           properties: attrs.properties,
+          memberIds:
+            attrs.kind === 'cluster' && Array.isArray(attrs.memberIds)
+              ? attrs.memberIds
+              : null,
         })
+      },
+      doubleClickNode: ({ node }) => {
+        const g = sigma.getGraph() as NeoSigmaGraph
+        if (!g.hasNode(node)) return
+        const kind = g.getNodeAttribute(node, 'kind')
+        if (kind === 'cluster') {
+          expandClusterCamera(node)
+        }
       },
       clickEdge: ({ edge }) => {
         const g = sigma.getGraph()
@@ -696,12 +836,21 @@ function GraphLifecycle({
           return res
         }
         const [source, target] = g.extremities(edge)
+        const sourceHex =
+          (g.getNodeAttribute(source, 'color') as string) || '#888888'
+        const targetHex =
+          (g.getNodeAttribute(target, 'color') as string) || '#888888'
 
         const fadeEdgeId = edgeFade.getNodeId()
         const edgeProgress = edgeFade.getProgress()
         if (fadeEdgeId === edge && edgeProgress > 0) {
-          const appearance = resolveEdgeAppearanceAt(data.edgeType, edgeProgress)
+          const appearance = resolveEdgeGradientAt(
+            sourceHex,
+            targetHex,
+            edgeProgress
+          )
           res.color = appearance.color
+          res.targetColor = appearance.targetColor
           res.size = appearance.size
           res.zIndex = 1
           return res
@@ -725,26 +874,38 @@ function GraphLifecycle({
         if (inSelNeighborhood) activeT = Math.max(activeT, selT)
 
         if (activeT > 0) {
-          const appearance = resolveEdgeAppearanceAt(data.edgeType, activeT)
+          const appearance = resolveEdgeGradientAt(
+            sourceHex,
+            targetHex,
+            activeT
+          )
           res.color = appearance.color
+          res.targetColor = appearance.targetColor
           res.size = appearance.size
           res.zIndex = 1
           return res
         }
 
         if (selId && selT > 0 && !inSelNeighborhood) {
-          const solid = resolveEdgeColor(data.edgeType)
-          const dimHex = lerpHex(solid, '#2a2a2a', selT)
           const dimAlpha =
             NEO_EDGE_IDLE_ALPHA + (0.35 - NEO_EDGE_IDLE_ALPHA) * selT
           res.hidden = false
-          res.color = withPremultipliedAlpha(dimHex, dimAlpha)
+          res.color = withPremultipliedAlpha(
+            lerpHex(sourceHex, '#2a2a2a', selT),
+            dimAlpha
+          )
+          res.targetColor = withPremultipliedAlpha(
+            lerpHex(targetHex, '#2a2a2a', selT),
+            dimAlpha
+          )
           res.size = NEO_EDGE_SIZE_IDLE
           res.zIndex = 0
           return res
         }
 
-        res.color = resolveIdleEdgeColor(data.edgeType)
+        const idle = resolveEdgeGradientAt(sourceHex, targetHex, 0)
+        res.color = idle.color
+        res.targetColor = idle.targetColor
         res.size = NEO_EDGE_SIZE_IDLE
         res.zIndex = 0
         return res
@@ -804,8 +965,6 @@ function GraphLifecycle({
 export function NeoSigmaCanvas({
   projection,
   filters,
-  fa2Settings = DEFAULT_NEO_FA2_SETTINGS,
-  fa2ApplyToken = 0,
   labelVisibility = DEFAULT_NEO_LABEL_VISIBILITY,
   colorRevision,
   selectedNodeId,
@@ -817,12 +976,11 @@ export function NeoSigmaCanvas({
   onHoverKind,
   onLayoutBusy,
   onLodLevel,
+  expandClusterId = null,
+  expandClusterToken = 0,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
-  fa2Settings?: NeoFa2Settings
-  /** Incremented each time the UI applies FA2 params (forces a relayout). */
-  fa2ApplyToken?: number
   labelVisibility?: NeoLabelVisibility
   colorRevision: string
   selectedNodeId: string | null
@@ -838,11 +996,29 @@ export function NeoSigmaCanvas({
   onHoverKind: (kind: NeoNodeKind | null) => void
   onLayoutBusy?: (busy: boolean, durationMs?: number) => void
   onLodLevel?: (level: NeoLodLevel) => void
+  expandClusterId?: string | null
+  expandClusterToken?: number
 }) {
   return (
     <SigmaContainer
-      className="relative h-full w-full !bg-[#121212]"
-      style={{ height: '100%', width: '100%', background: '#121212' }}
+      className="neo-sigma-root absolute inset-0 !bg-[#121212]"
+      style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        width: 'auto',
+        height: 'auto',
+        minHeight: 0,
+        background: '#121212',
+        ['--sigma-background-color' as string]: '#121212',
+        ['--sigma-controls-background-color' as string]: '#1a1a1a',
+        ['--sigma-controls-background-color-hover' as string]:
+          'rgba(255,255,255,0.1)',
+        ['--sigma-controls-border-color' as string]: 'rgba(255,255,255,0.15)',
+        ['--sigma-controls-color' as string]: '#e8e6e3',
+      }}
       settings={{
         allowInvalidContainer: true,
         enableEdgeEvents: true,
@@ -864,8 +1040,6 @@ export function NeoSigmaCanvas({
       <GraphLifecycle
         projection={projection}
         filters={filters}
-        fa2Settings={fa2Settings}
-        fa2ApplyToken={fa2ApplyToken}
         labelVisibility={labelVisibility}
         colorRevision={colorRevision}
         selectedNodeId={selectedNodeId}
@@ -877,10 +1051,10 @@ export function NeoSigmaCanvas({
         onHoverKind={onHoverKind}
         onLayoutBusy={onLayoutBusy}
         onLodLevel={onLodLevel}
+        expandClusterId={expandClusterId}
+        expandClusterToken={expandClusterToken}
       />
-      <ControlsContainer position="bottom-right">
-        <ZoomControl />
-      </ControlsContainer>
+      <NeoZoomControls />
     </SigmaContainer>
   )
 }

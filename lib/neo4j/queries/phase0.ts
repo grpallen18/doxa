@@ -51,6 +51,34 @@ export type NeoMention = {
   title: string | null
 }
 
+/** Phase 1 Proposition linked from an utterance via EXPRESSES. */
+export type NeoProposition = {
+  uid: string
+  text: string
+  certainty: string | null
+  timeframe: string | null
+  scope: string | null
+}
+
+/** Utterance → Proposition. */
+export type NeoExpresses = {
+  utteranceUid: string
+  propositionUid: string
+}
+
+/** Phase 2a Argument hyperedge over propositions. */
+export type NeoArgument = {
+  uid: string
+  summary: string | null
+}
+
+/** Argument → Proposition role membership. */
+export type NeoHasRole = {
+  argumentUid: string
+  propositionUid: string
+  role: string | null
+}
+
 export type NeoUtterance = {
   uid: string
   text: string
@@ -77,6 +105,10 @@ export type NeoDocumentGraph = {
   entities: NeoEntity[]
   referredAs: NeoReferredAs[]
   mentions: NeoMention[]
+  propositions: NeoProposition[]
+  expresses: NeoExpresses[]
+  arguments: NeoArgument[]
+  hasRoles: NeoHasRole[]
   phase1: {
     propositionCount: number
     entityCount: number
@@ -307,6 +339,105 @@ export async function getDocumentGraph(
       })
     }
 
+    const propResult = await session.run(
+      `
+      MATCH (u:Utterance {documentUid: $storyId})-[:EXPRESSES]->(p:Proposition)
+      RETURN DISTINCT
+        p.uid AS uid,
+        p.text AS text,
+        p.certainty AS certainty,
+        p.timeframe AS timeframe,
+        p.scope AS scope,
+        u.uid AS utteranceUid
+      `,
+      { storyId }
+    )
+    const propositionsByUid = new Map<string, NeoProposition>()
+    const expresses: NeoExpresses[] = []
+    for (const rec of propResult.records) {
+      const uid = asString(rec.get('uid'))
+      const utteranceUid = asString(rec.get('utteranceUid'))
+      if (!uid || !utteranceUid) continue
+      if (!propositionsByUid.has(uid)) {
+        propositionsByUid.set(uid, {
+          uid,
+          text: String(rec.get('text') ?? ''),
+          certainty: asString(rec.get('certainty')),
+          timeframe: asString(rec.get('timeframe')),
+          scope: asString(rec.get('scope')),
+        })
+      }
+      expresses.push({ utteranceUid, propositionUid: uid })
+    }
+
+    const argResult = await session.run(
+      `
+      MATCH (arg:Argument {documentUid: $storyId})-[hr:HAS_ROLE]->(p:Proposition)
+      RETURN arg.uid AS argUid,
+             arg.summary AS summary,
+             p.uid AS propUid,
+             hr.role AS role
+      `,
+      { storyId }
+    )
+    const argumentsByUid = new Map<string, NeoArgument>()
+    const hasRoles: NeoHasRole[] = []
+    for (const rec of argResult.records) {
+      const argUid = asString(rec.get('argUid'))
+      const propUid = asString(rec.get('propUid'))
+      if (!argUid || !propUid) continue
+      if (!argumentsByUid.has(argUid)) {
+        argumentsByUid.set(argUid, {
+          uid: argUid,
+          summary: asString(rec.get('summary')),
+        })
+      }
+      // Ensure role-target props appear even if EXPRESSES was missing
+      if (!propositionsByUid.has(propUid)) {
+        propositionsByUid.set(propUid, {
+          uid: propUid,
+          text: '',
+          certainty: null,
+          timeframe: null,
+          scope: null,
+        })
+      }
+      hasRoles.push({
+        argumentUid: argUid,
+        propositionUid: propUid,
+        role: asString(rec.get('role')),
+      })
+    }
+
+    // Fill stub proposition text if Argument linked props lacked EXPRESSES rows
+    const stubPropUids = Array.from(propositionsByUid.values())
+      .filter((p) => !p.text)
+      .map((p) => p.uid)
+    if (stubPropUids.length > 0) {
+      const fillResult = await session.run(
+        `
+        MATCH (p:Proposition)
+        WHERE p.uid IN $uids
+        RETURN p.uid AS uid, p.text AS text,
+               p.certainty AS certainty,
+               p.timeframe AS timeframe,
+               p.scope AS scope
+        `,
+        { uids: stubPropUids }
+      )
+      for (const rec of fillResult.records) {
+        const uid = asString(rec.get('uid'))
+        if (!uid || !propositionsByUid.has(uid)) continue
+        propositionsByUid.set(uid, {
+          uid,
+          text: String(rec.get('text') ?? ''),
+          certainty: asString(rec.get('certainty')),
+          timeframe: asString(rec.get('timeframe')),
+          scope: asString(rec.get('scope')),
+        })
+      }
+    }
+
     return {
       document: {
         uid: String(d.uid ?? storyId),
@@ -332,6 +463,14 @@ export async function getDocumentGraph(
       ),
       referredAs,
       mentions,
+      propositions: Array.from(propositionsByUid.values()).sort((a, b) =>
+        a.uid.localeCompare(b.uid)
+      ),
+      expresses,
+      arguments: Array.from(argumentsByUid.values()).sort((a, b) =>
+        a.uid.localeCompare(b.uid)
+      ),
+      hasRoles,
       phase1,
       phase2,
     }

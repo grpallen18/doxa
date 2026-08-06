@@ -47,7 +47,7 @@ export const DISPUTE_KINDS: PropositionRelationshipKind[] = [
 ];
 
 /** Auto-accept band for high-precision classify; else quarantine Decision. */
-export const AUTO_ACCEPT_MIN_CONFIDENCE = 0.85;
+export const AUTO_ACCEPT_MIN_CONFIDENCE = 0.75;
 
 export function isCoreViewpointUnion(kind: PropositionRelationshipKind): boolean {
   return CORE_VIEWPOINT_UNION.includes(kind);
