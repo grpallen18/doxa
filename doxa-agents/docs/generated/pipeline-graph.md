@@ -5,7 +5,6 @@
 ```mermaid
 flowchart LR
   scrape_worker --> receive_scraped_content
-  link_canonical_positions --> assign_ranked_subtopics
 ```
 
 _Generated from manifest invokes._

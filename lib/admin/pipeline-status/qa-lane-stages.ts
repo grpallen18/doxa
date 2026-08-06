@@ -54,9 +54,5 @@ export const QA_LANE_ARTIFACT_STAGES: Record<
   },
 }
 
-export const STEP_QA_ARTIFACT_STAGES: Partial<Record<PipelineStepId, readonly string[]>> = {
-  'extract-story-claims': ['chunk_extract_claims', 'chunk_extract'],
-  'validate-chunk-claims': QA_LANE_ARTIFACT_STAGES.claims.review,
-  'refine-chunk-claims': QA_LANE_ARTIFACT_STAGES.claims.refine,
-  'approve-chunk-claims': QA_LANE_ARTIFACT_STAGES.claims.approve,
-}
+/** Claims QA catalog steps removed — kept empty for compatibility. */
+export const STEP_QA_ARTIFACT_STAGES: Partial<Record<PipelineStepId, readonly string[]>> = {}

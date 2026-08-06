@@ -1,27 +1,40 @@
 export {
-  buildChunkRecordExportJson,
-  buildChunkRecordExportMarkdown,
-  buildChunkRecordExportPayload,
-} from '@/lib/admin/record-export/chunk-record'
-export {
-  buildStoryRecordExportJson,
-  buildStoryRecordExportMarkdown,
-  buildStoryRecordExportPayload,
+  buildStoryRecordExport as buildStoryRecordExportPayload,
+  buildStoryRecordExport as buildStoryRecordExportJson,
+  buildStoryRecordMarkdown as buildStoryRecordExportMarkdown,
 } from '@/lib/admin/record-export/story-record'
 export {
-  buildStoryStageExportJson,
-  buildStoryStageExportMarkdown,
-  buildStoryStageExportPayload,
+  buildStoryStageExport as buildStoryStageExportPayload,
+  buildStoryStageExport as buildStoryStageExportJson,
+  buildStoryStageMarkdown as buildStoryStageExportMarkdown,
 } from '@/lib/admin/record-export/story-stage'
-export {
-  buildChunkStepExportJson,
-  buildChunkStepExportMarkdown,
-  buildChunkStepExportPayload,
-  chunkStepExportBasename,
-  isChunkStepExportable,
-} from '@/lib/admin/record-export/chunk-step'
 export {
   buildStoryStepExportJson,
   buildStoryStepExportMarkdown,
   buildStoryStepExportPayload,
 } from '@/lib/admin/record-export/story-step'
+
+export function buildChunkRecordExportPayload(): null {
+  return null
+}
+export function buildChunkRecordExportJson(): null {
+  return null
+}
+export function buildChunkRecordExportMarkdown(): string {
+  return ''
+}
+export function buildChunkStepExportPayload(): null {
+  return null
+}
+export function buildChunkStepExportJson(): null {
+  return null
+}
+export function buildChunkStepExportMarkdown(): string {
+  return ''
+}
+export function chunkStepExportBasename(): string {
+  return 'chunk-step'
+}
+export function isChunkStepExportable(): boolean {
+  return false
+}

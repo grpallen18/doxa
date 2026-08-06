@@ -16,13 +16,11 @@ import {
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import { derivePipelineChecklist } from '@/lib/admin/story-pipeline-checklist'
 import type { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
-import { ChunkWorkflowDrawer } from '@/components/admin/workflow-canvas/chunk-workflow-drawer'
 import { WorkflowCanvasProvider } from '@/components/admin/workflow-canvas/workflow-canvas-context'
 import { WorkflowCanvas, ReactFlowProvider } from '@/components/admin/workflow-canvas/workflow-canvas'
 import { WorkflowCanvasToolbar } from '@/components/admin/workflow-canvas/workflow-canvas-toolbar'
 import { WorkflowCanvasInspector } from '@/components/admin/workflow-canvas/workflow-canvas-inspector'
 import { WorkflowCanvasConsole } from '@/components/admin/workflow-canvas/workflow-canvas-console'
-import { isStepComplete } from '@/lib/admin/story-pipeline-checklist'
 
 export function WorkflowCanvasShell({
   storyId,
@@ -41,7 +39,6 @@ export function WorkflowCanvasShell({
   const focusNodeId = searchParams.get('node')
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(focusNodeId)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
-  const [chunkDrawerOpen, setChunkDrawerOpen] = useState(false)
   const dismissInspectorRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -49,8 +46,6 @@ export function WorkflowCanvasShell({
   }, [focusNodeId])
 
   const checklist = useMemo(() => derivePipelineChecklist(payload), [payload])
-  const chunksReady =
-    isStepComplete('chunk-story-bodies', payload) && payload.chunks.some((c) => c.content)
 
   const handleSelectNode = useCallback((id: string | null) => {
     setSelectedNodeId(id)
@@ -65,7 +60,6 @@ export function WorkflowCanvasShell({
       onSelectNode: handleSelectNode,
       hoveredNodeId,
       setHoveredNodeId,
-      onOpenChunkWorkflows: () => setChunkDrawerOpen(true),
     }),
     [storyId, payload, pipelineActions, handleSelectNode, hoveredNodeId]
   )
@@ -76,12 +70,7 @@ export function WorkflowCanvasShell({
     <WorkflowCanvasProvider value={contextValue}>
       <div className="workflow-canvas-dark flex h-full min-h-0 flex-col overflow-hidden bg-zinc-950 text-zinc-200 font-sans">
         <ReactFlowProvider>
-          <WorkflowCanvasToolbar
-            storyTitle={storyTitle}
-            storyId={storyId}
-            chunksReady={chunksReady}
-            onOpenChunkWorkflows={() => setChunkDrawerOpen(true)}
-          />
+          <WorkflowCanvasToolbar storyTitle={storyTitle} storyId={storyId} />
 
           {checklist.isPipelineBlocked && checklist.blockedReason ? (
             <div className="mx-4 mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs shrink-0">
@@ -124,13 +113,6 @@ export function WorkflowCanvasShell({
           <WorkflowCanvasConsole storyId={storyId} />
         </ReactFlowProvider>
       </div>
-
-      <ChunkWorkflowDrawer
-        open={chunkDrawerOpen}
-        onOpenChange={setChunkDrawerOpen}
-        storyId={storyId}
-        payload={payload}
-      />
 
       <AlertDialog
         open={pipelineActions.revertTarget != null}

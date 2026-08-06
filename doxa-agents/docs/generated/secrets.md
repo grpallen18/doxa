@@ -13,44 +13,11 @@ Do not commit secret values to git.
 | relevance-gate | relevance_gate | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | review-pending-stories | review_pending_stories | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | scrape-story-content | scrape_story_content | `SCRAPE_SECRET`, `WORKER_SCRAPE_URL` |
-| approve-chunk-claims | approve_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| extract-story-claims | extract_story_claims | `OPENAI_API_KEY` |
-| refine-chunk-claims | refine_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| validate-chunk-claims | validate_chunk_claims | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| merge-story-claims | merge_story_claims | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| review-merged-extraction | review_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | trigger-graph-worker | trigger_graph_worker | `GRAPH_WORKER_SECRET`, `GRAPH_WORKER_URL` |
 | discord-daily-health | discord_daily_health | `DISCORD_THREAD_NAME`, `DISCORD_WEBHOOK` |
 | classify-proposition-relationships | classify_proposition_relationships | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | run-evidence-checks | run_evidence_checks | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | run-controversy-assessments | run_controversy_assessments | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| standardize-chunk-extraction | standardize_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| refine-chunk-extraction | refine_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| validate-chunk-extraction | validate_chunk_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| link-chunk-entities | link_chunk_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| extract-story-positions | extract_story_positions | `OPENAI_API_KEY` |
-| validate-chunk-positions | validate_chunk_positions | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| refine-chunk-positions | refine_chunk_positions | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_CHUNK_QA`, `OPENAI_MODEL_EXTRACT` |
-| merge-story-positions | merge_story_positions | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| refine-merged-extraction | refine_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| validate-merged-extraction | validate_merged_extraction | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| classify-claim-pairs | classify_claim_pairs | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| extract-story-entities | extract_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MODEL_EXTRACT` |
-| generate-position-summaries | generate_position_summaries | `DRIFT_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| merge-story-entities | merge_story_entities | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| link-canonical-claims | link_canonical_claims | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
-| link-canonical-events | link_canonical_events | `EVENT_SIMILARITY_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| link-canonical-positions | link_canonical_positions | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL`, `SIMILARITY_THRESHOLD` |
-| update-stances | update_stances | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| assign-ranked-subtopics | assign_ranked_subtopics | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| classify-position-relationships | classify_position_relationships | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| classify-agreement-cluster-relationships | classify_agreement_cluster_relationships | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| build-controversy-clusters | build_controversy_clusters | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| generate-agreement-summaries | generate_agreement_summaries | `DRIFT_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| generate-viewpoints | generate_viewpoints | `DRIFT_THRESHOLD`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| seed-subtopic-embeddings | seed_subtopic_embeddings | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| process-topic | process_topic | `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_MODEL` |
-| review-link-suggestion | review_link_suggestion | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 
 **Cron prerequisites (Vault):** `project_url`, `service_role_key`
 

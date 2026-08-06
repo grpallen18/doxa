@@ -6,11 +6,8 @@ import { PIPELINE_STEPS, type PipelineStepId } from '@/lib/admin/generated/pipel
 const CATALOG_STEP_ID_SET = new Set(PIPELINE_STEPS.map((step) => step.id))
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import type { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
-import type { ChunkPipelineActions } from '@/components/admin/pipeline/use-chunk-pipeline-actions'
 
-export type WorkflowPipelineActions =
-  | ReturnType<typeof useStoryPipelineActions>
-  | ChunkPipelineActions
+export type WorkflowPipelineActions = ReturnType<typeof useStoryPipelineActions>
 
 export type WorkflowCanvasContextValue = {
   storyId: string
@@ -21,7 +18,6 @@ export type WorkflowCanvasContextValue = {
   onSelectNode: (nodeId: string | null) => void
   hoveredNodeId: string | null
   setHoveredNodeId: (nodeId: string | null) => void
-  onOpenChunkWorkflows?: () => void
 }
 
 const WorkflowCanvasContext = createContext<WorkflowCanvasContextValue | null>(null)

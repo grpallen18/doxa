@@ -1,2 +1,0 @@
--- Inactive — archived to legacy/. Do not schedule crons for deprecated steps.
--- Unschedule in Supabase if still registered (see prior schedule.sql history in git).

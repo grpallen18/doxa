@@ -1,15 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { Activity, ArrowLeft, FileText, Layers } from 'lucide-react'
+import { Activity, ArrowLeft, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { storyAgentFlowHref } from '@/lib/admin/story-lifecycle'
 
 export function WorkflowCanvasToolbar({
   storyTitle,
   storyId,
-  chunksReady = false,
-  onOpenChunkWorkflows,
   chunkLabel,
   backHref,
   backLabel = 'Story',
@@ -17,8 +14,6 @@ export function WorkflowCanvasToolbar({
 }: {
   storyTitle: string
   storyId: string
-  chunksReady?: boolean
-  onOpenChunkWorkflows?: () => void
   chunkLabel?: string
   backHref?: string
   backLabel?: string
@@ -61,20 +56,6 @@ export function WorkflowCanvasToolbar({
           <span className="text-zinc-200 truncate">{chunkLabel ?? storyTitle}</span>
         </div>
       </div>
-
-      {onOpenChunkWorkflows ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
-          disabled={!chunksReady}
-          onClick={onOpenChunkWorkflows}
-        >
-          <Layers className="mr-1.5 h-3.5 w-3.5" />
-          Chunk workflows
-        </Button>
-      ) : null}
     </header>
   )
 }

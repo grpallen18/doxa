@@ -18,28 +18,37 @@ async function getTopic(id: string): Promise<TopicWithDetails | null> {
       return null
     }
 
-    const [topicControversiesRes, relsRes] = await Promise.all([
-      supabase
-        .from('topic_controversies')
-        .select('controversy_cluster_id, similarity_score, rank, controversy_clusters(question, summary)')
-        .eq('topic_id', id)
-        .order('rank', { ascending: true }),
+    const topicKeyHints = [topic.slug, topic.title].filter(Boolean) as string[]
+
+    let graphQuery = supabase
+      .from('graph_controversies')
+      .select('uid, title, summary, topic_key, updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(50)
+
+    if (topicKeyHints.length === 1) {
+      graphQuery = graphQuery.ilike('topic_key', `%${topicKeyHints[0]}%`)
+    } else if (topicKeyHints.length > 1) {
+      graphQuery = graphQuery.or(
+        topicKeyHints.map((h) => `topic_key.ilike.%${h}%`).join(',')
+      )
+    }
+
+    const [graphCtrRes, relsRes] = await Promise.all([
+      graphQuery,
       supabase
         .from('topic_relationships')
         .select('source_topic_id, target_topic_id, similarity_score')
         .or(`source_topic_id.eq.${id},target_topic_id.eq.${id}`),
     ])
 
-    const controversies: TopicControversy[] = (topicControversiesRes.data ?? []).map((row: Record<string, unknown>) => {
-      const cc = row.controversy_clusters as { question?: string | null; summary?: string | null } | null | undefined
-      return {
-        controversy_cluster_id: row.controversy_cluster_id as string,
-        question: (Array.isArray(cc) ? cc[0]?.question : cc?.question) ?? null,
-        summary: (Array.isArray(cc) ? cc[0]?.summary : cc?.summary) ?? null,
-        similarity_score: Number(row.similarity_score),
-        rank: Number(row.rank),
-      }
-    })
+    const controversies: TopicControversy[] = (graphCtrRes.data ?? []).map((row, i) => ({
+      controversy_cluster_id: row.uid as string,
+      question: (row.title as string | null) ?? null,
+      summary: (row.summary as string | null) ?? null,
+      similarity_score: 1,
+      rank: i + 1,
+    }))
 
     const relatedIds = (relsRes.data ?? [])
       .map((r: { source_topic_id: string; target_topic_id: string }) =>

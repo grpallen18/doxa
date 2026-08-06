@@ -1,22 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isStoryFriendlyId, isUuid, normalizeStoryFriendlyId, storyAdminHref } from '@/lib/admin/friendly-id'
 
-export type AdminSearchEntityType = 'story' | 'claim' | 'position' | 'event' | 'agreement'
+export type AdminSearchEntityType = 'story' | 'controversy'
 
 export type AdminSearchResult = {
   type: AdminSearchEntityType
   id: string
-  /** Display name for the record (story title, canonical text, cluster label, etc.). */
   title: string
   href: string
 }
 
 const ENTITY_LABELS: Record<AdminSearchEntityType, string> = {
   story: 'Story',
-  claim: 'Claim',
-  position: 'Position',
-  event: 'Event',
-  agreement: 'Agreement',
+  controversy: 'Controversy',
 }
 
 export function adminSearchEntityLabel(type: AdminSearchEntityType): string {
@@ -31,7 +27,7 @@ export async function searchAdminRecords(
   const q = query.trim()
   if (!q) return []
 
-  const perType = Math.max(4, Math.ceil(limit / 5))
+  const perType = Math.max(4, Math.ceil(limit / 2))
   const results: AdminSearchResult[] = []
 
   let storyQuery = supabase
@@ -48,27 +44,12 @@ export async function searchAdminRecords(
     storyQuery = storyQuery.or(`title.ilike.%${q}%,url.ilike.%${q}%`)
   }
 
-  const [storiesRes, claimsRes, positionsRes, eventsRes, agreementsRes] = await Promise.all([
+  const [storiesRes, controversiesRes] = await Promise.all([
     storyQuery,
     supabase
-      .from('claims')
-      .select('claim_id, canonical_text')
-      .ilike('canonical_text', `%${q}%`)
-      .limit(perType),
-    supabase
-      .from('canonical_positions')
-      .select('canonical_position_id, canonical_text')
-      .ilike('canonical_text', `%${q}%`)
-      .limit(perType),
-    supabase
-      .from('events')
-      .select('event_id, canonical_text')
-      .ilike('canonical_text', `%${q}%`)
-      .limit(perType),
-    supabase
-      .from('agreement_clusters')
-      .select('agreement_cluster_id, label, summary')
-      .or(`label.ilike.%${q}%,summary.ilike.%${q}%`)
+      .from('graph_controversies')
+      .select('uid, title, summary')
+      .or(`title.ilike.%${q}%,summary.ilike.%${q}%,topic_key.ilike.%${q}%`)
       .limit(perType),
   ])
 
@@ -84,39 +65,12 @@ export async function searchAdminRecords(
     })
   }
 
-  for (const row of claimsRes.data ?? []) {
+  for (const row of controversiesRes.data ?? []) {
     results.push({
-      type: 'claim',
-      id: row.claim_id,
-      title: row.canonical_text as string,
-      href: `/admin/records/claims/${row.claim_id}`,
-    })
-  }
-
-  for (const row of positionsRes.data ?? []) {
-    results.push({
-      type: 'position',
-      id: row.canonical_position_id,
-      title: row.canonical_text as string,
-      href: `/admin/records/positions/${row.canonical_position_id}`,
-    })
-  }
-
-  for (const row of eventsRes.data ?? []) {
-    results.push({
-      type: 'event',
-      id: row.event_id,
-      title: row.canonical_text as string,
-      href: `/admin/records/events/${row.event_id}`,
-    })
-  }
-
-  for (const row of agreementsRes.data ?? []) {
-    results.push({
-      type: 'agreement',
-      id: row.agreement_cluster_id,
-      title: ((row.label ?? row.summary) as string | null) ?? 'Agreement cluster',
-      href: `/admin/agreements/${row.agreement_cluster_id}`,
+      type: 'controversy',
+      id: row.uid as string,
+      title: (row.title as string) || (row.uid as string),
+      href: `/admin/graph-controversies/${encodeURIComponent(row.uid as string)}`,
     })
   }
 

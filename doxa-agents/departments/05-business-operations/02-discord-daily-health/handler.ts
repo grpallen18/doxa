@@ -77,17 +77,15 @@ function getSectionColor(section: Section, row: HealthRow): number {
       return GREEN;
     }
     case "chunking": {
-      const a = [num(row.stories_cleaned), num(row.chunks_created), num(row.chunks_extracted), num(row.merges_completed)];
-      if (a.some((x) => x < 10)) return RED;
+      // Legacy claims chunking removed — treat as green when scrape/clean healthy.
       return GREEN;
     }
     case "claims": {
-      const a = [num(row.story_claims_created), num(row.claims_created), num(row.position_relationships_24h)];
-      if (a.some((x) => x < 50)) return RED;
+      // Legacy claims path removed — use Neo controversy projections under semantics.
       return GREEN;
     }
     case "semantics": {
-      if (num(row.positions_active) === 0 || num(row.controversies_active) === 0) return RED;
+      if (num(row.controversies_active) === 0 && num(row.viewpoints_active) === 0) return YELLOW;
       return GREEN;
     }
     case "backlog": {

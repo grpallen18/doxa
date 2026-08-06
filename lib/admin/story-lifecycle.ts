@@ -18,20 +18,11 @@ export const LIFECYCLE_PHASES: Array<{
   id: string
   label: string
   stepIds: PipelineStepId[]
-}> = [
-  {
-    id: 'ingestion',
-    label: 'Ingestion',
-    stepIds: (PIPELINE_STAGES.find((s) => s.id === 'ingestion')?.stepIds ??
-      []) as PipelineStepId[],
-  },
-  {
-    id: 'extraction',
-    label: 'Extraction',
-    stepIds: (PIPELINE_STAGES.find((s) => s.id === 'extraction')?.stepIds ??
-      []) as PipelineStepId[],
-  },
-]
+}> = PIPELINE_STAGES.map((s) => ({
+  id: s.id,
+  label: s.label,
+  stepIds: s.stepIds as PipelineStepId[],
+}))
 
 export function storyAgentFlowHref(
   story: StoryAdminRef,
@@ -43,11 +34,12 @@ export function storyAgentFlowHref(
   return `${base}?node=${encodeURIComponent(nodeId)}`
 }
 
+/** @deprecated Chunk agent-flow removed — redirects conceptually to story Neo path. */
 export function chunkAgentFlowHref(
   story: StoryAdminRef,
-  chunk: { friendly_id: string }
+  _chunk: { friendly_id: string }
 ): string {
-  return `${storyAdminHref(story)}/chunks/${encodeURIComponent(chunk.friendly_id)}/agent-flow`
+  return storyAgentFlowHref(story)
 }
 
 export function storyHubStepHref(story: StoryAdminRef, stepId: PipelineStepId): string {

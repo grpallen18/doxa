@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { inferQaOverrideScopeFromPayload } from '@/lib/admin/qa-override'
 import { useStoryPipelineActions } from '@/components/admin/pipeline/use-story-pipeline-actions'
 import { useStoryReview } from '@/components/admin/stories/story-review-provider'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
@@ -33,19 +32,9 @@ function WorkflowCanvasPageContent({
   })
 
   const approveQa = useCallback(async () => {
-    setApproving(true)
-    try {
-      const scope = inferQaOverrideScopeFromPayload(payload)
-      const res = await fetch(`/api/admin/stories/${storyId}/qa-override`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ include_chunks: true, scope }),
-      })
-      if (res.ok) await refresh(true)
-    } finally {
-      setApproving(false)
-    }
-  }, [storyId, payload, refresh])
+    // Legacy claims QA override removed — Neo path has no approve gate.
+    setApproving(false)
+  }, [])
 
   return (
     <WorkflowCanvasShell

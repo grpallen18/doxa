@@ -9,13 +9,6 @@ supabase functions deploy receive_scraped_content
 supabase functions deploy relevance_gate
 supabase functions deploy review_pending_stories
 supabase functions deploy scrape_story_content
-supabase functions deploy approve_chunk_claims
-supabase functions deploy chunk_story_bodies
-supabase functions deploy extract_story_claims
-supabase functions deploy refine_chunk_claims
-supabase functions deploy validate_chunk_claims
-supabase functions deploy merge_story_claims
-supabase functions deploy review_merged_extraction
 supabase functions deploy enqueue_graph_job
 supabase functions deploy trigger_graph_worker
 supabase functions deploy discord_daily_health
@@ -44,12 +37,6 @@ supabase functions deploy receive_scraped_content --no-verify-jwt
 supabase functions deploy relevance_gate --no-verify-jwt
 supabase functions deploy review_pending_stories --no-verify-jwt
 supabase functions deploy scrape_story_content --no-verify-jwt
-supabase functions deploy chunk_story_bodies --no-verify-jwt
-supabase functions deploy extract_story_claims --no-verify-jwt
-supabase functions deploy refine_chunk_claims --no-verify-jwt
-supabase functions deploy validate_chunk_claims --no-verify-jwt
-supabase functions deploy merge_story_claims --no-verify-jwt
-supabase functions deploy review_merged_extraction --no-verify-jwt
 supabase functions deploy enqueue_graph_job --no-verify-jwt
 supabase functions deploy trigger_graph_worker --no-verify-jwt
 supabase functions deploy generate_proposition_pair_candidates --no-verify-jwt
@@ -67,22 +54,6 @@ supabase functions deploy update_held_by_tracks --no-verify-jwt
 supabase functions deploy link_derived_media_clips --no-verify-jwt
 supabase functions deploy project_analysis_summaries --no-verify-jwt
 supabase functions deploy analysis_pipeline --no-verify-jwt
-supabase functions deploy refine_merged_extraction --no-verify-jwt
-supabase functions deploy validate_merged_extraction --no-verify-jwt
-supabase functions deploy aggregate_position_pair_scores --no-verify-jwt
-supabase functions deploy build_position_clusters --no-verify-jwt
-supabase functions deploy classify_claim_pairs --no-verify-jwt
-supabase functions deploy generate_position_summaries --no-verify-jwt
-supabase functions deploy link_canonical_claims --no-verify-jwt
-supabase functions deploy link_canonical_events --no-verify-jwt
-supabase functions deploy link_canonical_positions --no-verify-jwt
-supabase functions deploy update_stances --no-verify-jwt
-supabase functions deploy build_agreement_clusters --no-verify-jwt
-supabase functions deploy generate_agreement_cluster_candidates --no-verify-jwt
-supabase functions deploy classify_agreement_cluster_relationships --no-verify-jwt
-supabase functions deploy build_controversy_clusters --no-verify-jwt
-supabase functions deploy topology_pipeline --no-verify-jwt
-supabase functions deploy generate_viewpoints --no-verify-jwt
 ```
 
 _Generated from manifest.yaml._

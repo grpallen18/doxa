@@ -53,16 +53,27 @@ When a handler or stub under `supabase/functions/` changed, remind the user to d
 | Deploy name | Why |
 |-------------|-----|
 | `receive_scraped_content` | Cloudflare Worker callback (`Bearer SCRAPE_SECRET`) |
-| `generate_viewpoints` | Invoked by `topology_pipeline` |
-| `topology_pipeline` | Internal orchestrator (service-role chain) |
-| `build_agreement_clusters` | Invoked by `topology_pipeline` |
-| `generate_agreement_cluster_candidates` | Invoked by `topology_pipeline` |
-| `classify_agreement_cluster_relationships` | Invoked by `topology_pipeline` |
-| `build_controversy_clusters` | Invoked by `topology_pipeline` |
-| `aggregate_position_pair_scores` | Legacy internal invoke |
-| `build_position_clusters` | Legacy internal invoke |
-| `classify_claim_pairs` | Legacy internal invoke |
-| `generate_position_summaries` | Legacy internal invoke |
+| `debate_pipeline` | Internal Neo debate orchestrator (service-role chain) |
+| `generate_proposition_pair_candidates` | Invoked by `debate_pipeline` |
+| `classify_proposition_relationships` | Invoked by `debate_pipeline` |
+| `build_viewpoints` | Invoked by `debate_pipeline` |
+| `build_controversies` | Invoked by `debate_pipeline` |
+| `detect_disputes` | Invoked by `debate_pipeline` |
+| `project_debate_summaries` | Invoked by `debate_pipeline` |
+| `analysis_pipeline` | Internal Neo analysis orchestrator (service-role chain) |
+| `generate_evidence_check_candidates` | Invoked by `analysis_pipeline` |
+| `run_evidence_checks` | Invoked by `analysis_pipeline` |
+| `extract_citations` | Invoked by `analysis_pipeline` |
+| `run_controversy_assessments` | Invoked by `analysis_pipeline` |
+| `update_held_by_tracks` | Invoked by `analysis_pipeline` |
+| `link_derived_media_clips` | Invoked by `analysis_pipeline` |
+| `project_analysis_summaries` | Invoked by `analysis_pipeline` |
+| `relevance_gate` | Admin run-step (service role) |
+| `review_pending_stories` | Admin run-step (service role) |
+| `scrape_story_content` | Admin / cron (service role) |
+| `clean_scraped_content` | Admin / cron (service role) |
+| `enqueue_graph_job` | Admin / clean callback (service role) |
+| `trigger_graph_worker` | Admin run-step (service role) |
 
 ```bash
 supabase functions deploy <deploy_name> --no-verify-jwt

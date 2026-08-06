@@ -72,11 +72,7 @@ export default function AdminGraphControversiesPage() {
       </Panel>
 
       <p className="text-xs text-muted">
-        Legacy SQL controversies remain at{' '}
-        <Link href="/admin/controversies" className="underline">
-          /admin/controversies
-        </Link>
-        .
+        Neo controversy clusters from the debate pipeline. Open a row for the graph detail view.
       </p>
     </div>
   )

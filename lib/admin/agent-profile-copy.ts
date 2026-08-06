@@ -104,48 +104,35 @@ const STEP_PROFILES: Partial<Record<PipelineStepId, StepProfileOverride>> = {
   },
   'clean-scraped-content': {
     jobTitle: 'Content Normalization Specialist',
-    bio: 'Strips boilerplate and normalizes scraped HTML into clean story bodies ready for chunking.',
+    bio: 'Strips boilerplate and normalizes scraped HTML into clean story bodies ready for graph ingestion.',
     responsibilities: [
       'Transform raw scrape payloads into readable article text',
       'Remove navigation, ads, and non-article markup',
-      'Mark stories ready for chunking when cleaning succeeds',
+      'Mark stories ready for the Neo graph path when cleaning succeeds',
     ],
   },
-  'chunk-story-bodies': {
-    jobTitle: 'Document Segmentation Analyst',
-    bio: 'Splits cleaned story bodies into review-sized chunks for parallel extraction lanes.',
+  'enqueue-graph-job': {
+    jobTitle: 'Graph Job Dispatcher',
+    bio: 'Queues cleaned stories for the Neo4j graph worker.',
     responsibilities: [
-      'Segment story text into coherent chunks',
-      'Preserve ordering and source context per chunk',
-      'Prepare chunk records for claims, positions, and other extractors',
+      'Enqueue graph processing jobs for cleaned stories',
+      'Hand off to the graph worker wake path',
     ],
   },
-  'extract-story-claims': {
-    jobTitle: 'Primary Claims Analyst',
-    bio: 'Identifies core factual claims inside each story chunk and prepares them for review, refinement, and canonicalization.',
-    about: {
-      summary:
-        'Extracts grounded factual claims from chunk text using LLM instructions tuned for attribution and temporal fidelity.',
-      inputs: 'Chunk text, story metadata, publication context, and source attribution fields.',
-      outputs: 'Structured claims JSON per chunk, ready for the review loop.',
-      downstream: 'Claim Reviewer, Claim Refiner, Merge claims, and canonical linking depend on this output.',
-      qualityStandard:
-        'Claims must be supported by the chunk, avoid unsupported inference, and include attribution where available.',
-    },
+  'trigger-graph-worker': {
+    jobTitle: 'Knowledge Graph Builder',
+    bio: 'Wakes the Python neo4j-graphrag worker to build utterances, propositions, and arguments.',
     responsibilities: [
-      'Extract grounded factual claims from source chunks',
-      'Preserve attribution and temporal context',
-      'Avoid unsupported inference',
-      'Prepare structured JSON for the review loop',
+      'Trigger graph worker processing',
+      'Surface job status for operators',
     ],
   },
-  'validate-chunk-claims': {
-    jobTitle: 'Claims Quality Reviewer',
-    bio: 'Reviews extracted claims against the source chunk and deterministic QA checks before merge.',
+  'debate-pipeline': {
+    jobTitle: 'Debate Assembly Orchestrator',
+    bio: 'Runs cross-document Viewpoint / Controversy / Dispute assembly and Supabase projections.',
     responsibilities: [
-      'Validate claim grounding and materiality',
-      'Pass or fail chunks with actionable findings',
-      'Route failed chunks to refinement when appropriate',
+      'Orchestrate debate topology steps',
+      'Project Neo debate summaries into Supabase',
     ],
   },
 }

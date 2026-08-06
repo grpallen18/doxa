@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 
-/** Returns controversy, position, and viewpoint counts for a single topic. Admin only. */
+/** Controversy / viewpoint counts from Neo projections for a topic. Admin only. */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
@@ -20,38 +20,41 @@ export async function GET(
 
   try {
     const supabase = createAdminClient()
-
-    const { data: tcRows } = await supabase
-      .from('topic_controversies')
-      .select('controversy_cluster_id')
+    const { data: topic } = await supabase
+      .from('topics')
+      .select('slug, title')
       .eq('topic_id', topicId)
+      .maybeSingle()
 
-    const cids = (tcRows ?? []).map((r) => r.controversy_cluster_id as string)
-    const controversy_count = cids.length
+    const hints = [topic?.slug, topic?.title].filter(Boolean) as string[]
+    const { data: rows } = await supabase
+      .from('graph_controversies')
+      .select('uid, topic_key')
+      .limit(200)
 
-    if (cids.length === 0) {
-      return NextResponse.json({
-        data: { controversy_count: 0, position_count: 0, viewpoint_count: 0 },
-        error: null,
-      })
+    const matched = (rows ?? []).filter((row) => {
+      const key = (row.topic_key as string | null)?.toLowerCase() ?? ''
+      if (!key) return false
+      return hints.some((h) => key.includes(String(h).toLowerCase()))
+    })
+    const uids = matched.map((r) => r.uid as string)
+    const controversy_count = uids.length
+
+    let viewpoint_count = 0
+    if (uids.length > 0) {
+      const { count } = await supabase
+        .from('graph_viewpoints')
+        .select('uid', { count: 'exact', head: true })
+        .in('controversy_uid', uids)
+      viewpoint_count = count ?? 0
     }
 
-    const [posRes, vpRes] = await Promise.all([
-      supabase
-        .from('controversy_cluster_agreements')
-        .select('controversy_cluster_id')
-        .in('controversy_cluster_id', cids),
-      supabase
-        .from('controversy_viewpoints')
-        .select('controversy_cluster_id')
-        .in('controversy_cluster_id', cids),
-    ])
-
-    const position_count = (posRes.data ?? []).length
-    const viewpoint_count = (vpRes.data ?? []).length
-
     return NextResponse.json({
-      data: { controversy_count, position_count, viewpoint_count },
+      data: {
+        controversy_count,
+        position_count: viewpoint_count,
+        viewpoint_count,
+      },
       error: null,
     })
   } catch (error: unknown) {

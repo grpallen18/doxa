@@ -398,15 +398,15 @@ async function fetchAgentRecentRunsFromPipelineRuns(
 
   const runIds = runs.map((r) => r.run_id as string)
 
-  const { data: claimLinks } = await supabase
-    .from('story_claims')
-    .select('run_id, story_id')
-    .in('run_id', runIds)
+  const { data: stepLinks } = await supabase
+    .from('story_step_runs')
+    .select('pipeline_run_id, story_id')
+    .in('pipeline_run_id', runIds)
 
   const storyByRun = new Map<string, string>()
-  for (const row of claimLinks ?? []) {
-    if (row.run_id && row.story_id && !storyByRun.has(row.run_id as string)) {
-      storyByRun.set(row.run_id as string, row.story_id as string)
+  for (const row of stepLinks ?? []) {
+    if (row.pipeline_run_id && row.story_id && !storyByRun.has(row.pipeline_run_id as string)) {
+      storyByRun.set(row.pipeline_run_id as string, row.story_id as string)
     }
   }
 

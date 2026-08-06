@@ -39,7 +39,7 @@ export function getStoryStepCompletedAt(
 
   if (!isStepComplete(stepId, payload)) return null
 
-  const { story, chunks } = payload
+  const { story } = payload
   const qaStages = STEP_QA_ARTIFACT_STAGES[stepId]
 
   switch (stepId) {
@@ -51,18 +51,6 @@ export function getStoryStepCompletedAt(
       return story.scraped_at
     case 'clean-scraped-content':
       return story.cleaned_at
-    case 'chunk-story-bodies':
-      return story.cleaned_at
-    case 'extract-story-claims':
-      return maxIso([
-        latestQaArtifactAt(payload, qaStages ?? []),
-        story.extraction_completed_at,
-      ])
-    case 'validate-chunk-claims':
-      return maxIso([
-        latestQaArtifactAt(payload, qaStages ?? []),
-        ...chunks.map((c) => c.extraction_qa_validated_at),
-      ])
     default:
       return qaStages ? latestQaArtifactAt(payload, qaStages) : null
   }

@@ -174,7 +174,10 @@ export function ClusterLinkList({ ids, label }: { ids: string[]; label: string }
       <ul className="mt-1 space-y-1 text-sm">
         {ids.map((id) => (
           <li key={id}>
-            <Link href={`/admin/agreements/${id}`} className="text-accent-primary hover:underline">
+            <Link
+              href="/admin/graph-controversies"
+              className="text-accent-primary hover:underline"
+            >
               {id.slice(0, 8)}…
             </Link>
           </li>

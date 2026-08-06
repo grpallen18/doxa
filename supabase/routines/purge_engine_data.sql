@@ -32,54 +32,6 @@ BEGIN
     v_skipped := array_append(v_skipped, 'story_history');
   END IF;
 
-  -- required: story_chunks_history
-  IF 'public.story_chunks_history'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.story_chunks_history RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'story_chunks_history');
-  ELSE
-    v_skipped := array_append(v_skipped, 'story_chunks_history');
-  END IF;
-
-  -- required: claims_history
-  IF 'public.claims_history'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.claims_history RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'claims_history');
-  ELSE
-    v_skipped := array_append(v_skipped, 'claims_history');
-  END IF;
-
-  -- required: events_history
-  IF 'public.events_history'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.events_history RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'events_history');
-  ELSE
-    v_skipped := array_append(v_skipped, 'events_history');
-  END IF;
-
-  -- required: positions_history
-  IF 'public.positions_history'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.positions_history RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'positions_history');
-  ELSE
-    v_skipped := array_append(v_skipped, 'positions_history');
-  END IF;
-
-  -- required: chunk_claim_versions
-  IF 'public.chunk_claim_versions'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.chunk_claim_versions RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'chunk_claim_versions');
-  ELSE
-    v_skipped := array_append(v_skipped, 'chunk_claim_versions');
-  END IF;
-
-  -- required: story_extraction_qa_artifacts
-  IF 'public.story_extraction_qa_artifacts'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.story_extraction_qa_artifacts RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'story_extraction_qa_artifacts');
-  ELSE
-    v_skipped := array_append(v_skipped, 'story_extraction_qa_artifacts');
-  END IF;
-
   -- required: graph_processing_attempts
   IF 'public.graph_processing_attempts'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.graph_processing_attempts RESTART IDENTITY CASCADE';
@@ -94,6 +46,14 @@ BEGIN
     v_truncated := array_append(v_truncated, 'graph_processing_jobs');
   ELSE
     v_skipped := array_append(v_skipped, 'graph_processing_jobs');
+  END IF;
+
+  -- required: graph_assessments
+  IF 'public.graph_assessments'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_assessments RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_assessments');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_assessments');
   END IF;
 
   -- required: graph_controversy_evidence
@@ -120,166 +80,6 @@ BEGIN
     v_skipped := array_append(v_skipped, 'graph_controversies');
   END IF;
 
-  -- required: controversy_viewpoints
-  IF 'public.controversy_viewpoints'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.controversy_viewpoints RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'controversy_viewpoints');
-  ELSE
-    v_skipped := array_append(v_skipped, 'controversy_viewpoints');
-  END IF;
-
-  -- required: topic_controversies
-  IF 'public.topic_controversies'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.topic_controversies RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'topic_controversies');
-  ELSE
-    v_skipped := array_append(v_skipped, 'topic_controversies');
-  END IF;
-
-  -- required: controversy_cluster_lineage
-  IF 'public.controversy_cluster_lineage'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.controversy_cluster_lineage RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'controversy_cluster_lineage');
-  ELSE
-    v_skipped := array_append(v_skipped, 'controversy_cluster_lineage');
-  END IF;
-
-  -- required: controversy_cluster_agreements
-  IF 'public.controversy_cluster_agreements'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.controversy_cluster_agreements RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'controversy_cluster_agreements');
-  ELSE
-    v_skipped := array_append(v_skipped, 'controversy_cluster_agreements');
-  END IF;
-
-  -- required: controversy_clusters
-  IF 'public.controversy_clusters'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.controversy_clusters RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'controversy_clusters');
-  ELSE
-    v_skipped := array_append(v_skipped, 'controversy_clusters');
-  END IF;
-
-  -- required: agreement_cluster_relationships
-  IF 'public.agreement_cluster_relationships'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.agreement_cluster_relationships RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'agreement_cluster_relationships');
-  ELSE
-    v_skipped := array_append(v_skipped, 'agreement_cluster_relationships');
-  END IF;
-
-  -- required: agreement_cluster_pair_candidates
-  IF 'public.agreement_cluster_pair_candidates'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.agreement_cluster_pair_candidates RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'agreement_cluster_pair_candidates');
-  ELSE
-    v_skipped := array_append(v_skipped, 'agreement_cluster_pair_candidates');
-  END IF;
-
-  -- required: agreement_cluster_positions
-  IF 'public.agreement_cluster_positions'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.agreement_cluster_positions RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'agreement_cluster_positions');
-  ELSE
-    v_skipped := array_append(v_skipped, 'agreement_cluster_positions');
-  END IF;
-
-  -- required: agreement_cluster_claims
-  IF 'public.agreement_cluster_claims'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.agreement_cluster_claims RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'agreement_cluster_claims');
-  ELSE
-    v_skipped := array_append(v_skipped, 'agreement_cluster_claims');
-  END IF;
-
-  -- required: agreement_clusters
-  IF 'public.agreement_clusters'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.agreement_clusters RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'agreement_clusters');
-  ELSE
-    v_skipped := array_append(v_skipped, 'agreement_clusters');
-  END IF;
-
-  -- required: agreement_summary_cache
-  IF 'public.agreement_summary_cache'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.agreement_summary_cache RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'agreement_summary_cache');
-  ELSE
-    v_skipped := array_append(v_skipped, 'agreement_summary_cache');
-  END IF;
-
-  -- required: agreement_cluster_migrations
-  IF 'public.agreement_cluster_migrations'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.agreement_cluster_migrations RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'agreement_cluster_migrations');
-  ELSE
-    v_skipped := array_append(v_skipped, 'agreement_cluster_migrations');
-  END IF;
-
-  -- required: position_relationships
-  IF 'public.position_relationships'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.position_relationships RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'position_relationships');
-  ELSE
-    v_skipped := array_append(v_skipped, 'position_relationships');
-  END IF;
-
-  -- required: position_pair_candidates
-  IF 'public.position_pair_candidates'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.position_pair_candidates RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'position_pair_candidates');
-  ELSE
-    v_skipped := array_append(v_skipped, 'position_pair_candidates');
-  END IF;
-
-  -- required: position_pending_subtopics
-  IF 'public.position_pending_subtopics'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.position_pending_subtopics RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'position_pending_subtopics');
-  ELSE
-    v_skipped := array_append(v_skipped, 'position_pending_subtopics');
-  END IF;
-
-  -- required: pending_subtopics
-  IF 'public.pending_subtopics'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.pending_subtopics RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'pending_subtopics');
-  ELSE
-    v_skipped := array_append(v_skipped, 'pending_subtopics');
-  END IF;
-
-  -- required: canonical_positions
-  IF 'public.canonical_positions'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.canonical_positions RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'canonical_positions');
-  ELSE
-    v_skipped := array_append(v_skipped, 'canonical_positions');
-  END IF;
-
-  -- required: events
-  IF 'public.events'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.events RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'events');
-  ELSE
-    v_skipped := array_append(v_skipped, 'events');
-  END IF;
-
-  -- required: claim_relationships
-  IF 'public.claim_relationships'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.claim_relationships RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'claim_relationships');
-  ELSE
-    v_skipped := array_append(v_skipped, 'claim_relationships');
-  END IF;
-
-  -- required: claims
-  IF 'public.claims'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.claims RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'claims');
-  ELSE
-    v_skipped := array_append(v_skipped, 'claims');
-  END IF;
-
   -- required: stories
   IF 'public.stories'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.stories RESTART IDENTITY CASCADE';
@@ -294,54 +94,6 @@ BEGIN
     v_truncated := array_append(v_truncated, 'topic_relationships');
   ELSE
     v_skipped := array_append(v_skipped, 'topic_relationships');
-  END IF;
-
-  -- optional: narrative_viewpoint_links
-  IF 'public.narrative_viewpoint_links'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.narrative_viewpoint_links RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'narrative_viewpoint_links');
-  ELSE
-    v_skipped := array_append(v_skipped, 'narrative_viewpoint_links');
-  END IF;
-
-  -- optional: narratives
-  IF 'public.narratives'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.narratives RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'narratives');
-  ELSE
-    v_skipped := array_append(v_skipped, 'narratives');
-  END IF;
-
-  -- optional: viewpoint_theses
-  IF 'public.viewpoint_theses'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.viewpoint_theses RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'viewpoint_theses');
-  ELSE
-    v_skipped := array_append(v_skipped, 'viewpoint_theses');
-  END IF;
-
-  -- optional: viewpoints
-  IF 'public.viewpoints'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.viewpoints RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'viewpoints');
-  ELSE
-    v_skipped := array_append(v_skipped, 'viewpoints');
-  END IF;
-
-  -- optional: claim_archetypes
-  IF 'public.claim_archetypes'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.claim_archetypes RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'claim_archetypes');
-  ELSE
-    v_skipped := array_append(v_skipped, 'claim_archetypes');
-  END IF;
-
-  -- optional: archetypes
-  IF 'public.archetypes'::regclass IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE public.archetypes RESTART IDENTITY CASCADE';
-    v_truncated := array_append(v_truncated, 'archetypes');
-  ELSE
-    v_skipped := array_append(v_skipped, 'archetypes');
   END IF;
 
   -- clear topic derived fields (rows preserved)

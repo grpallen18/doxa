@@ -30,48 +30,18 @@ Initial install: migration `121_purge_engine_data.sql`.
 
 - `story_step_runs`
 - `story_history`
-- `story_chunks_history`
-- `claims_history`
-- `events_history`
-- `positions_history`
-- `chunk_claim_versions`
-- `story_extraction_qa_artifacts`
 - `graph_processing_attempts`
 - `graph_processing_jobs`
+- `graph_assessments`
 - `graph_controversy_evidence`
 - `graph_viewpoints`
 - `graph_controversies`
-- `controversy_viewpoints`
-- `topic_controversies`
-- `controversy_cluster_lineage`
-- `controversy_cluster_agreements`
-- `controversy_clusters`
-- `agreement_cluster_relationships`
-- `agreement_cluster_pair_candidates`
-- `agreement_cluster_positions`
-- `agreement_cluster_claims`
-- `agreement_clusters`
-- `agreement_summary_cache`
-- `agreement_cluster_migrations`
-- `position_relationships`
-- `position_pair_candidates`
-- `position_pending_subtopics`
-- `pending_subtopics`
-- `canonical_positions`
-- `events`
-- `claim_relationships`
-- `claims`
 - `stories`
 - `topic_relationships`
 
 ## Optional (legacy)
 
-- `narrative_viewpoint_links` _(if present)_
-- `narratives` _(if present)_
-- `viewpoint_theses` _(if present)_
-- `viewpoints` _(if present)_
-- `claim_archetypes` _(if present)_
-- `archetypes` _(if present)_
+
 
 ## Topics (rows kept)
 

@@ -33,7 +33,6 @@ import type { PipelineChecklist } from '@/lib/admin/story-pipeline-checklist'
 import type { StoryExtractionReviewPayload } from '@/lib/admin/story-extraction-review'
 import type { PipelineStepId } from '@/lib/admin/generated/pipeline-catalog'
 import { buildVisionGraph } from '@/lib/admin/workflow-canvas/build-vision-graph'
-import { buildChunkVisionGraph } from '@/lib/admin/workflow-canvas/build-chunk-vision-graph'
 import type { WorkflowCanvasPositions } from '@/lib/admin/workflow-canvas/layout'
 import { applyEdgeMetaToEdges } from '@/lib/admin/workflow-canvas/merge-edge-meta'
 import {
@@ -121,20 +120,13 @@ function WorkflowCanvasInner({
 
   const baseGraph = useMemo(
     () =>
-      graphMode === 'chunk'
-        ? buildChunkVisionGraph({
-            checklist,
-            isStepRunning,
-            payload,
-            displayNameOverrides: displayNames,
-          })
-        : buildVisionGraph({
-            checklist,
-            isStepRunning,
-            payload,
-            displayNameOverrides: displayNames,
-            canvasScope: 'story',
-          }),
+      buildVisionGraph({
+        checklist,
+        isStepRunning,
+        payload,
+        displayNameOverrides: displayNames,
+        canvasScope: graphMode === 'chunk' ? 'chunk' : 'story',
+      }),
     [checklist, isStepRunning, payload, displayNames, graphMode]
   )
 

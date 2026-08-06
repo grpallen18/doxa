@@ -3,7 +3,7 @@
 import { type NodeProps } from '@xyflow/react'
 import { CanvasRunningBar } from '@/components/admin/workflow-canvas/canvas-running-bar'
 import { CanvasInvisibleHandles } from '@/components/admin/workflow-canvas/nodes/canvas-invisible-handles'
-import { Layers, Play, RotateCcw, TriangleAlert } from 'lucide-react'
+import { Play, RotateCcw, TriangleAlert } from 'lucide-react'
 import { CanvasStepIconAvatar } from '@/components/admin/workflow-canvas/canvas-step-icon'
 import { CanvasGlowIcon } from '@/components/admin/workflow-canvas/canvas-glow-icon'
 import {
@@ -47,14 +47,13 @@ export function CanvasAgentNode({ data, selected, id }: NodeProps) {
     label,
     catalogStepId,
     runnable,
-    chunkLayerOnly = false,
     desc,
     retries = 0,
     inDevelopment = false,
     developmentNote,
     iconVariant = 'bot',
   } = nodeData
-  const { payload, pipelineActions, hoveredNodeId, chunkIndex, canvasScope, onOpenChunkWorkflows } =
+  const { payload, pipelineActions, hoveredNodeId, chunkIndex, canvasScope } =
     useWorkflowCanvas()
   const stepId = catalogStepId ?? (isCatalogStepId(id) ? id : null)
   const chunk = chunkIndex != null ? payload.chunks.find((c) => c.chunk_index === chunkIndex) : null
@@ -66,8 +65,8 @@ export function CanvasAgentNode({ data, selected, id }: NodeProps) {
       : stepId
         ? isStepRevertible(stepId, payload)
         : false
-  const canRun = Boolean(runnable && !isRunning && !isReverting && !chunkLayerOnly)
-  const canRevert = Boolean(revertible && !isReverting && !isRunning && !chunkLayerOnly)
+  const canRun = Boolean(runnable && !isRunning && !isReverting)
+  const canRevert = Boolean(revertible && !isReverting && !isRunning)
   const revertBlockedReason =
     stepId && canvasScope === 'chunk' && chunk && !canRevert
       ? getChunkStepRevertBlockedReason(stepId, chunk, payload)
@@ -125,33 +124,7 @@ export function CanvasAgentNode({ data, selected, id }: NodeProps) {
 
       {isRunning ? <CanvasRunningBar /> : null}
 
-      {chunkLayerOnly ? (
-        <div className="flex items-center justify-center gap-2 bg-zinc-950/50 px-3 py-2">
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-indigo-300 transition-colors hover:bg-white/10"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onOpenChunkWorkflows?.()
-                  }}
-                >
-                  <Layers className="h-3 w-3" />
-                  Chunk workflows
-                </button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="bottom"
-                className="max-w-xs bg-zinc-900 text-zinc-200 border border-white/10"
-              >
-                Run and revert happen per chunk in the chunk workflow.
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      ) : stepId && !inDevelopment ? (
+      {stepId && !inDevelopment ? (
         <div className="flex items-center justify-center gap-1 bg-zinc-950/50 px-2 py-1.5">
           <button
             type="button"

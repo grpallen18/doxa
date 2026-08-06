@@ -3,9 +3,9 @@ import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { extractErrorMessage, fetchStoryExtractionReview } from '@/lib/admin/story-extraction-review'
 
-/** Full extraction review payload for one story. Admin only. */
+/** Story pipeline review payload (Neo path). Admin only. */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()

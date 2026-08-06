@@ -15,7 +15,6 @@ import { RecordSectionCard } from '@/components/admin/record/record-section-card
 import {
   extractedAtomsSectionFields,
 } from '@/lib/admin/story-record-section-fields'
-import { ChunksTable } from '@/components/admin/stories/chunks-table'
 import { formatAdminDateTime } from '@/lib/admin/format-datetime'
 
 export function StoryRecordPage() {
@@ -120,10 +119,11 @@ function StoryRecordPageContent({
           variant="panel"
           forceOpen={openSection === 'chunks'}
         >
-          <ChunksTable
-            story={{ story_id: story.story_id, friendly_id: story.friendly_id }}
-            chunks={payload.chunks}
-          />
+          <p className="text-sm text-muted">
+            {payload.chunks.length === 0
+              ? 'No chunks for this story.'
+              : `${payload.chunks.length} chunk${payload.chunks.length === 1 ? '' : 's'} on record. Claim-lane chunk workflows have been removed; use Agent Flow / Neo for the live path.`}
+          </p>
         </RecordSectionCard>
 
         <RecordSectionCard

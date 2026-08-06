@@ -101,33 +101,25 @@ Implement Phase 3 per neo4j-graph-architecture.md: EvidenceCheck vs Citation dua
 - [x] Aura constraints for Assessment / EvidenceCheck / Citation / MethodRun
 - [x] Edge `analysis_pipeline` (evidence checks, citations, assessments, HELD_BY, clip DERIVED_FROM)
 - [x] Supabase `graph_assessments` projection + Admin Analyzed UI
-- [ ] Runtime validation — see [phase3-validation.md](phase3-validation.md)
+- [x] Runtime validation — see [phase3-validation.md](phase3-validation.md)
 
 ---
 
-## Cleanup — after Phase 2 product path
+## Cleanup — retire legacy claims / SQL topology
 
-### Cursor plan prompt (copy-paste)
+### Status
 
-```text
-Delete obsolete claims/legacy pipeline once Phase 2 debate path is the product path:
-1. Delete doxa-agents/departments/02-chunking-engine claims agents, 03-merging-engine, and departments/legacy extraction/merge/canonical/topology when superseded.
-2. Delete matching supabase/functions stubs; update config.toml JWT-off list; run npm run agents:refresh.
-3. Delete doxa-agents/lib/extraction-qa/ when unused; obsolete admin extraction-review routes/components.
-4. Migration to DROP unused story_* atom tables and old SQL topology tables after UI no longer reads them. Preserve stories, story_bodies, sources, auth, pipeline_runs, graph_processing_*.
-5. Rewrite stale docs; rewrite or replace topology-pipeline.md for Neo4j.
-6. Run validation checklists; confirm zero dead deploy names in generated docs.
-```
+**Done** (agents/stubs/UI cutover + DROP migrations `197`/`198`).
 
-### Delete inventory (verify before dropping)
+### Checklist
 
-- `doxa-agents/departments/02-chunking-engine/` (claims path)
-- `doxa-agents/departments/03-merging-engine/`
-- `doxa-agents/departments/legacy/` (when debate replaced)
-- `doxa-agents/lib/extraction-qa/`
-- Matching `supabase/functions/*` stubs for extract/validate/refine/approve/merge/canonical/topology
-- UI: claims-review-report, extraction-review APIs
-- Tables: `story_claims`, `story_positions`, `chunk_claim_versions`, agreement/controversy SQL tables if fully moved to Neo4j+projections
+- [x] Delete `02-chunking-engine`, `03-merging-engine`, `departments/legacy`, `lib/extraction-qa`
+- [x] Delete matching Edge stubs; JWT-off list trimmed; `npm run agents:refresh`
+- [x] Strip Admin claims extraction UI; Positions/Controversies → Neo Debate
+- [x] Product topics + health report use `graph_*` projections
+- [x] DROP legacy claim/topology tables (`198_drop_legacy_claims_topology.sql`)
+- [x] Rewrite [topology-pipeline.md](../topology-pipeline.md) for Neo path
+- [x] Generated deploy catalog has no deleted deploy names
 
 ---
 
