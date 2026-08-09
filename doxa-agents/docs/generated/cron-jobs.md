@@ -13,6 +13,7 @@
 | purge-drop-stories-monthly | purge-drop-stories-monthly | — | `0 4 1 * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/01-purge-drop-stories/schedule.sql) |
 | cleanup-cron-job-run-details-daily | cleanup-cron-job-run-details-daily | — | `30 4 * * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql) |
 | cleanup-http-responses-hourly | cleanup-http-responses-hourly | — | `0 * * * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql) |
+| classify-proposition-relationships-every-10min | classify-proposition-relationships | classify_proposition_relationships | `*/10 * * * *` | active | [schedule.sql](doxa-agents/departments/06-debate-engine/debate-pipeline/02-classify-proposition-relationships/schedule.sql) |
 | debate-pipeline-hourly | debate-pipeline | debate_pipeline | `15 * * * *` | active | [schedule.sql](doxa-agents/departments/06-debate-engine/debate-pipeline/07-debate-pipeline/schedule.sql) |
 
 _Generated from manifest.yaml._

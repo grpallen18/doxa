@@ -26,7 +26,7 @@ Stack:
 | L0 Source | Publication, Document, MediaAsset, Segment | Immutable once written for a run |
 | L1 Discourse | Utterance, Agent (speaker), ExtractionRun, Decision | Utterances append-only; reprocess replaces Document subgraph |
 | L2 Canonical | Proposition, Entity, Event (Phase 1+) | Versioned; Decision-backed merges |
-| L3 Argumentation | Argument, Viewpoint, Controversy (Phase 2+) | Derived; rebuildable |
+| L3 Argumentation | Issue, Argument, Viewpoint, Controversy, Dispute (Phase 2+) | Derived; Issue-scoped rebuildable with stable opaque uids |
 | L4 Analytical | Assessment, MethodRun (Phase 3+) | Explicitly derived; never rewrite L0–L1 |
 | L5 Ops | Jobs, costs (Postgres) | Operational |
 
@@ -199,15 +199,27 @@ Utterances are durable within a Document subgraph. Reprocess **deletes** the Doc
 
 Delete Neo4j subgraph for `Document {uid: story_id}` (Segments, Utterances, document-scoped Agents/MediaAsset/ExtractionRun/Decision), detach `PUBLISHED_BY` without deleting shared Publication nodes, then rebuild. Also clear legacy `Story`/`Assertion`/`Chunk` subgraphs for the same `story_id` during transition.
 
-## Controversy contract (target — Phase 2+)
+## Controversy contract (Phase 2+ — Issue-scoped)
 
-The graph must eventually support:
+The graph supports:
 
 - Attributed utterances / propositions about shared entities/topics
 - Candidate agree / oppose / qualify pairs with Decision provenance
+- **`Issue` topic buckets** — `(Proposition)-[:IN_ISSUE]->(Issue)`; entity-backed `issue:ent:{entityUid}` or embedding `issue:sim:{hash}`
+- **Stable opaque L3 ids** — `vp_…` / `ctr_…` (membership is mutable edges; Jaccard ≥ 0.5 continuity on rebuild)
+- **Dirty incremental assembly** — accepted `RELATES_TO` sets `Issue.dirty`; `build_viewpoints` / `build_controversies` rebuild only dirty Issues (`force_full` for cutover)
 - Multi-sided controversy clusters with evidence paths back to Segments
 
 Debate classification is **Doxa-owned**, not assumed from generic GraphRAG output.
+
+Validation: [scalable-controversy-validation.md](scalable-controversy-validation.md)
+
+### Phase 2 follow-ons (not yet implemented)
+
+- Time **chapters** (Jaccard drop + evidence time gap)
+- Curated titles/summaries
+- Mega-merge guard for oversized Issues
+- Classify off Edge if 10‑min cron cannot drain backlog
 
 ## Deletion rules (later cleanup)
 
@@ -232,6 +244,7 @@ When the Neo4j path through Phase 2 is validated:
 ## Related
 
 - Next phases: [neo4j-overhaul-next.md](neo4j-overhaul-next.md)
+- Scalable controversies: [scalable-controversy-validation.md](scalable-controversy-validation.md)
 - Phase 0 checklist: [phase0-validation.md](phase0-validation.md)
 - Worker: [`services/graph-worker/README.md`](../../../services/graph-worker/README.md)
 - Ingestion: [AGENTS.md](../../AGENTS.md)

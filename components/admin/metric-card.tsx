@@ -13,11 +13,18 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
-type ChartKind = 'bars' | 'area' | 'line' | 'step' | 'donut' | 'rate'
+type ChartKind = 'bars' | 'area' | 'line' | 'step' | 'donut' | 'rate' | 'stacked-bars'
 
 export type MetricRateRow = {
   label: string
   value: string
+}
+
+export type MetricStackedSeries = {
+  key: string
+  label: string
+  color: string
+  values: number[]
 }
 
 export type MetricCardProps = {
@@ -33,6 +40,8 @@ export type MetricCardProps = {
   tooltipLabel?: string
   /** Formats the hovered numeric value in the tooltip */
   formatPoint?: (value: number) => string
+  /** Series for `stacked-bars` charts (bottom → top) */
+  stackedSeries?: MetricStackedSeries[]
   donutValue?: number
   centerValue?: string
   centerLabel?: string
@@ -512,6 +521,164 @@ function BarsChart({
   )
 }
 
+function StackedBarsChart({
+  series,
+  labels,
+  formatPoint,
+}: {
+  series: MetricStackedSeries[]
+  labels?: string[]
+  formatPoint: (value: number) => string
+}) {
+  const n = Math.max(series[0]?.values.length ?? 0, labels?.length ?? 0, 1)
+  const totals = Array.from({ length: n }, (_, i) =>
+    series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0)
+  )
+  const max = Math.max(...totals, 1)
+  const dataKey = series.map((s) => `${s.key}:${s.values.join(',')}`).join('|')
+  const revealed = useChartReveal(dataKey)
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [hover, setHover] = useState<{
+    index: number
+    pointerX: number
+    tipOnRight: boolean
+  } | null>(null)
+  const [tipY, setTipY] = useState(0)
+
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!containerRef.current || n <= 0) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const index = clamp(Math.floor((x / rect.width) * n), 0, n - 1)
+    const pointerY = e.clientY - rect.top
+    setTipY(clamp(pointerY, 16, rect.height - 16))
+    setHover({
+      index,
+      pointerX: x,
+      tipOnRight: x < rect.width * 0.5,
+    })
+  }
+
+  const hoverTotal = hover ? totals[hover.index] ?? 0 : 0
+  const hoverLabel =
+    hover && labels?.[hover.index]
+      ? formatDayLabel(labels[hover.index])
+      : 'Day'
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative h-full w-full touch-none overflow-visible"
+      onPointerMove={onPointerMove}
+      onPointerLeave={() => setHover(null)}
+      onClick={(e) => e.preventDefault()}
+    >
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-0 flex items-stretch px-0.5 pb-1 pt-2',
+          n > 16 ? 'gap-px' : n > 10 ? 'gap-0.5' : 'gap-1.5'
+        )}
+        aria-hidden
+      >
+        {Array.from({ length: n }, (_, index) => {
+          const total = totals[index] ?? 0
+          const fillPct = total > 0 ? Math.max(8, (total / max) * 100) : 0
+          return (
+            <div key={index} className="relative min-w-0 flex-1">
+              <div className="absolute inset-0 rounded-sm bg-muted/40" />
+              <div
+                className="absolute inset-x-0 bottom-0 flex flex-col-reverse overflow-hidden rounded-sm"
+                style={{
+                  height: revealed ? `${fillPct}%` : '0%',
+                  transition: revealed
+                    ? `height ${CHART_REVEAL_MS}ms ${CHART_REVEAL_EASE}`
+                    : 'none',
+                }}
+              >
+                {series.map((s, seriesIndex) => {
+                  const value = s.values[index] ?? 0
+                  if (value <= 0 || total <= 0) return null
+                  const segmentPct = (value / total) * 100
+                  const isBottom = seriesIndex === 0
+                  const isTop = seriesIndex === series.length - 1
+                  return (
+                    <div
+                      key={s.key}
+                      style={{
+                        height: `${segmentPct}%`,
+                        background: s.color,
+                        borderTopLeftRadius: isTop ? 2 : 0,
+                        borderTopRightRadius: isTop ? 2 : 0,
+                        borderBottomLeftRadius: isBottom ? 2 : 0,
+                        borderBottomRightRadius: isBottom ? 2 : 0,
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {hover ? (
+        <div
+          className="pointer-events-none absolute z-30 min-w-[8rem] rounded-lg border border-border/50 bg-card px-2.5 py-1.5 text-xs shadow-[0_4px_16px_rgba(15,23,42,0.14)]"
+          style={{
+            left: hover.pointerX,
+            top: tipY,
+            transform: hover.tipOnRight
+              ? 'translate(14px, -50%)'
+              : 'translate(calc(-100% - 14px), -50%)',
+          }}
+          aria-hidden
+        >
+          <div className="mb-1.5 font-medium text-foreground">{hoverLabel}</div>
+          <div className="grid gap-1">
+            {series.map((s) => {
+              const value = s.values[hover.index] ?? 0
+              return (
+                <div
+                  key={s.key}
+                  className="flex items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{ background: s.color }}
+                    />
+                    <span className="text-muted">{s.label}</span>
+                  </div>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {formatPoint(value)}
+                  </span>
+                </div>
+              )
+            })}
+            <div className="mt-0.5 flex items-center justify-between gap-4 border-t border-border/60 pt-1">
+              <span className="text-muted">Total</span>
+              <span className="font-semibold tabular-nums text-foreground">
+                {formatPoint(hoverTotal)}
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {hover ? (
+        <span className="sr-only">
+          {hoverLabel}:{' '}
+          {series
+            .map((s) => `${s.label} ${formatPoint(s.values[hover.index] ?? 0)}`)
+            .join(', ')}
+          ; total {formatPoint(hoverTotal)}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 function AreaChart({
   data,
   labels,
@@ -807,6 +974,7 @@ function Chart({
   labels,
   tooltipLabel,
   formatPoint,
+  stackedSeries,
   donutValue,
   centerValue,
   centerLabel,
@@ -816,6 +984,7 @@ function Chart({
   labels?: string[]
   tooltipLabel: string
   formatPoint: (value: number) => string
+  stackedSeries?: MetricStackedSeries[]
   donutValue?: number
   centerValue?: string
   centerLabel?: string
@@ -828,6 +997,14 @@ function Chart({
           data={series}
           labels={labels}
           tooltipLabel={tooltipLabel}
+          formatPoint={formatPoint}
+        />
+      )
+    case 'stacked-bars':
+      return (
+        <StackedBarsChart
+          series={stackedSeries?.length ? stackedSeries : []}
+          labels={labels}
           formatPoint={formatPoint}
         />
       )
@@ -880,6 +1057,7 @@ export function MetricCard({
   labels,
   tooltipLabel,
   formatPoint,
+  stackedSeries,
   donutValue,
   centerValue,
   centerLabel,
@@ -967,6 +1145,7 @@ export function MetricCard({
                     labels={labels}
                     tooltipLabel={seriesLabel}
                     formatPoint={pointFormatter}
+                    stackedSeries={stackedSeries}
                     donutValue={donutValue}
                     centerValue={centerValue}
                     centerLabel={centerLabel}

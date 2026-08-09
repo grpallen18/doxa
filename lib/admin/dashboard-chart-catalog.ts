@@ -1,6 +1,7 @@
 export const CHART_CATALOG_IDS = [
   'stories',
   'daily_ingest',
+  'story_gating',
   'scrape_rate',
   'qa_backlog',
 ] as const
@@ -19,6 +20,7 @@ export type DashboardChartPrefs = {
 export const DEFAULT_CHART_TITLES: Record<ChartCatalogId, string> = {
   stories: 'Stories',
   daily_ingest: 'Daily ingest',
+  story_gating: 'Story Gating',
   scrape_rate: 'Scrape Rate',
   qa_backlog: 'QA backlog',
 }
@@ -26,13 +28,14 @@ export const DEFAULT_CHART_TITLES: Record<ChartCatalogId, string> = {
 export const DEFAULT_CHART_HREFS: Record<ChartCatalogId, string> = {
   stories: '/admin/stories',
   daily_ingest: '/admin/stories',
+  story_gating: '/admin/stories',
   scrape_rate: '/admin/health',
   qa_backlog: '/admin/stories',
 }
 
 export const DEFAULT_CHART_SLOTS: Record<ChartSlotId, ChartCatalogId> = {
   'slot-0': 'stories',
-  'slot-1': 'daily_ingest',
+  'slot-1': 'story_gating',
   'slot-2': 'scrape_rate',
   'slot-3': 'qa_backlog',
 }

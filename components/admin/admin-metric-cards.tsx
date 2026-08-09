@@ -66,6 +66,18 @@ type DashboardMetrics = {
     keepRate: number
     totalClassified: number
   }
+  gating: {
+    days: string[]
+    keep: number[]
+    drop: number[]
+    pending: number[]
+    keepTotal: number
+    dropTotal: number
+    pendingTotal: number
+    periodTotal: number
+    keepRate: number
+    changePts: number
+  }
 }
 
 type SlotEditState = {
@@ -143,6 +155,42 @@ function buildChartProps(id: ChartCatalogId, ctx: ChartBuildCtx) {
         data: data?.stories.daily,
         labels: data?.stories.days,
         tooltipLabel: 'Ingest',
+      }
+    case 'story_gating':
+      return {
+        ...shared,
+        subtitle: `${windowCopy} · by status`,
+        value:
+          data && data.gating.periodTotal > 0
+            ? formatRatePct(data.gating.keepRate)
+            : '—',
+        change:
+          data && data.gating.periodTotal > 0
+            ? formatSigned(data.gating.changePts, ' pts')
+            : '—',
+        chart: 'stacked-bars' as const,
+        labels: data?.gating.days,
+        stackedSeries: [
+          {
+            key: 'keep',
+            label: 'KEEP',
+            color: 'var(--chart-1)',
+            values: data?.gating.keep ?? [],
+          },
+          {
+            key: 'pending',
+            label: 'PENDING',
+            color: 'var(--chart-2)',
+            values: data?.gating.pending ?? [],
+          },
+          {
+            key: 'drop',
+            label: 'DROP',
+            color: 'var(--chart-5)',
+            values: data?.gating.drop ?? [],
+          },
+        ],
+        tooltipLabel: 'Gating',
       }
     case 'scrape_rate':
       return {

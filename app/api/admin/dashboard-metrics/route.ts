@@ -69,6 +69,13 @@ function halfWindowChange(dailyCounts: number[]): number {
 
 type ScrapeDayBucket = { day: string; success_count: number; failure_count: number }
 
+type GatingDayBucket = {
+  day: string
+  keep_count: number | string
+  drop_count: number | string
+  pending_count: number | string
+}
+
 /** Admin dashboard sparkline metrics. Query: ?range=7d|30d|3m|6m|1y */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin()
@@ -93,6 +100,7 @@ export async function GET(request: NextRequest) {
       keepRes,
       relevanceTotalRes,
       scrapeRes,
+      gatingRes,
     ] = await Promise.all([
       supabase.from('stories').select('*', { count: 'exact', head: true }),
       supabase.rpc('get_story_ingest_counts_by_day', { p_since: sinceIso }),
@@ -113,6 +121,7 @@ export async function GET(request: NextRequest) {
         .select('*', { count: 'exact', head: true })
         .not('relevance_status', 'is', null),
       supabase.rpc('get_scrape_counts_by_day', { p_days: windowDays }),
+      supabase.rpc('get_story_gating_counts_by_day', { p_since: sinceIso }),
     ])
 
     if (dailyCountsRes.error) {
@@ -135,6 +144,19 @@ export async function GET(request: NextRequest) {
           error: {
             message: scrapeRes.error.message,
             code: scrapeRes.error.code,
+          },
+        },
+        { status: 500 }
+      )
+    }
+
+    if (gatingRes.error) {
+      return NextResponse.json(
+        {
+          data: null,
+          error: {
+            message: gatingRes.error.message,
+            code: gatingRes.error.code,
           },
         },
         { status: 500 }
@@ -215,6 +237,58 @@ export async function GET(request: NextRequest) {
     const keepRate =
       relevanceTotal > 0 ? Math.round((keepCount / relevanceTotal) * 1000) / 10 : 0
 
+    const gatingByDay = new Map<
+      string,
+      { keep: number; drop: number; pending: number }
+    >()
+    for (const day of enumerateDays(since, now)) {
+      gatingByDay.set(day, { keep: 0, drop: 0, pending: 0 })
+    }
+    for (const row of (gatingRes.data ?? []) as GatingDayBucket[]) {
+      const day = String(row.day).slice(0, 10)
+      gatingByDay.set(day, {
+        keep: Number(row.keep_count ?? 0),
+        drop: Number(row.drop_count ?? 0),
+        pending: Number(row.pending_count ?? 0),
+      })
+    }
+    const gatingDays = [...gatingByDay.entries()].sort(([a], [b]) =>
+      a.localeCompare(b)
+    )
+    const gatingKeep = gatingDays.map(([, v]) => v.keep)
+    const gatingDrop = gatingDays.map(([, v]) => v.drop)
+    const gatingPending = gatingDays.map(([, v]) => v.pending)
+    const gatingDayKeys = gatingDays.map(([day]) => day)
+    let gatingKeepTotal = 0
+    let gatingDropTotal = 0
+    let gatingPendingTotal = 0
+    for (const [, v] of gatingDays) {
+      gatingKeepTotal += v.keep
+      gatingDropTotal += v.drop
+      gatingPendingTotal += v.pending
+    }
+    const gatingPeriodTotal =
+      gatingKeepTotal + gatingDropTotal + gatingPendingTotal
+    const gatingKeepRate =
+      gatingPeriodTotal === 0
+        ? 0
+        : Math.round((gatingKeepTotal / gatingPeriodTotal) * 1000) / 10
+    const gatingTotals = gatingDays.map(
+      ([, v]) => v.keep + v.drop + v.pending
+    )
+    const mid = Math.floor(gatingDays.length / 2)
+    const sumSlice = (arr: number[], from: number, to: number) =>
+      arr.slice(from, to).reduce((a, b) => a + b, 0)
+    const firstKeep = sumSlice(gatingKeep, 0, mid)
+    const firstTotal = sumSlice(gatingTotals, 0, mid)
+    const secondKeep = sumSlice(gatingKeep, mid, gatingDays.length)
+    const secondTotal = sumSlice(gatingTotals, mid, gatingDays.length)
+    const firstKeepRate =
+      firstTotal === 0 ? 0 : (firstKeep / firstTotal) * 100
+    const secondKeepRate =
+      secondTotal === 0 ? 0 : (secondKeep / secondTotal) * 100
+    const gatingKeepRateChange = secondKeepRate - firstKeepRate
+
     const samplePoints = windowDays <= 7 ? windowDays : windowDays <= 30 ? 24 : 28
     const sample = <T,>(arr: T[], maxPoints = samplePoints): T[] => {
       if (arr.length <= maxPoints) return arr
@@ -251,6 +325,18 @@ export async function GET(request: NextRequest) {
           keepCount,
           keepRate,
           totalClassified: relevanceTotal,
+        },
+        gating: {
+          days: sample(gatingDayKeys),
+          keep: sample(gatingKeep),
+          drop: sample(gatingDrop),
+          pending: sample(gatingPending),
+          keepTotal: gatingKeepTotal,
+          dropTotal: gatingDropTotal,
+          pendingTotal: gatingPendingTotal,
+          periodTotal: gatingPeriodTotal,
+          keepRate: gatingKeepRate,
+          changePts: Math.round(gatingKeepRateChange * 10) / 10,
         },
       },
       error: null,

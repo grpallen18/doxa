@@ -44,6 +44,9 @@ FOR (v:Viewpoint) REQUIRE v.uid IS UNIQUE;
 CREATE CONSTRAINT controversy_uid IF NOT EXISTS
 FOR (c:Controversy) REQUIRE c.uid IS UNIQUE;
 
+CREATE CONSTRAINT issue_uid IF NOT EXISTS
+FOR (i:Issue) REQUIRE i.uid IS UNIQUE;
+
 CREATE CONSTRAINT dispute_uid IF NOT EXISTS
 FOR (d:Dispute) REQUIRE d.uid IS UNIQUE;
 
@@ -80,6 +83,12 @@ FOR (v:Viewpoint) ON (v.documentUid);
 
 CREATE INDEX controversy_topic_key IF NOT EXISTS
 FOR (c:Controversy) ON (c.topicKey);
+
+CREATE INDEX issue_topic_key IF NOT EXISTS
+FOR (i:Issue) ON (i.topicKey);
+
+CREATE INDEX issue_dirty IF NOT EXISTS
+FOR (i:Issue) ON (i.dirty);
 
 CREATE INDEX assessment_target_uid IF NOT EXISTS
 FOR (a:Assessment) ON (a.targetUid);

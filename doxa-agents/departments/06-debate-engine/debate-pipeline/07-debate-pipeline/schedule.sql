@@ -5,8 +5,11 @@
 -- 1. Enable pg_cron and pg_net (Dashboard → Database → Extensions).
 -- 2. Vault secrets project_url and service_role_key (same as other pipeline crons).
 -- 3. Debate Edge Functions deployed with --no-verify-jwt + NEO4J_* / OPENAI_API_KEY secrets.
+-- 4. Also schedule classify-proposition-relationships-every-10min
+--    (02-classify-proposition-relationships/schedule.sql).
 --
 -- Body uses limit:50 so candidate gen + classify stay under Edge ~150s idle timeout.
+-- First cutover after Issue/stable-uid deploy: invoke once with {"force_full":true,"limit":50}.
 --
 -- To remove later: select cron.unschedule('debate-pipeline-hourly');
 

@@ -190,6 +190,11 @@ steps:
       - OPENAI_API_KEY
       - OPENAI_MODEL
     verify_jwt: false
+    cron:
+      job_name: classify-proposition-relationships-every-10min
+      schedule: "*/10 * * * *"
+      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/02-classify-proposition-relationships/schedule.sql
+      body: '{"limit": 40}'
   - id: build-viewpoints
     department: 06-debate-engine
     workflow: debate-pipeline
