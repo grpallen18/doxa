@@ -15,6 +15,11 @@ import {
   UNION_DEFAULT_STORIES,
   UNION_MAX_STORIES,
 } from '@/lib/admin/neo-graph/union-limits'
+import {
+  NEBULA_HEAT_DEFAULT,
+  NEBULA_HEAT_MAX,
+  NEBULA_HEAT_MIN,
+} from '@/lib/admin/neo-graph/appearance'
 import { resolveFocusNodeId } from '@/lib/admin/neo-graph/union-v2-focus'
 
 const NeoProjectionExplorer = dynamic(
@@ -137,41 +142,104 @@ export function NeoUnionV2Workspace() {
   )
 
   const [capFocused, setCapFocused] = useState(false)
+  const [heatDraft, setHeatDraft] = useState(String(NEBULA_HEAT_DEFAULT))
+  const [heat, setHeat] = useState(NEBULA_HEAT_DEFAULT)
+  const [heatFocused, setHeatFocused] = useState(false)
+
+  const commitHeat = useCallback(() => {
+    const parsed = Number.parseInt(heatDraft, 10)
+    const next = Number.isFinite(parsed)
+      ? Math.max(NEBULA_HEAT_MIN, Math.min(NEBULA_HEAT_MAX, parsed))
+      : NEBULA_HEAT_DEFAULT
+    setHeatDraft(String(next))
+    setHeat(next)
+  }, [heatDraft])
+
+  const fieldClassName =
+    'relative flex h-8 w-16 rounded-[calc(theme(borderRadius.md)-1px)] border-0 bg-black/80 px-2 text-center text-sm font-medium text-zinc-200 outline-none transition-colors hover:bg-black/90 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
   const storyCapControl = (
-    <>
-      <label htmlFor="union-v2-story-cap" className="sr-only">
-        Story cap
-      </label>
-      <SpotlightBorder
-        active={capFocused && !loading}
-        className="w-auto bg-white/20 shadow-lg"
-      >
-        <input
-          id="union-v2-story-cap"
-          type="number"
-          min={1}
-          max={UNION_MAX_STORIES}
-          inputMode="numeric"
-          title={`Story cap (1–${UNION_MAX_STORIES})`}
-          value={capDraft}
-          disabled={loading}
-          onChange={(e) => setCapDraft(e.target.value)}
-          onFocus={() => setCapFocused(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              commitCap({ fresh: true })
-            }
-          }}
-          onBlur={() => {
-            setCapFocused(false)
-            commitCap()
-          }}
-          className="relative flex h-8 w-16 rounded-[calc(theme(borderRadius.md)-1px)] border-0 bg-black/80 px-2 text-center text-sm font-medium text-zinc-200 outline-none transition-colors hover:bg-black/90 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-        />
-      </SpotlightBorder>
-    </>
+    <div className="flex items-start gap-2">
+      <div className="flex flex-col gap-1">
+        <label
+          htmlFor="union-v2-story-cap"
+          className="px-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500"
+        >
+          depth
+        </label>
+        <SpotlightBorder
+          active={capFocused && !loading}
+          className="w-auto bg-white/20 shadow-lg"
+        >
+          <input
+            id="union-v2-story-cap"
+            type="number"
+            min={1}
+            max={UNION_MAX_STORIES}
+            inputMode="numeric"
+            title={`Depth — story cap (1–${UNION_MAX_STORIES})`}
+            value={capDraft}
+            disabled={loading}
+            onChange={(e) => setCapDraft(e.target.value)}
+            onFocus={() => setCapFocused(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commitCap({ fresh: true })
+              }
+            }}
+            onBlur={() => {
+              setCapFocused(false)
+              commitCap()
+            }}
+            className={fieldClassName}
+          />
+        </SpotlightBorder>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label
+          htmlFor="union-v2-heat"
+          className="px-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500"
+        >
+          heat
+        </label>
+        <SpotlightBorder
+          active={heatFocused}
+          className="w-auto bg-white/20 shadow-lg"
+        >
+          <input
+            id="union-v2-heat"
+            type="number"
+            min={NEBULA_HEAT_MIN}
+            max={NEBULA_HEAT_MAX}
+            inputMode="numeric"
+            title={`Heat k (1–${NEBULA_HEAT_MAX}) — idle edge alpha = k / √edges`}
+            value={heatDraft}
+            onChange={(e) => {
+              const raw = e.target.value
+              setHeatDraft(raw)
+              const parsed = Number.parseInt(raw, 10)
+              if (!Number.isFinite(parsed)) return
+              setHeat(
+                Math.max(NEBULA_HEAT_MIN, Math.min(NEBULA_HEAT_MAX, parsed))
+              )
+            }}
+            onFocus={() => setHeatFocused(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commitHeat()
+              }
+            }}
+            onBlur={() => {
+              setHeatFocused(false)
+              commitHeat()
+            }}
+            className={fieldClassName}
+          />
+        </SpotlightBorder>
+      </div>
+    </div>
   )
 
   return (
@@ -200,6 +268,7 @@ export function NeoUnionV2Workspace() {
             initialFocusNodeId={focusNodeId}
             statsExtra={`${islandCount} communities`}
             canvasOverlay={storyCapControl}
+            nebulaHeat={heat}
           />
         </div>
       ) : (

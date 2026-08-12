@@ -112,7 +112,7 @@ ${hasTarget ? 'varying float v_targetSize; varying vec2 v_targetPoint;' : ''}
 ${hasSource ? 'varying float v_sourceSize; varying vec2 v_sourcePoint;' : ''}
 
 const float bias = 255.0 / 254.0;
-const float epsilon = 0.7;
+const float epsilon = 1.2;
 
 vec2 clipspaceToViewport(vec2 pos, vec2 dimensions) {
   return vec2(
@@ -256,21 +256,19 @@ void main(void) {
       : ''
   }
 
-  float halfThickness = thickness / 2.0;
-  if (dist < halfThickness) {
+  float halfThickness = max(thickness * 0.5, 0.001);
+  float feather = max(v_feather, 0.001);
+  float outer = halfThickness + feather;
+  if (dist > outer) {
+    gl_FragColor = transparent;
+  } else {
     #ifdef PICKING_MODE
     gl_FragColor = v_colorFrom;
     #else
     vec4 color = mix(v_colorFrom, v_colorTo, tCurve);
-    float t = smoothstep(
-      halfThickness - v_feather,
-      halfThickness,
-      dist
-    );
+    float t = smoothstep(halfThickness, outer, dist);
     gl_FragColor = mix(color, transparent, t);
     #endif
-  } else {
-    gl_FragColor = transparent;
   }
 }
 `

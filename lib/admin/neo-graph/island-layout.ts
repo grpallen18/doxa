@@ -7,8 +7,8 @@ import {
 } from '@/lib/admin/neo-graph/layout-pipeline'
 import type { NeoSigmaGraph } from '@/lib/admin/neo-graph/graphology-adapter'
 
-/** Tight organic disk — FA2 + gravity pull this into one nebula. */
-const NEBULA_SEED_SCALE = 280
+/** Tight organic disk — FA2 settles this into one irregular mass. */
+const NEBULA_SEED_SCALE = 160
 
 function communityOf(graph: NeoSigmaGraph, id: string): string {
   const raw = graph.getNodeAttribute(id, 'communityId')

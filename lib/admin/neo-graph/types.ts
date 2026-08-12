@@ -104,6 +104,7 @@ export type NeoFa2Settings = {
   scalingRatio: number
   strongGravityMode?: boolean
   linLogMode?: boolean
+  adjustSizes?: boolean
 }
 
 export const DEFAULT_NEO_FA2_SETTINGS: NeoFa2Settings = {
@@ -111,12 +112,13 @@ export const DEFAULT_NEO_FA2_SETTINGS: NeoFa2Settings = {
   scalingRatio: 200,
 }
 
-/** One-mass nebula: gravity holds a blob, lin-log tightens dense cores. */
+/** One irregular mass — no strong gravity (that inflates a marble shell). */
 export const UNION_V2_FA2_SETTINGS: NeoFa2Settings = {
-  gravity: 0.18,
-  scalingRatio: 45,
-  strongGravityMode: true,
+  gravity: 0.055,
+  scalingRatio: 14,
+  strongGravityMode: false,
   linLogMode: true,
+  adjustSizes: false,
 }
 
 export type NeoLayoutMode = 'hierarchical' | 'ontology-islands'

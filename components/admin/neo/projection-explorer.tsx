@@ -54,6 +54,7 @@ export function NeoProjectionExplorer({
   variant = 'classic',
   initialFocusNodeId = null,
   statsExtra,
+  nebulaHeat,
 }: {
   projection: DoxaGraphProjection
   /** Used for "Story hub" when selection has no documentUid. */
@@ -71,6 +72,8 @@ export function NeoProjectionExplorer({
   variant?: 'classic' | 'galaxy'
   initialFocusNodeId?: string | null
   statsExtra?: string
+  /** Union 2.0 idle tissue: alpha = heat / √edges. */
+  nebulaHeat?: number
 }) {
   const kindColors = useNeoKindColors()
   const colorRevision = useMemo(() => JSON.stringify(kindColors), [kindColors])
@@ -318,6 +321,7 @@ export function NeoProjectionExplorer({
             clusterMode={clusterMode}
             fa2Settings={fa2Settings}
             variant={variant}
+            nebulaHeat={nebulaHeat}
           />
         </div>
         <div

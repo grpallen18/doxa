@@ -47,27 +47,27 @@ const KIND_SIZE: Record<
   cluster: { baseSize: 14, priority: 120 },
 }
 
-/** Union 2.0 nebula — tiny discs; degree only adds a hair of weight. */
+/** Union 2.0 nebula — dust with a few hotter neurons. */
 const KIND_SIZE_COMPACT: Record<
   NeoNodeKind,
   { baseSize: number; priority: number }
 > = {
-  document: { baseSize: 1.7, priority: 90 },
-  controversy: { baseSize: 2.8, priority: 110 },
-  viewpoint: { baseSize: 2.0, priority: 95 },
-  proposition: { baseSize: 1.8, priority: 88 },
-  dispute: { baseSize: 1.8, priority: 86 },
-  assessment: { baseSize: 1.5, priority: 82 },
-  evidence_check: { baseSize: 1.4, priority: 78 },
-  citation: { baseSize: 1.2, priority: 55 },
-  method_run: { baseSize: 1.3, priority: 60 },
-  argument: { baseSize: 1.6, priority: 75 },
-  publication: { baseSize: 2.6, priority: 100 },
-  agent: { baseSize: 1.5, priority: 70 },
-  entity: { baseSize: 1.5, priority: 65 },
-  utterance: { baseSize: 1.15, priority: 50 },
-  segment: { baseSize: 1.0, priority: 20 },
-  cluster: { baseSize: 7, priority: 120 },
+  document: { baseSize: 1.05, priority: 90 },
+  controversy: { baseSize: 1.55, priority: 110 },
+  viewpoint: { baseSize: 1.2, priority: 95 },
+  proposition: { baseSize: 1.1, priority: 88 },
+  dispute: { baseSize: 1.1, priority: 86 },
+  assessment: { baseSize: 0.95, priority: 82 },
+  evidence_check: { baseSize: 0.9, priority: 78 },
+  citation: { baseSize: 0.75, priority: 55 },
+  method_run: { baseSize: 0.85, priority: 60 },
+  argument: { baseSize: 1.0, priority: 75 },
+  publication: { baseSize: 1.45, priority: 100 },
+  agent: { baseSize: 0.95, priority: 70 },
+  entity: { baseSize: 0.9, priority: 65 },
+  utterance: { baseSize: 0.7, priority: 50 },
+  segment: { baseSize: 0.6, priority: 20 },
+  cluster: { baseSize: 5, priority: 120 },
 }
 
 export type NeoSizeMode = 'default' | 'compact'
@@ -117,7 +117,7 @@ export function resolveNodeAppearance(input: {
   const color = getNeoKindColor(input.kind)
   const degree = Math.max(0, input.degreeHint ?? 0)
   const degreeBoost = compact
-    ? Math.min(5.2, Math.log2(1 + degree) * 0.95)
+    ? Math.min(2.4, Math.log2(1 + degree) * 0.45)
     : Math.min(12, degree * 0.7)
   return {
     color,
@@ -131,8 +131,19 @@ export function resolveNodeAppearance(input: {
 export const NEO_EDGE_SIZE_IDLE = 0.7
 export const NEO_EDGE_SIZE_ACTIVE = 2.2
 export const NEO_EDGE_IDLE_ALPHA = 0.5
-export const NEO_EDGE_INTERSTITIAL_IDLE_ALPHA = 0.032
-export const NEO_EDGE_INTERSTITIAL_IDLE_SIZE = 0.055
+export const NEO_EDGE_INTERSTITIAL_IDLE_ALPHA = 0.1
+export const NEO_EDGE_INTERSTITIAL_IDLE_SIZE = 0.7
+
+export const NEBULA_HEAT_DEFAULT = 8
+export const NEBULA_HEAT_MIN = 1
+export const NEBULA_HEAT_MAX = 100
+
+/** Idle tissue alpha: heat / √edges so 20-story silk and 60-story chalk share one knob. */
+export function nebulaIdleAlpha(heat: number, edgeCount: number): number {
+  const k = Math.max(NEBULA_HEAT_MIN, Math.min(NEBULA_HEAT_MAX, heat))
+  const n = Math.max(1, edgeCount)
+  return Math.min(0.35, Math.max(0.02, k / Math.sqrt(n)))
+}
 
 export function resolveEdgeColor(type: NeoEdgeType): string {
   return EDGE_COLOR[type] ?? '#6b6560'

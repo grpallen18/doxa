@@ -18,7 +18,11 @@ import {
   buildGraphologyFromProjection,
   searchProjectionNodes,
 } from '../lib/admin/neo-graph/graphology-adapter'
-import { resolveNodeAppearance, resolveEdgeColor } from '../lib/admin/neo-graph/appearance'
+import {
+  nebulaIdleAlpha,
+  resolveNodeAppearance,
+  resolveEdgeColor,
+} from '../lib/admin/neo-graph/appearance'
 import {
   DEFAULT_NEO_FILTERS,
   DEFAULT_UNION_V2_FILTERS,
@@ -212,6 +216,8 @@ function main() {
         .size
   )
   assert.equal(resolveEdgeColor('ASSERTED_BY'), '#3d5a80')
+  assert.ok(nebulaIdleAlpha(8, 2000) > nebulaIdleAlpha(8, 8000))
+  assert.ok(nebulaIdleAlpha(20, 8000) > nebulaIdleAlpha(8, 8000))
   assert.equal(resolveNodeAppearance({ kind: 'controversy' }).color, '#c45c5c')
   assert.equal(resolveEdgeColor('INCLUDES'), '#c45c5c')
 

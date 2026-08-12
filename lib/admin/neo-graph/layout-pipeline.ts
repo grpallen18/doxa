@@ -595,7 +595,7 @@ export function buildFa2WorkerSettings(
   const inferred = forceAtlas2.inferSettings(graph.order)
   return {
     ...inferred,
-    adjustSizes: true,
+    adjustSizes: user?.adjustSizes ?? true,
     strongGravityMode: user?.strongGravityMode ?? false,
     linLogMode: user?.linLogMode ?? false,
     edgeWeightInfluence: 1,

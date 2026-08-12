@@ -17,8 +17,9 @@ import {
   NEO_LABEL_COLOR_IDLE,
   NEO_EDGE_SIZE_IDLE,
   NEO_EDGE_IDLE_ALPHA,
-  NEO_EDGE_INTERSTITIAL_IDLE_ALPHA,
+  NEBULA_HEAT_DEFAULT,
   NEO_EDGE_INTERSTITIAL_IDLE_SIZE,
+  nebulaIdleAlpha,
   resolveEdgeGradientAt,
 } from '@/lib/admin/neo-graph/appearance'
 import { withPremultipliedAlpha, lerpHex, withLabelAlpha } from '@/lib/admin/neo-graph/colors'
@@ -166,6 +167,7 @@ function GraphLifecycle({
   colorMode = 'kind',
   clusterMode = 'spatial',
   fa2Settings,
+  nebulaHeat = NEBULA_HEAT_DEFAULT,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
@@ -178,6 +180,7 @@ function GraphLifecycle({
   colorMode?: NeoColorMode
   clusterMode?: NeoLodClusterMode
   fa2Settings?: NeoFa2Settings
+  nebulaHeat?: number
   onSelectionChange: (selection: NeoSelection) => void
   onGraphStats: (stats: {
     nodes: number
@@ -217,6 +220,8 @@ function GraphLifecycle({
   clusterModeRef.current = clusterMode
   const layoutModeRef = useRef(layoutMode)
   layoutModeRef.current = layoutMode
+  const nebulaHeatRef = useRef(nebulaHeat)
+  nebulaHeatRef.current = nebulaHeat
   const lodLevelRef = useRef<NeoLodLevel>('near')
   const onLodLevelRef = useRef(onLodLevel)
   onLodLevelRef.current = onLodLevel
@@ -372,9 +377,7 @@ function GraphLifecycle({
     options?: { frameViewport?: boolean }
   ) => {
     if (layoutEpochRef.current !== epoch) return
-    if (layoutModeRef.current === 'ontology-islands') {
-      separateOverlaps(graph, 3, 1)
-    } else {
+    if (layoutModeRef.current !== 'ontology-islands') {
       separateOverlaps(graph, undefined, undefined, {
         pinKind: isBackboneKind,
         pinNode: (id) => graph.getNodeAttribute(id, 'fixed') === true,
@@ -776,7 +779,7 @@ function GraphLifecycle({
       enableEdgeEvents: true,
       // Default is 1.7px — that clamps idle/active size so they look identical.
       minEdgeThickness:
-        layoutMode === 'ontology-islands' ? 0.04 : 0.5,
+        layoutMode === 'ontology-islands' ? 0.7 : 0.5,
       renderEdgeLabels: false,
       labelDensity: 0.15,
       labelGridCellSize: 80,
@@ -994,9 +997,11 @@ function GraphLifecycle({
           return res
         }
 
+        const tissueAlpha = nebulaIdleAlpha(nebulaHeatRef.current, g.size)
+
         if (selId && selT > 0 && !inSelNeighborhood) {
           const dimAlpha = nebula
-            ? NEO_EDGE_INTERSTITIAL_IDLE_ALPHA * (1 - selT * 0.55)
+            ? tissueAlpha * (1 - selT * 0.55)
             : NEO_EDGE_IDLE_ALPHA + (0.35 - NEO_EDGE_IDLE_ALPHA) * selT
           res.hidden = false
           res.type = nebula ? 'hairline' : 'curvedArrow'
@@ -1018,14 +1023,8 @@ function GraphLifecycle({
         if (nebula) {
           res.hidden = false
           res.type = 'hairline'
-          res.color = withPremultipliedAlpha(
-            sourceHex,
-            NEO_EDGE_INTERSTITIAL_IDLE_ALPHA
-          )
-          res.targetColor = withPremultipliedAlpha(
-            targetHex,
-            NEO_EDGE_INTERSTITIAL_IDLE_ALPHA
-          )
+          res.color = withPremultipliedAlpha(sourceHex, tissueAlpha)
+          res.targetColor = withPremultipliedAlpha(targetHex, tissueAlpha)
           res.size = NEO_EDGE_INTERSTITIAL_IDLE_SIZE
           res.zIndex = 0
           return res
@@ -1039,11 +1038,19 @@ function GraphLifecycle({
         return res
       },
     })
-  }, [drawNodeHover, labelVisibility, layoutMode, setSettings, sigma, selectedNodeId])
+  }, [
+    drawNodeHover,
+    labelVisibility,
+    layoutMode,
+    nebulaHeat,
+    setSettings,
+    sigma,
+    selectedNodeId,
+  ])
 
   useEffect(() => {
     sigma.refresh()
-  }, [labelVisibility, sigma])
+  }, [labelVisibility, nebulaHeat, sigma])
 
   useEffect(() => {
     // Search/detail "focus" used to pan the camera via getNodeDisplayData.
@@ -1111,6 +1118,7 @@ export function NeoSigmaCanvas({
   clusterMode = 'spatial',
   fa2Settings,
   variant = 'classic',
+  nebulaHeat = NEBULA_HEAT_DEFAULT,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
@@ -1136,6 +1144,7 @@ export function NeoSigmaCanvas({
   clusterMode?: NeoLodClusterMode
   fa2Settings?: NeoFa2Settings
   variant?: 'classic' | 'galaxy'
+  nebulaHeat?: number
 }) {
   const galaxy = variant === 'galaxy'
   const bg = galaxy ? '#050508' : '#121212'
@@ -1197,6 +1206,7 @@ export function NeoSigmaCanvas({
         colorMode={colorMode}
         clusterMode={clusterMode}
         fa2Settings={fa2Settings}
+        nebulaHeat={nebulaHeat}
       />
       <NeoZoomControls />
     </SigmaContainer>
