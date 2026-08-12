@@ -4,6 +4,7 @@ const path = require('path')
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
+  transpilePackages: ['three', '3d-force-graph', 'three-forcegraph'],
   async redirects() {
     return [
       {

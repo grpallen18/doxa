@@ -107,14 +107,14 @@ export function NeoStoryList() {
             >
               Union 2.0
             </Link>{' '}
-            (ontology islands) or the{' '}
+            (baseline) or{' '}
             <Link
-              href="/admin/neo/union"
+              href="/admin/neo/union-3"
               className="underline hover:text-foreground"
             >
-              classic story union
-            </Link>
-            . Debate catalog stays on{' '}
+              Union 3.0
+            </Link>{' '}
+            (experiment). Debate catalog stays on{' '}
             <Link
               href="/admin/graph-controversies"
               className="underline hover:text-foreground"
@@ -130,7 +130,7 @@ export function NeoStoryList() {
               <Link href="/admin/neo/union-2">Union 2.0</Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="h-9 shrink-0">
-              <Link href="/admin/neo/union">Classic union</Link>
+              <Link href="/admin/neo/union-3">Union 3.0</Link>
             </Button>
           </div>
           <form

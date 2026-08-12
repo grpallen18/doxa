@@ -57,6 +57,7 @@ export function NeoProjectionExplorer({
   statsExtra,
   nebulaHeat,
   nebulaResolution,
+  nebulaBlend,
 }: {
   projection: DoxaGraphProjection
   /** Used for "Story hub" when selection has no documentUid. */
@@ -78,6 +79,8 @@ export function NeoProjectionExplorer({
   nebulaHeat?: number
   /** Union 2.0 Louvain resolution dial (1–100). */
   nebulaResolution?: number
+  /** Union 2.0 lobe ring as % of seed disk (higher = more separated zones). */
+  nebulaBlend?: number
 }) {
   const kindColors = useNeoKindColors()
   const colorRevision = useMemo(() => JSON.stringify(kindColors), [kindColors])
@@ -335,6 +338,7 @@ export function NeoProjectionExplorer({
             variant={variant}
             nebulaHeat={nebulaHeat}
             nebulaResolution={nebulaResolution}
+            nebulaBlend={nebulaBlend}
             onLouvainCommunities={setLouvainCommunities}
           />
         </div>

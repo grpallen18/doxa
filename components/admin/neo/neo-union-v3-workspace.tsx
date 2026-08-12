@@ -12,11 +12,11 @@ import { useSearchParams } from 'next/navigation'
 import { SpotlightBorder } from '@/components/motion-primitives/spotlight-border'
 import { Button } from '@/components/ui/button'
 import {
-  DEFAULT_UNION_V2_FILTERS,
-  DEFAULT_UNION_V2_LABEL_VISIBILITY,
-  UNION_V2_FA2_SETTINGS,
-  type DoxaGraphProjection,
-} from '@/lib/admin/neo-graph/types'
+  EMPTY_SELECTION,
+  type NeoSelection,
+} from '@/lib/admin/neo-graph/neo-selection'
+import { NeoNodeDetailPanel } from '@/components/admin/neo/node-detail-panel'
+import type { DoxaGraphProjection } from '@/lib/admin/neo-graph/types'
 import {
   clampUnionStoryLimit,
   UNION_MAX_STORIES,
@@ -37,16 +37,14 @@ import {
 } from '@/lib/admin/neo-graph/louvain-nebula'
 import { resolveFocusNodeId } from '@/lib/admin/neo-graph/union-v2-focus'
 
-const NeoProjectionExplorer = dynamic(
+const UnionNebula3D = dynamic(
   () =>
-    import('@/components/admin/neo/projection-explorer').then(
-      (m) => m.NeoProjectionExplorer
-    ),
+    import('@/components/admin/neo/union-nebula-3d').then((m) => m.UnionNebula3D),
   {
     ssr: false,
     loading: () => (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-[#050508] text-sm text-zinc-400">
-        Loading Union 2.0…
+        Loading Union 3.0…
       </div>
     ),
   }
@@ -88,7 +86,7 @@ function parseBlendDraft(raw: string): number {
   return Math.max(NEBULA_BLEND_MIN, Math.min(NEBULA_BLEND_MAX, parsed))
 }
 
-export function NeoUnionV2Workspace() {
+export function NeoUnionV3Workspace() {
   const searchParams = useSearchParams()
   const focusParam = searchParams.get('focus')
   const [capDraft, setCapDraft] = useState(String(UNION_V2_DEFAULT_STORIES))
@@ -101,6 +99,7 @@ export function NeoUnionV2Workspace() {
   const [resolution, setResolution] = useState(NEBULA_RESOLUTION_DEFAULT)
   const [blendDraft, setBlendDraft] = useState(String(NEBULA_BLEND_DEFAULT))
   const [blend, setBlend] = useState(NEBULA_BLEND_DEFAULT)
+  const [layoutEpoch, setLayoutEpoch] = useState(0)
   const [projection, setProjection] = useState<DoxaGraphProjection | null>(null)
   const [documents, setDocuments] = useState<UnionDocMeta[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,13 +108,14 @@ export function NeoUnionV2Workspace() {
   const [heatFocused, setHeatFocused] = useState(false)
   const [resolutionFocused, setResolutionFocused] = useState(false)
   const [blendFocused, setBlendFocused] = useState(false)
+  const [selection, setSelection] = useState<NeoSelection>(EMPTY_SELECTION)
 
   const loadUnion = useCallback(async (limit: number, fresh = false) => {
     const capped = clampUnionStoryLimit(limit)
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/admin/neo/union-2', {
+      const res = await fetch('/api/admin/neo/union-3', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ all: true, limit: capped, fresh }),
@@ -125,7 +125,7 @@ export function NeoUnionV2Workspace() {
       if (!res.ok || json.error) {
         setProjection(null)
         setDocuments([])
-        setError(json?.error?.message ?? 'Failed to load Union 2.0')
+        setError(json?.error?.message ?? 'Failed to load Union 3.0')
         return
       }
       const data = json.data as UnionApiData
@@ -133,6 +133,8 @@ export function NeoUnionV2Workspace() {
       setDocuments(data.documents)
       setAppliedCap(data.caps?.limit ?? capped)
       setCapDraft(String(data.caps?.limit ?? capped))
+      setSelection(EMPTY_SELECTION)
+      setLayoutEpoch((e) => e + 1)
       if (data.documents.length === 0) {
         setError('No succeeded stories with Neo graphs yet.')
       } else if (data.missingIds.length > 0) {
@@ -142,7 +144,7 @@ export function NeoUnionV2Workspace() {
       }
     } catch {
       setProjection(null)
-      setError('Failed to load Union 2.0')
+      setError('Failed to load Union 3.0')
     } finally {
       setLoading(false)
     }
@@ -157,7 +159,7 @@ export function NeoUnionV2Workspace() {
     [documents]
   )
   const contextStoryId = useMemo(
-    () => documents.find((d) => d.found)?.uid ?? null,
+    () => documents.find((d) => d.found)?.uid ?? '',
     [documents]
   )
   const focusNodeId = useMemo(
@@ -169,13 +171,6 @@ export function NeoUnionV2Workspace() {
           )
         : null,
     [focusParam, projection]
-  )
-  const islandCount = useMemo(
-    () =>
-      (projection?.communities ?? []).filter(
-        (c) => c.kind === 'controversy' || c.kind === 'publication'
-      ).length,
-    [projection]
   )
 
   const pendingCap = clampUnionStoryLimit(capDraft)
@@ -193,6 +188,10 @@ export function NeoUnionV2Workspace() {
     const nextHeat = parseHeatDraft(heatDraft)
     const nextResolution = parseResolutionDraft(resolutionDraft)
     const nextBlend = parseBlendDraft(blendDraft)
+    const structuralChanged =
+      nextCap !== appliedCap ||
+      nextResolution !== resolution ||
+      nextBlend !== blend
     setCapDraft(String(nextCap))
     setHeatDraft(String(nextHeat))
     setResolutionDraft(String(nextResolution))
@@ -200,10 +199,23 @@ export function NeoUnionV2Workspace() {
     setHeat(nextHeat)
     setResolution(nextResolution)
     setBlend(nextBlend)
+    // Heat-only: update opacity without reseeding / exploding the layout.
+    if (structuralChanged) {
+      setLayoutEpoch((e) => e + 1)
+    }
     if (nextCap !== appliedCap) {
       void loadUnion(nextCap, true)
     }
-  }, [appliedCap, blendDraft, capDraft, heatDraft, loadUnion, resolutionDraft])
+  }, [
+    appliedCap,
+    blend,
+    blendDraft,
+    capDraft,
+    heatDraft,
+    loadUnion,
+    resolution,
+    resolutionDraft,
+  ])
 
   const fieldClassName =
     'relative flex h-8 w-16 rounded-[calc(theme(borderRadius.md)-1px)] border-0 bg-black/80 px-2 text-center text-sm font-medium text-zinc-200 outline-none transition-colors hover:bg-black/90 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
@@ -222,7 +234,12 @@ export function NeoUnionV2Workspace() {
     focused: boolean,
     setFocused: (v: boolean) => void,
     onChange: (v: string) => void,
-    opts: { min: number; max: number; title: string; spotlightWhenLoading?: boolean }
+    opts: {
+      min: number
+      max: number
+      title: string
+      spotlightWhenLoading?: boolean
+    }
   ) => (
     <div className="flex flex-col gap-1">
       <label
@@ -232,9 +249,7 @@ export function NeoUnionV2Workspace() {
         {label}
       </label>
       <SpotlightBorder
-        active={
-          opts.spotlightWhenLoading ? focused && !loading : focused
-        }
+        active={opts.spotlightWhenLoading ? focused && !loading : focused}
         className="w-auto bg-white/20 shadow-lg"
       >
         <input
@@ -256,10 +271,10 @@ export function NeoUnionV2Workspace() {
     </div>
   )
 
-  const storyCapControl = (
+  const controls = (
     <div className="flex flex-col items-start gap-2">
       {paramField(
-        'union-v2-story-cap',
+        'union-v3-story-cap',
         'depth',
         capDraft,
         capFocused,
@@ -273,7 +288,7 @@ export function NeoUnionV2Workspace() {
         }
       )}
       {paramField(
-        'union-v2-heat',
+        'union-v3-heat',
         'heat',
         heatDraft,
         heatFocused,
@@ -282,11 +297,11 @@ export function NeoUnionV2Workspace() {
         {
           min: NEBULA_HEAT_MIN,
           max: NEBULA_HEAT_MAX,
-          title: `Heat k (1–${NEBULA_HEAT_MAX}) — idle edge alpha = k / √edges`,
+          title: `Heat (1–${NEBULA_HEAT_MAX}) — edge tissue brightness in 3D`,
         }
       )}
       {paramField(
-        'union-v2-resolution',
+        'union-v3-resolution',
         'resolution',
         resolutionDraft,
         resolutionFocused,
@@ -295,11 +310,11 @@ export function NeoUnionV2Workspace() {
         {
           min: NEBULA_RESOLUTION_MIN,
           max: NEBULA_RESOLUTION_MAX,
-          title: `Color clusters (1–${NEBULA_RESOLUTION_MAX}) — maps to 3–8 patches; higher = more colors`,
+          title: `Color clusters (1–${NEBULA_RESOLUTION_MAX}) — maps to 3–8 patches`,
         }
       )}
       {paramField(
-        'union-v2-blend',
+        'union-v3-blend',
         'blend',
         blendDraft,
         blendFocused,
@@ -308,7 +323,7 @@ export function NeoUnionV2Workspace() {
         {
           min: NEBULA_BLEND_MIN,
           max: NEBULA_BLEND_MAX,
-          title: `Blend (0–${NEBULA_BLEND_MAX}) — lobe ring % of disk; higher = more separated color zones`,
+          title: `Blend (0–${NEBULA_BLEND_MAX}) — color-zone separation; lower = tighter sphere`,
         }
       )}
       <Button
@@ -326,33 +341,45 @@ export function NeoUnionV2Workspace() {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-[#050508]">
       {loading && !projection ? (
-        <p className="p-6 text-sm text-zinc-400">Loading Union 2.0…</p>
+        <p className="p-6 text-sm text-zinc-400">Loading Union 3.0…</p>
       ) : projection && foundCount > 0 ? (
         <div className="relative flex min-h-0 flex-1 flex-col">
           {loading ? (
             <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-[#050508]/55 backdrop-blur-[1px]">
               <p className="rounded-lg border border-white/10 bg-black/70 px-3 py-1.5 text-sm text-zinc-300">
-                Reloading Union 2.0…
+                Reloading Union 3.0…
               </p>
             </div>
           ) : null}
-          <NeoProjectionExplorer
-            projection={projection}
-            contextStoryId={contextStoryId}
-            defaultFilters={DEFAULT_UNION_V2_FILTERS}
-            defaultLabelVisibility={DEFAULT_UNION_V2_LABEL_VISIBILITY}
-            layoutMode="ontology-islands"
-            colorMode="community"
-            clusterMode="spatial"
-            fa2Settings={UNION_V2_FA2_SETTINGS}
-            variant="galaxy"
-            initialFocusNodeId={focusNodeId}
-            statsExtra={`${islandCount} ontology`}
-            canvasOverlay={storyCapControl}
-            nebulaHeat={heat}
-            nebulaResolution={resolution}
-            nebulaBlend={blend}
-          />
+          <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+            <div className="pointer-events-auto absolute left-3 top-3 z-10">
+              {controls}
+            </div>
+          </div>
+          <div className="relative flex min-h-0 flex-1">
+            <UnionNebula3D
+              projection={projection}
+              heat={heat}
+              resolution={resolution}
+              blend={blend}
+              layoutEpoch={layoutEpoch}
+              initialFocusNodeId={focusNodeId}
+              selection={selection}
+              onSelectionChange={setSelection}
+            />
+            {selection.nodeId || selection.edgeId ? (
+              <div className="pointer-events-auto absolute bottom-0 right-0 top-0 z-20 w-full max-w-sm">
+                <NeoNodeDetailPanel
+                  selection={selection}
+                  storyId={contextStoryId}
+                  onClose={() => setSelection(EMPTY_SELECTION)}
+                  onFocus={() => {
+                    /* camera focus handled via selection id already in view */
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">

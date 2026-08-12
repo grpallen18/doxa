@@ -12,7 +12,7 @@ import {
   getUnionOntologyOverlay,
 } from '@/lib/neo4j/queries/union-ontology'
 
-/** Ontology-island union (Union 2.0). Same story-cap contract as classic union. */
+/** Ontology-island union — Union 2.0 baseline. */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth

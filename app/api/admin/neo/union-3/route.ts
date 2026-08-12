@@ -1,49 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  projectUnionDocuments,
-  UNION_MAX_STORIES,
-} from '@/lib/admin/neo-graph/project-union'
+import { projectUnionOntology } from '@/lib/admin/neo-graph/project-union-ontology'
+import { UNION_MAX_STORIES } from '@/lib/admin/neo-graph/union-limits'
 import {
   loadUnionDocumentGraphs,
   resolveUnionStoryIds,
 } from '@/lib/admin/neo-graph/union-request'
 import { requireAdmin } from '@/lib/auth'
 import { getNeo4jConfig } from '@/lib/neo4j/server'
+import {
+  emptyUnionOntologyOverlay,
+  getUnionOntologyOverlay,
+} from '@/lib/neo4j/queries/union-ontology'
 
-async function buildUnionResponse(
-  storyIds: string[],
-  limit: number,
-  fresh: boolean
-) {
-  if (storyIds.length === 0) {
-    return {
-      projection: projectUnionDocuments([]),
-      documents: [] as Array<{
-        uid: string
-        title: string | null
-        found: boolean
-        utteranceCount: number
-        agentCount: number
-      }>,
-      missingIds: [] as string[],
-      caps: { maxStories: UNION_MAX_STORIES, limit },
-    }
-  }
-
-  const { graphs, missingIds, documents } = await loadUnionDocumentGraphs(
-    storyIds,
-    fresh
-  )
-
-  return {
-    projection: projectUnionDocuments(graphs, { missingIds }),
-    documents,
-    missingIds,
-    caps: { maxStories: UNION_MAX_STORIES, limit },
-  }
-}
-
-/** All-story (or explicit ids) union graph. Admin only. */
+/** Union 3.0 experiment — same ontology projection as baseline Union 2.0 for now. */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
@@ -63,9 +32,26 @@ export async function GET(request: NextRequest) {
 
   try {
     const { storyIds, mode, limit, fresh } = await resolveUnionStoryIds(request)
-    const data = await buildUnionResponse(storyIds, limit, fresh)
+    const { graphs, missingIds, documents } = await loadUnionDocumentGraphs(
+      storyIds,
+      fresh
+    )
+    const overlay =
+      graphs.length === 0
+        ? emptyUnionOntologyOverlay()
+        : await getUnionOntologyOverlay(graphs.map((g) => g.document.uid))
+    const projection = projectUnionOntology(graphs, overlay, { missingIds })
+
     const res = NextResponse.json({
-      data: { ...data, mode, storyCount: storyIds.length },
+      data: {
+        projection,
+        documents,
+        missingIds,
+        caps: { maxStories: UNION_MAX_STORIES, limit },
+        mode,
+        storyCount: storyIds.length,
+        communityCount: projection.communities?.length ?? 0,
+      },
       error: null,
     })
     if (process.env.NODE_ENV === 'development') {
@@ -81,7 +67,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Same as GET; prefer POST with `{ all: true, limit }` for the full union. */
 export async function POST(request: NextRequest) {
   return GET(request)
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/admin/record/status-badge'
-import type { NeoSelection } from '@/components/admin/neo/sigma-canvas'
+import type { NeoSelection } from '@/lib/admin/neo-graph/neo-selection'
 import { cn } from '@/lib/utils'
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {

@@ -52,6 +52,7 @@ import {
 } from '@/lib/admin/neo-graph/layout-pipeline'
 import {
   applyLouvainNebula,
+  NEBULA_BLEND_DEFAULT,
   NEBULA_RESOLUTION_DEFAULT,
   seedLouvainSoftPositions,
 } from '@/lib/admin/neo-graph/louvain-nebula'
@@ -89,37 +90,12 @@ import {
   type NeoLodClusterMode,
   type NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
+import {
+  EMPTY_SELECTION,
+  type NeoSelection,
+} from '@/lib/admin/neo-graph/neo-selection'
 
-export type NeoSelection = {
-  nodeId: string | null
-  kind: SigmaNodeAttributes['kind'] | null
-  label: string | null
-  charStart?: number
-  charEnd?: number
-  properties: SigmaNodeAttributes['properties'] | null
-  /** Overview cluster members (document node ids). */
-  memberIds?: string[] | null
-  edgeId: string | null
-  edgeType: SigmaEdgeAttributes['edgeType'] | null
-  edgeLabel: string | null
-  edgeProperties: SigmaEdgeAttributes['properties'] | null
-  edgeSource: string | null
-  edgeTarget: string | null
-}
-
-const EMPTY_SELECTION: NeoSelection = {
-  nodeId: null,
-  kind: null,
-  label: null,
-  properties: null,
-  memberIds: null,
-  edgeId: null,
-  edgeType: null,
-  edgeLabel: null,
-  edgeProperties: null,
-  edgeSource: null,
-  edgeTarget: null,
-}
+export type { NeoSelection }
 
 const LAYOUT_MS_FILTER_NEW = 120
 const LAYOUT_MS_FILTER_PRESERVE = 40
@@ -169,6 +145,7 @@ function GraphLifecycle({
   fa2Settings,
   nebulaHeat = NEBULA_HEAT_DEFAULT,
   nebulaResolution = NEBULA_RESOLUTION_DEFAULT,
+  nebulaBlend = NEBULA_BLEND_DEFAULT,
   onLouvainCommunities,
 }: {
   projection: DoxaGraphProjection
@@ -184,6 +161,8 @@ function GraphLifecycle({
   fa2Settings?: NeoFa2Settings
   nebulaHeat?: number
   nebulaResolution?: number
+  /** Union 2.0 lobe ring as % of seed disk (higher = more separated zones). */
+  nebulaBlend?: number
   onLouvainCommunities?: (communities: NeoGraphCommunity[]) => void
   onSelectionChange: (selection: NeoSelection) => void
   onGraphStats: (stats: {
@@ -228,9 +207,12 @@ function GraphLifecycle({
   nebulaHeatRef.current = nebulaHeat
   const nebulaResolutionRef = useRef(nebulaResolution)
   nebulaResolutionRef.current = nebulaResolution
+  const nebulaBlendRef = useRef(nebulaBlend)
+  nebulaBlendRef.current = nebulaBlend
   const onLouvainCommunitiesRef = useRef(onLouvainCommunities)
   onLouvainCommunitiesRef.current = onLouvainCommunities
   const appliedResolutionRef = useRef<number | null>(null)
+  const appliedBlendRef = useRef<number | null>(null)
   const lodLevelRef = useRef<NeoLodLevel>('near')
   const onLodLevelRef = useRef(onLodLevel)
   onLodLevelRef.current = onLodLevel
@@ -454,7 +436,8 @@ function GraphLifecycle({
     // relayout — FA2 from current positions (internal; no user re-apply UI)
     if (mode === 'initial') {
       if (layoutMode === 'ontology-islands') {
-        seedLouvainSoftPositions(graph)
+        seedLouvainSoftPositions(graph, { blend: nebulaBlendRef.current })
+        appliedBlendRef.current = nebulaBlendRef.current
       } else {
         seedHierarchicalPositions(graph)
       }
@@ -517,6 +500,7 @@ function GraphLifecycle({
       projectionKeyRef.current = key
       initialCompleteRef.current = false
       appliedResolutionRef.current = null
+      appliedBlendRef.current = null
     } else {
       // Prefer live Sigma positions over last committed snapshot.
       try {
@@ -595,19 +579,25 @@ function GraphLifecycle({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Louvain resolution: recolor + reweight + soft FA2 from current positions.
+  // Louvain resolution / lobe blend: recolor and/or reseed, then soft FA2.
   useEffect(() => {
     if (layoutMode !== 'ontology-islands') return
     if (!initialCompleteRef.current) return
-    if (appliedResolutionRef.current === nebulaResolution) return
+    const resChanged = appliedResolutionRef.current !== nebulaResolution
+    const blendChanged = appliedBlendRef.current !== nebulaBlend
+    if (!resChanged && !blendChanged) return
     try {
       const graph = sigma.getGraph() as NeoSigmaGraph
       if (graph.order < 2) return
-      const { communities } = applyLouvainNebula(graph, {
-        resolutionDial: nebulaResolution,
-      })
-      appliedResolutionRef.current = nebulaResolution
-      onLouvainCommunitiesRef.current?.(communities)
+      if (resChanged) {
+        const { communities } = applyLouvainNebula(graph, {
+          resolutionDial: nebulaResolution,
+        })
+        appliedResolutionRef.current = nebulaResolution
+        onLouvainCommunitiesRef.current?.(communities)
+      }
+      seedLouvainSoftPositions(graph, { blend: nebulaBlend })
+      appliedBlendRef.current = nebulaBlend
       sigma.refresh()
       const timer = runLayout('relayout')
       return () => {
@@ -617,7 +607,7 @@ function GraphLifecycle({
       /* graph not ready */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nebulaResolution, layoutMode, sigma])
+  }, [nebulaResolution, nebulaBlend, layoutMode, sigma])
 
   // Zoom LOD: mid envelopes / overview clusters by camera ratio.
   useEffect(() => {
@@ -1158,6 +1148,7 @@ export function NeoSigmaCanvas({
   variant = 'classic',
   nebulaHeat = NEBULA_HEAT_DEFAULT,
   nebulaResolution = NEBULA_RESOLUTION_DEFAULT,
+  nebulaBlend = NEBULA_BLEND_DEFAULT,
   onLouvainCommunities,
 }: {
   projection: DoxaGraphProjection
@@ -1186,6 +1177,7 @@ export function NeoSigmaCanvas({
   variant?: 'classic' | 'galaxy'
   nebulaHeat?: number
   nebulaResolution?: number
+  nebulaBlend?: number
   onLouvainCommunities?: (communities: NeoGraphCommunity[]) => void
 }) {
   const galaxy = variant === 'galaxy'
@@ -1250,6 +1242,7 @@ export function NeoSigmaCanvas({
         fa2Settings={fa2Settings}
         nebulaHeat={nebulaHeat}
         nebulaResolution={nebulaResolution}
+        nebulaBlend={nebulaBlend}
         onLouvainCommunities={onLouvainCommunities}
       />
       <NeoZoomControls />

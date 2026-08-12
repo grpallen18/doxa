@@ -14,6 +14,7 @@ import {
   applyLouvainNebula,
   dialToTargetClusters,
   louvainRankColor,
+  seedLouvainSoftPositions,
 } from '../lib/admin/neo-graph/louvain-nebula'
 import {
   controversyCommunityId,
@@ -516,6 +517,43 @@ function main() {
     typeof ontoBuilt.graph.getNodeAttribute('document:story-1', 'louvainId') ===
       'string'
   )
+  seedLouvainSoftPositions(ontoBuilt.graph)
+  let lobeMaxR = 0
+  const byLouvain = new Map<string, { x: number; y: number }[]>()
+  ontoBuilt.graph.forEachNode((_id, attrs) => {
+    if (attrs.kind === 'cluster' || attrs.properties?.lodSynthetic) return
+    lobeMaxR = Math.max(lobeMaxR, Math.hypot(attrs.x, attrs.y))
+    const lid =
+      typeof attrs.louvainId === 'string' ? attrs.louvainId : 'louvain:none'
+    const list = byLouvain.get(lid) ?? []
+    list.push({ x: attrs.x, y: attrs.y })
+    byLouvain.set(lid, list)
+  })
+  // Still one compact disk — not a distant island ring
+  assert.ok(lobeMaxR < 220)
+  if (byLouvain.size >= 2) {
+    const centroids = [...byLouvain.entries()].map(([lid, pts]) => {
+      const n = pts.length
+      return {
+        lid,
+        x: pts.reduce((s, p) => s + p.x, 0) / n,
+        y: pts.reduce((s, p) => s + p.y, 0) / n,
+      }
+    })
+    let minSep = Infinity
+    for (let i = 0; i < centroids.length; i++) {
+      for (let j = i + 1; j < centroids.length; j++) {
+        const a = centroids[i]!
+        const b = centroids[j]!
+        minSep = Math.min(minSep, Math.hypot(a.x - b.x, a.y - b.y))
+      }
+    }
+    // Default blend 27% — lobes offset but still overlapping
+    assert.ok(minSep > 1)
+    assert.ok(minSep < 100)
+  }
+  seedLouvainSoftPositions(ontoBuilt.graph, { blend: 10 })
+  seedLouvainSoftPositions(ontoBuilt.graph, { blend: 30 })
   // Ontology community survives Louvain paint
   assert.equal(
     ontoBuilt.graph.getNodeAttribute('document:story-1', 'communityId'),

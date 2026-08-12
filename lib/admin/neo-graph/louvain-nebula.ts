@@ -11,11 +11,19 @@ import {
 } from '@/lib/admin/neo-graph/layout-pipeline'
 import type { NeoSigmaGraph } from '@/lib/admin/neo-graph/graphology-adapter'
 import type { NeoGraphCommunity } from '@/lib/admin/neo-graph/types'
-import { seedOntologyIslandPositions } from '@/lib/admin/neo-graph/island-layout'
+import {
+  NEBULA_SEED_SCALE,
+  seedOntologyIslandPositions,
+} from '@/lib/admin/neo-graph/island-layout'
 
-export const NEBULA_RESOLUTION_DEFAULT = 40
+export const NEBULA_RESOLUTION_DEFAULT = 20
 export const NEBULA_RESOLUTION_MIN = 1
 export const NEBULA_RESOLUTION_MAX = 100
+
+/** Lobe ring as % of seed disk radius — higher = more separated color zones. */
+export const NEBULA_BLEND_DEFAULT = 27
+export const NEBULA_BLEND_MIN = 0
+export const NEBULA_BLEND_MAX = 100
 
 /** Readable nebula: dial maps to this many color patches. */
 export const NEBULA_CLUSTER_MIN = 3
@@ -260,31 +268,69 @@ export function applyLouvainNebula(
 }
 
 /**
- * One-disk seed (blob), with a tiny same-Louvain nudge so colors can patch —
- * not a community ring / mandala.
+ * Overlapping Louvain lobes inside one disk — teammates start near each other,
+ * but centroids sit close to the origin so FA2 gravity keeps a single brain-blob
+ * (not a community ring / mandala).
+ *
+ * `blend` is lobe ring as % of seed scale (default 20). Jitter stays wide so
+ * lobes overlap; raise blend to open color zones, lower to fuse the blob.
  */
-export function seedLouvainSoftPositions(graph: NeoSigmaGraph): void {
-  seedOntologyIslandPositions(graph)
+const LOBE_JITTER_FRAC = 0.72
 
-  const centroids = new Map<string, { x: number; y: number; n: number }>()
+function clampBlend(blend: number): number {
+  if (!Number.isFinite(blend)) return NEBULA_BLEND_DEFAULT
+  return Math.max(NEBULA_BLEND_MIN, Math.min(NEBULA_BLEND_MAX, Math.round(blend)))
+}
+
+export function blendToLobeRingFrac(blend: number): number {
+  return clampBlend(blend) / 100
+}
+
+export function seedLouvainSoftPositions(
+  graph: NeoSigmaGraph,
+  options?: { blend?: number }
+): void {
+  const counts = new Map<string, number>()
   graph.forEachNode((id, attrs) => {
     if (attrs.kind === 'cluster' || attrs.properties?.lodSynthetic) return
     const lid = louvainOf(graph, id)
-    const acc = centroids.get(lid) ?? { x: 0, y: 0, n: 0 }
-    acc.x += attrs.x
-    acc.y += attrs.y
-    acc.n += 1
-    centroids.set(lid, acc)
+    counts.set(lid, (counts.get(lid) ?? 0) + 1)
   })
 
+  const ranked = [...counts.entries()].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+  )
+  const k = ranked.length
+  if (k === 0) {
+    seedOntologyIslandPositions(graph)
+    return
+  }
+
+  const ring = NEBULA_SEED_SCALE * blendToLobeRingFrac(options?.blend ?? NEBULA_BLEND_DEFAULT)
+  const jitterScale = NEBULA_SEED_SCALE * LOBE_JITTER_FRAC
+  const centers = new Map<string, { x: number; y: number }>()
+  for (let i = 0; i < k; i++) {
+    const lid = ranked[i]![0]
+    if (k === 1) {
+      centers.set(lid, { x: 0, y: 0 })
+      continue
+    }
+    const angle = (2 * Math.PI * i) / k - Math.PI / 2
+    centers.set(lid, {
+      x: Math.cos(angle) * ring,
+      y: Math.sin(angle) * ring,
+    })
+  }
+
   graph.forEachNode((id, attrs) => {
     if (attrs.kind === 'cluster' || attrs.properties?.lodSynthetic) return
-    const lid = louvainOf(graph, id)
-    const acc = centroids.get(lid)
-    if (!acc || acc.n < 2) return
-    const cx = acc.x / acc.n
-    const cy = acc.y / acc.n
-    graph.setNodeAttribute(id, 'x', attrs.x * 0.85 + cx * 0.15)
-    graph.setNodeAttribute(id, 'y', attrs.y * 0.85 + cy * 0.15)
+    const c = centers.get(louvainOf(graph, id)) ?? { x: 0, y: 0 }
+    const sx = hashSeed(`${id}:lobe`)
+    const sy = hashSeed(`${id}:lobe:y`)
+    const jx = ((sx % 1000) / 1000 - 0.5) * jitterScale
+    const jy = ((sy % 1000) / 1000 - 0.5) * jitterScale
+    graph.setNodeAttribute(id, 'x', c.x + jx)
+    graph.setNodeAttribute(id, 'y', c.y + jy)
+    graph.setNodeAttribute(id, 'fixed', false)
   })
 }
