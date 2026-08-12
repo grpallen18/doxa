@@ -17,6 +17,8 @@ import {
   NEO_LABEL_COLOR_IDLE,
   NEO_EDGE_SIZE_IDLE,
   NEO_EDGE_IDLE_ALPHA,
+  NEO_EDGE_INTERSTITIAL_IDLE_ALPHA,
+  NEO_EDGE_INTERSTITIAL_IDLE_SIZE,
   resolveEdgeGradientAt,
 } from '@/lib/admin/neo-graph/appearance'
 import { withPremultipliedAlpha, lerpHex, withLabelAlpha } from '@/lib/admin/neo-graph/colors'
@@ -24,7 +26,10 @@ import {
   createFadedNeoNodeHover,
   drawNeoNodeHover,
 } from '@/lib/admin/neo-graph/draw-node-hover'
-import { NeoCurvedArrowProgram } from '@/lib/admin/neo-graph/edge-program'
+import {
+  NeoCurvedArrowProgram,
+  NeoHairlineCurveProgram,
+} from '@/lib/admin/neo-graph/edge-program'
 import {
   buildGraphologyFromProjection,
   snapshotGraphPositions,
@@ -44,6 +49,11 @@ import {
   separateOverlaps,
   workerBudgetMs,
 } from '@/lib/admin/neo-graph/layout-pipeline'
+import {
+  assignIslandEdgeWeights,
+  placeNodesInIslands,
+  seedOntologyIslandPositions,
+} from '@/lib/admin/neo-graph/island-layout'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
 import FA2LayoutSupervisor from 'graphology-layout-forceatlas2/worker'
 import {
@@ -54,7 +64,10 @@ import {
   type NeoLodLevel,
 } from '@/lib/admin/neo-graph/lod'
 import { drawDocumentEnvelopes } from '@/lib/admin/neo-graph/draw-envelopes'
-import { frameGraphInViewport } from '@/lib/admin/neo-graph/frame-viewport'
+import {
+  frameFocusedCommunity,
+  frameGraphInViewport,
+} from '@/lib/admin/neo-graph/frame-viewport'
 import {
   clusterMemberBounds,
 } from '@/lib/admin/neo-graph/overview-clusters'
@@ -62,13 +75,18 @@ import { NeoNodeProgram } from '@/lib/admin/neo-graph/node-program'
 import { collectNeighborhood } from '@/lib/admin/neo-graph/neighborhood'
 import type {
   DoxaGraphProjection,
+  NeoColorMode,
+  NeoFa2Settings,
   NeoGraphFilters,
   NeoLabelVisibility,
+  NeoLayoutMode,
+  NeoLodClusterMode,
   NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
 import {
   DEFAULT_NEO_FA2_SETTINGS,
   DEFAULT_NEO_LABEL_VISIBILITY,
+  UNION_V2_FA2_SETTINGS,
 } from '@/lib/admin/neo-graph/types'
 
 export type NeoSelection = {
@@ -144,6 +162,10 @@ function GraphLifecycle({
   onLodLevel,
   expandClusterId = null,
   expandClusterToken = 0,
+  layoutMode = 'hierarchical',
+  colorMode = 'kind',
+  clusterMode = 'spatial',
+  fa2Settings,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
@@ -152,6 +174,10 @@ function GraphLifecycle({
   selectedNodeId: string | null
   focusNodeId: string | null
   previewNodeId: string | null
+  layoutMode?: NeoLayoutMode
+  colorMode?: NeoColorMode
+  clusterMode?: NeoLodClusterMode
+  fa2Settings?: NeoFa2Settings
   onSelectionChange: (selection: NeoSelection) => void
   onGraphStats: (stats: {
     nodes: number
@@ -187,6 +213,10 @@ function GraphLifecycle({
   previewRef.current = previewNodeId
   const labelVisibilityRef = useRef(labelVisibility)
   labelVisibilityRef.current = labelVisibility
+  const clusterModeRef = useRef(clusterMode)
+  clusterModeRef.current = clusterMode
+  const layoutModeRef = useRef(layoutMode)
+  layoutModeRef.current = layoutMode
   const lodLevelRef = useRef<NeoLodLevel>('near')
   const onLodLevelRef = useRef(onLodLevel)
   onLodLevelRef.current = onLodLevel
@@ -228,6 +258,7 @@ function GraphLifecycle({
       level: lodLevelRef.current,
       forceVisibleIds: forceVisible,
       rebuildClusters: options?.rebuildClusters ?? false,
+      clusterMode: clusterModeRef.current,
     })
   }
 
@@ -341,9 +372,14 @@ function GraphLifecycle({
     options?: { frameViewport?: boolean }
   ) => {
     if (layoutEpochRef.current !== epoch) return
-    separateOverlaps(graph, undefined, undefined, {
-      pinKind: isBackboneKind,
-    })
+    if (layoutModeRef.current === 'ontology-islands') {
+      separateOverlaps(graph, 3, 1)
+    } else {
+      separateOverlaps(graph, undefined, undefined, {
+        pinKind: isBackboneKind,
+        pinNode: (id) => graph.getNodeAttribute(id, 'fixed') === true,
+      })
+    }
     syncLod(graph, {
       rebuildClusters: lodLevelRef.current === 'overview',
     })
@@ -354,7 +390,12 @@ function GraphLifecycle({
     }
     sigma.refresh()
     if (options?.frameViewport) {
-      frameGraphInViewport(sigma)
+      const focusId = focusRef.current
+      if (focusId && graph.hasNode(focusId)) {
+        frameFocusedCommunity(sigma, focusId)
+      } else {
+        frameGraphInViewport(sigma)
+      }
     }
     commitPositionsFromSigma()
     onComplete?.()
@@ -374,7 +415,11 @@ function GraphLifecycle({
     disposeFa2()
 
     const graph = sigma.getGraph() as NeoSigmaGraph
-    assignEdgeWeights(graph)
+    if (layoutMode === 'ontology-islands') {
+      assignIslandEdgeWeights(graph)
+    } else {
+      assignEdgeWeights(graph)
+    }
 
     if (mode === 'filter-preserve') {
       onLayoutBusyRef.current?.(true, LAYOUT_MS_FILTER_PRESERVE)
@@ -387,7 +432,11 @@ function GraphLifecycle({
     if (mode === 'filter-new') {
       onLayoutBusyRef.current?.(true, LAYOUT_MS_FILTER_NEW)
       if (newNodeIds.length > 0) {
-        placeNodesHierarchically(graph, newNodeIds)
+        if (layoutMode === 'ontology-islands') {
+          placeNodesInIslands(graph, newNodeIds)
+        } else {
+          placeNodesHierarchically(graph, newNodeIds)
+        }
       }
       finishLayoutPass(graph, epoch, onComplete, { frameViewport: false })
       return window.setTimeout(() => {}, LAYOUT_MS_FILTER_NEW)
@@ -396,12 +445,25 @@ function GraphLifecycle({
     // initial — hierarchical seed then soft FA2 polish
     // relayout — FA2 from current positions (internal; no user re-apply UI)
     if (mode === 'initial') {
-      seedHierarchicalPositions(graph)
+      if (layoutMode === 'ontology-islands') {
+        seedOntologyIslandPositions(graph)
+      } else {
+        seedHierarchicalPositions(graph)
+      }
     }
-    const budget = workerBudgetMs(graph.order)
+    const budget =
+      layoutMode === 'ontology-islands'
+        ? Math.min(workerBudgetMs(graph.order) * 1.7, 11000)
+        : workerBudgetMs(graph.order)
     onLayoutBusyRef.current?.(true, budget)
 
-    const settings = buildFa2WorkerSettings(graph, DEFAULT_NEO_FA2_SETTINGS)
+    const settings = buildFa2WorkerSettings(
+      graph,
+      fa2Settings ??
+        (layoutMode === 'ontology-islands'
+          ? UNION_V2_FA2_SETTINGS
+          : DEFAULT_NEO_FA2_SETTINGS)
+    )
 
     try {
       const layout = new FA2LayoutSupervisor(graph, {
@@ -459,6 +521,9 @@ function GraphLifecycle({
 
     const built = buildGraphologyFromProjection(projection, filters, {
       positions: isNewProjection ? undefined : positionsRef.current,
+      colorMode,
+      sizeMode: layoutMode === 'ontology-islands' ? 'compact' : 'default',
+      seedMode: layoutMode === 'ontology-islands' ? 'none' : 'hierarchical',
     })
 
     graphRef.current = built.graph
@@ -504,7 +569,7 @@ function GraphLifecycle({
     }
     // colorRevision forces rebuild so kind colors refresh on nodes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projection, filters, colorRevision])
+  }, [projection, filters, colorRevision, layoutMode, colorMode])
 
   useEffect(() => {
     return () => {
@@ -710,11 +775,13 @@ function GraphLifecycle({
       allowInvalidContainer: true,
       enableEdgeEvents: true,
       // Default is 1.7px — that clamps idle/active size so they look identical.
-      minEdgeThickness: 0.5,
+      minEdgeThickness:
+        layoutMode === 'ontology-islands' ? 0.04 : 0.5,
       renderEdgeLabels: false,
       labelDensity: 0.15,
       labelGridCellSize: 80,
-      labelRenderedSizeThreshold: 8,
+      labelRenderedSizeThreshold:
+        layoutMode === 'ontology-islands' ? 4 : 8,
       labelColor: {
         attribute: 'labelColor',
         color: NEO_LABEL_COLOR_IDLE,
@@ -727,6 +794,7 @@ function GraphLifecycle({
       defaultEdgeType: 'curvedArrow',
       edgeProgramClasses: {
         curvedArrow: NeoCurvedArrowProgram,
+        hairline: NeoHairlineCurveProgram,
       },
       zIndex: true,
       nodeReducer: (node, data) => {
@@ -764,6 +832,42 @@ function GraphLifecycle({
         ) {
           res.highlighted = true
         }
+        const hot = Boolean(data.hot)
+        const nebula = layoutModeRef.current === 'ontology-islands'
+        const hovered =
+          hoverFade.getNodeId() === node && hoverFade.getProgress() > 0
+        if (nebula) {
+          const showLabel = hovered || node === selId
+          res.forceLabel = showLabel
+          res.label = showLabel ? shownLabel : ''
+          res.labelColor = NEO_LABEL_COLOR_IDLE
+          if (!selId || selT <= 0) return res
+          if (node === selId) {
+            res.highlighted = true
+            res.zIndex = 2
+            res.labelColor = lerpHex(
+              NEO_LABEL_COLOR_IDLE,
+              NEO_LABEL_COLOR_EMPHASIS,
+              selT
+            )
+          } else {
+            const { nodes } = collectNeighborhood(g as NeoSigmaGraph, selId)
+            const base =
+              typeof data.color === 'string' && data.color ? data.color : '#888888'
+            res.color = nodes.has(node)
+              ? data.color
+              : lerpHex(base, '#3a3a3a', selT)
+            res.zIndex = nodes.has(node) ? 1 : 0
+            if (hovered) {
+              res.labelColor = lerpHex(
+                NEO_LABEL_COLOR_IDLE,
+                NEO_LABEL_COLOR_EMPHASIS,
+                selT
+              )
+            }
+          }
+          return res
+        }
         if (!selId || selT <= 0) {
           if (densifiedDoc) {
             res.forceLabel = true
@@ -771,8 +875,8 @@ function GraphLifecycle({
             res.labelColor = NEO_LABEL_COLOR_IDLE
             return res
           }
-          res.forceLabel = kindLabelsOn
-          res.label = kindLabelsOn ? shownLabel : ''
+          res.forceLabel = kindLabelsOn || hot
+          res.label = kindLabelsOn || hot ? shownLabel : ''
           res.labelColor = NEO_LABEL_COLOR_IDLE
           return res
         }
@@ -809,8 +913,8 @@ function GraphLifecycle({
             res.forceLabel = true
             res.label = shownLabel
           } else {
-            res.forceLabel = kindLabelsOn
-            res.label = kindLabelsOn ? shownLabel : ''
+            res.forceLabel = kindLabelsOn || hot
+            res.label = kindLabelsOn || hot ? shownLabel : ''
           }
           res.labelColor = lerpHex(
             NEO_LABEL_COLOR_IDLE,
@@ -840,6 +944,7 @@ function GraphLifecycle({
           (g.getNodeAttribute(source, 'color') as string) || '#888888'
         const targetHex =
           (g.getNodeAttribute(target, 'color') as string) || '#888888'
+        const nebula = layoutModeRef.current === 'ontology-islands'
 
         const fadeEdgeId = edgeFade.getNodeId()
         const edgeProgress = edgeFade.getProgress()
@@ -849,6 +954,7 @@ function GraphLifecycle({
             targetHex,
             edgeProgress
           )
+          res.type = 'curvedArrow'
           res.color = appearance.color
           res.targetColor = appearance.targetColor
           res.size = appearance.size
@@ -879,6 +985,8 @@ function GraphLifecycle({
             targetHex,
             activeT
           )
+          res.hidden = false
+          res.type = 'curvedArrow'
           res.color = appearance.color
           res.targetColor = appearance.targetColor
           res.size = appearance.size
@@ -887,9 +995,11 @@ function GraphLifecycle({
         }
 
         if (selId && selT > 0 && !inSelNeighborhood) {
-          const dimAlpha =
-            NEO_EDGE_IDLE_ALPHA + (0.35 - NEO_EDGE_IDLE_ALPHA) * selT
+          const dimAlpha = nebula
+            ? NEO_EDGE_INTERSTITIAL_IDLE_ALPHA * (1 - selT * 0.55)
+            : NEO_EDGE_IDLE_ALPHA + (0.35 - NEO_EDGE_IDLE_ALPHA) * selT
           res.hidden = false
+          res.type = nebula ? 'hairline' : 'curvedArrow'
           res.color = withPremultipliedAlpha(
             lerpHex(sourceHex, '#2a2a2a', selT),
             dimAlpha
@@ -898,7 +1008,25 @@ function GraphLifecycle({
             lerpHex(targetHex, '#2a2a2a', selT),
             dimAlpha
           )
-          res.size = NEO_EDGE_SIZE_IDLE
+          res.size = nebula
+            ? NEO_EDGE_INTERSTITIAL_IDLE_SIZE
+            : NEO_EDGE_SIZE_IDLE
+          res.zIndex = 0
+          return res
+        }
+
+        if (nebula) {
+          res.hidden = false
+          res.type = 'hairline'
+          res.color = withPremultipliedAlpha(
+            sourceHex,
+            NEO_EDGE_INTERSTITIAL_IDLE_ALPHA
+          )
+          res.targetColor = withPremultipliedAlpha(
+            targetHex,
+            NEO_EDGE_INTERSTITIAL_IDLE_ALPHA
+          )
+          res.size = NEO_EDGE_INTERSTITIAL_IDLE_SIZE
           res.zIndex = 0
           return res
         }
@@ -911,7 +1039,7 @@ function GraphLifecycle({
         return res
       },
     })
-  }, [drawNodeHover, labelVisibility, setSettings, sigma, selectedNodeId])
+  }, [drawNodeHover, labelVisibility, layoutMode, setSettings, sigma, selectedNodeId])
 
   useEffect(() => {
     sigma.refresh()
@@ -978,6 +1106,11 @@ export function NeoSigmaCanvas({
   onLodLevel,
   expandClusterId = null,
   expandClusterToken = 0,
+  layoutMode = 'hierarchical',
+  colorMode = 'kind',
+  clusterMode = 'spatial',
+  fa2Settings,
+  variant = 'classic',
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
@@ -998,10 +1131,17 @@ export function NeoSigmaCanvas({
   onLodLevel?: (level: NeoLodLevel) => void
   expandClusterId?: string | null
   expandClusterToken?: number
+  layoutMode?: NeoLayoutMode
+  colorMode?: NeoColorMode
+  clusterMode?: NeoLodClusterMode
+  fa2Settings?: NeoFa2Settings
+  variant?: 'classic' | 'galaxy'
 }) {
+  const galaxy = variant === 'galaxy'
+  const bg = galaxy ? '#050508' : '#121212'
   return (
     <SigmaContainer
-      className="neo-sigma-root absolute inset-0 !bg-[#121212]"
+      className={`neo-sigma-root absolute inset-0 ${galaxy ? 'neo-sigma-galaxy' : ''}`}
       style={{
         position: 'absolute',
         top: 0,
@@ -1011,8 +1151,8 @@ export function NeoSigmaCanvas({
         width: 'auto',
         height: 'auto',
         minHeight: 0,
-        background: '#121212',
-        ['--sigma-background-color' as string]: '#121212',
+        background: bg,
+        ['--sigma-background-color' as string]: bg,
         ['--sigma-controls-background-color' as string]: '#1a1a1a',
         ['--sigma-controls-background-color-hover' as string]:
           'rgba(255,255,255,0.1)',
@@ -1053,6 +1193,10 @@ export function NeoSigmaCanvas({
         onLodLevel={onLodLevel}
         expandClusterId={expandClusterId}
         expandClusterToken={expandClusterToken}
+        layoutMode={layoutMode}
+        colorMode={colorMode}
+        clusterMode={clusterMode}
+        fa2Settings={fa2Settings}
       />
       <NeoZoomControls />
     </SigmaContainer>

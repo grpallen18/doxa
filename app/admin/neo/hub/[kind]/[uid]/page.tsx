@@ -1,22 +1,23 @@
-import { notFound } from 'next/navigation'
-import { NeoHubWorkspace } from '@/components/admin/neo/neo-hub-workspace'
-import type { NeoHubRootKind } from '@/lib/neo4j/queries/hub'
+import { notFound, redirect } from 'next/navigation'
+import { unionV2NodeHref } from '@/lib/admin/neo-graph/union-v2-focus'
 
-const KINDS = new Set<NeoHubRootKind>(['controversy', 'proposition', 'entity'])
+type HubKind = 'controversy' | 'proposition' | 'entity'
+
+const KINDS: HubKind[] = ['controversy', 'proposition', 'entity']
+
+function isHubKind(value: string): value is HubKind {
+  return KINDS.includes(value as HubKind)
+}
 
 type PageProps = {
   params: Promise<{ kind: string; uid: string }>
 }
 
-export default async function AdminNeoHubPage({ params }: PageProps) {
+/** Hub explorers retired — focus the root node in Union 2.0. */
+export default async function AdminNeoHubRedirectPage({ params }: PageProps) {
   const { kind: rawKind, uid: rawUid } = await params
-  const kind = decodeURIComponent(rawKind || '') as NeoHubRootKind
+  const kind = decodeURIComponent(rawKind || '')
   const uid = decodeURIComponent(rawUid || '')
-  if (!KINDS.has(kind) || !uid) notFound()
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <NeoHubWorkspace kind={kind} uid={uid} />
-    </div>
-  )
+  if (!isHubKind(kind) || !uid) notFound()
+  redirect(unionV2NodeHref(kind, uid))
 }

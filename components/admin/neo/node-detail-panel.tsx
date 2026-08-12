@@ -86,6 +86,16 @@ export function NeoNodeDetailPanel({
           <>
             <Field label="Label" value={selection.label} />
             <Field label="Id" value={selection.nodeId} />
+            <Field
+              label="Community"
+              value={
+                typeof selection.properties?.communityLabel === 'string'
+                  ? selection.properties.communityLabel
+                  : typeof selection.properties?.communityId === 'string'
+                    ? selection.properties.communityId
+                    : null
+              }
+            />
             {isCluster && memberLabels && memberLabels.length > 0 ? (
               <div className="space-y-1.5">
                 <dt className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">

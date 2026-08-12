@@ -9,6 +9,24 @@
   background: #121212 !important;
 }
 
+.neo-sigma-root.neo-sigma-galaxy.react-sigma {
+  background: #050508 !important;
+}
+
+.neo-sigma-root.neo-sigma-galaxy::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: radial-gradient(
+    rgba(168, 130, 255, 0.16) 0.7px,
+    transparent 0.8px
+  );
+  background-size: 22px 22px;
+  opacity: 0.45;
+}
+
 .neo-sigma-root .sigma-container {
   position: absolute !important;
   inset: 0 !important;

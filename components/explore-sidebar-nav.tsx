@@ -5,13 +5,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   ArrowLeft,
-  Bell,
-  Bookmark,
   ChevronDown,
   ChevronRight,
-  Columns3,
   Compass,
+  Info,
   PanelLeftClose,
+  Search,
+  User,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -25,21 +25,19 @@ import {
 } from '@/components/ui/sidebar'
 import { useTopicExplore, type TocSection } from '@/components/topic-explore-context'
 import { cn } from '@/lib/utils'
-import { defaultTopicId } from '@/lib/mock/topic-explore'
-import { topicPath } from '@/lib/topic-routes'
 
 type NavItem = {
   label: string
   icon: LucideIcon
-  href?: string
-  comingSoon?: boolean
+  href: string
+  matchPrefix?: boolean
 }
 
 const mainNav: NavItem[] = [
-  { label: 'Explore Topics', icon: Compass, href: topicPath(defaultTopicId) },
-  { label: 'Saved Briefs', icon: Bookmark, comingSoon: true },
-  { label: 'Comparisons', icon: Columns3, comingSoon: true },
-  { label: 'Alerts & Trends', icon: Bell, comingSoon: true },
+  { label: 'Explore', icon: Compass, href: '/', matchPrefix: false },
+  { label: 'Search', icon: Search, href: '/search', matchPrefix: true },
+  { label: 'About', icon: Info, href: '/about' },
+  { label: 'Profile', icon: User, href: '/profile' },
 ]
 
 const tocBackLinkClassName =
@@ -80,6 +78,21 @@ function isSectionHidden(
     }
   }
   return false
+}
+
+function isNavActive(pathname: string, item: NavItem) {
+  if (item.href === '/') {
+    return (
+      pathname === '/' ||
+      pathname.startsWith('/c/') ||
+      pathname.startsWith('/topics/') ||
+      pathname.startsWith('/entities/')
+    )
+  }
+  if (item.matchPrefix) {
+    return pathname === item.href || pathname.startsWith(`${item.href}/`)
+  }
+  return pathname === item.href
 }
 
 function TableOfContentsNav() {
@@ -205,7 +218,6 @@ function TableOfContentsNav() {
 
 function MainNavigation() {
   const pathname = usePathname()
-  const onTopics = pathname.startsWith('/topics/')
 
   return (
     <SidebarGroup>
@@ -214,23 +226,12 @@ function MainNavigation() {
         <SidebarMenu>
           {mainNav.map((item) => (
             <SidebarMenuItem key={item.label}>
-              {item.comingSoon ? (
-                <SidebarMenuButton
-                  disabled
-                  tooltip="Coming soon"
-                  className="cursor-not-allowed opacity-60"
-                >
+              <SidebarMenuButton asChild isActive={isNavActive(pathname, item)} tooltip={item.label}>
+                <Link href={item.href}>
                   <item.icon className="size-4" />
                   <span>{item.label}</span>
-                </SidebarMenuButton>
-              ) : (
-                <SidebarMenuButton asChild isActive={onTopics} tooltip={item.label}>
-                  <Link href={item.href ?? topicPath(defaultTopicId)}>
-                    <item.icon className="size-4" />
-                    <span>{item.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              )}
+                </Link>
+              </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>

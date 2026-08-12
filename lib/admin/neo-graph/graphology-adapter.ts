@@ -3,14 +3,20 @@ import type {
   DoxaGraphEdge,
   DoxaGraphNode,
   DoxaGraphProjection,
+  NeoColorMode,
   NeoGraphFilters,
 } from '@/lib/admin/neo-graph/types'
+import type { NeoSizeMode } from '@/lib/admin/neo-graph/appearance'
 import {
+  applyNebulaHeat,
+  nebulaHeat,
+  NEBULA_HOT_HEAT,
   NEO_EDGE_IDLE_ALPHA,
   NEO_EDGE_SIZE_IDLE,
   resolveNodeAppearance,
 } from '@/lib/admin/neo-graph/appearance'
 import { withPremultipliedAlpha } from '@/lib/admin/neo-graph/colors'
+import { resolveCommunityAppearance } from '@/lib/admin/neo-graph/community-colors'
 import {
   edgeLayoutWeight,
   hashSeed,
@@ -39,11 +45,17 @@ export type SigmaNodeAttributes = {
   /** Overview cluster membership (synthetic cluster nodes). */
   memberIds?: string[]
   forceLabel?: boolean
+  /** High-degree neuron — stay labeled in the Union 2.0 nebula. */
+  hot?: boolean
+  /** ForceAtlas2: do not move this node. */
+  fixed?: boolean
   zIndex?: number
   charStart?: number
   charEnd?: number
   properties: DoxaGraphNode['properties']
   aliases: string[]
+  communityId?: string
+  communityLabel?: string
 }
 
 export type SigmaEdgeAttributes = {
@@ -110,6 +122,10 @@ function initialPosition(id: string, _kind: DoxaGraphNode['kind']): NeoNodePosit
 export type GraphologyBuildOptions = {
   /** Prior layout positions keyed by node id (filter toggles / color refresh). */
   positions?: ReadonlyMap<string, NeoNodePosition>
+  colorMode?: NeoColorMode
+  sizeMode?: NeoSizeMode
+  /** `none` skips hierarchical seed so island layout can place new nodes. */
+  seedMode?: 'hierarchical' | 'none'
 }
 
 export type GraphologyBuildResult = {
@@ -140,6 +156,9 @@ export function buildGraphologyFromProjection(
     allowSelfLoops: false,
   })
   const positions = options?.positions
+  const colorMode = options?.colorMode ?? 'kind'
+  const sizeMode = options?.sizeMode ?? 'default'
+  const seedMode = options?.seedMode ?? 'hierarchical'
 
   const kindOk = (kind: DoxaGraphNode['kind']) =>
     !filters || filters.kinds[kind] !== false
@@ -161,7 +180,19 @@ export function buildGraphologyFromProjection(
     const appearance = resolveNodeAppearance({
       kind: node.kind,
       degreeHint: node.degreeHint,
+      sizeMode,
     })
+    const communityPaint =
+      colorMode === 'community'
+        ? resolveCommunityAppearance(node.communityId)
+        : null
+    const baseColor = communityPaint?.color ?? appearance.color
+    const compact = sizeMode === 'compact'
+    const heat = compact ? nebulaHeat(node.degreeHint ?? 0) : 0
+    const hot = compact && heat >= NEBULA_HOT_HEAT
+    const color = compact
+      ? applyNebulaHeat(baseColor, node.degreeHint ?? 0)
+      : baseColor
     const cached = positions?.get(node.id)
     const pos = cached ?? initialPosition(node.id, node.kind)
     if (!cached) {
@@ -173,8 +204,8 @@ export function buildGraphologyFromProjection(
       kind: node.kind,
       size: appearance.size,
       baseSize: appearance.size,
-      color: appearance.color,
-      borderColor: appearance.borderColor,
+      color,
+      borderColor: communityPaint?.borderColor ?? appearance.borderColor,
       labelColor: appearance.labelColor,
       x: pos.x,
       y: pos.y,
@@ -183,6 +214,12 @@ export function buildGraphologyFromProjection(
       charEnd: node.charEnd,
       properties: node.properties,
       aliases: node.aliases,
+      communityId: node.communityId,
+      communityLabel: node.communityLabel,
+      hot,
+      forceLabel: compact
+        ? false
+        : node.kind === 'controversy' || node.communityId === node.id,
     })
   }
 
@@ -244,8 +281,7 @@ export function buildGraphologyFromProjection(
     })
   }
 
-  // Place newly visible nodes with the publication-first hierarchy.
-  if (newNodeIds.length > 0) {
+  if (newNodeIds.length > 0 && seedMode === 'hierarchical') {
     placeNodesHierarchically(graph, newNodeIds)
   }
 

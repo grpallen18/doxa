@@ -11,6 +11,7 @@ import {
   graphStatusBadgeVariant,
   type NeoStoryListItem,
 } from '@/lib/admin/neo-types'
+import { unionV2DocumentHref } from '@/lib/admin/neo-graph/union-v2-focus'
 
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
@@ -30,6 +31,8 @@ export function NeoStoryList() {
   const [titleDraft, setTitleDraft] = useState('')
   const [status, setStatus] = useState('')
   const [offset, setOffset] = useState(0)
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null)
+  const [reprocessError, setReprocessError] = useState<string | null>(null)
   const limit = 25
 
   const fetchList = useCallback(async () => {
@@ -65,6 +68,27 @@ export function NeoStoryList() {
     fetchList()
   }, [fetchList])
 
+  const reprocess = useCallback(async (storyId: string) => {
+    setReprocessingId(storyId)
+    setReprocessError(null)
+    try {
+      const res = await fetch(
+        `/api/admin/neo/documents/${encodeURIComponent(storyId)}/reprocess`,
+        { method: 'POST' }
+      )
+      const json = await res.json()
+      if (!res.ok || json.error) {
+        setReprocessError(json?.error?.message ?? 'Failed to enqueue reprocess')
+        return
+      }
+      await fetchList()
+    } catch {
+      setReprocessError('Failed to enqueue reprocess')
+    } finally {
+      setReprocessingId(null)
+    }
+  }, [fetchList])
+
   const page = Math.floor(offset / limit) + 1
   const pageCount = Math.max(1, Math.ceil(total / limit))
 
@@ -76,22 +100,39 @@ export function NeoStoryList() {
             Neo
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Read-only discourse graphs from Neo4j — story-scoped utterances and provenance.
-            View all stories in a{' '}
-            <Link href="/admin/neo/union" className="underline hover:text-foreground">
-              story union
-            </Link>
-            , or open a{' '}
-            <Link href="/admin/graph-controversies" className="underline hover:text-foreground">
-              graph controversy
+            Discourse graphs from Neo4j. Open{' '}
+            <Link
+              href="/admin/neo/union-2"
+              className="underline hover:text-foreground"
+            >
+              Union 2.0
             </Link>{' '}
-            hub.
+            (ontology islands) or the{' '}
+            <Link
+              href="/admin/neo/union"
+              className="underline hover:text-foreground"
+            >
+              classic story union
+            </Link>
+            . Debate catalog stays on{' '}
+            <Link
+              href="/admin/graph-controversies"
+              className="underline hover:text-foreground"
+            >
+              graph controversies
+            </Link>
+            .
           </p>
         </div>
         <div className="flex w-full max-w-lg flex-col gap-2 sm:items-end">
-          <Button asChild size="sm" variant="outline" className="h-9 shrink-0">
-            <Link href="/admin/neo/union">Story union</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" className="h-9 shrink-0">
+              <Link href="/admin/neo/union-2">Union 2.0</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="h-9 shrink-0">
+              <Link href="/admin/neo/union">Classic union</Link>
+            </Button>
+          </div>
           <form
             className="flex w-full max-w-md gap-2"
             onSubmit={(e) => {
@@ -112,6 +153,10 @@ export function NeoStoryList() {
           </form>
         </div>
       </div>
+
+      {reprocessError ? (
+        <p className="text-sm text-red-700 dark:text-red-400">{reprocessError}</p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => (
@@ -140,14 +185,15 @@ export function NeoStoryList() {
       ) : (
         <ul className="space-y-2">
           {items.map((item) => {
-            const status = item.graph_status
-            const canOpenWorkspace =
-              status === 'succeeded' ||
-              status === 'failed' ||
-              status === 'quarantined' ||
-              status === 'pending' ||
-              status === 'running'
-            const workspaceHref = `/admin/neo/${item.story_id}`
+            const graphStatus = item.graph_status
+            const canFocus =
+              graphStatus === 'succeeded' ||
+              graphStatus === 'failed' ||
+              graphStatus === 'quarantined' ||
+              graphStatus === 'pending' ||
+              graphStatus === 'running'
+            const focusHref = unionV2DocumentHref(item.story_id)
+            const busy = reprocessingId === item.story_id
             return (
               <li key={item.story_id}>
                 <Panel variant="soft" interactive={false} className="p-4">
@@ -171,7 +217,7 @@ export function NeoStoryList() {
                         </span>
                       </div>
                       <Link
-                        href={canOpenWorkspace ? workspaceHref : `/admin/stories/${item.story_id}`}
+                        href={canFocus ? focusHref : `/admin/stories/${item.story_id}`}
                         className="block text-sm font-medium text-foreground hover:underline line-clamp-2"
                       >
                         {item.title || 'Untitled story'}
@@ -182,14 +228,23 @@ export function NeoStoryList() {
                         </p>
                       )}
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      {canOpenWorkspace && (
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {canFocus && (
                         <Button asChild size="sm">
-                          <Link href={workspaceHref}>
-                            {status === 'succeeded' ? 'Open graph' : 'Open workspace'}
+                          <Link href={focusHref}>
+                            {graphStatus === 'succeeded' ? 'Focus in 2.0' : 'Open in 2.0'}
                           </Link>
                         </Button>
                       )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void reprocess(item.story_id)}
+                      >
+                        {busy ? 'Reprocessing…' : 'Reprocess'}
+                      </Button>
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/admin/stories/${item.story_id}`}>Story</Link>
                       </Button>

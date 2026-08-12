@@ -116,21 +116,21 @@ Tokens and component classes live in `app/globals.css` and `tailwind.config.ts`.
 
 ## Navigation & Key Pages
 
-The site is **gated**: unauthenticated users are redirected to `/login`. Authenticated users (cached session) go straight to the requested page.
+**Public explore:** home, search, topics, controversies (`/c/[uid]`), entities, and about are readable without login. Account required for saves, critiques, polls, and profile.
 
-- **Login (`/login`):** Landing page for unauthenticated users. Supabase UI Library–style sign-in form (email + password) and “Login with GitHub” (OAuth). Links to sign-up and forgot-password. On success, redirects to home or the `redirect` query param.
-- **Sign up (`/auth/sign-up`):** Create an account with email and password. After sign-up, users receive a confirmation email; they confirm via `/auth/confirm` (token link).
-- **Forgot password (`/auth/forgot-password`):** Request a password-reset email. Reset link goes to `/auth/confirm` (recovery type), then user sets a new password at `/auth/update-password`.
-- **Auth callback (`/auth/callback`):** Handles OAuth and magic-link callbacks (code exchange). Redirects to `/` or the `redirect` query param.
-- **Auth confirm (`/auth/confirm`):** Handles email confirmation and password-reset links (token_hash + type). Redirects to `/` or the `next` query param.
-- **Auth error (`/auth/error`):** Displays auth errors (e.g. invalid token, OAuth failure).
-- **Home (`/`):** Search-first landing page with a big search bar, a weekly poll (placeholder), a \"Trending stories\" panel of topic nodes, and a CTA band. Footer links to About and Topics. Only reachable when signed in.
-- **About (`/about`):** Mission summary, DOXA definition and Plato quote, body copy on how Doxa surfaces and clarifies viewpoints, and the \"How it works\" three-step section (search/browse, see framing, contribute). Linked from the header nav and footer.
-- **Search (`/search`):** Placeholder search results page that echoes the query and shows static example topics; a real search backend is not yet implemented.
-- **Profile (`/profile`):** Account & ideology stub page showing read-only, placeholder factor ratings and an overall ideology label; the real ideology engine is not yet implemented.
-- **Topic map (graph) (`/graph`):** From the main page, click **Topics** in the top navigation bar to open the interactive knowledge graph. The topic map shows political topics; click a topic to open its page at `/page/[id]`.
-- **Admin: Topics (`/admin/topics`):** Create new topics by title and run the topic pipeline (link theses via embedding similarity, synthesize 1,000–1,500 word summary, build topic-to-topic relationships). Requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
-- **Admin: Stories (`/admin/stories`):** Search stories and open extraction review (`/admin/stories/[id]`) to compare article text with `story_claims`, evidence, positions, events, and link tables. Markdown export and optional QA feedback. See [docs/admin-story-extraction-review.md](docs/admin-story-extraction-review.md).
+- **Login (`/login`):** Sign-in (email/password + GitHub OAuth). Links to sign-up and forgot-password.
+- **Sign up / auth routes:** `/auth/sign-up`, `/auth/callback`, `/auth/confirm`, `/auth/forgot-password`, `/auth/update-password`, `/auth/error`.
+- **Home (`/`):** Search-first landing — brand, headline, search (`SpotlightBorder`), trending controversies from `graph_controversies`, featured topic hubs (density bar + `graph_topic_links`), how-it-works.
+- **Search (`/search?q=`):** Controversies first, then published topics.
+- **Controversy (`/c/[uid]`):** Primary product page — question, shared/clash/disputes, viewpoint columns, evidence sheet, assessments (labeled Analyzed), related debates, feedback.
+- **Topic hub (`/topics/[slug]`):** Core facts + linked controversies (only meaningful when links exist). Nested: `/topics/[slug]/c/[uid]`.
+- **Entity (`/entities/[uid]`):** Neo-backed dossier (P2) — controversies + propositions.
+- **About (`/about`):** Mission copy.
+- **Profile (`/profile`):** Account settings; personalization deferred (no fake ideology meters).
+- **Legacy:** `/page/[id]` redirects to topic hub by slug; mock position routes redirect to the topic hub.
+- **Admin:** unchanged under `/admin/**` (admin role required).
+
+Typography uses **Manrope** (`--font-app`). Prefer `Panel`, design-system `Button`, `DoxaLink`, shadcn primitives, and Motion Primitives — CSS variables only (see Design System above).
 
 ## Getting Started
 

@@ -42,6 +42,22 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isAuthPage = pathname === '/login' || pathname.startsWith('/auth/')
 
+  // Public explore: read without an account. Contribute/admin still require auth.
+  const isPublicExplore =
+    pathname === '/' ||
+    pathname === '/about' ||
+    pathname === '/search' ||
+    pathname.startsWith('/c/') ||
+    pathname.startsWith('/topics/') ||
+    pathname.startsWith('/entities/') ||
+    pathname.startsWith('/api/explore') ||
+    pathname.startsWith('/api/topics/search') ||
+    pathname.startsWith('/api/theme-presets') ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/favicon') ||
+    pathname === '/logo-color-no-bg.png' ||
+    pathname === '/logo-color-no-bg-dark.png'
+
   if (user && isAuthPage) {
     const redirectTo = request.nextUrl.searchParams.get('redirect') ?? '/'
     const redirectResponse = NextResponse.redirect(new URL(redirectTo, request.url))
@@ -51,7 +67,7 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse
   }
 
-  if (!user && !isAuthPage) {
+  if (!user && !isAuthPage && !isPublicExplore) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
     redirectUrl.searchParams.set('redirect', pathname)

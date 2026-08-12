@@ -1,53 +1,15 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('topic and position pages', () => {
-  test('topic page summarizes positions with links', async ({ page }) => {
-    await page.goto('/topics/immigration')
-
-    await expect(page.getByRole('heading', { name: 'Immigration', level: 1 })).toBeVisible()
-    await expect(page.getByTestId('topic-summary')).toBeVisible()
-    await expect(page.getByTestId('position-topic-list')).toBeVisible()
-    await expect(page.getByTestId('position-topic-link')).toHaveCount(5)
-    await expect(page.getByText('Table of Contents')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Positions' })).toBeVisible()
+test.describe('consumer explore home', () => {
+  test('shows search-first home composition', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: /Navigate disagreement/i })).toBeVisible()
+    await expect(page.getByLabel('Search')).toBeVisible()
+    await expect(page.getByText(/Trending controversies/i)).toBeVisible()
   })
 
-  test('navigates from topic page to position page and back', async ({ page }) => {
-    await page.goto('/topics/immigration')
-
-    await page.getByRole('link', { name: /Border enforcement must come first/i }).click()
-    await expect(page).toHaveURL('/topics/immigration/positions/pos-1')
-    await expect(
-      page.getByRole('heading', {
-        name: 'Immigration Should Be Significantly Reduced',
-        level: 1,
-      })
-    ).toBeVisible()
-    await expect(page.getByTestId('position-narrative')).toBeVisible()
-    await expect(page.getByTestId('position-popularity-snapshot')).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Immigration Should Be Significantly Reduced' })
-    ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Economic effects' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'See also' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Primary claims' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'History' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Primary arguments' })).toBeVisible()
-    await expect(page.getByTestId('position-primary-claims').getByRole('listitem')).toHaveCount(10)
-    await expect(page.getByTestId('position-primary-argument-link')).toHaveCount(8)
-
-    await page.getByTestId('sidebar-back-link').click()
-    await expect(page).toHaveURL('/topics/immigration')
-    await expect(page.getByRole('heading', { name: 'Immigration', level: 1 })).toBeVisible()
-  })
-
-  test('sidebar links to position pages', async ({ page }) => {
-    await page.goto('/topics/immigration')
-
-    await page.getByRole('link', { name: 'Expand legal pathways for migrants' }).click()
-    await expect(page).toHaveURL('/topics/immigration/positions/pos-2')
-    await expect(page.getByText('Table of Contents')).toBeVisible()
-    await expect(page.getByTestId('sidebar-back-link')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Key supporting claims' })).toBeVisible()
+  test('search page accepts query', async ({ page }) => {
+    await page.goto('/search?q=test')
+    await expect(page.getByRole('heading', { name: /Results for/i })).toBeVisible()
   })
 })

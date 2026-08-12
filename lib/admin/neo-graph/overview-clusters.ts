@@ -2,6 +2,11 @@ import {
   deriveNeoBorderColor,
   getNeoKindColor,
 } from '@/lib/admin/neo-graph/colors'
+import { resolveCommunityAppearance } from '@/lib/admin/neo-graph/community-colors'
+import {
+  COMMUNITY_BRIDGE,
+  COMMUNITY_UNLINKED,
+} from '@/lib/admin/neo-graph/community-ids'
 import { NEO_LABEL_COLOR_IDLE } from '@/lib/admin/neo-graph/appearance'
 import { hashSeed } from '@/lib/admin/neo-graph/layout-pipeline'
 import type {
@@ -19,7 +24,10 @@ export type OverviewCluster = {
   storyCount: number
   leafCountSum: number
   label: string
+  communityId?: string
 }
+
+export type OverviewClusterMode = 'spatial' | 'membership'
 
 const CLUSTER_ID_PREFIX = 'lod-cluster:'
 const CLUSTER_EDGE_PREFIX = 'lod-cluster-edge:'
@@ -185,17 +193,89 @@ export function computeOverviewClusters(
   return clusters
 }
 
-function clusterAppearance(storyCount: number): {
+/**
+ * Group documents by ontology community (Union 2.0 overview).
+ */
+export function computeMembershipClusters(
+  graph: NeoSigmaGraph
+): OverviewCluster[] {
+  const groups = new Map<
+    string,
+    Array<{ id: string; x: number; y: number; leafCount: number; label: string }>
+  >()
+
+  graph.forEachNode((id, attrs) => {
+    if (attrs.kind !== 'document') return
+    const communityId =
+      typeof attrs.communityId === 'string' && attrs.communityId
+        ? attrs.communityId
+        : COMMUNITY_UNLINKED
+    if (communityId === COMMUNITY_BRIDGE) return
+    const list = groups.get(communityId)
+    const row = {
+      id,
+      x: attrs.x,
+      y: attrs.y,
+      leafCount:
+        typeof attrs.leafCount === 'number' && Number.isFinite(attrs.leafCount)
+          ? attrs.leafCount
+          : 0,
+      label:
+        typeof attrs.communityLabel === 'string' && attrs.communityLabel
+          ? attrs.communityLabel
+          : communityId,
+    }
+    if (list) list.push(row)
+    else groups.set(communityId, [row])
+  })
+
+  const clusters: OverviewCluster[] = []
+  for (const [communityId, members] of groups) {
+    if (members.length < 2) continue
+    let sx = 0
+    let sy = 0
+    let leafSum = 0
+    for (const m of members) {
+      sx += m.x
+      sy += m.y
+      leafSum += m.leafCount
+    }
+    const n = members.length
+    clusters.push({
+      id: `${CLUSTER_ID_PREFIX}membership:${communityId}`,
+      memberIds: members.map((m) => m.id).sort(),
+      x: sx / n,
+      y: sy / n,
+      storyCount: n,
+      leafCountSum: leafSum,
+      label: members[0]?.label || `${n} stories`,
+      communityId,
+    })
+  }
+  return clusters
+}
+
+function clusterAppearance(
+  storyCount: number,
+  communityId?: string
+): {
   size: number
   color: string
   borderColor: string
 } {
-  const color = getNeoKindColor('cluster')
-  const size = Math.min(48, 22 + Math.sqrt(storyCount) * 6)
+  const painted = communityId
+    ? resolveCommunityAppearance(communityId)
+    : {
+        color: getNeoKindColor('cluster'),
+        borderColor: deriveNeoBorderColor(getNeoKindColor('cluster')),
+      }
+  const size = communityId
+    ? Math.min(18, 8 + Math.sqrt(storyCount) * 2.2)
+    : Math.min(48, 22 + Math.sqrt(storyCount) * 6)
   return {
     size,
-    color,
-    borderColor: deriveNeoBorderColor(color),
+    color: painted.color,
+    borderColor: painted.borderColor,
   }
 }
 
@@ -203,7 +283,7 @@ function ensureClusterNode(
   graph: NeoSigmaGraph,
   cluster: OverviewCluster
 ): void {
-  const appearance = clusterAppearance(cluster.storyCount)
+  const appearance = clusterAppearance(cluster.storyCount, cluster.communityId)
   const attrs: SigmaNodeAttributes = {
     label: cluster.label,
     fullLabel: cluster.label,
@@ -224,7 +304,9 @@ function ensureClusterNode(
       lodSynthetic: true,
       storyCount: cluster.storyCount,
       leafCountSum: cluster.leafCountSum,
+      communityId: cluster.communityId ?? null,
     },
+    communityId: cluster.communityId,
     aliases: [],
   }
   if (graph.hasNode(cluster.id)) {
@@ -322,9 +404,10 @@ function applyBridgesAndPubs(
  */
 export function applyOverviewClusters(
   graph: NeoSigmaGraph,
-  options?: { rebuild?: boolean }
+  options?: { rebuild?: boolean; mode?: OverviewClusterMode }
 ): OverviewCluster[] {
   const rebuild = options?.rebuild !== false
+  const mode = options?.mode ?? 'spatial'
 
   // Always clear previous member hiding for documents before re-apply
   graph.forEachNode((id, attrs) => {
@@ -334,7 +417,9 @@ export function applyOverviewClusters(
   })
 
   const clusters = rebuild
-    ? computeOverviewClusters(graph)
+    ? mode === 'membership'
+      ? computeMembershipClusters(graph)
+      : computeOverviewClusters(graph)
     : readExistingClusters(graph)
 
   const activeIds = new Set(clusters.map((c) => c.id))

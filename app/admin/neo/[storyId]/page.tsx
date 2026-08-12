@@ -1,12 +1,10 @@
-import { NeoDocumentWorkspace } from '@/components/admin/neo/neo-document-workspace'
+import { redirect } from 'next/navigation'
+import { unionV2DocumentHref } from '@/lib/admin/neo-graph/union-v2-focus'
 
 type PageProps = { params: Promise<{ storyId: string }> }
 
-export default async function AdminNeoDocumentPage({ params }: PageProps) {
+/** Per-story Neo explorer retired — focus the document in Union 2.0. */
+export default async function AdminNeoDocumentRedirectPage({ params }: PageProps) {
   const { storyId } = await params
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <NeoDocumentWorkspace storyId={storyId} />
-    </div>
-  )
+  redirect(unionV2DocumentHref(storyId))
 }

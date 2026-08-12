@@ -188,12 +188,17 @@ export const handler = async (req: Request) => {
     for (const comp of assigned) {
       activeUids.push(comp.uid);
       if (comp.reused) reused += 1;
+      const topicLabel = String(issue.topicKey || "this issue").replace(/^sim:/, "related claims on ");
+      const question = `What are the competing views concerning ${topicLabel}?`;
+      const title = question;
+      const summary = `Multi-sided debate with ${comp.memberIds.length} viewpoint${comp.memberIds.length === 1 ? "" : "s"} on ${topicLabel}.`;
       await runCypher(
         `
         MERGE (c:Controversy {uid: $uid})
         SET c.topicKey = $topicKey,
             c.issueUid = $issueUid,
             c.title = $title,
+            c.question = $question,
             c.summary = $summary,
             c.sidesCount = $sidesCount,
             c.schemaVersion = '2.3.0',
@@ -208,8 +213,9 @@ export const handler = async (req: Request) => {
           uid: comp.uid,
           issueUid: issue.uid,
           topicKey: issue.topicKey,
-          title: `Controversy: ${issue.topicKey}`,
-          summary: `Multi-sided debate with ${comp.memberIds.length} viewpoints`,
+          title,
+          question,
+          summary,
           sidesCount: comp.memberIds.length,
           memberIds: comp.memberIds,
         }

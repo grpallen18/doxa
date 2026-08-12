@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button'
 import { NEO_KIND_LEGEND } from '@/lib/admin/neo-graph/appearance'
 import { neoNodeFillGradient } from '@/lib/admin/neo-graph/colors'
 import { useNeoKindColors } from '@/lib/admin/neo-graph/use-neo-colors'
+import { resolveCommunityColor } from '@/lib/admin/neo-graph/community-colors'
 import {
   FILTERABLE_NODE_KINDS,
+  type NeoGraphCommunity,
   type NeoGraphFilters,
   type NeoLabelVisibility,
   type NeoNodeKind,
@@ -121,6 +123,34 @@ export function NeoGraphLegend({
             </li>
           )
         })}
+      </ul>
+    </div>
+  )
+}
+
+export function NeoCommunityLegend({
+  communities,
+  className,
+}: {
+  communities: NeoGraphCommunity[]
+  className?: string
+}) {
+  const islands = communities.filter((c) => c.kind !== 'bridge')
+  return (
+    <div className={cn('max-w-full overflow-hidden px-1 py-0.5', className)}>
+      <ul className="flex min-w-0 items-center justify-center gap-x-3 gap-y-1 overflow-x-auto">
+        {islands.map((item) => (
+          <li key={item.id} className="shrink-0">
+            <span className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-zinc-200">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: resolveCommunityColor(item.id) }}
+              />
+              {item.label}
+              <span className="text-zinc-500">{item.memberCount}</span>
+            </span>
+          </li>
+        ))}
       </ul>
     </div>
   )

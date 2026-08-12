@@ -596,7 +596,8 @@ export function buildFa2WorkerSettings(
   return {
     ...inferred,
     adjustSizes: true,
-    strongGravityMode: false,
+    strongGravityMode: user?.strongGravityMode ?? false,
+    linLogMode: user?.linLogMode ?? false,
     edgeWeightInfluence: 1,
     gravity: user?.gravity ?? inferred.gravity ?? 0.01,
     scalingRatio: user?.scalingRatio ?? inferred.scalingRatio ?? 200,
@@ -634,10 +635,14 @@ export function separateOverlaps(
   graph: NeoSigmaGraph,
   iterations = COLLISION_ITERATIONS,
   padding = COLLISION_PADDING,
-  options?: { pinKind?: (kind: NeoNodeKind) => boolean }
+  options?: {
+    pinKind?: (kind: NeoNodeKind) => boolean
+    pinNode?: (id: string, kind: NeoNodeKind) => boolean
+  }
 ): void {
   if (graph.order < 2) return
   const pinKind = options?.pinKind
+  const pinNode = options?.pinNode
 
   const cappedIters =
     graph.order > 5000 ? Math.min(iterations, 4) : iterations
@@ -662,7 +667,9 @@ export function separateOverlaps(
 
     graph.forEachNode((id, attrs) => {
       if (attrs.lodHidden) return
-      const pinned = Boolean(pinKind?.(attrs.kind))
+      const pinned = Boolean(
+        pinKind?.(attrs.kind) || pinNode?.(id, attrs.kind)
+      )
       const cx = Math.floor(attrs.x / cellSize)
       const cy = Math.floor(attrs.y / cellSize)
       let dx = 0
@@ -677,7 +684,9 @@ export function separateOverlaps(
             if (otherId <= id) continue
             const other = graph.getNodeAttributes(otherId)
             if (other.lodHidden) continue
-            const otherPinned = Boolean(pinKind?.(other.kind))
+            const otherPinned = Boolean(
+              pinKind?.(other.kind) || pinNode?.(otherId, other.kind)
+            )
             const minDist = attrs.size + other.size + padding
             let vx = attrs.x - other.x
             let vy = attrs.y - other.y

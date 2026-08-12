@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { NeoSigmaCanvas, EMPTY_SELECTION, type NeoSelection } from '@/components/admin/neo/sigma-canvas'
 import { NeoGraphSearch } from '@/components/admin/neo/graph-search'
 import {
+  NeoCommunityLegend,
   NeoGraphFiltersPanel,
   NeoGraphLegend,
 } from '@/components/admin/neo/graph-filters'
@@ -15,8 +16,12 @@ import {
   DEFAULT_NEO_FILTERS,
   DEFAULT_NEO_LABEL_VISIBILITY,
   type DoxaGraphProjection,
+  type NeoColorMode,
+  type NeoFa2Settings,
   type NeoGraphFilters,
   type NeoLabelVisibility,
+  type NeoLayoutMode,
+  type NeoLodClusterMode,
   type NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
 import { lodLevelLabel, type NeoLodLevel } from '@/lib/admin/neo-graph/lod'
@@ -38,27 +43,43 @@ export function NeoProjectionExplorer({
   projection,
   contextStoryId,
   defaultFilters = DEFAULT_NEO_FILTERS,
+  defaultLabelVisibility = DEFAULT_NEO_LABEL_VISIBILITY,
   onUtteranceHighlight,
   canvasOverlay,
   className,
+  layoutMode = 'hierarchical',
+  colorMode = 'kind',
+  clusterMode = 'spatial',
+  fa2Settings,
+  variant = 'classic',
+  initialFocusNodeId = null,
+  statsExtra,
 }: {
   projection: DoxaGraphProjection
   /** Used for "Story hub" when selection has no documentUid. */
   contextStoryId: string | null
   defaultFilters?: NeoGraphFilters
+  defaultLabelVisibility?: NeoLabelVisibility
   onUtteranceHighlight?: (span: UtteranceHighlight | null) => void
   /** Floated over the Sigma canvas (e.g. union story-cap control). */
   canvasOverlay?: ReactNode
   className?: string
+  layoutMode?: NeoLayoutMode
+  colorMode?: NeoColorMode
+  clusterMode?: NeoLodClusterMode
+  fa2Settings?: NeoFa2Settings
+  variant?: 'classic' | 'galaxy'
+  initialFocusNodeId?: string | null
+  statsExtra?: string
 }) {
   const kindColors = useNeoKindColors()
   const colorRevision = useMemo(() => JSON.stringify(kindColors), [kindColors])
   const [filters, setFilters] = useState<NeoGraphFilters>(defaultFilters)
   const [labelVisibility, setLabelVisibility] = useState<NeoLabelVisibility>(
-    DEFAULT_NEO_LABEL_VISIBILITY
+    defaultLabelVisibility
   )
   const [selection, setSelection] = useState<NeoSelection>(EMPTY_SELECTION)
-  const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(initialFocusNodeId)
   const [previewNodeId, setPreviewNodeId] = useState<string | null>(null)
   const [hoverLabel, setHoverLabel] = useState<string | null>(null)
   const [hoverKind, setHoverKind] = useState<NeoNodeKind | null>(null)
@@ -76,6 +97,10 @@ export function NeoProjectionExplorer({
     layoutDurationRef.current = busy ? durationMs : 0
     setLayoutBusy(busy)
   }, [])
+
+  useEffect(() => {
+    if (initialFocusNodeId) setFocusNodeId(initialFocusNodeId)
+  }, [initialFocusNodeId])
 
   useEffect(() => {
     if (!layoutBusy) {
@@ -162,7 +187,12 @@ export function NeoProjectionExplorer({
   return (
     <div className={cn('relative flex min-h-0 flex-1 flex-col', className)}>
       {/* Legend chrome — canvas clips below this bar. */}
-      <div className="relative z-20 shrink-0 border-b border-white/10 bg-[#121212] px-3 py-1.5">
+      <div
+        className={cn(
+          'relative z-20 shrink-0 border-b border-white/10 px-3 py-1.5',
+          variant === 'galaxy' ? 'bg-[#050508]' : 'bg-[#121212]'
+        )}
+      >
         <div
           className={cn(
             'flex items-center gap-2 transition-opacity duration-200 ease-out',
@@ -181,12 +211,19 @@ export function NeoProjectionExplorer({
           >
             <Search className="size-4" />
           </button>
-          <NeoGraphLegend
-            className="min-w-0 flex-1"
-            highlightKind={hoverKind}
-            labelVisibility={labelVisibility}
-            onToggleLabel={toggleLabelVisibility}
-          />
+          {colorMode === 'community' && projection.communities?.length ? (
+            <NeoCommunityLegend
+              className="min-w-0 flex-1"
+              communities={projection.communities}
+            />
+          ) : (
+            <NeoGraphLegend
+              className="min-w-0 flex-1"
+              highlightKind={hoverKind}
+              labelVisibility={labelVisibility}
+              onToggleLabel={toggleLabelVisibility}
+            />
+          )}
           <button
             type="button"
             aria-label={showFilters ? 'Hide filters' : 'Show filters'}
@@ -276,6 +313,11 @@ export function NeoProjectionExplorer({
             onLodLevel={setLodLevel}
             expandClusterId={expandClusterId}
             expandClusterToken={expandClusterToken}
+            layoutMode={layoutMode}
+            colorMode={colorMode}
+            clusterMode={clusterMode}
+            fa2Settings={fa2Settings}
+            variant={variant}
           />
         </div>
         <div
@@ -311,6 +353,7 @@ export function NeoProjectionExplorer({
           <div className="pointer-events-auto absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)]">
             <p className="rounded-lg border border-white/10 bg-black/80 px-2.5 py-1.5 text-[11px] text-zinc-400 backdrop-blur">
               {stats.nodes} nodes · {stats.edges} edges
+              {statsExtra ? ` · ${statsExtra}` : ''}
               {stats.truncated || projection.queryTruncated
                 ? ' · truncated'
                 : ''}

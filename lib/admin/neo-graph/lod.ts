@@ -12,7 +12,7 @@ import {
   type OverviewCluster,
 } from '@/lib/admin/neo-graph/overview-clusters'
 import type { NeoSigmaGraph } from '@/lib/admin/neo-graph/graphology-adapter'
-import type { NeoNodeKind } from '@/lib/admin/neo-graph/types'
+import type { NeoLodClusterMode, NeoNodeKind } from '@/lib/admin/neo-graph/types'
 
 /**
  * Sigma camera: larger ratio = more zoomed out.
@@ -46,6 +46,7 @@ export type ApplyNeoLodOptions = {
   forceVisibleIds?: ReadonlySet<string> | null
   /** Rebuild overview cluster membership (layout settle or enter overview). */
   rebuildClusters?: boolean
+  clusterMode?: NeoLodClusterMode
 }
 
 export function documentEnvelopeRadius(
@@ -110,7 +111,12 @@ export function applyNeoLod(
   graph: NeoSigmaGraph,
   options: ApplyNeoLodOptions
 ): OverviewCluster[] {
-  const { level, forceVisibleIds, rebuildClusters = false } = options
+  const {
+    level,
+    forceVisibleIds,
+    rebuildClusters = false,
+    clusterMode = 'spatial',
+  } = options
   const midOrOverview = level === 'mid' || level === 'overview'
   const overview = level === 'overview'
 
@@ -118,7 +124,10 @@ export function applyNeoLod(
 
   let clusters: OverviewCluster[] = []
   if (overview) {
-    clusters = applyOverviewClusters(graph, { rebuild: rebuildClusters })
+    clusters = applyOverviewClusters(graph, {
+      rebuild: rebuildClusters,
+      mode: clusterMode,
+    })
   } else {
     clearOverviewClusters(graph)
   }

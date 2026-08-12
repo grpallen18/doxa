@@ -33,6 +33,8 @@ Initial install: migration `121_purge_engine_data.sql`.
 - `graph_processing_attempts`
 - `graph_processing_jobs`
 - `graph_assessments`
+- `graph_evidence_excerpts`
+- `graph_topic_links`
 - `graph_controversy_evidence`
 - `graph_viewpoints`
 - `graph_controversies`

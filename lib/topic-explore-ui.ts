@@ -7,5 +7,5 @@ export function positionAccentVar(ordinal: number): string {
   return `var(--chart-${idx})`
 }
 
-/** Agreement meter fill — same green as position 1 (Border enforcement…). */
-export const agreementMeterFill = '#2d5a4a'
+/** Agreement meter fill — accent-primary token (no hardcoded hex). */
+export const agreementMeterFill = 'var(--accent-primary)'

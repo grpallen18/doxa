@@ -273,6 +273,25 @@ export const handler = async (req: Request) => {
     for (const comp of assigned) {
       activeUids.push(comp.uid);
       if (comp.reused) reused += 1;
+
+      const propTexts = await runCypher<{ uid: string; text: string }>(
+        `
+        UNWIND $ids AS id
+        MATCH (p:Proposition {uid: id})
+        RETURN p.uid AS uid, coalesce(p.text, p.normalizedText, '') AS text
+        `,
+        { ids: comp.memberIds.slice(0, 5) }
+      );
+      const lead = (propTexts.find((p) => p.text.trim())?.text ?? "").trim();
+      const label = lead
+        ? lead.length > 96
+          ? `${lead.slice(0, 93)}…`
+          : lead
+        : `Viewpoint (${comp.memberIds.length} props)`;
+      const summary = lead
+        ? `Agree cluster of ${comp.memberIds.length} proposition${comp.memberIds.length === 1 ? "" : "s"} led by: ${lead.length > 140 ? `${lead.slice(0, 137)}…` : lead}`
+        : `Agree cluster over ${comp.memberIds.length} propositions`;
+
       await runCypher(
         `
         MERGE (v:Viewpoint {uid: $uid})
@@ -293,8 +312,8 @@ export const handler = async (req: Request) => {
           uid: comp.uid,
           issueUid: issue.uid,
           topicKey: issue.topicKey,
-          label: `Viewpoint (${comp.memberIds.length} props)`,
-          summary: `Agree cluster over ${comp.memberIds.length} propositions`,
+          label,
+          summary,
           memberCount: comp.memberIds.length,
           memberIds: comp.memberIds,
         }

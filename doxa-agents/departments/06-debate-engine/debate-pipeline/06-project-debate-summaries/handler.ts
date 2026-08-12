@@ -1,10 +1,23 @@
 // Supabase Edge Function: project_debate_summaries.
-// Upsert Neo Controversy/Viewpoint summaries into Supabase projection tables.
+// Upsert Neo Controversy/Viewpoint summaries + evidence excerpts into Supabase.
 // Env: SUPABASE_*, NEO4J_*. Body: { dry_run?: boolean }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
+
+function truncate(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function consumerQuestion(topicKey: string, title: string | null, question: string | null): string {
+  if (question?.trim()) return question.trim();
+  if (title?.trim() && !title.startsWith("Controversy:")) return title.trim();
+  const topicLabel = (topicKey || "this issue").replace(/^sim:/, "related claims on ");
+  return `What are the competing views concerning ${topicLabel}?`;
+}
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -27,17 +40,23 @@ export const handler = async (req: Request) => {
   const controversies = await runCypher<{
     uid: string;
     title: string;
+    question: string | null;
     summary: string;
     sidesCount: number;
     topicKey: string;
+    sourceCount: number;
   }>(
     `
     MATCH (c:Controversy)
+    OPTIONAL MATCH (c)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(:Proposition)<-[:EXPRESSES]-(u:Utterance)
+    WITH c, count(DISTINCT u.documentUid) AS sourceCount
     RETURN c.uid AS uid,
            coalesce(c.title, c.uid) AS title,
+           c.question AS question,
            coalesce(c.summary, '') AS summary,
            coalesce(c.sidesCount, 0) AS sidesCount,
-           coalesce(c.topicKey, '') AS topicKey
+           coalesce(c.topicKey, '') AS topicKey,
+           sourceCount
     `
   );
 
@@ -48,16 +67,26 @@ export const handler = async (req: Request) => {
     summary: string;
     topicKey: string;
     memberCount: number;
+    sampleProps: Array<{ uid: string; text: string }> | null;
   }>(
     `
     MATCH (v:Viewpoint)
     OPTIONAL MATCH (c:Controversy)-[:INCLUDES]->(v)
+    OPTIONAL MATCH (v)-[:ADVANCES]->(p:Proposition)
+    WITH v, c, p
+    ORDER BY coalesce(p.text, p.normalizedText, '')
+    WITH v, c,
+         collect({
+           uid: p.uid,
+           text: coalesce(p.text, p.normalizedText, '')
+         })[0..5] AS sampleProps
     RETURN v.uid AS uid,
            c.uid AS controversyUid,
            coalesce(v.label, v.uid) AS label,
            coalesce(v.summary, '') AS summary,
            coalesce(v.topicKey, '') AS topicKey,
-           coalesce(v.memberCount, 0) AS memberCount
+           coalesce(v.memberCount, size(sampleProps), 0) AS memberCount,
+           sampleProps
     `
   );
 
@@ -74,6 +103,88 @@ export const handler = async (req: Request) => {
     `
   );
 
+  const sharedClash = await runCypher<{
+    controversyUid: string;
+    shared: string[];
+    clash: string[];
+  }>(
+    `
+    MATCH (c:Controversy)
+    OPTIONAL MATCH (c)-[:INCLUDES]->(va:Viewpoint)-[:ADVANCES]->(pa:Proposition)
+          -[rAgree:RELATES_TO]->(pb:Proposition)<-[:ADVANCES]-(vb:Viewpoint)<-[:INCLUDES]-(c)
+    WHERE va <> vb AND rAgree.kind IN ['compatible', 'qualify', 'broader', 'narrower']
+    WITH c, collect(DISTINCT coalesce(pa.text, pa.normalizedText, '')) AS sharedRaw
+    OPTIONAL MATCH (c)-[:INCLUDES]->(vc:Viewpoint)-[:ADVANCES]->(pc:Proposition)
+          -[rOpp:RELATES_TO]->(pd:Proposition)<-[:ADVANCES]-(vd:Viewpoint)<-[:INCLUDES]-(c)
+    WHERE vc <> vd AND rOpp.kind IN ['oppose']
+    WITH c, sharedRaw,
+         collect(DISTINCT coalesce(pc.text, pc.normalizedText, '') + ' ↔ ' + coalesce(pd.text, pd.normalizedText, '')) AS clashRaw
+    RETURN c.uid AS controversyUid,
+           [x IN sharedRaw WHERE x IS NOT NULL AND x <> ''][0..4] AS shared,
+           [x IN clashRaw WHERE x IS NOT NULL AND x <> ''][0..4] AS clash
+    `
+  );
+
+  const disputes = await runCypher<{
+    controversyUid: string;
+    bullets: string[];
+  }>(
+    `
+    MATCH (c:Controversy)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)
+    OPTIONAL MATCH (d:Dispute)-[:CONCERNS]->(p)
+    WITH c, collect(DISTINCT coalesce(d.summary, d.kind, d.uid, '')) AS bullets
+    RETURN c.uid AS controversyUid,
+           [x IN bullets WHERE x IS NOT NULL AND x <> ''][0..4] AS bullets
+    `
+  );
+
+  const excerpts = await runCypher<{
+    controversyUid: string;
+    propositionUid: string;
+    propositionText: string;
+    utteranceUid: string;
+    speakerName: string | null;
+    documentUid: string;
+    excerpt: string;
+    publicationName: string | null;
+    storyTitle: string | null;
+    storyUrl: string | null;
+  }>(
+    `
+    MATCH (c:Controversy)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)<-[:EXPRESSES]-(u:Utterance)
+    OPTIONAL MATCH (u)-[:ASSERTED_BY]->(a:Agent)
+    OPTIONAL MATCH (u)-[:GROUNDED_IN]->(seg:Segment)
+    OPTIONAL MATCH (d:Document {uid: u.documentUid})
+    OPTIONAL MATCH (d)-[:PUBLISHED_BY]->(pub:Publication)
+    WITH c, p, u, a, seg, d, pub
+    ORDER BY c.uid, p.uid, u.uid
+    WITH c, p, collect({
+      utteranceUid: u.uid,
+      speakerName: coalesce(a.name, a.label, null),
+      documentUid: u.documentUid,
+      excerpt: coalesce(seg.text, u.text, ''),
+      publicationName: coalesce(pub.name, null),
+      storyTitle: coalesce(d.title, null),
+      storyUrl: coalesce(d.url, null)
+    })[0..2] AS utts
+    WITH c, p, utts
+    ORDER BY c.uid, p.uid
+    WITH c, collect({ p: p, utts: utts })[0..8] AS propBags
+    UNWIND propBags AS bag
+    UNWIND bag.utts AS utt
+    RETURN c.uid AS controversyUid,
+           bag.p.uid AS propositionUid,
+           coalesce(bag.p.text, bag.p.normalizedText, '') AS propositionText,
+           utt.utteranceUid AS utteranceUid,
+           utt.speakerName AS speakerName,
+           utt.documentUid AS documentUid,
+           utt.excerpt AS excerpt,
+           utt.publicationName AS publicationName,
+           utt.storyTitle AS storyTitle,
+           utt.storyUrl AS storyUrl
+    `
+  );
+
   if (dryRun) {
     return json({
       ok: true,
@@ -81,6 +192,7 @@ export const handler = async (req: Request) => {
       controversies: controversies.length,
       viewpoints: viewpoints.length,
       evidence: evidence.length,
+      excerpts: excerpts.length,
     });
   }
 
@@ -89,14 +201,28 @@ export const handler = async (req: Request) => {
   });
 
   const now = new Date().toISOString();
-  const ctrRows = controversies.map((c) => ({
-    uid: c.uid,
-    title: c.title,
-    summary: c.summary,
-    sides_count: Number(c.sidesCount) || 0,
-    topic_key: c.topicKey,
-    updated_at: now,
-  }));
+  const sharedMap = new Map(sharedClash.map((r) => [r.controversyUid, r]));
+  const disputeMap = new Map(disputes.map((r) => [r.controversyUid, r.bullets ?? []]));
+
+  const ctrRows = controversies.map((c) => {
+    const sc = sharedMap.get(c.uid);
+    const question = consumerQuestion(c.topicKey, c.title, c.question);
+    return {
+      uid: c.uid,
+      title: question,
+      question,
+      summary: c.summary?.startsWith("Multi-sided debate")
+        ? `Multi-sided debate with ${c.sidesCount} viewpoint${c.sidesCount === 1 ? "" : "s"} on ${(c.topicKey || "this issue").replace(/^sim:/, "")}.`
+        : c.summary,
+      sides_count: Number(c.sidesCount) || 0,
+      source_count: Number(c.sourceCount) || 0,
+      topic_key: c.topicKey,
+      shared_bullets: (sc?.shared ?? []).filter(Boolean).map((t) => truncate(t, 180)),
+      clash_bullets: (sc?.clash ?? []).filter(Boolean).map((t) => truncate(t, 180)),
+      dispute_bullets: (disputeMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180)),
+      updated_at: now,
+    };
+  });
 
   if (ctrRows.length) {
     const { error } = await supabase.from("graph_controversies").upsert(ctrRows, {
@@ -105,15 +231,34 @@ export const handler = async (req: Request) => {
     if (error) return json({ error: error.message }, 500);
   }
 
-  const vpRows = viewpoints.map((v) => ({
-    uid: v.uid,
-    controversy_uid: v.controversyUid,
-    label: v.label,
-    summary: v.summary,
-    topic_key: v.topicKey,
-    member_count: Number(v.memberCount) || 0,
-    updated_at: now,
-  }));
+  const vpRows = viewpoints.map((v) => {
+    const samples = (v.sampleProps ?? [])
+      .filter((p) => p?.uid && p?.text)
+      .map((p) => ({ uid: p.uid, text: truncate(p.text, 280) }));
+    const lead = samples[0]?.text ?? "";
+    const label =
+      v.label?.startsWith("Viewpoint (") && lead
+        ? truncate(lead, 96)
+        : v.label;
+    const summary =
+      v.summary?.startsWith("Agree cluster") && lead
+        ? `Agree cluster of ${v.memberCount} proposition${v.memberCount === 1 ? "" : "s"}: ${truncate(lead, 160)}`
+        : v.summary;
+    return {
+      uid: v.uid,
+      controversy_uid: v.controversyUid,
+      label,
+      summary,
+      thesis: lead || summary || label,
+      topic_key: v.topicKey,
+      member_count: Number(v.memberCount) || samples.length || 0,
+      sample_propositions: samples,
+      grounding_summary: samples.length
+        ? `${samples.length} sample claim${samples.length === 1 ? "" : "s"} from source utterances`
+        : null,
+      updated_at: now,
+    };
+  });
 
   if (vpRows.length) {
     const { error } = await supabase.from("graph_viewpoints").upsert(vpRows, {
@@ -138,15 +283,66 @@ export const handler = async (req: Request) => {
     if (error) return json({ error: error.message }, 500);
   }
 
-  // Purge projection rows no longer present in Neo.
+  // Replace evidence excerpts wholesale for projected controversies.
   const ctrUids = ctrRows.map((r) => r.uid);
+  if (ctrUids.length) {
+    const { error: delExErr } = await supabase
+      .from("graph_evidence_excerpts")
+      .delete()
+      .in("controversy_uid", ctrUids);
+    if (delExErr) return json({ error: delExErr.message }, 500);
+  }
+  const excerptRows = excerpts
+    .filter((e) => e.controversyUid && e.propositionUid && e.excerpt)
+    .map((e) => ({
+      controversy_uid: e.controversyUid,
+      proposition_uid: e.propositionUid,
+      proposition_text: truncate(e.propositionText || "", 500),
+      utterance_uid: e.utteranceUid,
+      speaker_name: e.speakerName,
+      document_uid: e.documentUid,
+      excerpt: truncate(e.excerpt, 600),
+      publication_name: e.publicationName,
+      story_title: e.storyTitle,
+      story_url: e.storyUrl,
+      updated_at: now,
+    }));
+  if (excerptRows.length) {
+    const { error } = await supabase.from("graph_evidence_excerpts").insert(excerptRows);
+    if (error) return json({ error: error.message }, 500);
+  }
+
+  // Enrich story metadata from Postgres when Neo Document lacked title/url.
+  const docUids = [...new Set(excerptRows.map((r) => r.document_uid).filter(Boolean))] as string[];
+  if (docUids.length) {
+    const { data: stories } = await supabase
+      .from("stories")
+      .select("story_id, title, url, sources(name)")
+      .in("story_id", docUids);
+    for (const s of stories ?? []) {
+      const pub = Array.isArray(s.sources) ? s.sources[0]?.name : (s.sources as { name?: string } | null)?.name;
+      await supabase
+        .from("graph_evidence_excerpts")
+        .update({
+          story_title: s.title ?? null,
+          story_url: s.url ?? null,
+          publication_name: pub ?? null,
+        })
+        .eq("document_uid", s.story_id)
+        .is("story_url", null);
+    }
+  }
+
+  // Purge projection rows no longer present in Neo.
   const { data: existingCtr } = await supabase.from("graph_controversies").select("uid");
   const staleCtr = (existingCtr ?? [])
     .map((r) => r.uid as string)
     .filter((uid) => !ctrUids.includes(uid));
   if (staleCtr.length) {
+    await supabase.from("graph_evidence_excerpts").delete().in("controversy_uid", staleCtr);
     await supabase.from("graph_controversy_evidence").delete().in("controversy_uid", staleCtr);
     await supabase.from("graph_viewpoints").delete().in("controversy_uid", staleCtr);
+    await supabase.from("graph_topic_links").delete().in("controversy_uid", staleCtr);
     await supabase.from("graph_controversies").delete().in("uid", staleCtr);
   }
 
@@ -180,10 +376,15 @@ export const handler = async (req: Request) => {
     }
   }
 
+  // Auto-link controversies to matching topics.
+  const { error: linkErr } = await supabase.rpc("link_graph_controversies_to_topics");
+  if (linkErr) return json({ error: linkErr.message }, 500);
+
   return json({
     ok: true,
     controversies: ctrRows.length,
     viewpoints: vpRows.length,
     evidence: evRows.length,
+    excerpts: excerptRows.length,
   });
 };

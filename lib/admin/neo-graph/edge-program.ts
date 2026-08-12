@@ -276,9 +276,14 @@ void main(void) {
 `
 }
 
+type CurveProgramOptions = {
+  additive?: boolean
+}
+
 function createNeoGradientCurveProgram(
   arrowHead: ArrowHeadOptions | null = null,
-  layer?: BlurLayer
+  layer?: BlurLayer,
+  options?: CurveProgramOptions
 ): EdgeProgramType {
   const hasTarget =
     arrowHead?.extremity === 'target' || arrowHead?.extremity === 'both'
@@ -438,6 +443,18 @@ function createNeoGradientCurveProgram(
         )
       }
     }
+
+    renderProgram(params: RenderParams, programInfo: ProgramInfo): void {
+      if (!options?.additive || programInfo.isPicking) {
+        super.renderProgram(params, programInfo)
+        return
+      }
+      const { gl } = programInfo
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.ONE, gl.ONE)
+      super.renderProgram(params, programInfo)
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+    }
   } as unknown as EdgeProgramType
 }
 
@@ -451,3 +468,10 @@ export const NeoCurvedArrowProgram = createEdgeCompoundProgram([
   ...BLUR_LAYERS.map((layer) => createNeoGradientCurveProgram(null, layer)),
   createNeoGradientCurveProgram(arrowHead),
 ])
+
+/** Cross-island filament: hairline, additive, no fake-blur ribbons. */
+export const NeoHairlineCurveProgram = createNeoGradientCurveProgram(
+  null,
+  undefined,
+  { additive: true }
+)

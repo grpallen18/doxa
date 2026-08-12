@@ -1,15 +1,5 @@
 import { Panel } from '@/components/Panel'
-import { InstrumentModule } from '@/components/InstrumentModule'
 import { ProfileSettingsCard } from '@/components/auth/profile-settings-card'
-
-const IDEOLOGY_FACTORS = [
-  { id: 'economic', label: 'Economic', value: '42%' },
-  { id: 'social', label: 'Social', value: '58%' },
-  { id: 'foreign', label: 'Foreign policy', value: '35%' },
-  { id: 'civil', label: 'Civil liberties', value: '71%' },
-  { id: 'fiscal', label: 'Fiscal', value: '48%' },
-  { id: 'cultural', label: 'Cultural', value: '55%' },
-]
 
 export default function ProfilePage() {
   return (
@@ -22,41 +12,15 @@ export default function ProfilePage() {
 
           <ProfileSettingsCard />
 
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                Your perspective (read-only)
-              </h2>
-              <p className="text-sm text-muted">
-                Doxa-calculated ratings based on your activity. These are placeholders; the ideology engine is not yet implemented.
-              </p>
-            </div>
-
-            <Panel variant="base" className="p-5">
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-                Assigned ideology
-              </p>
-              <p className="text-lg font-medium text-foreground">
-                Center-left (placeholder)
-              </p>
-            </Panel>
-
-            <div>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-                Factor breakdown (3×2)
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {IDEOLOGY_FACTORS.map((factor) => (
-                  <InstrumentModule
-                    key={factor.id}
-                    title={factor.label}
-                    value={factor.value}
-                    indicator={false}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+          <Panel variant="soft" interactive={false} className="space-y-2 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+              Perspective (coming later)
+            </p>
+            <p className="text-sm leading-relaxed text-muted">
+              Personalization will emerge from reading and structured feedback — not from an
+              upfront ideology quiz. Saved debates and critiques already feed that loop.
+            </p>
+          </Panel>
         </section>
       </div>
     </main>

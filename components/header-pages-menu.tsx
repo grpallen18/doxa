@@ -22,8 +22,6 @@ import {
   headerChromeIconButtonClassName,
 } from '@/lib/header-chrome-styles'
 import { useUserRole } from '@/hooks/use-user-role'
-import { defaultTopicId } from '@/lib/mock/topic-explore'
-import { topicPath } from '@/lib/topic-routes'
 import { cn } from '@/lib/utils'
 
 type NavLink = {
@@ -34,8 +32,8 @@ type NavLink = {
 }
 
 const exploreLinks: NavLink[] = [
-  { label: 'Explore Topics', href: topicPath(defaultTopicId), matchPrefix: true },
-  { label: 'Search', href: '/search' },
+  { label: 'Explore', href: '/' },
+  { label: 'Search', href: '/search', matchPrefix: true },
   { label: 'About', href: '/about' },
   { label: 'Profile', href: '/profile' },
 ]
@@ -53,9 +51,13 @@ function isActive(pathname: string, link: NavLink): boolean {
   if (link.href === '/admin') {
     return pathname === '/admin'
   }
-  // Highlight Explore for any topic detail route (not a list index).
-  if (link.href.startsWith('/topics/')) {
-    return pathname.startsWith('/topics/')
+  if (link.href === '/') {
+    return (
+      pathname === '/' ||
+      pathname.startsWith('/c/') ||
+      pathname.startsWith('/topics/') ||
+      pathname.startsWith('/entities/')
+    )
   }
   if (link.matchPrefix) {
     return pathname === link.href || pathname.startsWith(`${link.href}/`)

@@ -56,6 +56,22 @@ BEGIN
     v_skipped := array_append(v_skipped, 'graph_assessments');
   END IF;
 
+  -- required: graph_evidence_excerpts
+  IF 'public.graph_evidence_excerpts'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_evidence_excerpts RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_evidence_excerpts');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_evidence_excerpts');
+  END IF;
+
+  -- required: graph_topic_links
+  IF 'public.graph_topic_links'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_topic_links RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_topic_links');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_topic_links');
+  END IF;
+
   -- required: graph_controversy_evidence
   IF 'public.graph_controversy_evidence'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.graph_controversy_evidence RESTART IDENTITY CASCADE';

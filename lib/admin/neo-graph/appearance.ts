@@ -1,6 +1,7 @@
 import type { NeoEdgeType, NeoNodeKind } from '@/lib/admin/neo-graph/types'
 import {
   deriveNeoBorderColor,
+  deriveNeoHighlightColor,
   getNeoKindColor,
   loadNeoKindColors,
   NEO_KIND_COLOR_DEFAULTS,
@@ -46,6 +47,31 @@ const KIND_SIZE: Record<
   cluster: { baseSize: 14, priority: 120 },
 }
 
+/** Union 2.0 nebula — tiny discs; degree only adds a hair of weight. */
+const KIND_SIZE_COMPACT: Record<
+  NeoNodeKind,
+  { baseSize: number; priority: number }
+> = {
+  document: { baseSize: 1.7, priority: 90 },
+  controversy: { baseSize: 2.8, priority: 110 },
+  viewpoint: { baseSize: 2.0, priority: 95 },
+  proposition: { baseSize: 1.8, priority: 88 },
+  dispute: { baseSize: 1.8, priority: 86 },
+  assessment: { baseSize: 1.5, priority: 82 },
+  evidence_check: { baseSize: 1.4, priority: 78 },
+  citation: { baseSize: 1.2, priority: 55 },
+  method_run: { baseSize: 1.3, priority: 60 },
+  argument: { baseSize: 1.6, priority: 75 },
+  publication: { baseSize: 2.6, priority: 100 },
+  agent: { baseSize: 1.5, priority: 70 },
+  entity: { baseSize: 1.5, priority: 65 },
+  utterance: { baseSize: 1.15, priority: 50 },
+  segment: { baseSize: 1.0, priority: 20 },
+  cluster: { baseSize: 7, priority: 120 },
+}
+
+export type NeoSizeMode = 'default' | 'compact'
+
 const EDGE_COLOR: Record<NeoEdgeType, string> = {
   PUBLISHED_BY: '#a68b6d',
   CONTAINS: '#8a8580',
@@ -68,13 +94,31 @@ const EDGE_COLOR: Record<NeoEdgeType, string> = {
   PRODUCED_BY: '#6a6a7a',
 }
 
+/** 0..1 heat from degree — high-degree nodes read as hotter neurons. */
+export function nebulaHeat(degree: number): number {
+  return Math.min(1, Math.log2(1 + Math.max(0, degree)) / 5.5)
+}
+
+export const NEBULA_HOT_HEAT = 0.5
+
+export function applyNebulaHeat(hex: string, degree: number): string {
+  const h = nebulaHeat(degree)
+  if (h < 0.12) return hex
+  return deriveNeoHighlightColor(hex, 0.12 + h * 0.72)
+}
+
 export function resolveNodeAppearance(input: {
   kind: NeoNodeKind
   degreeHint?: number
+  sizeMode?: NeoSizeMode
 }): NodeAppearance {
-  const sizeBase = KIND_SIZE[input.kind]
+  const compact = input.sizeMode === 'compact'
+  const sizeBase = compact ? KIND_SIZE_COMPACT[input.kind] : KIND_SIZE[input.kind]
   const color = getNeoKindColor(input.kind)
-  const degreeBoost = Math.min(12, Math.max(0, (input.degreeHint ?? 0) * 0.7))
+  const degree = Math.max(0, input.degreeHint ?? 0)
+  const degreeBoost = compact
+    ? Math.min(5.2, Math.log2(1 + degree) * 0.95)
+    : Math.min(12, degree * 0.7)
   return {
     color,
     borderColor: deriveNeoBorderColor(color),
@@ -87,6 +131,8 @@ export function resolveNodeAppearance(input: {
 export const NEO_EDGE_SIZE_IDLE = 0.7
 export const NEO_EDGE_SIZE_ACTIVE = 2.2
 export const NEO_EDGE_IDLE_ALPHA = 0.5
+export const NEO_EDGE_INTERSTITIAL_IDLE_ALPHA = 0.032
+export const NEO_EDGE_INTERSTITIAL_IDLE_SIZE = 0.055
 
 export function resolveEdgeColor(type: NeoEdgeType): string {
   return EDGE_COLOR[type] ?? '#6b6560'

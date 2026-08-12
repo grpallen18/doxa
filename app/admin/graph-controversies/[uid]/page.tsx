@@ -82,7 +82,7 @@ export default function AdminGraphControversyDetailPage() {
               </p>
             </div>
             <Link
-              href={`/admin/neo/hub/controversy/${encodeURIComponent(detail.controversy.uid)}`}
+              href={`/admin/neo/union-2?focus=controversy:${encodeURIComponent(detail.controversy.uid)}`}
               className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40"
             >
               Open in Neo
@@ -147,7 +147,7 @@ export default function AdminGraphControversyDetailPage() {
                 {detail.evidence.map((e) => (
                   <li key={e.document_uid} className="text-sm">
                     <Link
-                      href={`/admin/neo/${encodeURIComponent(e.document_uid)}`}
+                      href={`/admin/neo/union-2?focus=document:${encodeURIComponent(e.document_uid)}`}
                       className="hover:underline"
                     >
                       {e.document_uid}

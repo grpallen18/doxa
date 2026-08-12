@@ -1,6 +1,6 @@
 import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
 
-/** Ontology labels used by the Neo explorer (document + hub modes). */
+/** Ontology labels used by the Neo explorer. */
 export type NeoNodeKind =
   | 'document'
   | 'publication'
@@ -41,14 +41,20 @@ export type NeoEdgeType =
   | 'DERIVED_FROM'
   | 'PRODUCED_BY'
 
-export type NeoProjectionId =
-  | 'phase0-document'
-  | 'hub-controversy'
-  | 'hub-proposition'
-  | 'hub-entity'
-  | 'union-documents'
+export type NeoProjectionId = 'phase0-document' | 'union-documents' | 'union-ontology'
 
-export type NeoHubRootKind = 'controversy' | 'proposition' | 'entity'
+export type NeoCommunityKind =
+  | 'controversy'
+  | 'publication'
+  | 'unlinked'
+  | 'bridge'
+
+export type NeoGraphCommunity = {
+  id: string
+  label: string
+  kind: NeoCommunityKind
+  memberCount: number
+}
 
 /** Generic projection the Sigma layer consumes (mode-agnostic). */
 export type DoxaGraphNode = {
@@ -61,6 +67,9 @@ export type DoxaGraphNode = {
   /** Present for utterances — drives passage highlight. */
   charStart?: number
   charEnd?: number
+  /** Union 2.0 ontology island id (`controversy:…` / `publication:…` / unlinked). */
+  communityId?: string
+  communityLabel?: string
 }
 
 export type DoxaGraphEdge = {
@@ -77,26 +86,42 @@ export type DoxaGraphProjection = {
   /** Document mode story id; also set for hubs when a single primary doc is selected. */
   storyId: string | null
   rootId: string
-  rootKind: 'document' | 'union' | NeoHubRootKind
+  rootKind: 'document' | 'union'
   title: string | null
   nodes: DoxaGraphNode[]
   edges: DoxaGraphEdge[]
-  /** Evidence / related documents for hub chrome. */
+  /** Evidence / related documents for union chrome. */
   documents?: Array<{ uid: string; title: string | null }>
   /** True when Cypher-side caps dropped rows before Graphology. */
   queryTruncated?: boolean
+  /** Union 2.0 ontology islands (absent on classic union). */
+  communities?: NeoGraphCommunity[]
 }
 
 /** Fixed ForceAtlas2 knobs for neo explorer layout. */
 export type NeoFa2Settings = {
   gravity: number
   scalingRatio: number
+  strongGravityMode?: boolean
+  linLogMode?: boolean
 }
 
 export const DEFAULT_NEO_FA2_SETTINGS: NeoFa2Settings = {
   gravity: 0.01,
   scalingRatio: 200,
 }
+
+/** One-mass nebula: gravity holds a blob, lin-log tightens dense cores. */
+export const UNION_V2_FA2_SETTINGS: NeoFa2Settings = {
+  gravity: 0.18,
+  scalingRatio: 45,
+  strongGravityMode: true,
+  linLogMode: true,
+}
+
+export type NeoLayoutMode = 'hierarchical' | 'ontology-islands'
+export type NeoColorMode = 'kind' | 'community'
+export type NeoLodClusterMode = 'spatial' | 'membership'
 
 export type NeoGraphFilters = {
   kinds: Record<NeoNodeKind, boolean>
@@ -124,6 +149,25 @@ export const DEFAULT_NEO_LABEL_VISIBILITY: NeoLabelVisibility = {
   citation: false,
   method_run: false,
   cluster: true,
+}
+
+export const DEFAULT_UNION_V2_LABEL_VISIBILITY: NeoLabelVisibility = {
+  document: false,
+  publication: false,
+  agent: false,
+  utterance: false,
+  segment: false,
+  entity: false,
+  proposition: false,
+  argument: false,
+  viewpoint: false,
+  controversy: false,
+  dispute: false,
+  assessment: false,
+  evidence_check: false,
+  citation: false,
+  method_run: false,
+  cluster: false,
 }
 
 export const ALL_NODE_KINDS: NeoNodeKind[] = [
@@ -214,22 +258,22 @@ export const DEFAULT_NEO_FILTERS: NeoGraphFilters = {
   },
 }
 
-/** Default filters for Controversy / Proposition / Entity hub explorers. */
-export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
+/** Union 2.0: hide segments and analysis kinds so the nebula is discourse, not lattice. */
+export const DEFAULT_UNION_V2_FILTERS: NeoGraphFilters = {
   kinds: {
     document: true,
     publication: true,
     agent: true,
     utterance: true,
-    segment: true,
+    segment: false,
     entity: true,
     proposition: true,
     argument: true,
     viewpoint: true,
     controversy: true,
     dispute: true,
-    assessment: true,
-    evidence_check: true,
+    assessment: false,
+    evidence_check: false,
     citation: false,
     method_run: false,
     cluster: true,
@@ -249,11 +293,11 @@ export const DEFAULT_HUB_FILTERS: NeoGraphFilters = {
     CONCERNS: true,
     VARIANT_OF: true,
     ABOUT: true,
-    CHECKS: true,
+    CHECKS: false,
     CITES: false,
-    HELD_BY: true,
-    DERIVED_FROM: true,
-    PRODUCED_BY: true,
+    HELD_BY: false,
+    DERIVED_FROM: false,
+    PRODUCED_BY: false,
   },
 }
 

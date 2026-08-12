@@ -4,19 +4,27 @@
  */
 import assert from 'node:assert/strict'
 import { projectPhase0Document } from '../lib/admin/neo-graph/project-phase0'
-import { projectHubGraph } from '../lib/admin/neo-graph/project-hub'
 import { projectUnionDocuments } from '../lib/admin/neo-graph/project-union'
+import { projectUnionOntology } from '../lib/admin/neo-graph/project-union-ontology'
+import {
+  assignIslandEdgeWeights,
+  seedOntologyIslandPositions,
+} from '../lib/admin/neo-graph/island-layout'
+import {
+  controversyCommunityId,
+  publicationCommunityId,
+} from '../lib/admin/neo-graph/community-ids'
 import {
   buildGraphologyFromProjection,
   searchProjectionNodes,
 } from '../lib/admin/neo-graph/graphology-adapter'
 import { resolveNodeAppearance, resolveEdgeColor } from '../lib/admin/neo-graph/appearance'
 import {
-  DEFAULT_HUB_FILTERS,
   DEFAULT_NEO_FILTERS,
+  DEFAULT_UNION_V2_FILTERS,
 } from '../lib/admin/neo-graph/types'
 import type { NeoDocumentGraph } from '../lib/neo4j/queries/phase0'
-import type { NeoHubGraph } from '../lib/neo4j/queries/hub'
+import type { UnionOntologyOverlay } from '../lib/neo4j/queries/union-ontology'
 
 const fixture: NeoDocumentGraph = {
   document: {
@@ -91,86 +99,26 @@ const fixture: NeoDocumentGraph = {
   phase2: { argumentCount: 1, hasRoleCount: 1 },
 }
 
-const hubFixture: NeoHubGraph = {
-  rootKind: 'controversy',
-  rootUid: 'ctr-1',
-  title: 'Fixture Controversy',
-  summary: 'Two docs disagree',
-  controversy: {
-    uid: 'ctr-1',
-    title: 'Fixture Controversy',
-    summary: 'Two docs disagree',
-  },
+const overlayFixture: UnionOntologyOverlay = {
+  controversies: [
+    {
+      uid: 'ctr-1',
+      title: 'Fixture Controversy',
+      summary: 'Two docs disagree',
+    },
+  ],
   viewpoints: [
     { uid: 'vp-a', label: 'Side A', summary: null },
     { uid: 'vp-b', label: 'Side B', summary: null },
   ],
-  propositions: [
-    {
-      uid: 'prop-1',
-      text: 'Claim one',
-      normalizedText: 'claim one',
-      certainty: 'asserted',
-    },
-  ],
-  arguments: [],
   disputes: [],
-  entities: [],
-  agents: [
-    {
-      uid: 'agent-a',
-      name: 'Alice',
-      normalizedName: 'alice',
-      documentUid: 'doc-a',
-    },
+  includes: [
+    { fromUid: 'ctr-1', toUid: 'vp-a' },
+    { fromUid: 'ctr-1', toUid: 'vp-b' },
   ],
-  documents: [
-    { uid: 'doc-a', title: 'Article A', url: null },
-    { uid: 'doc-b', title: 'Article B', url: null },
-  ],
-  utterances: [
-    {
-      uid: 'utt-a',
-      text: 'Said in A',
-      speechAct: 'assertion',
-      attributionMode: 'paraphrase',
-      polarity: 'affirms',
-      confidence: 0.9,
-      documentUid: 'doc-a',
-      segmentUid: null,
-      charStart: 0,
-      charEnd: 9,
-      agentUid: 'agent-a',
-      agentName: 'Alice',
-    },
-    {
-      uid: 'utt-b',
-      text: 'Said in B',
-      speechAct: 'assertion',
-      attributionMode: 'paraphrase',
-      polarity: 'affirms',
-      confidence: 0.8,
-      documentUid: 'doc-b',
-      segmentUid: null,
-      charStart: 0,
-      charEnd: 9,
-      agentUid: null,
-      agentName: null,
-    },
-  ],
-  edges: [
-    { type: 'INCLUDES', fromUid: 'ctr-1', toUid: 'vp-a' },
-    { type: 'INCLUDES', fromUid: 'ctr-1', toUid: 'vp-b' },
-    { type: 'ADVANCES', fromUid: 'vp-a', toUid: 'prop-1' },
-    { type: 'ADVANCES', fromUid: 'vp-b', toUid: 'prop-1' },
-    { type: 'EXPRESSES', fromUid: 'utt-a', toUid: 'prop-1' },
-    { type: 'EXPRESSES', fromUid: 'utt-b', toUid: 'prop-1' },
-    { type: 'GROUNDED_IN', fromUid: 'utt-a', toUid: 'doc-a' },
-    { type: 'GROUNDED_IN', fromUid: 'utt-b', toUid: 'doc-b' },
-    { type: 'ASSERTED_BY', fromUid: 'utt-a', toUid: 'agent-a' },
-  ],
-  queryTruncated: false,
-  caps: { maxDocuments: 25, maxUtterances: 200, maxPropositions: 80 },
+  advances: [{ fromUid: 'vp-a', toUid: 'prop-1' }],
+  concerns: [],
+  relatesTo: [],
 }
 
 function main() {
@@ -252,6 +200,17 @@ function main() {
 
   assert.equal(resolveNodeAppearance({ kind: 'document' }).priority, 90)
   assert.equal(resolveNodeAppearance({ kind: 'document' }).color, '#2d5a4a')
+  assert.ok(
+    resolveNodeAppearance({ kind: 'publication', degreeHint: 40, sizeMode: 'compact' })
+      .size <
+      resolveNodeAppearance({ kind: 'publication', degreeHint: 40 }).size
+  )
+  assert.ok(
+    resolveNodeAppearance({ kind: 'entity', degreeHint: 80, sizeMode: 'compact' })
+      .size >
+      resolveNodeAppearance({ kind: 'entity', degreeHint: 2, sizeMode: 'compact' })
+        .size
+  )
   assert.equal(resolveEdgeColor('ASSERTED_BY'), '#3d5a80')
   assert.equal(resolveNodeAppearance({ kind: 'controversy' }).color, '#c45c5c')
   assert.equal(resolveEdgeColor('INCLUDES'), '#c45c5c')
@@ -297,26 +256,6 @@ function main() {
   }
   const dupBuilt = buildGraphologyFromProjection(dupProjection, DEFAULT_NEO_FILTERS)
   assert.ok(dupBuilt.droppedEdges >= projection.edges.length)
-
-  const hubProj = projectHubGraph(hubFixture)
-  assert.equal(hubProj.projectionId, 'hub-controversy')
-  assert.equal(hubProj.rootKind, 'controversy')
-  assert.equal(hubProj.rootId, 'ctr-1')
-  assert.ok(hubProj.nodes.some((n) => n.id === 'controversy:ctr-1'))
-  assert.ok(hubProj.nodes.some((n) => n.id === 'proposition:prop-1'))
-  assert.ok(hubProj.nodes.some((n) => n.id === 'document:doc-a'))
-  assert.ok(hubProj.nodes.some((n) => n.id === 'document:doc-b'))
-  assert.ok(hubProj.edges.some((e) => e.type === 'INCLUDES'))
-  assert.ok(hubProj.edges.some((e) => e.type === 'EXPRESSES'))
-  assert.equal(hubProj.documents?.length, 2)
-
-  const hubBuilt = buildGraphologyFromProjection(hubProj, DEFAULT_HUB_FILTERS)
-  assert.equal(hubBuilt.graph.hasNode('controversy:ctr-1'), true)
-  assert.equal(hubBuilt.graph.hasNode('proposition:prop-1'), true)
-  assert.equal(hubBuilt.graph.hasNode('document:doc-a'), true)
-  assert.equal(hubBuilt.graph.hasNode('document:doc-b'), true)
-  assert.equal(hubBuilt.graph.hasEdge('utterance:utt-a', 'proposition:prop-1'), true)
-  assert.equal(hubBuilt.graph.hasEdge('utterance:utt-b', 'proposition:prop-1'), true)
 
   // Manual story union: shared publication collapses; two documents remain
   const story2: NeoDocumentGraph = {
@@ -503,6 +442,83 @@ function main() {
         e.source === 'utterance:utt-2' &&
         e.target === 'entity:ent:trump'
     )
+  )
+
+  const story2OtherPub: NeoDocumentGraph = {
+    ...story2WithTrump,
+    publication: { uid: 'pub-2', name: 'Other News' },
+  }
+  const ontoProj = projectUnionOntology(
+    [story1WithTrump, story2OtherPub],
+    overlayFixture
+  )
+  assert.equal(ontoProj.projectionId, 'union-ontology')
+  assert.ok(ontoProj.nodes.some((n) => n.id === 'controversy:ctr-1'))
+  assert.ok(ontoProj.nodes.some((n) => n.id === 'viewpoint:vp-a'))
+  assert.ok(ontoProj.edges.some((e) => e.type === 'INCLUDES'))
+  assert.ok(ontoProj.edges.some((e) => e.type === 'ADVANCES'))
+
+  const ctrId = controversyCommunityId('ctr-1')
+  const pub2Id = publicationCommunityId('pub-2')
+  const doc1 = ontoProj.nodes.find((n) => n.id === 'document:story-1')
+  const doc2 = ontoProj.nodes.find((n) => n.id === 'document:story-2')
+  const prop1 = ontoProj.nodes.find((n) => n.id === 'proposition:prop-1')
+  const utt1 = ontoProj.nodes.find((n) => n.id === 'utterance:utt-1')
+  const controversy = ontoProj.nodes.find((n) => n.id === 'controversy:ctr-1')
+  const sharedEnt = ontoProj.nodes.find((n) => n.id === 'entity:ent:trump')
+  assert.equal(doc1?.communityId, ctrId)
+  assert.equal(prop1?.communityId, ctrId)
+  assert.equal(utt1?.communityId, ctrId)
+  assert.equal(controversy?.communityId, ctrId)
+  assert.equal(doc2?.communityId, pub2Id)
+  assert.equal(sharedEnt?.communityId, ctrId)
+  assert.equal(sharedEnt?.properties.islandSpan, 2)
+  assert.ok(
+    !(ontoProj.communities ?? []).some((c) => c.kind === 'bridge' || c.id === 'bridge')
+  )
+  assert.ok((ontoProj.communities?.length ?? 0) >= 2)
+
+  const ontoBuilt = buildGraphologyFromProjection(
+    ontoProj,
+    DEFAULT_UNION_V2_FILTERS,
+    { colorMode: 'community', sizeMode: 'compact', seedMode: 'none' }
+  )
+  assert.equal(ontoBuilt.graph.hasNode('controversy:ctr-1'), true)
+  assert.equal(ontoBuilt.graph.hasNode('segment:seg-1'), false)
+  assert.equal(ontoBuilt.graph.hasNode('document:story-1'), true)
+  seedOntologyIslandPositions(ontoBuilt.graph)
+  let maxR = 0
+  ontoBuilt.graph.forEachNode((_id, attrs) => {
+    if (attrs.kind === 'cluster') return
+    maxR = Math.max(maxR, Math.hypot(attrs.x, attrs.y))
+  })
+  assert.ok(maxR < 250)
+  assert.equal(ontoBuilt.graph.getNodeAttribute('entity:ent:trump', 'fixed'), false)
+  assignIslandEdgeWeights(ontoBuilt.graph)
+  const intraW = ontoBuilt.graph.getEdgeAttribute(
+    'utterance:utt-1->proposition:prop-1:EXPRESSES',
+    'weight'
+  )
+  const interW = ontoBuilt.graph.findEdge((_e, _a, s, t) => {
+    const sc = ontoBuilt.graph.getNodeAttribute(s, 'communityId')
+    const tc = ontoBuilt.graph.getNodeAttribute(t, 'communityId')
+    return Boolean(sc && tc && sc !== tc)
+  })
+  if (interW) {
+    assert.ok(
+      (intraW as number) >
+        (ontoBuilt.graph.getEdgeAttribute(interW, 'weight') as number)
+    )
+  }
+
+  const noOverlay = projectUnionOntology([story1WithTrump, story2OtherPub])
+  assert.equal(
+    noOverlay.nodes.find((n) => n.id === 'document:story-1')?.communityId,
+    publicationCommunityId('pub-1')
+  )
+  assert.equal(
+    noOverlay.nodes.find((n) => n.id === 'document:story-2')?.communityId,
+    pub2Id
   )
 
   console.log('neo-graphology-adapter: all assertions passed')

@@ -111,9 +111,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div className="relative flex h-[--header-height] w-full items-stretch">
           <Link
-            href="/admin"
+            href={isAdmin ? '/admin' : '/'}
             className="inline-flex w-fit shrink-0 items-center py-2 pl-3"
-            aria-label="Admin Center"
+            aria-label={isAdmin ? 'Admin Center' : 'Doxa home'}
           >
             <Image
               src="/logo-color-no-bg.png"
