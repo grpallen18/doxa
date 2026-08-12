@@ -56,6 +56,8 @@ export type SigmaNodeAttributes = {
   aliases: string[]
   communityId?: string
   communityLabel?: string
+  /** Louvain partition id for Union 2.0 nebula paint (`louvain:0`…). */
+  louvainId?: string
 }
 
 export type SigmaEdgeAttributes = {

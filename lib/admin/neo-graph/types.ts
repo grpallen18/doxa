@@ -54,6 +54,8 @@ export type NeoGraphCommunity = {
   label: string
   kind: NeoCommunityKind
   memberCount: number
+  /** Optional paint override (Louvain rank hues). */
+  color?: string
 }
 
 /** Generic projection the Sigma layer consumes (mode-agnostic). */

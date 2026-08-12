@@ -51,10 +51,11 @@ import {
   workerBudgetMs,
 } from '@/lib/admin/neo-graph/layout-pipeline'
 import {
-  assignIslandEdgeWeights,
-  placeNodesInIslands,
-  seedOntologyIslandPositions,
-} from '@/lib/admin/neo-graph/island-layout'
+  applyLouvainNebula,
+  NEBULA_RESOLUTION_DEFAULT,
+  seedLouvainSoftPositions,
+} from '@/lib/admin/neo-graph/louvain-nebula'
+import { placeNodesInIslands } from '@/lib/admin/neo-graph/island-layout'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
 import FA2LayoutSupervisor from 'graphology-layout-forceatlas2/worker'
 import {
@@ -74,20 +75,19 @@ import {
 } from '@/lib/admin/neo-graph/overview-clusters'
 import { NeoNodeProgram } from '@/lib/admin/neo-graph/node-program'
 import { collectNeighborhood } from '@/lib/admin/neo-graph/neighborhood'
-import type {
-  DoxaGraphProjection,
-  NeoColorMode,
-  NeoFa2Settings,
-  NeoGraphFilters,
-  NeoLabelVisibility,
-  NeoLayoutMode,
-  NeoLodClusterMode,
-  NeoNodeKind,
-} from '@/lib/admin/neo-graph/types'
 import {
   DEFAULT_NEO_FA2_SETTINGS,
   DEFAULT_NEO_LABEL_VISIBILITY,
   UNION_V2_FA2_SETTINGS,
+  type DoxaGraphProjection,
+  type NeoColorMode,
+  type NeoFa2Settings,
+  type NeoGraphCommunity,
+  type NeoGraphFilters,
+  type NeoLabelVisibility,
+  type NeoLayoutMode,
+  type NeoLodClusterMode,
+  type NeoNodeKind,
 } from '@/lib/admin/neo-graph/types'
 
 export type NeoSelection = {
@@ -168,6 +168,8 @@ function GraphLifecycle({
   clusterMode = 'spatial',
   fa2Settings,
   nebulaHeat = NEBULA_HEAT_DEFAULT,
+  nebulaResolution = NEBULA_RESOLUTION_DEFAULT,
+  onLouvainCommunities,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
@@ -181,6 +183,8 @@ function GraphLifecycle({
   clusterMode?: NeoLodClusterMode
   fa2Settings?: NeoFa2Settings
   nebulaHeat?: number
+  nebulaResolution?: number
+  onLouvainCommunities?: (communities: NeoGraphCommunity[]) => void
   onSelectionChange: (selection: NeoSelection) => void
   onGraphStats: (stats: {
     nodes: number
@@ -222,6 +226,11 @@ function GraphLifecycle({
   layoutModeRef.current = layoutMode
   const nebulaHeatRef = useRef(nebulaHeat)
   nebulaHeatRef.current = nebulaHeat
+  const nebulaResolutionRef = useRef(nebulaResolution)
+  nebulaResolutionRef.current = nebulaResolution
+  const onLouvainCommunitiesRef = useRef(onLouvainCommunities)
+  onLouvainCommunitiesRef.current = onLouvainCommunities
+  const appliedResolutionRef = useRef<number | null>(null)
   const lodLevelRef = useRef<NeoLodLevel>('near')
   const onLodLevelRef = useRef(onLodLevel)
   onLodLevelRef.current = onLodLevel
@@ -418,11 +427,7 @@ function GraphLifecycle({
     disposeFa2()
 
     const graph = sigma.getGraph() as NeoSigmaGraph
-    if (layoutMode === 'ontology-islands') {
-      assignIslandEdgeWeights(graph)
-    } else {
-      assignEdgeWeights(graph)
-    }
+    assignEdgeWeights(graph)
 
     if (mode === 'filter-preserve') {
       onLayoutBusyRef.current?.(true, LAYOUT_MS_FILTER_PRESERVE)
@@ -449,7 +454,7 @@ function GraphLifecycle({
     // relayout — FA2 from current positions (internal; no user re-apply UI)
     if (mode === 'initial') {
       if (layoutMode === 'ontology-islands') {
-        seedOntologyIslandPositions(graph)
+        seedLouvainSoftPositions(graph)
       } else {
         seedHierarchicalPositions(graph)
       }
@@ -511,6 +516,7 @@ function GraphLifecycle({
       positionsRef.current = new Map()
       projectionKeyRef.current = key
       initialCompleteRef.current = false
+      appliedResolutionRef.current = null
     } else {
       // Prefer live Sigma positions over last committed snapshot.
       try {
@@ -528,6 +534,14 @@ function GraphLifecycle({
       sizeMode: layoutMode === 'ontology-islands' ? 'compact' : 'default',
       seedMode: layoutMode === 'ontology-islands' ? 'none' : 'hierarchical',
     })
+
+    if (layoutMode === 'ontology-islands') {
+      const { communities } = applyLouvainNebula(built.graph, {
+        resolutionDial: nebulaResolutionRef.current,
+      })
+      appliedResolutionRef.current = nebulaResolutionRef.current
+      onLouvainCommunitiesRef.current?.(communities)
+    }
 
     graphRef.current = built.graph
     loadGraph(built.graph)
@@ -580,6 +594,30 @@ function GraphLifecycle({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Louvain resolution: recolor + reweight + soft FA2 from current positions.
+  useEffect(() => {
+    if (layoutMode !== 'ontology-islands') return
+    if (!initialCompleteRef.current) return
+    if (appliedResolutionRef.current === nebulaResolution) return
+    try {
+      const graph = sigma.getGraph() as NeoSigmaGraph
+      if (graph.order < 2) return
+      const { communities } = applyLouvainNebula(graph, {
+        resolutionDial: nebulaResolution,
+      })
+      appliedResolutionRef.current = nebulaResolution
+      onLouvainCommunitiesRef.current?.(communities)
+      sigma.refresh()
+      const timer = runLayout('relayout')
+      return () => {
+        window.clearTimeout(timer)
+      }
+    } catch {
+      /* graph not ready */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nebulaResolution, layoutMode, sigma])
 
   // Zoom LOD: mid envelopes / overview clusters by camera ratio.
   useEffect(() => {
@@ -1119,6 +1157,8 @@ export function NeoSigmaCanvas({
   fa2Settings,
   variant = 'classic',
   nebulaHeat = NEBULA_HEAT_DEFAULT,
+  nebulaResolution = NEBULA_RESOLUTION_DEFAULT,
+  onLouvainCommunities,
 }: {
   projection: DoxaGraphProjection
   filters: NeoGraphFilters
@@ -1145,6 +1185,8 @@ export function NeoSigmaCanvas({
   fa2Settings?: NeoFa2Settings
   variant?: 'classic' | 'galaxy'
   nebulaHeat?: number
+  nebulaResolution?: number
+  onLouvainCommunities?: (communities: NeoGraphCommunity[]) => void
 }) {
   const galaxy = variant === 'galaxy'
   const bg = galaxy ? '#050508' : '#121212'
@@ -1207,6 +1249,8 @@ export function NeoSigmaCanvas({
         clusterMode={clusterMode}
         fa2Settings={fa2Settings}
         nebulaHeat={nebulaHeat}
+        nebulaResolution={nebulaResolution}
+        onLouvainCommunities={onLouvainCommunities}
       />
       <NeoZoomControls />
     </SigmaContainer>

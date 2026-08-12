@@ -1,9 +1,16 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 import { useSearchParams } from 'next/navigation'
 import { SpotlightBorder } from '@/components/motion-primitives/spotlight-border'
+import { Button } from '@/components/ui/button'
 import {
   DEFAULT_UNION_V2_FILTERS,
   DEFAULT_UNION_V2_LABEL_VISIBILITY,
@@ -20,6 +27,11 @@ import {
   NEBULA_HEAT_MAX,
   NEBULA_HEAT_MIN,
 } from '@/lib/admin/neo-graph/appearance'
+import {
+  NEBULA_RESOLUTION_DEFAULT,
+  NEBULA_RESOLUTION_MAX,
+  NEBULA_RESOLUTION_MIN,
+} from '@/lib/admin/neo-graph/louvain-nebula'
 import { resolveFocusNodeId } from '@/lib/admin/neo-graph/union-v2-focus'
 
 const NeoProjectionExplorer = dynamic(
@@ -52,15 +64,39 @@ type UnionApiData = {
   communityCount?: number
 }
 
+function parseHeatDraft(raw: string): number {
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed)) return NEBULA_HEAT_DEFAULT
+  return Math.max(NEBULA_HEAT_MIN, Math.min(NEBULA_HEAT_MAX, parsed))
+}
+
+function parseResolutionDraft(raw: string): number {
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed)) return NEBULA_RESOLUTION_DEFAULT
+  return Math.max(
+    NEBULA_RESOLUTION_MIN,
+    Math.min(NEBULA_RESOLUTION_MAX, parsed)
+  )
+}
+
 export function NeoUnionV2Workspace() {
   const searchParams = useSearchParams()
   const focusParam = searchParams.get('focus')
   const [capDraft, setCapDraft] = useState(String(UNION_DEFAULT_STORIES))
   const [appliedCap, setAppliedCap] = useState(UNION_DEFAULT_STORIES)
+  const [heatDraft, setHeatDraft] = useState(String(NEBULA_HEAT_DEFAULT))
+  const [heat, setHeat] = useState(NEBULA_HEAT_DEFAULT)
+  const [resolutionDraft, setResolutionDraft] = useState(
+    String(NEBULA_RESOLUTION_DEFAULT)
+  )
+  const [resolution, setResolution] = useState(NEBULA_RESOLUTION_DEFAULT)
   const [projection, setProjection] = useState<DoxaGraphProjection | null>(null)
   const [documents, setDocuments] = useState<UnionDocMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [capFocused, setCapFocused] = useState(false)
+  const [heatFocused, setHeatFocused] = useState(false)
+  const [resolutionFocused, setResolutionFocused] = useState(false)
 
   const loadUnion = useCallback(async (limit: number, fresh = false) => {
     const capped = clampUnionStoryLimit(limit)
@@ -130,33 +166,37 @@ export function NeoUnionV2Workspace() {
     [projection]
   )
 
-  const commitCap = useCallback(
-    (opts?: { fresh?: boolean }) => {
-      const next = clampUnionStoryLimit(capDraft)
-      setCapDraft(String(next))
-      const changed = next !== appliedCap
-      if (!changed && !opts?.fresh) return
-      void loadUnion(next, opts?.fresh ?? true)
-    },
-    [appliedCap, capDraft, loadUnion]
-  )
+  const pendingCap = clampUnionStoryLimit(capDraft)
+  const pendingHeat = parseHeatDraft(heatDraft)
+  const pendingResolution = parseResolutionDraft(resolutionDraft)
+  const paramsDirty =
+    pendingCap !== appliedCap ||
+    pendingHeat !== heat ||
+    pendingResolution !== resolution
 
-  const [capFocused, setCapFocused] = useState(false)
-  const [heatDraft, setHeatDraft] = useState(String(NEBULA_HEAT_DEFAULT))
-  const [heat, setHeat] = useState(NEBULA_HEAT_DEFAULT)
-  const [heatFocused, setHeatFocused] = useState(false)
-
-  const commitHeat = useCallback(() => {
-    const parsed = Number.parseInt(heatDraft, 10)
-    const next = Number.isFinite(parsed)
-      ? Math.max(NEBULA_HEAT_MIN, Math.min(NEBULA_HEAT_MAX, parsed))
-      : NEBULA_HEAT_DEFAULT
-    setHeatDraft(String(next))
-    setHeat(next)
-  }, [heatDraft])
+  const applyParams = useCallback(() => {
+    const nextCap = clampUnionStoryLimit(capDraft)
+    const nextHeat = parseHeatDraft(heatDraft)
+    const nextResolution = parseResolutionDraft(resolutionDraft)
+    setCapDraft(String(nextCap))
+    setHeatDraft(String(nextHeat))
+    setResolutionDraft(String(nextResolution))
+    setHeat(nextHeat)
+    setResolution(nextResolution)
+    if (nextCap !== appliedCap) {
+      void loadUnion(nextCap, true)
+    }
+  }, [appliedCap, capDraft, heatDraft, loadUnion, resolutionDraft])
 
   const fieldClassName =
     'relative flex h-8 w-16 rounded-[calc(theme(borderRadius.md)-1px)] border-0 bg-black/80 px-2 text-center text-sm font-medium text-zinc-200 outline-none transition-colors hover:bg-black/90 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+
+  const onParamKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    if (!paramsDirty || loading) return
+    applyParams()
+  }
 
   const storyCapControl = (
     <div className="flex items-start gap-2">
@@ -182,16 +222,8 @@ export function NeoUnionV2Workspace() {
             disabled={loading}
             onChange={(e) => setCapDraft(e.target.value)}
             onFocus={() => setCapFocused(true)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                commitCap({ fresh: true })
-              }
-            }}
-            onBlur={() => {
-              setCapFocused(false)
-              commitCap()
-            }}
+            onBlur={() => setCapFocused(false)}
+            onKeyDown={onParamKeyDown}
             className={fieldClassName}
           />
         </SpotlightBorder>
@@ -215,29 +247,59 @@ export function NeoUnionV2Workspace() {
             inputMode="numeric"
             title={`Heat k (1–${NEBULA_HEAT_MAX}) — idle edge alpha = k / √edges`}
             value={heatDraft}
-            onChange={(e) => {
-              const raw = e.target.value
-              setHeatDraft(raw)
-              const parsed = Number.parseInt(raw, 10)
-              if (!Number.isFinite(parsed)) return
-              setHeat(
-                Math.max(NEBULA_HEAT_MIN, Math.min(NEBULA_HEAT_MAX, parsed))
-              )
-            }}
+            disabled={loading}
+            onChange={(e) => setHeatDraft(e.target.value)}
             onFocus={() => setHeatFocused(true)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                commitHeat()
-              }
-            }}
-            onBlur={() => {
-              setHeatFocused(false)
-              commitHeat()
-            }}
+            onBlur={() => setHeatFocused(false)}
+            onKeyDown={onParamKeyDown}
             className={fieldClassName}
           />
         </SpotlightBorder>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label
+          htmlFor="union-v2-resolution"
+          className="px-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500"
+        >
+          resolution
+        </label>
+        <SpotlightBorder
+          active={resolutionFocused}
+          className="w-auto bg-white/20 shadow-lg"
+        >
+          <input
+            id="union-v2-resolution"
+            type="number"
+            min={NEBULA_RESOLUTION_MIN}
+            max={NEBULA_RESOLUTION_MAX}
+            inputMode="numeric"
+            title={`Color clusters (1–${NEBULA_RESOLUTION_MAX}) — maps to 3–8 patches; higher = more colors`}
+            value={resolutionDraft}
+            disabled={loading}
+            onChange={(e) => setResolutionDraft(e.target.value)}
+            onFocus={() => setResolutionFocused(true)}
+            onBlur={() => setResolutionFocused(false)}
+            onKeyDown={onParamKeyDown}
+            className={fieldClassName}
+          />
+        </SpotlightBorder>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span
+          aria-hidden
+          className="px-0.5 text-[10px] font-medium uppercase tracking-wide text-transparent"
+        >
+          apply
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          disabled={!paramsDirty || loading}
+          onClick={applyParams}
+          className="h-8 bg-white/15 px-3 text-xs text-zinc-100 hover:bg-white/25 disabled:opacity-40"
+        >
+          Apply
+        </Button>
       </div>
     </div>
   )
@@ -266,9 +328,10 @@ export function NeoUnionV2Workspace() {
             fa2Settings={UNION_V2_FA2_SETTINGS}
             variant="galaxy"
             initialFocusNodeId={focusNodeId}
-            statsExtra={`${islandCount} communities`}
+            statsExtra={`${islandCount} ontology`}
             canvasOverlay={storyCapControl}
             nebulaHeat={heat}
+            nebulaResolution={resolution}
           />
         </div>
       ) : (

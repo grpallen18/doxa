@@ -18,6 +18,7 @@ import {
   type DoxaGraphProjection,
   type NeoColorMode,
   type NeoFa2Settings,
+  type NeoGraphCommunity,
   type NeoGraphFilters,
   type NeoLabelVisibility,
   type NeoLayoutMode,
@@ -55,6 +56,7 @@ export function NeoProjectionExplorer({
   initialFocusNodeId = null,
   statsExtra,
   nebulaHeat,
+  nebulaResolution,
 }: {
   projection: DoxaGraphProjection
   /** Used for "Story hub" when selection has no documentUid. */
@@ -74,6 +76,8 @@ export function NeoProjectionExplorer({
   statsExtra?: string
   /** Union 2.0 idle tissue: alpha = heat / √edges. */
   nebulaHeat?: number
+  /** Union 2.0 Louvain resolution dial (1–100). */
+  nebulaResolution?: number
 }) {
   const kindColors = useNeoKindColors()
   const colorRevision = useMemo(() => JSON.stringify(kindColors), [kindColors])
@@ -81,6 +85,9 @@ export function NeoProjectionExplorer({
   const [labelVisibility, setLabelVisibility] = useState<NeoLabelVisibility>(
     defaultLabelVisibility
   )
+  const [louvainCommunities, setLouvainCommunities] = useState<
+    NeoGraphCommunity[]
+  >([])
   const [selection, setSelection] = useState<NeoSelection>(EMPTY_SELECTION)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(initialFocusNodeId)
   const [previewNodeId, setPreviewNodeId] = useState<string | null>(null)
@@ -214,7 +221,12 @@ export function NeoProjectionExplorer({
           >
             <Search className="size-4" />
           </button>
-          {colorMode === 'community' && projection.communities?.length ? (
+          {layoutMode === 'ontology-islands' && louvainCommunities.length ? (
+            <NeoCommunityLegend
+              className="min-w-0 flex-1"
+              communities={louvainCommunities}
+            />
+          ) : colorMode === 'community' && projection.communities?.length ? (
             <NeoCommunityLegend
               className="min-w-0 flex-1"
               communities={projection.communities}
@@ -322,6 +334,8 @@ export function NeoProjectionExplorer({
             fa2Settings={fa2Settings}
             variant={variant}
             nebulaHeat={nebulaHeat}
+            nebulaResolution={nebulaResolution}
+            onLouvainCommunities={setLouvainCommunities}
           />
         </div>
         <div
@@ -357,6 +371,9 @@ export function NeoProjectionExplorer({
           <div className="pointer-events-auto absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)]">
             <p className="rounded-lg border border-white/10 bg-black/80 px-2.5 py-1.5 text-[11px] text-zinc-400 backdrop-blur">
               {stats.nodes} nodes · {stats.edges} edges
+              {louvainCommunities.length
+                ? ` · ${louvainCommunities.length} clusters`
+                : ''}
               {statsExtra ? ` · ${statsExtra}` : ''}
               {stats.truncated || projection.queryTruncated
                 ? ' · truncated'

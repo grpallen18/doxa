@@ -144,7 +144,9 @@ export function NeoCommunityLegend({
             <span className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-zinc-200">
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: resolveCommunityColor(item.id) }}
+                style={{
+                  backgroundColor: item.color ?? resolveCommunityColor(item.id),
+                }}
               />
               {item.label}
               <span className="text-zinc-500">{item.memberCount}</span>

@@ -11,6 +11,11 @@ import {
   seedOntologyIslandPositions,
 } from '../lib/admin/neo-graph/island-layout'
 import {
+  applyLouvainNebula,
+  dialToTargetClusters,
+  louvainRankColor,
+} from '../lib/admin/neo-graph/louvain-nebula'
+import {
   controversyCommunityId,
   publicationCommunityId,
 } from '../lib/admin/neo-graph/community-ids'
@@ -218,6 +223,11 @@ function main() {
   assert.equal(resolveEdgeColor('ASSERTED_BY'), '#3d5a80')
   assert.ok(nebulaIdleAlpha(8, 2000) > nebulaIdleAlpha(8, 8000))
   assert.ok(nebulaIdleAlpha(20, 8000) > nebulaIdleAlpha(8, 8000))
+  assert.equal(dialToTargetClusters(1), 3)
+  assert.equal(dialToTargetClusters(100), 8)
+  assert.ok(dialToTargetClusters(50) >= 3 && dialToTargetClusters(50) <= 8)
+  assert.notEqual(louvainRankColor(0, 5), louvainRankColor(1, 5))
+  assert.notEqual(louvainRankColor(0, 5), louvainRankColor(2, 5))
   assert.equal(resolveNodeAppearance({ kind: 'controversy' }).color, '#c45c5c')
   assert.equal(resolveEdgeColor('INCLUDES'), '#c45c5c')
 
@@ -500,6 +510,17 @@ function main() {
   })
   assert.ok(maxR < 250)
   assert.equal(ontoBuilt.graph.getNodeAttribute('entity:ent:trump', 'fixed'), false)
+  const louvain = applyLouvainNebula(ontoBuilt.graph, { resolutionDial: 1 })
+  assert.ok(louvain.count >= 1 && louvain.count <= 8)
+  assert.ok(
+    typeof ontoBuilt.graph.getNodeAttribute('document:story-1', 'louvainId') ===
+      'string'
+  )
+  // Ontology community survives Louvain paint
+  assert.equal(
+    ontoBuilt.graph.getNodeAttribute('document:story-1', 'communityId'),
+    ctrId
+  )
   assignIslandEdgeWeights(ontoBuilt.graph)
   const intraW = ontoBuilt.graph.getEdgeAttribute(
     'utterance:utt-1->proposition:prop-1:EXPRESSES',
