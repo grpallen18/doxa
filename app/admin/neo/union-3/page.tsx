@@ -1,16 +1,28 @@
-import { Suspense } from 'react'
-import { NeoUnionV3Workspace } from '@/components/admin/neo/neo-union-v3-workspace'
+import { redirect } from 'next/navigation'
 
-export default function AdminNeoUnionV3Page() {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <Suspense
-        fallback={
-          <p className="p-6 text-sm text-zinc-400">Loading Union 3.0…</p>
-        }
-      >
-        <NeoUnionV3Workspace />
-      </Suspense>
-    </div>
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+function focusFromSearchParams(
+  searchParams: Record<string, string | string[] | undefined>
+): string | null {
+  const raw = searchParams.focus
+  if (typeof raw === 'string' && raw.trim()) return raw.trim()
+  if (Array.isArray(raw) && typeof raw[0] === 'string' && raw[0].trim()) {
+    return raw[0].trim()
+  }
+  return null
+}
+
+/** Legacy Union 3.0 URL — Neo baseline is /admin/neo/union. */
+export default async function AdminNeoUnionV3RedirectPage({
+  searchParams,
+}: PageProps) {
+  const focus = focusFromSearchParams(await searchParams)
+  redirect(
+    focus
+      ? `/admin/neo/union?focus=${encodeURIComponent(focus)}`
+      : '/admin/neo/union'
   )
 }

@@ -53,7 +53,8 @@ export async function listSucceededStoryIds(limit: number): Promise<string[]> {
     if (!id || seen.has(id)) continue
     seen.add(id)
     orderedIds.push(id)
-    if (orderedIds.length >= capped * 3) break
+    // Extra candidates so graph_status filter can drop a few without under-filling.
+    if (orderedIds.length >= Math.min(capped * 3, 600)) break
   }
 
   const supabase = await createClient()
@@ -70,17 +71,25 @@ export async function listSucceededStoryIds(limit: number): Promise<string[]> {
     return (data ?? []).map((row) => row.story_id as string)
   }
 
-  const { data: stories, error } = await supabase
-    .from('stories')
-    .select('story_id')
-    .eq('graph_status', 'succeeded')
-    .in('story_id', orderedIds)
+  // Batch `.in()` — large id lists blow PostgREST URL limits and used to
+  // surface as an empty union ("No stories to union yet").
+  const succeeded = new Set<string>()
+  const chunkSize = 80
+  for (let i = 0; i < orderedIds.length; i += chunkSize) {
+    const chunk = orderedIds.slice(i, i + chunkSize)
+    const { data: stories, error } = await supabase
+      .from('stories')
+      .select('story_id')
+      .eq('graph_status', 'succeeded')
+      .in('story_id', chunk)
 
-  if (error) throw new Error(error.message)
+    if (error) throw new Error(error.message)
+    for (const row of stories ?? []) {
+      const id = row.story_id as string
+      if (id) succeeded.add(id)
+    }
+  }
 
-  const succeeded = new Set(
-    (stories ?? []).map((row) => row.story_id as string)
-  )
   return orderedIds.filter((id) => succeeded.has(id)).slice(0, capped)
 }
 
@@ -94,45 +103,48 @@ export async function resolveUnionStoryIds(
   let limit = UNION_DEFAULT_STORIES
 
   if (request.method === 'POST') {
+    let body: {
+      storyIds?: unknown
+      ids?: unknown
+      all?: unknown
+      limit?: unknown
+      cap?: unknown
+      fresh?: unknown
+    }
     try {
-      const body = (await request.json()) as {
-        storyIds?: unknown
-        ids?: unknown
-        all?: unknown
-        limit?: unknown
-        cap?: unknown
-        fresh?: unknown
-      }
-      limit = clampUnionStoryLimit(body.limit ?? body.cap ?? limit)
-      const fresh = isFreshFlag(body.fresh)
-      if (body.all === true) {
-        return {
-          storyIds: await listSucceededStoryIds(limit),
-          mode: 'all',
-          limit,
-          fresh,
-        }
-      }
-      const raw = body.storyIds ?? body.ids
-      if (Array.isArray(raw)) {
-        return {
-          storyIds: parseUnionStoryIds(raw.map(String).join(','), limit),
-          mode: 'ids',
-          limit,
-          fresh,
-        }
-      }
-      if (typeof raw === 'string') {
-        return {
-          storyIds: parseUnionStoryIds(raw, limit),
-          mode: 'ids',
-          limit,
-          fresh,
-        }
-      }
+      body = (await request.json()) as typeof body
     } catch {
       return { storyIds: [], mode: 'ids', limit, fresh: false }
     }
+
+    limit = clampUnionStoryLimit(body.limit ?? body.cap ?? limit)
+    const fresh = isFreshFlag(body.fresh)
+    if (body.all === true) {
+      return {
+        storyIds: await listSucceededStoryIds(limit),
+        mode: 'all',
+        limit,
+        fresh,
+      }
+    }
+    const raw = body.storyIds ?? body.ids
+    if (Array.isArray(raw)) {
+      return {
+        storyIds: parseUnionStoryIds(raw.map(String).join(','), limit),
+        mode: 'ids',
+        limit,
+        fresh,
+      }
+    }
+    if (typeof raw === 'string') {
+      return {
+        storyIds: parseUnionStoryIds(raw, limit),
+        mode: 'ids',
+        limit,
+        fresh,
+      }
+    }
+    return { storyIds: [], mode: 'ids', limit, fresh }
   }
 
   const sp = request.nextUrl.searchParams

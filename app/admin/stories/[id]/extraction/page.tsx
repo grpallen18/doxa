@@ -7,5 +7,5 @@ export default async function StoryExtractionRedirectPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  redirect(`/admin/neo/union-2?focus=document:${id}`)
+  redirect(`/admin/neo/union?focus=document:${id}`)
 }

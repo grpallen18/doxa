@@ -13,7 +13,7 @@ type PageProps = {
   params: Promise<{ kind: string; uid: string }>
 }
 
-/** Hub explorers retired — focus the root node in Union 2.0. */
+/** Hub explorers retired — focus the root node in Neo. */
 export default async function AdminNeoHubRedirectPage({ params }: PageProps) {
   const { kind: rawKind, uid: rawUid } = await params
   const kind = decodeURIComponent(rawKind || '')

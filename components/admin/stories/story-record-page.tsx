@@ -62,7 +62,7 @@ function StoryRecordPageContent({
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-8" asChild>
-              <Link href={`/admin/neo/union-2?focus=document:${storyId}`}>
+              <Link href={`/admin/neo/union?focus=document:${storyId}`}>
                 Open in Neo
               </Link>
             </Button>

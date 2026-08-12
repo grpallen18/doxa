@@ -16,12 +16,12 @@ import {
   seedOntologyIslandPositions,
 } from '@/lib/admin/neo-graph/island-layout'
 
-export const NEBULA_RESOLUTION_DEFAULT = 20
+export const NEBULA_RESOLUTION_DEFAULT = 35
 export const NEBULA_RESOLUTION_MIN = 1
 export const NEBULA_RESOLUTION_MAX = 100
 
 /** Lobe ring as % of seed disk radius — higher = more separated color zones. */
-export const NEBULA_BLEND_DEFAULT = 27
+export const NEBULA_BLEND_DEFAULT = 60
 export const NEBULA_BLEND_MIN = 0
 export const NEBULA_BLEND_MAX = 100
 

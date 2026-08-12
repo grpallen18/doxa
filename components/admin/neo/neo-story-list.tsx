@@ -100,21 +100,14 @@ export function NeoStoryList() {
             Neo
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Discourse graphs from Neo4j. Open{' '}
+            Discourse graphs from Neo4j. Open the{' '}
             <Link
-              href="/admin/neo/union-2"
+              href="/admin/neo/union"
               className="underline hover:text-foreground"
             >
-              Union 2.0
-            </Link>{' '}
-            (baseline) or{' '}
-            <Link
-              href="/admin/neo/union-3"
-              className="underline hover:text-foreground"
-            >
-              Union 3.0
-            </Link>{' '}
-            (experiment). Debate catalog stays on{' '}
+              Neo graph
+            </Link>
+            . Debate catalog stays on{' '}
             <Link
               href="/admin/graph-controversies"
               className="underline hover:text-foreground"
@@ -127,10 +120,7 @@ export function NeoStoryList() {
         <div className="flex w-full max-w-lg flex-col gap-2 sm:items-end">
           <div className="flex flex-wrap gap-2">
             <Button asChild size="sm" className="h-9 shrink-0">
-              <Link href="/admin/neo/union-2">Union 2.0</Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="h-9 shrink-0">
-              <Link href="/admin/neo/union-3">Union 3.0</Link>
+              <Link href="/admin/neo/union">Open Neo</Link>
             </Button>
           </div>
           <form

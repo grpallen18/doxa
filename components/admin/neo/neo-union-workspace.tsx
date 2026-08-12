@@ -19,8 +19,8 @@ import { NeoNodeDetailPanel } from '@/components/admin/neo/node-detail-panel'
 import type { DoxaGraphProjection } from '@/lib/admin/neo-graph/types'
 import {
   clampUnionStoryLimit,
+  UNION_GRAPH_DEFAULT_STORIES,
   UNION_MAX_STORIES,
-  UNION_V2_DEFAULT_STORIES,
 } from '@/lib/admin/neo-graph/union-limits'
 import {
   NEBULA_HEAT_DEFAULT,
@@ -44,7 +44,7 @@ const UnionNebula3D = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-[#050508] text-sm text-zinc-400">
-        Loading Union 3.0…
+        Loading Neo…
       </div>
     ),
   }
@@ -86,11 +86,11 @@ function parseBlendDraft(raw: string): number {
   return Math.max(NEBULA_BLEND_MIN, Math.min(NEBULA_BLEND_MAX, parsed))
 }
 
-export function NeoUnionV3Workspace() {
+export function NeoUnionWorkspace() {
   const searchParams = useSearchParams()
   const focusParam = searchParams.get('focus')
-  const [capDraft, setCapDraft] = useState(String(UNION_V2_DEFAULT_STORIES))
-  const [appliedCap, setAppliedCap] = useState(UNION_V2_DEFAULT_STORIES)
+  const [capDraft, setCapDraft] = useState(String(UNION_GRAPH_DEFAULT_STORIES))
+  const [appliedCap, setAppliedCap] = useState(UNION_GRAPH_DEFAULT_STORIES)
   const [heatDraft, setHeatDraft] = useState(String(NEBULA_HEAT_DEFAULT))
   const [heat, setHeat] = useState(NEBULA_HEAT_DEFAULT)
   const [resolutionDraft, setResolutionDraft] = useState(
@@ -115,7 +115,7 @@ export function NeoUnionV3Workspace() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/admin/neo/union-3', {
+      const res = await fetch('/api/admin/neo/union', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ all: true, limit: capped, fresh }),
@@ -125,7 +125,7 @@ export function NeoUnionV3Workspace() {
       if (!res.ok || json.error) {
         setProjection(null)
         setDocuments([])
-        setError(json?.error?.message ?? 'Failed to load Union 3.0')
+        setError(json?.error?.message ?? 'Failed to load Neo')
         return
       }
       const data = json.data as UnionApiData
@@ -144,14 +144,14 @@ export function NeoUnionV3Workspace() {
       }
     } catch {
       setProjection(null)
-      setError('Failed to load Union 3.0')
+      setError('Failed to load Neo')
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    void loadUnion(UNION_V2_DEFAULT_STORIES, false)
+    void loadUnion(UNION_GRAPH_DEFAULT_STORIES, false)
   }, [loadUnion])
 
   const foundCount = useMemo(
@@ -274,7 +274,7 @@ export function NeoUnionV3Workspace() {
   const controls = (
     <div className="flex flex-col items-start gap-2">
       {paramField(
-        'union-v3-story-cap',
+        'neo-union-story-cap',
         'depth',
         capDraft,
         capFocused,
@@ -288,7 +288,7 @@ export function NeoUnionV3Workspace() {
         }
       )}
       {paramField(
-        'union-v3-heat',
+        'neo-union-heat',
         'heat',
         heatDraft,
         heatFocused,
@@ -297,11 +297,11 @@ export function NeoUnionV3Workspace() {
         {
           min: NEBULA_HEAT_MIN,
           max: NEBULA_HEAT_MAX,
-          title: `Heat (1–${NEBULA_HEAT_MAX}) — edge tissue brightness in 3D`,
+          title: `Heat (1–${NEBULA_HEAT_MAX}) — edge tissue brightness`,
         }
       )}
       {paramField(
-        'union-v3-resolution',
+        'neo-union-resolution',
         'resolution',
         resolutionDraft,
         resolutionFocused,
@@ -314,7 +314,7 @@ export function NeoUnionV3Workspace() {
         }
       )}
       {paramField(
-        'union-v3-blend',
+        'neo-union-blend',
         'blend',
         blendDraft,
         blendFocused,
@@ -341,13 +341,13 @@ export function NeoUnionV3Workspace() {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-[#050508]">
       {loading && !projection ? (
-        <p className="p-6 text-sm text-zinc-400">Loading Union 3.0…</p>
+        <p className="p-6 text-sm text-zinc-400">Loading Neo…</p>
       ) : projection && foundCount > 0 ? (
         <div className="relative flex min-h-0 flex-1 flex-col">
           {loading ? (
             <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-[#050508]/55 backdrop-blur-[1px]">
               <p className="rounded-lg border border-white/10 bg-black/70 px-3 py-1.5 text-sm text-zinc-300">
-                Reloading Union 3.0…
+                Reloading Neo…
               </p>
             </div>
           ) : null}
@@ -383,7 +383,7 @@ export function NeoUnionV3Workspace() {
         </div>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-          <p className="text-sm text-zinc-300">No stories to union yet</p>
+          <p className="text-sm text-zinc-300">No stories in Neo yet</p>
           <p className="max-w-md text-xs text-zinc-500">
             {error ?? 'Succeeded Neo graphs will appear here automatically.'}
           </p>

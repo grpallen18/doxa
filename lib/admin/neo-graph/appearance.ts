@@ -134,7 +134,7 @@ export const NEO_EDGE_IDLE_ALPHA = 0.5
 export const NEO_EDGE_INTERSTITIAL_IDLE_ALPHA = 0.1
 export const NEO_EDGE_INTERSTITIAL_IDLE_SIZE = 0.7
 
-export const NEBULA_HEAT_DEFAULT = 20
+export const NEBULA_HEAT_DEFAULT = 10
 export const NEBULA_HEAT_MIN = 1
 export const NEBULA_HEAT_MAX = 100
 
