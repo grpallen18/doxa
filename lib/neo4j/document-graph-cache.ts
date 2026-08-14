@@ -1,5 +1,8 @@
 import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
-import { getDocumentGraph } from '@/lib/neo4j/queries/phase0'
+import {
+  getDocumentGraph,
+  getDocumentGraphs,
+} from '@/lib/neo4j/queries/phase0'
 
 /**
  * Process-local TTL LRU for Phase-0 document graphs.
@@ -78,4 +81,43 @@ export async function getDocumentGraphCached(
     setDocumentGraphCache(storyId, graph)
   }
   return graph
+}
+
+/**
+ * Batched cache fill — one Neo4j round-trip set for all misses.
+ */
+export async function getDocumentGraphsCached(
+  storyIds: string[],
+  options?: { bypass?: boolean }
+): Promise<Map<string, NeoDocumentGraph | null>> {
+  const bypass =
+    Boolean(options?.bypass) || process.env.NODE_ENV === 'development'
+  const out = new Map<string, NeoDocumentGraph | null>()
+  const misses: string[] = []
+
+  for (const id of storyIds) {
+    if (!id) continue
+    if (!bypass) {
+      const hit = peekDocumentGraphCache(id)
+      if (hit !== undefined) {
+        out.set(id, hit)
+        continue
+      }
+    } else {
+      cache.delete(id)
+    }
+    misses.push(id)
+  }
+
+  if (misses.length === 0) return out
+
+  const fetched = await getDocumentGraphs(misses)
+  for (const id of misses) {
+    const graph = fetched.get(id) ?? null
+    if (process.env.NODE_ENV !== 'development') {
+      setDocumentGraphCache(id, graph)
+    }
+    out.set(id, graph)
+  }
+  return out
 }

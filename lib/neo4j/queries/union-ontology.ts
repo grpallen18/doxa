@@ -88,9 +88,16 @@ export async function getUnionOntologyOverlay(
       OPTIONAL MATCH (disp:Dispute)-[:CONCERNS]->(p)
       OPTIONAL MATCH (p)-[:RELATES_TO]-(peer:Proposition)
       WITH
-        collect(DISTINCT c) AS cs,
-        collect(DISTINCT v) AS vs,
-        collect(DISTINCT disp) AS ds,
+        collect(DISTINCT CASE WHEN c IS NULL THEN null ELSE {
+          uid: c.uid, title: c.title, label: c.label
+        } END) AS cs,
+        collect(DISTINCT CASE WHEN v IS NULL THEN null ELSE {
+          uid: v.uid, label: v.label, name: v.name
+        } END) AS vs,
+        collect(DISTINCT CASE WHEN disp IS NULL THEN null ELSE {
+          uid: disp.uid, label: disp.label, title: disp.title,
+          disputeType: disp.disputeType, type: disp.type
+        } END) AS ds,
         collect(DISTINCT CASE
           WHEN c IS NOT NULL AND v IS NOT NULL
           THEN {fromUid: c.uid, toUid: v.uid}

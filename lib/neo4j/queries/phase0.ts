@@ -120,6 +120,9 @@ export type NeoDocumentGraph = {
   }
 }
 
+/** Label / viz preview only — full text is fetched on node-detail click. */
+const TEXT_PREVIEW_CHARS = 80
+
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() !== '') {
@@ -135,154 +138,202 @@ function asString(value: unknown): string | null {
   return String(value)
 }
 
-export async function getDocumentGraph(
+function previewText(value: unknown): string {
+  const raw = asString(value) ?? ''
+  if (raw.length <= TEXT_PREVIEW_CHARS) return raw
+  return `${raw.slice(0, TEXT_PREVIEW_CHARS - 1)}…`
+}
+
+function emptyGraph(storyId: string): NeoDocumentGraph {
+  return {
+    document: {
+      uid: storyId,
+      title: null,
+      publishedAt: null,
+      url: null,
+      schemaVersion: null,
+      extractorVersion: null,
+    },
+    publication: null,
+    segments: [],
+    utterances: [],
+    agents: [],
+    entities: [],
+    referredAs: [],
+    mentions: [],
+    propositions: [],
+    expresses: [],
+    arguments: [],
+    hasRoles: [],
+    phase1: { propositionCount: 0, entityCount: 0, expressesCount: 0 },
+    phase2: { argumentCount: 0, hasRoleCount: 0 },
+  }
+}
+
+type GraphAcc = {
+  graph: NeoDocumentGraph
+  agentsByUid: Map<string, NeoAgent>
+  entitiesByUid: Map<string, NeoEntity>
+  propositionsByUid: Map<string, NeoProposition>
+  argumentsByUid: Map<string, NeoArgument>
+}
+
+function ensureAcc(
+  byId: Map<string, GraphAcc>,
   storyId: string
-): Promise<NeoDocumentGraph | null> {
+): GraphAcc {
+  let acc = byId.get(storyId)
+  if (acc) return acc
+  acc = {
+    graph: emptyGraph(storyId),
+    agentsByUid: new Map(),
+    entitiesByUid: new Map(),
+    propositionsByUid: new Map(),
+    argumentsByUid: new Map(),
+  }
+  byId.set(storyId, acc)
+  return acc
+}
+
+function finalizeGraph(acc: GraphAcc): NeoDocumentGraph {
+  const g = acc.graph
+  g.agents = Array.from(acc.agentsByUid.values()).sort((a, b) =>
+    (a.name ?? a.uid).localeCompare(b.name ?? b.uid)
+  )
+  g.entities = Array.from(acc.entitiesByUid.values()).sort((a, b) =>
+    (a.name ?? a.uid).localeCompare(b.name ?? b.uid)
+  )
+  g.propositions = Array.from(acc.propositionsByUid.values()).sort((a, b) =>
+    a.uid.localeCompare(b.uid)
+  )
+  g.arguments = Array.from(acc.argumentsByUid.values()).sort((a, b) =>
+    a.uid.localeCompare(b.uid)
+  )
+  g.utterances.sort(
+    (a, b) => a.charStart - b.charStart || a.uid.localeCompare(b.uid)
+  )
+  g.phase1 = {
+    propositionCount: g.propositions.length,
+    entityCount: g.entities.length,
+    expressesCount: g.expresses.length,
+  }
+  g.phase2 = {
+    argumentCount: g.arguments.length,
+    hasRoleCount: g.hasRoles.length,
+  }
+  return g
+}
+
+/**
+ * Fetch many document graphs in a handful of Cypher round-trips (not N×6).
+ * Text fields are truncated for the viz payload; use getNeoNodeDetail for full copy.
+ */
+export async function getDocumentGraphs(
+  storyIds: string[]
+): Promise<Map<string, NeoDocumentGraph | null>> {
+  const unique = [...new Set(storyIds.filter(Boolean))]
+  const out = new Map<string, NeoDocumentGraph | null>()
+  if (unique.length === 0) return out
+
   return withNeo4jSession(async (session) => {
-    const result = await session.run(
+    const byId = new Map<string, GraphAcc>()
+    const uids = unique
+
+    const core = await session.run(
       `
-      MATCH (d:Document {uid: $storyId})
+      MATCH (d:Document)
+      WHERE d.uid IN $uids
       OPTIONAL MATCH (d)-[:PUBLISHED_BY]->(p:Publication)
       OPTIONAL MATCH (d)-[:CONTAINS]->(seg:Segment)
-      OPTIONAL MATCH (u:Utterance {documentUid: $storyId})-[:GROUNDED_IN]->(gseg:Segment)
+      WITH d, p, collect(DISTINCT seg) AS segs
+      OPTIONAL MATCH (u:Utterance {documentUid: d.uid})
+      OPTIONAL MATCH (u)-[gi:GROUNDED_IN]->(gseg:Segment)
       OPTIONAL MATCH (u)-[:ASSERTED_BY]->(a:Agent)
-      OPTIONAL MATCH (u)-[gi:GROUNDED_IN]->(gseg)
-      WITH d, p,
-           collect(DISTINCT seg) AS segs,
-           collect(DISTINCT {
-             uid: u.uid,
-             text: u.text,
-             speechAct: u.speechAct,
-             attributionMode: u.attributionMode,
-             polarity: u.polarity,
-             modality: u.modality,
-             confidence: u.confidence,
-             explicit: u.explicit,
-             documentUid: u.documentUid,
-             segmentUid: gseg.uid,
-             charStart: gi.charStart,
-             charEnd: gi.charEnd,
-             agentUid: a.uid,
-             agentName: a.name,
-             agentNormalizedName: a.normalizedName
-           }) AS utts
+      WITH d, p, segs, collect(DISTINCT {
+        uid: u.uid,
+        text: substring(toString(coalesce(u.text, '')), 0, $preview),
+        speechAct: u.speechAct,
+        documentUid: u.documentUid,
+        segmentUid: gseg.uid,
+        charStart: gi.charStart,
+        charEnd: gi.charEnd,
+        agentUid: a.uid,
+        agentName: a.name,
+        agentNormalizedName: a.normalizedName
+      }) AS utts
       RETURN d, p, segs, utts
       `,
-      { storyId }
+      { uids, preview: TEXT_PREVIEW_CHARS }
     )
 
-    const record = result.records[0]
-    if (!record) return null
+    for (const rec of core.records) {
+      const d = rec.get('d')?.properties ?? {}
+      const storyId = String(d.uid ?? '')
+      if (!storyId) continue
+      const acc = ensureAcc(byId, storyId)
+      acc.graph.document = {
+        uid: storyId,
+        title: asString(d.title),
+        publishedAt: asString(d.publishedAt),
+        url: asString(d.url),
+        schemaVersion: asString(d.schemaVersion),
+        extractorVersion: asString(d.extractorVersion),
+      }
+      const p = rec.get('p')?.properties ?? null
+      acc.graph.publication = p?.uid
+        ? { uid: String(p.uid), name: asString(p.name) }
+        : null
 
-    const d = record.get('d')?.properties ?? {}
-    const p = record.get('p')?.properties ?? null
-    const segs = (record.get('segs') as Array<{ properties: Record<string, unknown> }>) ?? []
-    const utts = (record.get('utts') as Array<Record<string, unknown>>) ?? []
+      const segs =
+        (rec.get('segs') as Array<{ properties: Record<string, unknown> }>) ??
+        []
+      acc.graph.segments = segs
+        .filter((s) => s?.properties?.uid)
+        .map((s) => ({
+          uid: String(s.properties.uid),
+          ord: asNumber(s.properties.ord),
+          text: previewText(s.properties.text),
+          charStart: asNumber(s.properties.charStart),
+          charEnd: asNumber(s.properties.charEnd),
+        }))
+        .sort((a, b) => a.ord - b.ord)
 
-    const segments: NeoSegment[] = segs
-      .filter((s) => s?.properties?.uid)
-      .map((s) => ({
-        uid: String(s.properties.uid),
-        ord: asNumber(s.properties.ord),
-        text: String(s.properties.text ?? ''),
-        charStart: asNumber(s.properties.charStart),
-        charEnd: asNumber(s.properties.charEnd),
-      }))
-      .sort((a, b) => a.ord - b.ord)
-
-    const agentsByUid = new Map<string, NeoAgent>()
-    const utterances: NeoUtterance[] = []
-
-    for (const raw of utts) {
-      if (!raw?.uid) continue
-      const agentUid = asString(raw.agentUid)
-      if (agentUid && !agentsByUid.has(agentUid)) {
-        agentsByUid.set(agentUid, {
-          uid: agentUid,
-          name: asString(raw.agentName),
-          normalizedName: asString(raw.agentNormalizedName),
+      const utts = (rec.get('utts') as Array<Record<string, unknown>>) ?? []
+      for (const raw of utts) {
+        if (!raw?.uid) continue
+        const agentUid = asString(raw.agentUid)
+        if (agentUid && !acc.agentsByUid.has(agentUid)) {
+          acc.agentsByUid.set(agentUid, {
+            uid: agentUid,
+            name: asString(raw.agentName),
+            normalizedName: asString(raw.agentNormalizedName),
+          })
+        }
+        acc.graph.utterances.push({
+          uid: String(raw.uid),
+          text: previewText(raw.text),
+          speechAct: asString(raw.speechAct),
+          attributionMode: null,
+          polarity: null,
+          modality: null,
+          confidence: null,
+          explicit: null,
+          documentUid: String(raw.documentUid ?? storyId),
+          segmentUid: String(raw.segmentUid ?? ''),
+          charStart: asNumber(raw.charStart),
+          charEnd: asNumber(raw.charEnd),
+          agentUid,
+          agentName: asString(raw.agentName),
         })
       }
-      utterances.push({
-        uid: String(raw.uid),
-        text: String(raw.text ?? ''),
-        speechAct: asString(raw.speechAct),
-        attributionMode: asString(raw.attributionMode),
-        polarity: asString(raw.polarity),
-        modality: asString(raw.modality),
-        confidence:
-          raw.confidence == null ? null : asNumber(raw.confidence, NaN) || null,
-        explicit: typeof raw.explicit === 'boolean' ? raw.explicit : null,
-        documentUid: String(raw.documentUid ?? storyId),
-        segmentUid: String(raw.segmentUid ?? ''),
-        charStart: asNumber(raw.charStart),
-        charEnd: asNumber(raw.charEnd),
-        agentUid,
-        agentName: asString(raw.agentName),
-      })
     }
 
-    utterances.sort((a, b) => a.charStart - b.charStart || a.uid.localeCompare(b.uid))
-
-    const countsResult = await session.run(
+    const mentions = await session.run(
       `
-      MATCH (u:Utterance {documentUid: $storyId})
-      OPTIONAL MATCH (u)-[ex:EXPRESSES]->(p:Proposition)
-      OPTIONAL MATCH (u)-[:MENTIONS]->(e:Entity)
-      WITH count(DISTINCT p) AS propositionCount,
-           count(DISTINCT e) AS entityCount,
-           count(DISTINCT ex) AS expressesCount
-      OPTIONAL MATCH (arg:Argument {documentUid: $storyId})
-      OPTIONAL MATCH (arg)-[hr:HAS_ROLE]->(:Proposition)
-      RETURN propositionCount, entityCount, expressesCount,
-             count(DISTINCT arg) AS argumentCount,
-             count(DISTINCT hr) AS hasRoleCount
-      `,
-      { storyId }
-    )
-    const counts = countsResult.records[0]
-    const phase1 = {
-      propositionCount: asNumber(counts?.get('propositionCount')),
-      entityCount: asNumber(counts?.get('entityCount')),
-      expressesCount: asNumber(counts?.get('expressesCount')),
-    }
-    const phase2 = {
-      argumentCount: asNumber(counts?.get('argumentCount')),
-      hasRoleCount: asNumber(counts?.get('hasRoleCount')),
-    }
-
-    const officeResult = await session.run(
-      `
-      MATCH (u:Utterance {documentUid: $storyId})-[:ASSERTED_BY]->(a:Agent)
-      MATCH (a)-[r:REFERRED_AS {documentUid: $storyId}]->(office:Entity)
+      MATCH (u:Utterance)-[m:MENTIONS]->(e:Entity)
+      WHERE u.documentUid IN $uids
       RETURN DISTINCT
-        a.uid AS fromUid,
-        'agent' AS fromKind,
-        office.uid AS officeUid,
-        office.name AS officeName,
-        office.normalizedName AS officeNorm,
-        office.kindHint AS kindHint,
-        r.title AS title
-      UNION
-      MATCH (u:Utterance {documentUid: $storyId})-[:MENTIONS]->(person:Entity)
-      MATCH (person)-[r:REFERRED_AS {documentUid: $storyId}]->(office:Entity)
-      WHERE coalesce(person.kindHint, '') <> 'office'
-      RETURN DISTINCT
-        person.uid AS fromUid,
-        'entity' AS fromKind,
-        office.uid AS officeUid,
-        office.name AS officeName,
-        office.normalizedName AS officeNorm,
-        office.kindHint AS kindHint,
-        r.title AS title
-      `,
-      { storyId }
-    )
-
-    const mentionResult = await session.run(
-      `
-      MATCH (u:Utterance {documentUid: $storyId})-[m:MENTIONS]->(e:Entity)
-      RETURN DISTINCT
+        u.documentUid AS documentUid,
         u.uid AS utteranceUid,
         e.uid AS entityUid,
         e.name AS name,
@@ -291,47 +342,23 @@ export async function getDocumentGraph(
         m.surfaceForm AS surfaceForm,
         m.title AS title
       `,
-      { storyId }
+      { uids }
     )
-
-    const entitiesByUid = new Map<string, NeoEntity>()
-    const referredAs: NeoReferredAs[] = []
-    for (const rec of officeResult.records) {
-      const officeUid = asString(rec.get('officeUid'))
-      const fromUid = asString(rec.get('fromUid'))
-      const fromKindRaw = asString(rec.get('fromKind'))
-      const fromKind = fromKindRaw === 'entity' ? 'entity' : 'agent'
-      if (!officeUid || !fromUid) continue
-      if (!entitiesByUid.has(officeUid)) {
-        entitiesByUid.set(officeUid, {
-          uid: officeUid,
-          name: asString(rec.get('officeName')),
-          normalizedName: asString(rec.get('officeNorm')),
-          kindHint: asString(rec.get('kindHint')) ?? 'office',
-        })
-      }
-      referredAs.push({
-        fromUid,
-        fromKind,
-        officeUid,
-        title: asString(rec.get('title')),
-      })
-    }
-
-    const mentions: NeoMention[] = []
-    for (const rec of mentionResult.records) {
+    for (const rec of mentions.records) {
+      const storyId = asString(rec.get('documentUid'))
       const utteranceUid = asString(rec.get('utteranceUid'))
       const entityUid = asString(rec.get('entityUid'))
-      if (!utteranceUid || !entityUid) continue
-      if (!entitiesByUid.has(entityUid)) {
-        entitiesByUid.set(entityUid, {
+      if (!storyId || !utteranceUid || !entityUid) continue
+      const acc = ensureAcc(byId, storyId)
+      if (!acc.entitiesByUid.has(entityUid)) {
+        acc.entitiesByUid.set(entityUid, {
           uid: entityUid,
           name: asString(rec.get('name')),
           normalizedName: asString(rec.get('normalizedName')),
           kindHint: asString(rec.get('kindHint')),
         })
       }
-      mentions.push({
+      acc.graph.mentions.push({
         utteranceUid,
         entityUid,
         surfaceForm: asString(rec.get('surfaceForm')),
@@ -339,140 +366,156 @@ export async function getDocumentGraph(
       })
     }
 
-    const propResult = await session.run(
+    const offices = await session.run(
       `
-      MATCH (u:Utterance {documentUid: $storyId})-[:EXPRESSES]->(p:Proposition)
+      MATCH (u:Utterance)-[:ASSERTED_BY]->(a:Agent)
+      WHERE u.documentUid IN $uids
+      MATCH (a)-[r:REFERRED_AS]->(office:Entity)
+      WHERE r.documentUid IN $uids
       RETURN DISTINCT
+        u.documentUid AS documentUid,
+        a.uid AS fromUid,
+        'agent' AS fromKind,
+        office.uid AS officeUid,
+        office.name AS officeName,
+        office.normalizedName AS officeNorm,
+        office.kindHint AS kindHint,
+        r.title AS title
+      UNION
+      MATCH (u:Utterance)-[:MENTIONS]->(person:Entity)
+      WHERE u.documentUid IN $uids
+      MATCH (person)-[r:REFERRED_AS]->(office:Entity)
+      WHERE r.documentUid IN $uids
+        AND coalesce(person.kindHint, '') <> 'office'
+      RETURN DISTINCT
+        u.documentUid AS documentUid,
+        person.uid AS fromUid,
+        'entity' AS fromKind,
+        office.uid AS officeUid,
+        office.name AS officeName,
+        office.normalizedName AS officeNorm,
+        office.kindHint AS kindHint,
+        r.title AS title
+      `,
+      { uids }
+    )
+    const seenRef = new Set<string>()
+    for (const rec of offices.records) {
+      const storyId = asString(rec.get('documentUid'))
+      const officeUid = asString(rec.get('officeUid'))
+      const fromUid = asString(rec.get('fromUid'))
+      if (!storyId || !officeUid || !fromUid) continue
+      const fromKind =
+        asString(rec.get('fromKind')) === 'entity' ? 'entity' : 'agent'
+      const key = `${storyId}|${fromKind}|${fromUid}|${officeUid}`
+      if (seenRef.has(key)) continue
+      seenRef.add(key)
+      const acc = ensureAcc(byId, storyId)
+      if (!acc.entitiesByUid.has(officeUid)) {
+        acc.entitiesByUid.set(officeUid, {
+          uid: officeUid,
+          name: asString(rec.get('officeName')),
+          normalizedName: asString(rec.get('officeNorm')),
+          kindHint: asString(rec.get('kindHint')) ?? 'office',
+        })
+      }
+      acc.graph.referredAs.push({
+        fromUid,
+        fromKind,
+        officeUid,
+        title: asString(rec.get('title')),
+      })
+    }
+
+    const props = await session.run(
+      `
+      MATCH (u:Utterance)-[:EXPRESSES]->(p:Proposition)
+      WHERE u.documentUid IN $uids
+      RETURN DISTINCT
+        u.documentUid AS documentUid,
+        u.uid AS utteranceUid,
         p.uid AS uid,
-        p.text AS text,
+        substring(toString(coalesce(p.text, '')), 0, $preview) AS text,
         p.certainty AS certainty,
         p.timeframe AS timeframe,
-        p.scope AS scope,
-        u.uid AS utteranceUid
+        p.scope AS scope
       `,
-      { storyId }
+      { uids, preview: TEXT_PREVIEW_CHARS }
     )
-    const propositionsByUid = new Map<string, NeoProposition>()
-    const expresses: NeoExpresses[] = []
-    for (const rec of propResult.records) {
+    for (const rec of props.records) {
+      const storyId = asString(rec.get('documentUid'))
       const uid = asString(rec.get('uid'))
       const utteranceUid = asString(rec.get('utteranceUid'))
-      if (!uid || !utteranceUid) continue
-      if (!propositionsByUid.has(uid)) {
-        propositionsByUid.set(uid, {
+      if (!storyId || !uid || !utteranceUid) continue
+      const acc = ensureAcc(byId, storyId)
+      if (!acc.propositionsByUid.has(uid)) {
+        acc.propositionsByUid.set(uid, {
           uid,
-          text: String(rec.get('text') ?? ''),
+          text: previewText(rec.get('text')),
           certainty: asString(rec.get('certainty')),
           timeframe: asString(rec.get('timeframe')),
           scope: asString(rec.get('scope')),
         })
       }
-      expresses.push({ utteranceUid, propositionUid: uid })
+      acc.graph.expresses.push({ utteranceUid, propositionUid: uid })
     }
 
-    const argResult = await session.run(
+    const args = await session.run(
       `
-      MATCH (arg:Argument {documentUid: $storyId})-[hr:HAS_ROLE]->(p:Proposition)
-      RETURN arg.uid AS argUid,
-             arg.summary AS summary,
-             p.uid AS propUid,
-             hr.role AS role
+      MATCH (arg:Argument)-[hr:HAS_ROLE]->(p:Proposition)
+      WHERE arg.documentUid IN $uids
+      RETURN
+        arg.documentUid AS documentUid,
+        arg.uid AS argUid,
+        substring(toString(coalesce(arg.summary, '')), 0, $preview) AS summary,
+        p.uid AS propUid,
+        substring(toString(coalesce(p.text, '')), 0, $preview) AS propText,
+        p.certainty AS certainty,
+        p.timeframe AS timeframe,
+        p.scope AS scope,
+        hr.role AS role
       `,
-      { storyId }
+      { uids, preview: TEXT_PREVIEW_CHARS }
     )
-    const argumentsByUid = new Map<string, NeoArgument>()
-    const hasRoles: NeoHasRole[] = []
-    for (const rec of argResult.records) {
+    for (const rec of args.records) {
+      const storyId = asString(rec.get('documentUid'))
       const argUid = asString(rec.get('argUid'))
       const propUid = asString(rec.get('propUid'))
-      if (!argUid || !propUid) continue
-      if (!argumentsByUid.has(argUid)) {
-        argumentsByUid.set(argUid, {
+      if (!storyId || !argUid || !propUid) continue
+      const acc = ensureAcc(byId, storyId)
+      if (!acc.argumentsByUid.has(argUid)) {
+        acc.argumentsByUid.set(argUid, {
           uid: argUid,
-          summary: asString(rec.get('summary')),
+          summary: previewText(rec.get('summary')) || null,
         })
       }
-      // Ensure role-target props appear even if EXPRESSES was missing
-      if (!propositionsByUid.has(propUid)) {
-        propositionsByUid.set(propUid, {
+      if (!acc.propositionsByUid.has(propUid)) {
+        acc.propositionsByUid.set(propUid, {
           uid: propUid,
-          text: '',
-          certainty: null,
-          timeframe: null,
-          scope: null,
+          text: previewText(rec.get('propText')),
+          certainty: asString(rec.get('certainty')),
+          timeframe: asString(rec.get('timeframe')),
+          scope: asString(rec.get('scope')),
         })
       }
-      hasRoles.push({
+      acc.graph.hasRoles.push({
         argumentUid: argUid,
         propositionUid: propUid,
         role: asString(rec.get('role')),
       })
     }
 
-    // Fill stub proposition text if Argument linked props lacked EXPRESSES rows
-    const stubPropUids = Array.from(propositionsByUid.values())
-      .filter((p) => !p.text)
-      .map((p) => p.uid)
-    if (stubPropUids.length > 0) {
-      const fillResult = await session.run(
-        `
-        MATCH (p:Proposition)
-        WHERE p.uid IN $uids
-        RETURN p.uid AS uid, p.text AS text,
-               p.certainty AS certainty,
-               p.timeframe AS timeframe,
-               p.scope AS scope
-        `,
-        { uids: stubPropUids }
-      )
-      for (const rec of fillResult.records) {
-        const uid = asString(rec.get('uid'))
-        if (!uid || !propositionsByUid.has(uid)) continue
-        propositionsByUid.set(uid, {
-          uid,
-          text: String(rec.get('text') ?? ''),
-          certainty: asString(rec.get('certainty')),
-          timeframe: asString(rec.get('timeframe')),
-          scope: asString(rec.get('scope')),
-        })
-      }
+    for (const id of unique) {
+      const acc = byId.get(id)
+      out.set(id, acc ? finalizeGraph(acc) : null)
     }
-
-    return {
-      document: {
-        uid: String(d.uid ?? storyId),
-        title: asString(d.title),
-        publishedAt: asString(d.publishedAt),
-        url: asString(d.url),
-        schemaVersion: asString(d.schemaVersion),
-        extractorVersion: asString(d.extractorVersion),
-      },
-      publication: p
-        ? {
-            uid: String(p.uid ?? ''),
-            name: asString(p.name),
-          }
-        : null,
-      segments,
-      utterances,
-      agents: Array.from(agentsByUid.values()).sort((a, b) =>
-        (a.name ?? a.uid).localeCompare(b.name ?? b.uid)
-      ),
-      entities: Array.from(entitiesByUid.values()).sort((a, b) =>
-        (a.name ?? a.uid).localeCompare(b.name ?? b.uid)
-      ),
-      referredAs,
-      mentions,
-      propositions: Array.from(propositionsByUid.values()).sort((a, b) =>
-        a.uid.localeCompare(b.uid)
-      ),
-      expresses,
-      arguments: Array.from(argumentsByUid.values()).sort((a, b) =>
-        a.uid.localeCompare(b.uid)
-      ),
-      hasRoles,
-      phase1,
-      phase2,
-    }
+    return out
   })
+}
+
+export async function getDocumentGraph(
+  storyId: string
+): Promise<NeoDocumentGraph | null> {
+  const found = await getDocumentGraphs([storyId])
+  return found.get(storyId) ?? null
 }

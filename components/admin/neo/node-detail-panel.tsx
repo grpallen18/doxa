@@ -1,12 +1,13 @@
 'use client'
 
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/admin/record/status-badge'
 import type { NeoSelection } from '@/lib/admin/neo-graph/neo-selection'
 import { cn } from '@/lib/utils'
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   if (value == null || value === '') return null
   return (
     <div className="space-y-0.5">
@@ -25,6 +26,7 @@ export function NeoNodeDetailPanel({
   onFocus,
   onExpandCluster,
   memberLabels,
+  fetchFullDetail = false,
   className,
 }: {
   selection: NeoSelection
@@ -33,20 +35,58 @@ export function NeoNodeDetailPanel({
   onFocus: () => void
   onExpandCluster?: () => void
   memberLabels?: Array<{ id: string; label: string }>
+  /** Load full Neo4j properties (text, url) for the slim viz payload. */
+  fetchFullDetail?: boolean
   className?: string
 }) {
   const hasNode = Boolean(selection.nodeId)
   const hasEdge = Boolean(selection.edgeId)
+  const [fetchedProps, setFetchedProps] = useState<Record<
+    string,
+    unknown
+  > | null>(null)
+
+  useEffect(() => {
+    if (!fetchFullDetail || !selection.nodeId) {
+      setFetchedProps(null)
+      return
+    }
+    let cancelled = false
+    setFetchedProps(null)
+    void fetch(
+      `/api/admin/neo/node?id=${encodeURIComponent(selection.nodeId)}`
+    )
+      .then(async (res) => {
+        if (!res.ok) return null
+        return res.json() as Promise<{
+          data?: { properties?: Record<string, unknown> }
+        }>
+      })
+      .then((json) => {
+        if (cancelled) return
+        setFetchedProps(json?.data?.properties ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedProps(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [fetchFullDetail, selection.nodeId])
+
   if (!hasNode && !hasEdge) return null
+
+  const properties = {
+    ...(selection.properties ?? {}),
+    ...(fetchedProps ?? {}),
+  }
 
   const isCluster = selection.kind === 'cluster'
   const uid =
-    typeof selection.properties?.uid === 'string'
-      ? selection.properties.uid
-      : null
+    typeof properties.uid === 'string' ? properties.uid : null
   const documentUid =
-    typeof selection.properties?.documentUid === 'string'
-      ? selection.properties.documentUid
+    typeof properties.documentUid === 'string'
+      ? properties.documentUid
       : selection.kind === 'document' && uid
         ? uid
         : storyId
@@ -89,10 +129,10 @@ export function NeoNodeDetailPanel({
             <Field
               label="Community"
               value={
-                typeof selection.properties?.communityLabel === 'string'
-                  ? selection.properties.communityLabel
-                  : typeof selection.properties?.communityId === 'string'
-                    ? selection.properties.communityId
+                typeof properties.communityLabel === 'string'
+                  ? properties.communityLabel
+                  : typeof properties.communityId === 'string'
+                    ? properties.communityId
                     : null
               }
             />
@@ -125,8 +165,7 @@ export function NeoNodeDetailPanel({
                 value={`${selection.charStart}–${selection.charEnd}`}
               />
             ) : null}
-            {selection.properties &&
-              Object.entries(selection.properties).map(([key, value]) => {
+            {Object.entries(properties).map(([key, value]) => {
                 if (
                   key === 'uid' ||
                   key === 'text' ||
@@ -139,15 +178,15 @@ export function NeoNodeDetailPanel({
                 if (value == null || value === '') return null
                 return <Field key={key} label={key} value={String(value)} />
               })}
-            {selection.properties?.text ? (
-              <Field label="Text" value={String(selection.properties.text)} />
+            {properties.text ? (
+              <Field label="Text" value={String(properties.text)} />
             ) : null}
-            {selection.properties?.url ? (
+            {properties.url ? (
               <Field
                 label="URL"
                 value={
                   <a
-                    href={String(selection.properties.url)}
+                    href={String(properties.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-sky-400 underline"

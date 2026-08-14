@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent,
 } from 'react'
@@ -109,18 +110,30 @@ export function NeoUnionWorkspace() {
   const [resolutionFocused, setResolutionFocused] = useState(false)
   const [blendFocused, setBlendFocused] = useState(false)
   const [selection, setSelection] = useState<NeoSelection>(EMPTY_SELECTION)
+  const etagRef = useRef<string | null>(null)
 
   const loadUnion = useCallback(async (limit: number, fresh = false) => {
     const capped = clampUnionStoryLimit(limit)
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/admin/neo/union', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ all: true, limit: capped, fresh }),
+      const params = new URLSearchParams({
+        all: '1',
+        limit: String(capped),
+      })
+      if (fresh) params.set('fresh', '1')
+      const headers: HeadersInit = {}
+      if (!fresh && etagRef.current) {
+        headers['If-None-Match'] = etagRef.current
+      }
+      const res = await fetch(`/api/admin/neo/union?${params.toString()}`, {
+        method: 'GET',
+        headers,
         cache: 'no-store',
       })
+      if (res.status === 304) {
+        return
+      }
       const json = await res.json()
       if (!res.ok || json.error) {
         setProjection(null)
@@ -128,6 +141,8 @@ export function NeoUnionWorkspace() {
         setError(json?.error?.message ?? 'Failed to load Neo')
         return
       }
+      const nextEtag = res.headers.get('ETag')
+      if (nextEtag) etagRef.current = nextEtag
       const data = json.data as UnionApiData
       setProjection(data.projection)
       setDocuments(data.documents)
@@ -204,7 +219,7 @@ export function NeoUnionWorkspace() {
       setLayoutEpoch((e) => e + 1)
     }
     if (nextCap !== appliedCap) {
-      void loadUnion(nextCap, true)
+      void loadUnion(nextCap, false)
     }
   }, [
     appliedCap,
@@ -372,6 +387,7 @@ export function NeoUnionWorkspace() {
                 <NeoNodeDetailPanel
                   selection={selection}
                   storyId={contextStoryId}
+                  fetchFullDetail
                   onClose={() => setSelection(EMPTY_SELECTION)}
                   onFocus={() => {
                     /* camera focus handled via selection id already in view */

@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { projectPhase0Document } from '../lib/admin/neo-graph/project-phase0'
+import { parseNeoNodeId } from '../lib/admin/neo-graph/node-id'
 import { projectUnionDocuments } from '../lib/admin/neo-graph/project-union'
 import { projectUnionOntology } from '../lib/admin/neo-graph/project-union-ontology'
 import {
@@ -146,6 +147,12 @@ function main() {
   assert.ok(projection.nodes.some((n) => n.id === 'entity:ent:alice'))
   assert.ok(projection.nodes.some((n) => n.id === 'proposition:prop-1'))
   assert.ok(projection.nodes.some((n) => n.id === 'argument:arg-1'))
+  const uttNode = projection.nodes.find((n) => n.id === 'utterance:utt-1')
+  assert.equal(uttNode?.properties.text, undefined)
+  assert.equal(uttNode?.properties.documentUid, 'story-1')
+  assert.equal(parseNeoNodeId('utterance:utt-1')?.uid, 'utt-1')
+  assert.equal(parseNeoNodeId('entity:ent:alice')?.uid, 'ent:alice')
+  assert.equal(parseNeoNodeId('bad'), null)
   assert.ok(
     projection.edges.some(
       (e) =>

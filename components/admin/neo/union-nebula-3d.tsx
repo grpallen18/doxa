@@ -12,9 +12,13 @@ import {
 import {
   buildUnion3DGraphData,
   nebulaIdleAlpha3d,
-  type Union3DLink,
   type Union3DNode,
 } from '@/lib/admin/neo-graph/union-3d'
+import {
+  capDevicePixelRatio,
+  createBatchedNebulaScene,
+  type BatchedNebulaScene,
+} from '@/lib/admin/neo-graph/union-3d-scene'
 import type { DoxaGraphProjection } from '@/lib/admin/neo-graph/types'
 import {
   NEBULA_BLEND_DEFAULT,
@@ -35,6 +39,15 @@ type ForceWithStrength = {
   distance?: (d: number) => unknown
 }
 
+type GraphApi = ForceGraph3DInstance & {
+  scene?: () => { add: (obj: unknown) => void }
+  camera?: () => THREE.Camera
+  renderer?: () => THREE.WebGLRenderer
+  nodeVisibility?: (v: boolean | ((n: unknown) => boolean)) => ForceGraph3DInstance
+  linkVisibility?: (v: boolean | ((l: unknown) => boolean)) => ForceGraph3DInstance
+  onEngineTick?: (fn: () => void) => ForceGraph3DInstance
+}
+
 type Props = {
   projection: DoxaGraphProjection
   heat?: number
@@ -49,7 +62,6 @@ type Props = {
 
 function tuneForces(fg: ForceGraph3DInstance) {
   try {
-    // Pack into one brain: weak repulsion, short stiff links, strong center.
     const charge = fg.d3Force('charge') as ForceWithStrength | null
     charge?.strength?.(-2.2)
     const link = fg.d3Force('link') as ForceWithStrength | null
@@ -62,219 +74,32 @@ function tuneForces(fg: ForceGraph3DInstance) {
   }
 }
 
-/** Soft radial glow — shared by all star sprites (white, tinted via material.color). */
-let sharedGlowTexture: THREE.CanvasTexture | null = null
-let sharedGlowTextureRev = -1
-
-/** Bump to force ForceGraph remount after node-style edits (HMR-safe). */
-const NODE_STYLE_REV = 13
-
-function getGlowTexture(): THREE.CanvasTexture {
-  if (sharedGlowTexture && sharedGlowTextureRev === NODE_STYLE_REV) {
-    return sharedGlowTexture
-  }
-  sharedGlowTextureRev = NODE_STYLE_REV
-  const size = 128
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    sharedGlowTexture = new THREE.CanvasTexture(canvas)
-    return sharedGlowTexture
-  }
-  const g = ctx.createRadialGradient(
-    size / 2,
-    size / 2,
-    0,
-    size / 2,
-    size / 2,
-    size / 2
-  )
-  // Midpoint between washed-out core and dull falloff.
-  g.addColorStop(0, 'rgba(255,255,255,0.88)')
-  g.addColorStop(0.15, 'rgba(255,255,255,0.65)')
-  g.addColorStop(0.38, 'rgba(255,255,255,0.24)')
-  g.addColorStop(0.65, 'rgba(255,255,255,0.07)')
-  g.addColorStop(1, 'rgba(255,255,255,0)')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, size, size)
-  sharedGlowTexture = new THREE.CanvasTexture(canvas)
-  sharedGlowTexture.needsUpdate = true
-  return sharedGlowTexture
+function emptyObject3D() {
+  const o = new THREE.Object3D()
+  o.visible = false
+  return o
 }
 
-/** Soft additive sprite — halfway between washed and dull. */
-function createStarNode(node: Union3DNode): THREE.Object3D {
-  const heat = Math.max(0, Math.min(1, node.heat ?? 0))
-  const degree = Math.max(0, node.degree ?? 0)
-  const group = new THREE.Group()
-
-  const glowMat = new THREE.SpriteMaterial({
-    map: getGlowTexture(),
-    color: new THREE.Color(node.color || '#a8a29e'),
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    opacity: 0.48 + heat * 0.14,
-  })
-  const glow = new THREE.Sprite(glowMat)
-  const scale =
-    2.1 +
-    (node.val || 1) * 0.8 +
-    Math.pow(heat, 1.45) * 20 +
-    Math.sqrt(degree) * 1.05
-  glow.scale.set(scale, scale, 1)
-  glow.raycast = () => {}
-
-  const hit = new THREE.Mesh(
-    new THREE.SphereGeometry(1.35 + Math.min(2.5, heat * 2), 8, 8),
-    new THREE.MeshBasicMaterial({
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    })
-  )
-  hit.name = 'pick'
-
-  group.add(glow)
-  group.add(hit)
-  return group
-}
-
-type LinkEnd = string | { id?: string } | null | undefined
-
-function linkEndpointId(end: LinkEnd): string | null {
-  if (typeof end === 'string' && end) return end
-  if (end && typeof end === 'object' && typeof end.id === 'string') return end.id
-  return null
-}
-
-function edgeOpacityForLink(
-  link: { source?: LinkEnd; target?: LinkEnd },
-  selectedId: string | null,
-  idle: number,
-  pulse = 1
-): number {
-  if (!selectedId) return idle
-  const s = linkEndpointId(link.source)
-  const t = linkEndpointId(link.target)
-  if (s !== selectedId && t !== selectedId) return idle
-  const bright = Math.min(0.95, idle * 2.6 + 0.28)
-  // pulse 0 = idle tissue, 1 = full highlight
-  return idle + (bright - idle) * pulse
-}
-
-/** ~0.75 Hz ease between idle and bright for selected incident edges. */
-function selectionEdgePulse(now = performance.now()): number {
-  return 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2 * 0.75)
-}
-
-type LinkWithThree = {
-  source?: LinkEnd
-  target?: LinkEnd
-  __lineObj?: THREE.Object3D
-}
-
-/** Paint incident edges (with optional pulse) without recreating materials. */
-function applyEdgeSelectionOpacity(
-  fg: ForceGraph3DInstance,
-  getIdleOpacity: () => number,
-  selectedId: string | null,
-  pulse = 1
+function selectNode(
+  n: Union3DNode,
+  onSelectionChange: (selection: NeoSelection) => void
 ) {
-  const idle = getIdleOpacity()
-  const links = (fg.graphData()?.links ?? []) as LinkWithThree[]
-  for (const link of links) {
-    const line = link.__lineObj as THREE.Line | undefined
-    const mat = line?.material as THREE.LineBasicMaterial | undefined
-    if (!mat) continue
-    mat.opacity = edgeOpacityForLink(link, selectedId, idle, pulse)
-  }
-}
-
-/**
- * Bind edge look once at mount. Do not rebind on selection — that destroys
- * materials/particles and freezes hover. Heat + selection opacity update
- * live on existing Line materials.
- */
-function bindEdgeAccessors(
-  fg: ForceGraph3DInstance,
-  opts: {
-    getIdleOpacity: () => number
-    getSelectedId: () => string | null
-  }
-) {
-  const { getIdleOpacity, getSelectedId } = opts
-
-  fg.linkDirectionalParticles(0)
-  fg.linkThreeObject((raw) => {
-    const link = raw as Union3DLink
-    const c0 = new THREE.Color(link.sourceColor || '#a8a29e')
-    const c1 = new THREE.Color(link.targetColor || '#a8a29e')
-    const colors = new Float32Array([
-      c0.r,
-      c0.g,
-      c0.b,
-      c1.r,
-      c1.g,
-      c1.b,
-    ])
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(new Float32Array(6), 3)
-    )
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    const material = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: edgeOpacityForLink(
-        link,
-        getSelectedId(),
-        getIdleOpacity(),
-        getSelectedId() ? selectionEdgePulse() : 0
-      ),
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    })
-    return new THREE.Line(geometry, material)
-  })
-  fg.linkPositionUpdate((obj, coords, link) => {
-    const line = obj as THREE.Line
-    const mat = line.material as THREE.LineBasicMaterial | undefined
-    if (mat && link) {
-      const selectedId = getSelectedId()
-      mat.opacity = edgeOpacityForLink(
-        link as LinkWithThree,
-        selectedId,
-        getIdleOpacity(),
-        selectedId ? selectionEdgePulse() : 0
-      )
-    }
-
-    const start = coords?.start
-    const end = coords?.end
-    if (
-      !start ||
-      !end ||
-      !Number.isFinite(start.x) ||
-      !Number.isFinite(start.y) ||
-      !Number.isFinite(start.z) ||
-      !Number.isFinite(end.x) ||
-      !Number.isFinite(end.y) ||
-      !Number.isFinite(end.z)
-    ) {
-      return true
-    }
-    const pos = line.geometry.getAttribute('position') as THREE.BufferAttribute
-    pos.setXYZ(0, start.x, start.y, start.z)
-    pos.setXYZ(1, end.x, end.y, end.z)
-    pos.needsUpdate = true
-    return true
+  onSelectionChange({
+    ...EMPTY_SELECTION,
+    nodeId: n.id,
+    kind: n.kind,
+    label: n.name,
+    charStart: n.charStart,
+    charEnd: n.charEnd,
+    properties: {
+      ...(n.properties ?? {}),
+      louvainId: n.louvainId,
+      degree: n.degree,
+      communityId: n.communityId,
+      communityLabel: n.communityLabel,
+    },
   })
 }
-
 
 export function UnionNebula3D({
   projection,
@@ -288,7 +113,8 @@ export function UnionNebula3D({
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const graphRef = useRef<ForceGraph3DInstance | null>(null)
+  const graphRef = useRef<GraphApi | null>(null)
+  const sceneRef = useRef<BatchedNebulaScene | null>(null)
   const engineReadyRef = useRef(false)
   const resumeSpinTimer = useRef<number | null>(null)
   const frameTimer = useRef<number | null>(null)
@@ -322,21 +148,8 @@ export function UnionNebula3D({
   const linkOpacityRef = useRef(linkOpacity)
   linkOpacityRef.current = linkOpacity
 
-  // Heat dial — repaint existing edge materials (no linkThreeObject rebind).
   useEffect(() => {
-    const fg = graphRef.current
-    if (!fg || !engineReadyRef.current) return
-    try {
-      const id = selectedIdRef.current
-      applyEdgeSelectionOpacity(
-        fg,
-        () => linkOpacityRef.current,
-        id,
-        id ? selectionEdgePulse() : 0
-      )
-    } catch {
-      /* engine mid-teardown */
-    }
+    sceneRef.current?.setIdleOpacity(linkOpacity)
   }, [linkOpacity])
 
   useEffect(() => {
@@ -349,48 +162,24 @@ export function UnionNebula3D({
 
   useEffect(() => {
     selectedIdRef.current = selection.nodeId
-    // Clear sticky hover chrome when selection changes / drawer closes.
     if (!selection.nodeId) setHoverLabel(null)
+    sceneRef.current?.setSelection(selection.nodeId)
 
     if (pulseRafRef.current != null) {
       cancelAnimationFrame(pulseRafRef.current)
       pulseRafRef.current = null
     }
+    if (!selection.nodeId) return
 
-    const fg = graphRef.current
-    if (!fg || !engineReadyRef.current) return
-
-    if (!selection.nodeId) {
-      try {
-        applyEdgeSelectionOpacity(fg, () => linkOpacityRef.current, null, 0)
-      } catch {
-        /* engine mid-teardown */
-      }
-      return
-    }
-
-    const tick = () => {
-      const live = graphRef.current
-      const id = selectedIdRef.current
-      if (!live || !id) {
+    const tick = (now: number) => {
+      if (!selectedIdRef.current) {
         pulseRafRef.current = null
         return
       }
-      try {
-        applyEdgeSelectionOpacity(
-          live,
-          () => linkOpacityRef.current,
-          id,
-          selectionEdgePulse()
-        )
-      } catch {
-        pulseRafRef.current = null
-        return
-      }
+      sceneRef.current?.tickPulse(now)
       pulseRafRef.current = requestAnimationFrame(tick)
     }
     pulseRafRef.current = requestAnimationFrame(tick)
-
     return () => {
       if (pulseRafRef.current != null) {
         cancelAnimationFrame(pulseRafRef.current)
@@ -406,17 +195,18 @@ export function UnionNebula3D({
     }
   }
 
-  const enableSpin = (fg: ForceGraph3DInstance) => {
+  const enableSpin = (fg: GraphApi) => {
+    if (document.hidden) return
     const controls = fg.controls() as OrbitControlsLike | null
     if (controls) controls.autoRotate = true
   }
 
-  const pauseSpin = (fg: ForceGraph3DInstance) => {
+  const pauseSpin = (fg: GraphApi) => {
     const controls = fg.controls() as OrbitControlsLike | null
     if (controls) controls.autoRotate = false
     clearResumeTimer()
     resumeSpinTimer.current = window.setTimeout(() => {
-      if (graphRef.current === fg) enableSpin(fg)
+      if (graphRef.current === fg && !selectedIdRef.current) enableSpin(fg)
     }, 1400)
   }
 
@@ -426,78 +216,51 @@ export function UnionNebula3D({
 
     let cancelled = false
     engineReadyRef.current = false
+    const coarse =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(pointer: coarse)').matches
+    const dpr = capDevicePixelRatio()
 
-    const fg = new ForceGraph3D(el, { controlType: 'orbit' })
-      .backgroundColor('#050508')
+    const batched = createBatchedNebulaScene()
+    sceneRef.current = batched
+    batched.setIdleOpacity(linkOpacityRef.current)
+    batched.setPixelRatio(dpr)
+    batched.setViewportHeight(el.clientHeight || 600)
+
+    const fg = new ForceGraph3D(el, { controlType: 'orbit' }) as GraphApi
+    fg.backgroundColor('#050508')
       .showNavInfo(false)
       .enableNodeDrag(false)
-      .nodeLabel((n) => (n as Union3DNode).name || '')
-      .nodeThreeObject((n) => createStarNode(n as Union3DNode))
+      .nodeLabel(() => '')
+      .nodeThreeObject(() => emptyObject3D())
       .nodeThreeObjectExtend(false)
-      .cooldownTicks(160)
-      .warmupTicks(50)
+      .cooldownTicks(coarse ? 60 : 160)
+      .warmupTicks(coarse ? 20 : 50)
       .d3AlphaDecay(0.028)
       .d3VelocityDecay(0.4)
-      .onNodeHover((node) => {
-        if (cancelled) return
-        const n = node as Union3DNode | null
-        setHoverLabel(n?.name ?? null)
-        el.style.cursor = n ? 'pointer' : 'grab'
-        if (n) pauseSpin(fg)
-      })
-      .onNodeClick((node) => {
-        if (cancelled) return
-        const raw = node as Union3DNode | null
-        if (!raw?.id) {
-          selectedIdRef.current = null
-          setHoverLabel(null)
-          onSelectionChangeRef.current(EMPTY_SELECTION)
-          return
-        }
-        const n =
-          dataRef.current.nodes.find((x) => x.id === raw.id) ?? raw
-        pauseSpin(fg)
-        // Second click on the same node deselects.
-        if (selectedIdRef.current === n.id) {
-          selectedIdRef.current = null
-          setHoverLabel(null)
-          onSelectionChangeRef.current(EMPTY_SELECTION)
-          return
-        }
-        selectedIdRef.current = n.id
-        setHoverLabel(n.name)
-        onSelectionChangeRef.current({
-          ...EMPTY_SELECTION,
-          nodeId: n.id,
-          kind: n.kind,
-          label: n.name,
-          charStart: n.charStart,
-          charEnd: n.charEnd,
-          properties: {
-            ...(n.properties ?? {}),
-            louvainId: n.louvainId,
-            degree: n.degree,
-            communityId: n.communityId,
-            communityLabel: n.communityLabel,
-          },
-        })
-      })
-      .onBackgroundClick(() => {
-        if (cancelled) return
-        selectedIdRef.current = null
-        setHoverLabel(null)
-        onSelectionChangeRef.current(EMPTY_SELECTION)
-      })
       .onEngineStop(() => {
         if (cancelled) return
+        const live = fg.graphData()
+        batched.syncPositions(live.nodes as Array<{ id?: string; x?: number; y?: number; z?: number }>)
         setLayoutBusy(false)
         enableSpin(fg)
       })
 
-    bindEdgeAccessors(fg, {
-      getIdleOpacity: () => linkOpacityRef.current,
-      getSelectedId: () => selectedIdRef.current,
+    fg.nodeVisibility?.(() => false)
+    fg.linkVisibility?.(() => false)
+    fg.onEngineTick?.(() => {
+      const live = fg.graphData()
+      batched.syncPositions(
+        live.nodes as Array<{ id?: string; x?: number; y?: number; z?: number }>
+      )
     })
+
+    const renderer = fg.renderer?.()
+    if (renderer) {
+      renderer.setPixelRatio(dpr)
+    }
+    const threeScene = fg.scene?.()
+    if (threeScene) batched.attach(threeScene as Parameters<BatchedNebulaScene['attach']>[0])
 
     graphRef.current = fg
     setLayoutBusy(true)
@@ -511,22 +274,83 @@ export function UnionNebula3D({
       controls.addEventListener?.('start', onControlStart)
     }
 
+    const canvas = renderer?.domElement ?? el.querySelector('canvas')
+    let downX = 0
+    let downY = 0
+    const onPointerDown = (ev: PointerEvent) => {
+      downX = ev.clientX
+      downY = ev.clientY
+    }
+    const onPointerMove = (ev: PointerEvent) => {
+      const camera = fg.camera?.()
+      const host = canvas
+      if (!camera || !host) return
+      const hit = batched.pick(camera, host, ev.clientX, ev.clientY)
+      setHoverLabel(hit?.name ?? null)
+      el.style.cursor = hit ? 'pointer' : 'grab'
+      if (hit) pauseSpin(fg)
+    }
+    const onPointerUp = (ev: PointerEvent) => {
+      if (cancelled) return
+      if (Math.hypot(ev.clientX - downX, ev.clientY - downY) > 5) return
+      const camera = fg.camera?.()
+      const host = canvas
+      if (!camera || !host) return
+      const hit = batched.pick(camera, host, ev.clientX, ev.clientY)
+      pauseSpin(fg)
+      if (!hit?.id) {
+        selectedIdRef.current = null
+        setHoverLabel(null)
+        onSelectionChangeRef.current(EMPTY_SELECTION)
+        return
+      }
+      const n = dataRef.current.nodes.find((x) => x.id === hit.id) ?? hit
+      if (selectedIdRef.current === n.id) {
+        selectedIdRef.current = null
+        setHoverLabel(null)
+        onSelectionChangeRef.current(EMPTY_SELECTION)
+        return
+      }
+      selectedIdRef.current = n.id
+      setHoverLabel(n.name)
+      selectNode(n, onSelectionChangeRef.current)
+    }
+    canvas?.addEventListener('pointerdown', onPointerDown)
+    canvas?.addEventListener('pointermove', onPointerMove)
+    canvas?.addEventListener('pointerup', onPointerUp)
+
     const onResize = () => {
       if (cancelled || !containerRef.current) return
       fg.width(containerRef.current.clientWidth)
       fg.height(containerRef.current.clientHeight)
+      batched.setViewportHeight(containerRef.current.clientHeight)
+      renderer?.setPixelRatio(capDevicePixelRatio())
+      batched.setPixelRatio(capDevicePixelRatio())
     }
     onResize()
     const ro = new ResizeObserver(onResize)
     ro.observe(el)
 
+    const onVisibility = () => {
+      if (document.hidden) {
+        const c = fg.controls() as OrbitControlsLike | null
+        if (c) c.autoRotate = false
+        return
+      }
+      if (!selectedIdRef.current) enableSpin(fg)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
     const boot = window.setTimeout(() => {
       if (cancelled) return
       const snapshot = dataRef.current
+      batched.setGraph(snapshot.nodes, snapshot.links)
       fg.graphData({
         nodes: snapshot.nodes.map((n) => ({ ...n })),
         links: snapshot.links.map((l) => ({ ...l })),
       })
+      const liveScene = fg.scene?.()
+      if (liveScene) batched.attach(liveScene as Parameters<BatchedNebulaScene['attach']>[0])
       tuneForces(fg)
       engineReadyRef.current = true
       frameTimer.current = window.setTimeout(() => {
@@ -546,12 +370,18 @@ export function UnionNebula3D({
       if (frameTimer.current) window.clearTimeout(frameTimer.current)
       ro.disconnect()
       clearResumeTimer()
+      document.removeEventListener('visibilitychange', onVisibility)
+      canvas?.removeEventListener('pointerdown', onPointerDown)
+      canvas?.removeEventListener('pointermove', onPointerMove)
+      canvas?.removeEventListener('pointerup', onPointerUp)
       if (onControlStart) {
         ;(fg.controls() as OrbitControlsLike | null)?.removeEventListener?.(
           'start',
           onControlStart
         )
       }
+      batched.dispose()
+      sceneRef.current = null
       try {
         fg._destructor()
       } catch {
@@ -561,19 +391,24 @@ export function UnionNebula3D({
       el.replaceChildren()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [NODE_STYLE_REV])
+  }, [])
 
-  // Structural rebuild (depth / resolution / blend)
   useEffect(() => {
     const fg = graphRef.current
-    if (!fg || !engineReadyRef.current) return
+    const batched = sceneRef.current
+    if (!fg || !batched || !engineReadyRef.current) return
     setLayoutBusy(true)
     pauseSpin(fg)
     try {
+      batched.setGraph(data.nodes, data.links)
+      batched.setIdleOpacity(linkOpacityRef.current)
+      batched.setSelection(selectedIdRef.current)
       fg.graphData({
         nodes: data.nodes.map((n) => ({ ...n })),
         links: data.links.map((l) => ({ ...l })),
       })
+      const liveScene = fg.scene?.()
+      if (liveScene) batched.attach(liveScene as Parameters<BatchedNebulaScene['attach']>[0])
       tuneForces(fg)
     } catch {
       /* engine mid-teardown */

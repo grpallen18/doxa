@@ -12,6 +12,12 @@ import {
   getUnionOntologyOverlay,
 } from '@/lib/neo4j/queries/union-ontology'
 
+function withEtag(res: NextResponse, etag: string): NextResponse {
+  res.headers.set('ETag', etag)
+  res.headers.set('Cache-Control', 'private, no-cache')
+  return res
+}
+
 /** Neo union graph — ontology islands across succeeded story graphs. */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin()
@@ -31,7 +37,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { storyIds, mode, limit, fresh } = await resolveUnionStoryIds(request)
+    const { storyIds, mode, limit, fresh, fingerprint } =
+      await resolveUnionStoryIds(request)
+    const inm = request.headers.get('if-none-match')
+    if (!fresh && inm && inm === fingerprint && storyIds.length > 0) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          ETag: fingerprint,
+          'Cache-Control': 'private, no-cache',
+        },
+      })
+    }
+
     const { graphs, missingIds, documents } = await loadUnionDocumentGraphs(
       storyIds,
       fresh
@@ -54,13 +72,7 @@ export async function GET(request: NextRequest) {
       },
       error: null,
     })
-    if (process.env.NODE_ENV === 'development') {
-      res.headers.set(
-        'Cache-Control',
-        'no-store, no-cache, must-revalidate, max-age=0'
-      )
-    }
-    return res
+    return withEtag(res, fingerprint)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Neo4j query failed'
     return NextResponse.json({ data: null, error: { message } }, { status: 500 })

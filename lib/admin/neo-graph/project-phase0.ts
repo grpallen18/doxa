@@ -36,14 +36,10 @@ export function projectPhase0Document(
     label: truncate(graph.document.title || 'Document', 80),
     aliases: [graph.document.uid],
     degreeHint: 0,
-    properties: {
-      uid: graph.document.uid,
-      title: graph.document.title,
-      publishedAt: graph.document.publishedAt,
-      url: graph.document.url,
-      schemaVersion: graph.document.schemaVersion,
-      extractorVersion: graph.document.extractorVersion,
-    },
+      properties: {
+        uid: graph.document.uid,
+        title: graph.document.title,
+      },
   })
 
   if (graph.publication?.uid) {
@@ -86,7 +82,6 @@ export function projectPhase0Document(
         ord: seg.ord,
         charStart: seg.charStart,
         charEnd: seg.charEnd,
-        text: truncate(seg.text, 240),
       },
       charStart: seg.charStart,
       charEnd: seg.charEnd,
@@ -189,19 +184,12 @@ export function projectPhase0Document(
       id: uttId,
       kind: 'utterance',
       label: truncate(u.text || 'Utterance', 72),
-      aliases: [u.uid, u.agentName, u.speechAct].filter(
+      aliases: [u.uid, u.agentName].filter(
         (v): v is string => Boolean(v)
       ),
       degreeHint: 0,
       properties: {
         uid: u.uid,
-        text: u.text,
-        speechAct: u.speechAct,
-        attributionMode: u.attributionMode,
-        polarity: u.polarity,
-        modality: u.modality,
-        confidence: u.confidence,
-        explicit: u.explicit,
         documentUid: u.documentUid,
         segmentUid: u.segmentUid,
         agentUid: u.agentUid,
@@ -265,16 +253,10 @@ export function projectPhase0Document(
       id: propId,
       kind: 'proposition',
       label: truncate(p.text || 'Proposition', 72),
-      aliases: [p.uid, p.certainty, p.timeframe, p.scope].filter(
-        (v): v is string => Boolean(v)
-      ),
+      aliases: [p.uid].filter((v): v is string => Boolean(v)),
       degreeHint: 0,
       properties: {
         uid: p.uid,
-        text: p.text,
-        certainty: p.certainty,
-        timeframe: p.timeframe,
-        scope: p.scope,
       },
     })
   }
@@ -306,7 +288,6 @@ export function projectPhase0Document(
       degreeHint: 0,
       properties: {
         uid: arg.uid,
-        summary: arg.summary,
       },
     })
   }

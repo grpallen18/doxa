@@ -159,7 +159,6 @@ export function mergeOntologyOverlay(
       properties: {
         uid: c.uid,
         title: c.title,
-        summary: c.summary,
       },
     })
   }
@@ -174,7 +173,6 @@ export function mergeOntologyOverlay(
       properties: {
         uid: v.uid,
         label: v.label,
-        summary: v.summary,
       },
     })
   }

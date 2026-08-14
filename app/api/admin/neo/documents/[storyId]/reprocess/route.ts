@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { loadGraphJobStatus } from '@/lib/graph/job-status'
+import { clearDocumentGraphCache } from '@/lib/neo4j/document-graph-cache'
 import {
   ADMIN_STALE_RUNNING_MINUTES,
   GRAPH_EXTRACTOR_VERSION,
@@ -76,6 +77,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
 
     const status = await loadGraphJobStatus(storyId)
+    clearDocumentGraphCache(storyId)
 
     if (payload.skipped === true) {
       return NextResponse.json({

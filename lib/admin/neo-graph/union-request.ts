@@ -1,10 +1,11 @@
+import { createHash } from 'crypto'
 import { NextRequest } from 'next/server'
 import {
   clampUnionStoryLimit,
   parseUnionStoryIds,
   UNION_DEFAULT_STORIES,
 } from '@/lib/admin/neo-graph/project-union'
-import { getDocumentGraphCached } from '@/lib/neo4j/document-graph-cache'
+import { getDocumentGraphsCached } from '@/lib/neo4j/document-graph-cache'
 import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
 import {
   createAdminClient,
@@ -17,6 +18,8 @@ export type UnionStoryResolve = {
   mode: 'all' | 'ids'
   limit: number
   fresh: boolean
+  /** Weak validator: story set + latest succeeded job time. */
+  fingerprint: string
 }
 
 export type UnionLoadedDocument = {
@@ -27,13 +30,64 @@ export type UnionLoadedDocument = {
   agentCount: number
 }
 
+function unionFingerprint(
+  storyIds: string[],
+  finishedAtById: Map<string, string>
+): string {
+  const h = createHash('sha1')
+  h.update(String(storyIds.length))
+  for (const id of storyIds) {
+    h.update(id)
+    h.update('\0')
+    h.update(finishedAtById.get(id) ?? '')
+    h.update('\n')
+  }
+  return `"${h.digest('hex')}"`
+}
+
+async function finishedAtForStoryIds(
+  storyIds: string[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (storyIds.length === 0) return out
+  const admin = createAdminClient()
+  const chunkSize = 80
+  for (let i = 0; i < storyIds.length; i += chunkSize) {
+    const chunk = storyIds.slice(i, i + chunkSize)
+    const { data, error } = await admin
+      .from('graph_processing_jobs')
+      .select('story_id, finished_at')
+      .eq('status', 'succeeded')
+      .in('story_id', chunk)
+      .order('finished_at', { ascending: false, nullsFirst: false })
+    if (error) throw new Error(formatSupabaseAdminError(error.message))
+    for (const row of data ?? []) {
+      const id = row.story_id as string
+      if (!id || out.has(id)) continue
+      out.set(id, String(row.finished_at ?? ''))
+    }
+  }
+  return out
+}
+
+type SucceededStories = {
+  storyIds: string[]
+  finishedAtById: Map<string, string>
+}
+
 /**
  * Most recently written Neo graphs first (latest succeeded job `finished_at`),
  * then fall back to `published_at` if no jobs are available.
  */
 export async function listSucceededStoryIds(limit: number): Promise<string[]> {
+  const { storyIds } = await listSucceededStories(limit)
+  return storyIds
+}
+
+async function listSucceededStories(limit: number): Promise<SucceededStories> {
   const capped = clampUnionStoryLimit(limit)
   const admin = createAdminClient()
+  const finishedAtById = new Map<string, string>()
 
   const { data: jobs, error: jobsError } = await admin
     .from('graph_processing_jobs')
@@ -53,7 +107,7 @@ export async function listSucceededStoryIds(limit: number): Promise<string[]> {
     if (!id || seen.has(id)) continue
     seen.add(id)
     orderedIds.push(id)
-    // Extra candidates so graph_status filter can drop a few without under-filling.
+    finishedAtById.set(id, String(job.finished_at ?? ''))
     if (orderedIds.length >= Math.min(capped * 3, 600)) break
   }
 
@@ -68,11 +122,10 @@ export async function listSucceededStoryIds(limit: number): Promise<string[]> {
       .limit(capped)
 
     if (error) throw new Error(error.message)
-    return (data ?? []).map((row) => row.story_id as string)
+    const storyIds = (data ?? []).map((row) => row.story_id as string)
+    return { storyIds, finishedAtById }
   }
 
-  // Batch `.in()` — large id lists blow PostgREST URL limits and used to
-  // surface as an empty union ("No stories to union yet").
   const succeeded = new Set<string>()
   const chunkSize = 80
   for (let i = 0; i < orderedIds.length; i += chunkSize) {
@@ -90,7 +143,25 @@ export async function listSucceededStoryIds(limit: number): Promise<string[]> {
     }
   }
 
-  return orderedIds.filter((id) => succeeded.has(id)).slice(0, capped)
+  const storyIds = orderedIds.filter((id) => succeeded.has(id)).slice(0, capped)
+  return { storyIds, finishedAtById }
+}
+
+async function resolveWithFingerprint(
+  storyIds: string[],
+  mode: 'all' | 'ids',
+  limit: number,
+  fresh: boolean,
+  finishedAtById?: Map<string, string>
+): Promise<UnionStoryResolve> {
+  const times = finishedAtById ?? (await finishedAtForStoryIds(storyIds))
+  return {
+    storyIds,
+    mode,
+    limit,
+    fresh,
+    fingerprint: unionFingerprint(storyIds, times),
+  }
 }
 
 export function isFreshFlag(value: unknown): boolean {
@@ -114,56 +185,60 @@ export async function resolveUnionStoryIds(
     try {
       body = (await request.json()) as typeof body
     } catch {
-      return { storyIds: [], mode: 'ids', limit, fresh: false }
+      return resolveWithFingerprint([], 'ids', limit, false, new Map())
     }
 
     limit = clampUnionStoryLimit(body.limit ?? body.cap ?? limit)
     const fresh = isFreshFlag(body.fresh)
     if (body.all === true) {
-      return {
-        storyIds: await listSucceededStoryIds(limit),
-        mode: 'all',
+      const listed = await listSucceededStories(limit)
+      return resolveWithFingerprint(
+        listed.storyIds,
+        'all',
         limit,
         fresh,
-      }
+        listed.finishedAtById
+      )
     }
     const raw = body.storyIds ?? body.ids
     if (Array.isArray(raw)) {
-      return {
-        storyIds: parseUnionStoryIds(raw.map(String).join(','), limit),
-        mode: 'ids',
+      return resolveWithFingerprint(
+        parseUnionStoryIds(raw.map(String).join(','), limit),
+        'ids',
         limit,
-        fresh,
-      }
+        fresh
+      )
     }
     if (typeof raw === 'string') {
-      return {
-        storyIds: parseUnionStoryIds(raw, limit),
-        mode: 'ids',
+      return resolveWithFingerprint(
+        parseUnionStoryIds(raw, limit),
+        'ids',
         limit,
-        fresh,
-      }
+        fresh
+      )
     }
-    return { storyIds: [], mode: 'ids', limit, fresh }
+    return resolveWithFingerprint([], 'ids', limit, fresh, new Map())
   }
 
   const sp = request.nextUrl.searchParams
   limit = clampUnionStoryLimit(sp.get('limit') ?? sp.get('cap') ?? limit)
   const fresh = isFreshFlag(sp.get('fresh'))
   if (sp.get('all') === '1' || sp.get('all') === 'true') {
-    return {
-      storyIds: await listSucceededStoryIds(limit),
-      mode: 'all',
+    const listed = await listSucceededStories(limit)
+    return resolveWithFingerprint(
+      listed.storyIds,
+      'all',
       limit,
       fresh,
-    }
+      listed.finishedAtById
+    )
   }
-  return {
-    storyIds: parseUnionStoryIds(sp.get('ids'), limit),
-    mode: 'ids',
+  return resolveWithFingerprint(
+    parseUnionStoryIds(sp.get('ids'), limit),
+    'ids',
     limit,
-    fresh,
-  }
+    fresh
+  )
 }
 
 export async function loadUnionDocumentGraphs(
@@ -182,14 +257,10 @@ export async function loadUnionDocumentGraphs(
     return { graphs, missingIds, documents }
   }
 
-  const results = await Promise.all(
-    storyIds.map(async (id) => {
-      const graph = await getDocumentGraphCached(id, { bypass: fresh })
-      return { id, graph }
-    })
-  )
+  const fetched = await getDocumentGraphsCached(storyIds, { bypass: fresh })
 
-  for (const { id, graph } of results) {
+  for (const id of storyIds) {
+    const graph = fetched.get(id) ?? null
     if (!graph) {
       missingIds.push(id)
       documents.push({
