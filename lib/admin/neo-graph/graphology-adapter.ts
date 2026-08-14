@@ -79,8 +79,8 @@ export type NeoSigmaGraph = Graph<SigmaNodeAttributes, SigmaEdgeAttributes>
 
 export type NeoNodePosition = { x: number; y: number }
 
-/** Soft render ceiling — large enough for a ~100-story union with discourse nodes. */
-const MAX_NODES = 8000
+/** Soft render ceiling — large enough for a ~250-story union with discourse nodes. */
+const MAX_NODES = 25000
 
 const KIND_KEEP_PRIORITY: Record<DoxaGraphNode['kind'], number> = {
   document: 0,

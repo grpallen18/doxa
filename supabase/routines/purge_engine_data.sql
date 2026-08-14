@@ -56,6 +56,14 @@ BEGIN
     v_skipped := array_append(v_skipped, 'graph_assessments');
   END IF;
 
+  -- required: graph_people
+  IF 'public.graph_people'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_people RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_people');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_people');
+  END IF;
+
   -- required: graph_evidence_excerpts
   IF 'public.graph_evidence_excerpts'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.graph_evidence_excerpts RESTART IDENTITY CASCADE';

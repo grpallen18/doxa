@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Panel } from '@/components/Panel'
+import { controversyDisplayName } from '@/lib/admin/controversy-display'
 
 type Detail = {
   controversy: {
@@ -74,7 +75,7 @@ export default function AdminGraphControversyDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">
-                {detail.controversy.title || detail.controversy.uid}
+                {controversyDisplayName(detail.controversy)}
               </h1>
               <p className="mt-2 text-sm text-muted">{detail.controversy.summary}</p>
               <p className="mt-1 text-xs text-muted">

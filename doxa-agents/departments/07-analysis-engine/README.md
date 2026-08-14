@@ -20,5 +20,6 @@ See [neo4j-graph-architecture.md](../../docs/architecture/neo4j-graph-architectu
 | link-derived-media-clips | link_derived_media_clips | active |
 | project-analysis-summaries | project_analysis_summaries | active |
 | analysis-pipeline | analysis_pipeline | active |
+| project-person-profiles | project_person_profiles | active |
 
 <!-- AGENTS:END -->

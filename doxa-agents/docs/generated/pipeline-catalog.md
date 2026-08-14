@@ -43,6 +43,7 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | update-held-by-tracks | `update_held_by_tracks` | active | — | story_id |
 | link-derived-media-clips | `link_derived_media_clips` | active | — | story_id |
 | project-analysis-summaries | `project_analysis_summaries` | active | — | story_id |
+| project-person-profiles | `project_person_profiles` | active | — | story_id |
 | analysis-pipeline | `analysis_pipeline` | active | — | story_id |
 
 _Generated from pipeline-admin-catalog.yaml + manifest.yaml._

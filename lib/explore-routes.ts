@@ -18,8 +18,17 @@ export function topicHubPath(slug: string) {
   return `/topics/${slug}`
 }
 
+export function peoplePath(uid: string) {
+  return `/people/${encodeURIComponent(uid)}`
+}
+
+export function eidosPath(uid: string) {
+  return `/people/${encodeURIComponent(uid)}/eidos`
+}
+
+/** @deprecated Use peoplePath — consumer profiles are people, not "entities". */
 export function entityPath(uid: string) {
-  return `/entities/${encodeURIComponent(uid)}`
+  return peoplePath(uid)
 }
 
 /** Minimum linked controversies before a topic hub is listed for consumers. */

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { storyIds, mode, limit, fresh, fingerprint } =
+    const { storyIds, mode, limit, fresh, fingerprint, entityUid } =
       await resolveUnionStoryIds(request)
     const inm = request.headers.get('if-none-match')
     if (!fresh && inm && inm === fingerprint && storyIds.length > 0) {
@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
         missingIds,
         caps: { maxStories: UNION_MAX_STORIES, limit },
         mode,
+        entityUid,
         storyCount: storyIds.length,
         communityCount: projection.communities?.length ?? 0,
       },

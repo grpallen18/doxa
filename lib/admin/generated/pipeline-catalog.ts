@@ -24,6 +24,7 @@ export type PipelineStepId =
   | "update-held-by-tracks"
   | "link-derived-media-clips"
   | "project-analysis-summaries"
+  | "project-person-profiles"
   | "analysis-pipeline"
 
 export type PipelineStageId =
@@ -110,6 +111,7 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
       "update-held-by-tracks",
       "link-derived-media-clips",
       "project-analysis-summaries",
+      "project-person-profiles",
       "analysis-pipeline"
     ]
   }
@@ -537,6 +539,27 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "inactiveNote": null
   },
   {
+    "id": "project-person-profiles",
+    "deployName": "project_person_profiles",
+    "label": "Project person profiles",
+    "stageId": "analysis",
+    "stageLabel": "Analysis (Neo L4)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 300000
+    },
+    "inactiveNote": null
+  },
+  {
     "id": "analysis-pipeline",
     "deployName": "analysis_pipeline",
     "label": "Analysis pipeline (orchestrator)",
@@ -580,6 +603,7 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "update_held_by_tracks",
   "link_derived_media_clips",
   "project_analysis_summaries",
+  "project_person_profiles",
   "analysis_pipeline",
 ])
 

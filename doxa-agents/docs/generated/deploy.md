@@ -27,6 +27,7 @@ supabase functions deploy update_held_by_tracks
 supabase functions deploy link_derived_media_clips
 supabase functions deploy project_analysis_summaries
 supabase functions deploy analysis_pipeline
+supabase functions deploy project_person_profiles
 ```
 
 JWT exceptions:
@@ -54,6 +55,7 @@ supabase functions deploy update_held_by_tracks --no-verify-jwt
 supabase functions deploy link_derived_media_clips --no-verify-jwt
 supabase functions deploy project_analysis_summaries --no-verify-jwt
 supabase functions deploy analysis_pipeline --no-verify-jwt
+supabase functions deploy project_person_profiles --no-verify-jwt
 ```
 
 _Generated from manifest.yaml._

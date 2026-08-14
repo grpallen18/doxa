@@ -16,12 +16,15 @@ import {
   EMPTY_SELECTION,
   type NeoSelection,
 } from '@/lib/admin/neo-graph/neo-selection'
+import { NeoEntityParam } from '@/components/admin/neo/neo-entity-param'
 import { NeoNodeDetailPanel } from '@/components/admin/neo/node-detail-panel'
+import type { NeoEntitySuggestion } from '@/lib/admin/neo-graph/entity-search'
 import type { DoxaGraphProjection } from '@/lib/admin/neo-graph/types'
 import {
   clampUnionStoryLimit,
   UNION_GRAPH_DEFAULT_STORIES,
   UNION_MAX_STORIES,
+  unionGraphDefaultStories,
 } from '@/lib/admin/neo-graph/union-limits'
 import {
   NEBULA_HEAT_DEFAULT,
@@ -100,6 +103,11 @@ export function NeoUnionWorkspace() {
   const [resolution, setResolution] = useState(NEBULA_RESOLUTION_DEFAULT)
   const [blendDraft, setBlendDraft] = useState(String(NEBULA_BLEND_DEFAULT))
   const [blend, setBlend] = useState(NEBULA_BLEND_DEFAULT)
+  const [entityDraft, setEntityDraft] = useState<NeoEntitySuggestion | null>(
+    null
+  )
+  const [appliedEntity, setAppliedEntity] =
+    useState<NeoEntitySuggestion | null>(null)
   const [layoutEpoch, setLayoutEpoch] = useState(0)
   const [projection, setProjection] = useState<DoxaGraphProjection | null>(null)
   const [documents, setDocuments] = useState<UnionDocMeta[]>([])
@@ -112,61 +120,79 @@ export function NeoUnionWorkspace() {
   const [selection, setSelection] = useState<NeoSelection>(EMPTY_SELECTION)
   const etagRef = useRef<string | null>(null)
 
-  const loadUnion = useCallback(async (limit: number, fresh = false) => {
-    const capped = clampUnionStoryLimit(limit)
-    setLoading(true)
-    setError(null)
-    try {
-      const params = new URLSearchParams({
-        all: '1',
-        limit: String(capped),
-      })
-      if (fresh) params.set('fresh', '1')
-      const headers: HeadersInit = {}
-      if (!fresh && etagRef.current) {
-        headers['If-None-Match'] = etagRef.current
-      }
-      const res = await fetch(`/api/admin/neo/union?${params.toString()}`, {
-        method: 'GET',
-        headers,
-        cache: 'no-store',
-      })
-      if (res.status === 304) {
-        return
-      }
-      const json = await res.json()
-      if (!res.ok || json.error) {
+  const loadUnion = useCallback(
+    async (
+      limit: number,
+      fresh = false,
+      entity: NeoEntitySuggestion | null = null
+    ) => {
+      const capped = clampUnionStoryLimit(limit)
+      setLoading(true)
+      setError(null)
+      try {
+        const params = new URLSearchParams({
+          limit: String(capped),
+        })
+        if (entity?.uid) {
+          params.set('entity', entity.uid)
+        } else {
+          params.set('all', '1')
+        }
+        if (fresh) params.set('fresh', '1')
+        const headers: HeadersInit = {}
+        if (!fresh && etagRef.current) {
+          headers['If-None-Match'] = etagRef.current
+        }
+        const res = await fetch(`/api/admin/neo/union?${params.toString()}`, {
+          method: 'GET',
+          headers,
+          cache: 'no-store',
+        })
+        if (res.status === 304) {
+          return
+        }
+        const json = await res.json()
+        if (!res.ok || json.error) {
+          setProjection(null)
+          setDocuments([])
+          setError(json?.error?.message ?? 'Failed to load Neo')
+          return
+        }
+        const nextEtag = res.headers.get('ETag')
+        if (nextEtag) etagRef.current = nextEtag
+        const data = json.data as UnionApiData
+        setProjection(data.projection)
+        setDocuments(data.documents)
+        setAppliedCap(data.caps?.limit ?? capped)
+        setCapDraft(String(data.caps?.limit ?? capped))
+        setSelection(EMPTY_SELECTION)
+        setLayoutEpoch((e) => e + 1)
+        if (data.documents.length === 0) {
+          setError(
+            entity
+              ? `No succeeded stories mention ${entity.name}.`
+              : 'No succeeded stories with Neo graphs yet.'
+          )
+        } else if (data.missingIds.length > 0) {
+          setError(
+            `Missing in Neo4j: ${data.missingIds.map((id) => id.slice(0, 8)).join(', ')}…`
+          )
+        }
+      } catch {
         setProjection(null)
-        setDocuments([])
-        setError(json?.error?.message ?? 'Failed to load Neo')
-        return
+        setError('Failed to load Neo')
+      } finally {
+        setLoading(false)
       }
-      const nextEtag = res.headers.get('ETag')
-      if (nextEtag) etagRef.current = nextEtag
-      const data = json.data as UnionApiData
-      setProjection(data.projection)
-      setDocuments(data.documents)
-      setAppliedCap(data.caps?.limit ?? capped)
-      setCapDraft(String(data.caps?.limit ?? capped))
-      setSelection(EMPTY_SELECTION)
-      setLayoutEpoch((e) => e + 1)
-      if (data.documents.length === 0) {
-        setError('No succeeded stories with Neo graphs yet.')
-      } else if (data.missingIds.length > 0) {
-        setError(
-          `Missing in Neo4j: ${data.missingIds.map((id) => id.slice(0, 8)).join(', ')}…`
-        )
-      }
-    } catch {
-      setProjection(null)
-      setError('Failed to load Neo')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    },
+    []
+  )
 
   useEffect(() => {
-    void loadUnion(UNION_GRAPH_DEFAULT_STORIES, false)
+    const cap = unionGraphDefaultStories()
+    setCapDraft(String(cap))
+    setAppliedCap(cap)
+    void loadUnion(cap, false)
   }, [loadUnion])
 
   const foundCount = useMemo(
@@ -181,32 +207,38 @@ export function NeoUnionWorkspace() {
     () =>
       projection
         ? resolveFocusNodeId(
-            focusParam,
+            appliedEntity ? `entity:${appliedEntity.uid}` : focusParam,
             projection.nodes.map((n) => n.id)
           )
         : null,
-    [focusParam, projection]
+    [appliedEntity, focusParam, projection]
   )
 
   const pendingCap = clampUnionStoryLimit(capDraft)
   const pendingHeat = parseHeatDraft(heatDraft)
   const pendingResolution = parseResolutionDraft(resolutionDraft)
   const pendingBlend = parseBlendDraft(blendDraft)
+  const pendingEntityUid = entityDraft?.uid ?? null
+  const appliedEntityUid = appliedEntity?.uid ?? null
   const paramsDirty =
     pendingCap !== appliedCap ||
     pendingHeat !== heat ||
     pendingResolution !== resolution ||
-    pendingBlend !== blend
+    pendingBlend !== blend ||
+    pendingEntityUid !== appliedEntityUid
 
   const applyParams = useCallback(() => {
     const nextCap = clampUnionStoryLimit(capDraft)
     const nextHeat = parseHeatDraft(heatDraft)
     const nextResolution = parseResolutionDraft(resolutionDraft)
     const nextBlend = parseBlendDraft(blendDraft)
+    const nextEntity = entityDraft
+    const entityChanged = (nextEntity?.uid ?? null) !== (appliedEntity?.uid ?? null)
     const structuralChanged =
       nextCap !== appliedCap ||
       nextResolution !== resolution ||
-      nextBlend !== blend
+      nextBlend !== blend ||
+      entityChanged
     setCapDraft(String(nextCap))
     setHeatDraft(String(nextHeat))
     setResolutionDraft(String(nextResolution))
@@ -214,18 +246,22 @@ export function NeoUnionWorkspace() {
     setHeat(nextHeat)
     setResolution(nextResolution)
     setBlend(nextBlend)
+    setAppliedEntity(nextEntity)
     // Heat-only: update opacity without reseeding / exploding the layout.
     if (structuralChanged) {
       setLayoutEpoch((e) => e + 1)
     }
-    if (nextCap !== appliedCap) {
-      void loadUnion(nextCap, false)
+    if (nextCap !== appliedCap || entityChanged) {
+      etagRef.current = null
+      void loadUnion(nextCap, false, nextEntity)
     }
   }, [
     appliedCap,
+    appliedEntity,
     blend,
     blendDraft,
     capDraft,
+    entityDraft,
     heatDraft,
     loadUnion,
     resolution,
@@ -288,6 +324,11 @@ export function NeoUnionWorkspace() {
 
   const controls = (
     <div className="flex flex-col items-start gap-2">
+      <NeoEntityParam
+        selected={entityDraft}
+        onSelect={setEntityDraft}
+        disabled={loading}
+      />
       {paramField(
         'neo-union-story-cap',
         'depth',
@@ -355,22 +396,22 @@ export function NeoUnionWorkspace() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-[#050508]">
+      <div className="pointer-events-none absolute inset-0 z-30">
+        <div className="pointer-events-auto absolute left-3 top-3 z-10">
+          {controls}
+        </div>
+      </div>
       {loading && !projection ? (
-        <p className="p-6 text-sm text-zinc-400">Loading Neo…</p>
+        <p className="p-6 pl-64 text-sm text-zinc-400">Loading Neo…</p>
       ) : projection && foundCount > 0 ? (
         <div className="relative flex min-h-0 flex-1 flex-col">
           {loading ? (
-            <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-[#050508]/55 backdrop-blur-[1px]">
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[#050508]/55 backdrop-blur-[1px]">
               <p className="rounded-lg border border-white/10 bg-black/70 px-3 py-1.5 text-sm text-zinc-300">
                 Reloading Neo…
               </p>
             </div>
           ) : null}
-          <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-            <div className="pointer-events-auto absolute left-3 top-3 z-10">
-              {controls}
-            </div>
-          </div>
           <div className="relative flex min-h-0 flex-1">
             <UnionNebula3D
               projection={projection}
@@ -398,8 +439,12 @@ export function NeoUnionWorkspace() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-          <p className="text-sm text-zinc-300">No stories in Neo yet</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 pl-64 text-center">
+          <p className="text-sm text-zinc-300">
+            {appliedEntity
+              ? `No stories mention ${appliedEntity.name}`
+              : 'No stories in Neo yet'}
+          </p>
           <p className="max-w-md text-xs text-zinc-500">
             {error ?? 'Succeeded Neo graphs will appear here automatically.'}
           </p>

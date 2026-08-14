@@ -19,6 +19,7 @@ const STEP_NAMES = [
   "update_held_by_tracks",
   "link_derived_media_clips",
   "project_analysis_summaries",
+  "project_person_profiles",
 ] as const;
 
 const LIMIT_STEPS = new Set([
@@ -28,14 +29,16 @@ const LIMIT_STEPS = new Set([
   "run_controversy_assessments",
   "update_held_by_tracks",
   "link_derived_media_clips",
+  "project_person_profiles",
 ]);
 
-/** Cap sequential LLM steps so a large orchestrator `limit` cannot blow Edge idle timeout. */
+/** Cap heavy Neo batch steps so a large orchestrator `limit` cannot blow Edge idle timeout. */
 const LLM_LIMIT_STEPS = new Set([
   "run_evidence_checks",
   "run_controversy_assessments",
 ]);
 const LLM_LIMIT_CAP = 25;
+const PERSON_PROFILE_LIMIT_CAP = 40;
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -66,7 +69,13 @@ export const handler = async (req: Request) => {
       if (LIMIT_STEPS.has(name) && body.limit != null) {
         const n = typeof body.limit === "number" ? body.limit : Number(body.limit);
         const base = Number.isFinite(n) ? Math.max(1, Math.floor(n)) : 1;
-        stepBody.limit = LLM_LIMIT_STEPS.has(name) ? Math.min(base, LLM_LIMIT_CAP) : base;
+        if (LLM_LIMIT_STEPS.has(name)) {
+          stepBody.limit = Math.min(base, LLM_LIMIT_CAP);
+        } else if (name === "project_person_profiles") {
+          stepBody.limit = Math.min(base, PERSON_PROFILE_LIMIT_CAP);
+        } else {
+          stepBody.limit = base;
+        }
       }
       const res = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, name, stepBody);
       const duration_ms = Math.round(performance.now() - t0);

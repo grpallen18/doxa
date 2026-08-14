@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Panel } from '@/components/Panel'
+import { controversyDisplayName } from '@/lib/admin/controversy-display'
 
 type ControversyRow = {
   uid: string
@@ -54,17 +55,14 @@ export default function AdminGraphControversiesPage() {
         ) : (
           <ul className="divide-y divide-border">
             {items.map((c) => (
-              <li key={c.uid} className="py-3">
+              <li key={c.uid} className="flex items-baseline justify-between gap-4 py-3">
                 <Link
                   href={`/admin/graph-controversies/${encodeURIComponent(c.uid)}`}
                   className="font-medium hover:underline"
                 >
-                  {c.title || c.uid}
+                  {controversyDisplayName(c)}
                 </Link>
-                <p className="mt-1 text-sm text-muted line-clamp-2">{c.summary}</p>
-                <p className="mt-1 text-xs text-muted">
-                  {c.sides_count} sides · {c.topic_key || '—'}
-                </p>
+                <span className="shrink-0 text-sm tabular-nums text-muted">{c.sides_count}</span>
               </li>
             ))}
           </ul>

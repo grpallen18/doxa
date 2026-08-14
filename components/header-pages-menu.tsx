@@ -56,7 +56,8 @@ function isActive(pathname: string, link: NavLink): boolean {
       pathname === '/' ||
       pathname.startsWith('/c/') ||
       pathname.startsWith('/topics/') ||
-      pathname.startsWith('/entities/')
+      pathname.startsWith('/entities/') ||
+      pathname.startsWith('/people/')
     )
   }
   if (link.matchPrefix) {

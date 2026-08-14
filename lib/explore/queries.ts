@@ -9,6 +9,7 @@ import type {
   ExploreViewpoint,
   SampleProposition,
 } from '@/lib/explore/types'
+import { searchPeople } from '@/lib/explore/person'
 
 type Sb = SupabaseClient
 
@@ -132,12 +133,13 @@ export async function searchExplore(
 ): Promise<{
   controversies: ExploreControversyListItem[]
   topics: Array<{ slug: string; title: string; summary: string | null }>
+  people: Array<{ uid: string; name: string; fire_rating: number; debate_count: number }>
 }> {
-  const term = q.trim().replace(/[%_,.()]/g, ' ').replace(/\s+/g, ' ').trim()
-  if (!term) return { controversies: [], topics: [] }
+  const term = q.trim().replace(/[%_,.()']/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!term) return { controversies: [], topics: [], people: [] }
 
   const pattern = `%${term}%`
-  const [ctrRes, topicRes] = await Promise.all([
+  const [ctrRes, topicRes, people] = await Promise.all([
     supabase
       .from('graph_controversies')
       .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at')
@@ -152,6 +154,7 @@ export async function searchExplore(
       .or(`title.ilike.${pattern},slug.ilike.${pattern},summary.ilike.${pattern}`)
       .in('status', ['published', 'stable', 'under_review'])
       .limit(limit),
+    searchPeople(supabase, term, Math.min(12, limit)),
   ])
 
   const rows = ctrRes.data ?? []
@@ -180,6 +183,7 @@ export async function searchExplore(
       title: (t.title as string) || (t.slug as string),
       summary: (t.summary as string | null) ?? null,
     })),
+    people,
   }
 }
 

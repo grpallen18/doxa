@@ -234,9 +234,10 @@ export function UnionNebula3D({
       .nodeLabel(() => '')
       .nodeThreeObject(() => emptyObject3D())
       .nodeThreeObjectExtend(false)
-      .cooldownTicks(coarse ? 60 : 160)
-      .warmupTicks(coarse ? 20 : 50)
-      .d3AlphaDecay(0.028)
+      // Seed lobes already place the cloud; a short polish is enough.
+      .cooldownTicks(coarse ? 12 : 25)
+      .warmupTicks(coarse ? 4 : 8)
+      .d3AlphaDecay(0.05)
       .d3VelocityDecay(0.4)
       .onEngineStop(() => {
         if (cancelled) return

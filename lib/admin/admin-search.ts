@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { controversyDisplayName } from '@/lib/admin/controversy-display'
 import { isStoryFriendlyId, isUuid, normalizeStoryFriendlyId, storyAdminHref } from '@/lib/admin/friendly-id'
 
 export type AdminSearchEntityType = 'story' | 'controversy'
@@ -48,7 +49,7 @@ export async function searchAdminRecords(
     storyQuery,
     supabase
       .from('graph_controversies')
-      .select('uid, title, summary')
+      .select('uid, title, summary, topic_key')
       .or(`title.ilike.%${q}%,summary.ilike.%${q}%,topic_key.ilike.%${q}%`)
       .limit(perType),
   ])
@@ -69,7 +70,11 @@ export async function searchAdminRecords(
     results.push({
       type: 'controversy',
       id: row.uid as string,
-      title: (row.title as string) || (row.uid as string),
+      title: controversyDisplayName({
+        uid: row.uid as string,
+        title: row.title as string | null,
+        topic_key: row.topic_key as string | null,
+      }),
       href: `/admin/graph-controversies/${encodeURIComponent(row.uid as string)}`,
     })
   }

@@ -367,6 +367,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.project_analysis_summaries]
 verify_jwt = false
+[functions.project_person_profiles]
+verify_jwt = false
 
 # Admin model config: validates OpenAI model IDs using Edge OPENAI_API_KEY.
 [functions.test_openai_model]

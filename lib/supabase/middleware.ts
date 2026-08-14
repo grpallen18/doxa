@@ -50,6 +50,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/c/') ||
     pathname.startsWith('/topics/') ||
     pathname.startsWith('/entities/') ||
+    pathname.startsWith('/people/') ||
     pathname.startsWith('/api/explore') ||
     pathname.startsWith('/api/topics/search') ||
     pathname.startsWith('/api/theme-presets') ||

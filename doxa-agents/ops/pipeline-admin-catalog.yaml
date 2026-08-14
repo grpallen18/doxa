@@ -106,6 +106,10 @@ stages:
         label: Project analysis summaries
         invoke_options:
           timeout_ms: 120000
+      - id: project-person-profiles
+        label: Project person profiles
+        invoke_options:
+          timeout_ms: 300000
       - id: analysis-pipeline
         label: Analysis pipeline (orchestrator)
         invoke_options:

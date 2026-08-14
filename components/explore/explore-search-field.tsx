@@ -29,7 +29,7 @@ export function ExploreSearchField({
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search debates, topics…"
+          placeholder="Search debates, people, topics…"
           autoFocus={autoFocus}
           className="h-12 border-border bg-surface text-base shadow-panel-soft"
           aria-label="Search"

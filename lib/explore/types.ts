@@ -88,3 +88,96 @@ export type ExploreEntityDossier = {
   propositions: Array<{ uid: string; text: string; controversy_uid: string | null }>
   controversies: ExploreControversyListItem[]
 }
+
+export type PersonOffice = {
+  uid: string
+  name: string
+  title: string | null
+}
+
+export type PersonStats = {
+  coverage_30d: number
+  coverage_prior_30d: number
+  delta_pct: number
+  fire_rating: number
+  claim_count: number
+  debate_count: number
+  mention_count: number
+  publisher_count: number
+  document_count: number
+}
+
+export type PersonPublisher = {
+  publication_uid: string
+  name: string
+  doc_count: number
+}
+
+export type PersonDocument = {
+  document_uid: string
+  story_title: string | null
+  publication_name: string | null
+  story_url: string | null
+  published_at: string | null
+  mention_count: number
+}
+
+export type PersonRelated = {
+  uid: string
+  name: string
+  kind_hint: string | null
+  co_mention_count: number
+}
+
+export type PersonPulseBucket = {
+  bucket: string
+  doc_count: number
+}
+
+export type PersonRemark = {
+  proposition_uid: string
+  text: string
+  agent_name: string
+}
+
+export type PersonTopic = {
+  key: string
+  label: string
+  debate_count: number
+}
+
+export type PersonEidosNode = {
+  id: string
+  label: string
+  kind: string
+  size: number
+}
+
+export type PersonEidosEdge = {
+  source: string
+  target: string
+}
+
+export type PersonEidosGraph = {
+  nodes: PersonEidosNode[]
+  edges: PersonEidosEdge[]
+}
+
+export type ExplorePersonProfile = {
+  uid: string
+  name: string
+  normalized_name: string | null
+  offices: PersonOffice[]
+  stats: PersonStats
+  publishers: PersonPublisher[]
+  recent_documents: PersonDocument[]
+  controversies: ExploreControversyListItem[]
+  sample_propositions: Array<{ uid: string; text: string; controversy_uid: string | null }>
+  related_people: PersonRelated[]
+  pulse: PersonPulseBucket[]
+  attributed_remarks: PersonRemark[]
+  topics: PersonTopic[]
+  eidos: PersonEidosGraph
+  updated_at: string | null
+  projected: boolean
+}

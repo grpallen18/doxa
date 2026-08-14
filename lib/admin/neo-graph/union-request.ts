@@ -1,11 +1,13 @@
 import { createHash } from 'crypto'
 import { NextRequest } from 'next/server'
+import { parseEntityUid } from '@/lib/admin/neo-graph/entity-search'
 import {
   clampUnionStoryLimit,
   parseUnionStoryIds,
   UNION_DEFAULT_STORIES,
 } from '@/lib/admin/neo-graph/project-union'
 import { getDocumentGraphsCached } from '@/lib/neo4j/document-graph-cache'
+import { listDocumentUidsMentioningEntity } from '@/lib/neo4j/queries/entities'
 import type { NeoDocumentGraph } from '@/lib/neo4j/queries/phase0'
 import {
   createAdminClient,
@@ -13,11 +15,14 @@ import {
   formatSupabaseAdminError,
 } from '@/lib/supabase/server'
 
+export type UnionStoryMode = 'all' | 'ids' | 'entity'
+
 export type UnionStoryResolve = {
   storyIds: string[]
-  mode: 'all' | 'ids'
+  mode: UnionStoryMode
   limit: number
   fresh: boolean
+  entityUid: string | null
   /** Weak validator: story set + latest succeeded job time. */
   fingerprint: string
 }
@@ -32,9 +37,12 @@ export type UnionLoadedDocument = {
 
 function unionFingerprint(
   storyIds: string[],
-  finishedAtById: Map<string, string>
+  finishedAtById: Map<string, string>,
+  entityUid?: string | null
 ): string {
   const h = createHash('sha1')
+  h.update(entityUid ?? '')
+  h.update('\n')
   h.update(String(storyIds.length))
   for (const id of storyIds) {
     h.update(id)
@@ -126,6 +134,17 @@ async function listSucceededStories(limit: number): Promise<SucceededStories> {
     return { storyIds, finishedAtById }
   }
 
+  const storyIds = await keepSucceededStoryIds(orderedIds, capped)
+  return { storyIds, finishedAtById }
+}
+
+async function keepSucceededStoryIds(
+  orderedIds: string[],
+  limit: number
+): Promise<string[]> {
+  const capped = clampUnionStoryLimit(limit)
+  if (orderedIds.length === 0) return []
+  const supabase = await createClient()
   const succeeded = new Set<string>()
   const chunkSize = 80
   for (let i = 0; i < orderedIds.length; i += chunkSize) {
@@ -142,17 +161,30 @@ async function listSucceededStories(limit: number): Promise<SucceededStories> {
       if (id) succeeded.add(id)
     }
   }
+  return orderedIds.filter((id) => succeeded.has(id)).slice(0, capped)
+}
 
-  const storyIds = orderedIds.filter((id) => succeeded.has(id)).slice(0, capped)
+async function listStoriesMentioningEntity(
+  entityUid: string,
+  limit: number
+): Promise<SucceededStories> {
+  const capped = clampUnionStoryLimit(limit)
+  const neoIds = await listDocumentUidsMentioningEntity(
+    entityUid,
+    Math.min(capped * 3, 600)
+  )
+  const storyIds = await keepSucceededStoryIds(neoIds, capped)
+  const finishedAtById = await finishedAtForStoryIds(storyIds)
   return { storyIds, finishedAtById }
 }
 
 async function resolveWithFingerprint(
   storyIds: string[],
-  mode: 'all' | 'ids',
+  mode: UnionStoryMode,
   limit: number,
   fresh: boolean,
-  finishedAtById?: Map<string, string>
+  finishedAtById?: Map<string, string>,
+  entityUid: string | null = null
 ): Promise<UnionStoryResolve> {
   const times = finishedAtById ?? (await finishedAtForStoryIds(storyIds))
   return {
@@ -160,7 +192,8 @@ async function resolveWithFingerprint(
     mode,
     limit,
     fresh,
-    fingerprint: unionFingerprint(storyIds, times),
+    entityUid,
+    fingerprint: unionFingerprint(storyIds, times, entityUid),
   }
 }
 
@@ -181,6 +214,8 @@ export async function resolveUnionStoryIds(
       limit?: unknown
       cap?: unknown
       fresh?: unknown
+      entity?: unknown
+      entityUid?: unknown
     }
     try {
       body = (await request.json()) as typeof body
@@ -190,6 +225,18 @@ export async function resolveUnionStoryIds(
 
     limit = clampUnionStoryLimit(body.limit ?? body.cap ?? limit)
     const fresh = isFreshFlag(body.fresh)
+    const entityUid = parseEntityUid(body.entityUid ?? body.entity)
+    if (entityUid) {
+      const listed = await listStoriesMentioningEntity(entityUid, limit)
+      return resolveWithFingerprint(
+        listed.storyIds,
+        'entity',
+        limit,
+        fresh,
+        listed.finishedAtById,
+        entityUid
+      )
+    }
     if (body.all === true) {
       const listed = await listSucceededStories(limit)
       return resolveWithFingerprint(
@@ -223,6 +270,18 @@ export async function resolveUnionStoryIds(
   const sp = request.nextUrl.searchParams
   limit = clampUnionStoryLimit(sp.get('limit') ?? sp.get('cap') ?? limit)
   const fresh = isFreshFlag(sp.get('fresh'))
+  const entityUid = parseEntityUid(sp.get('entity') ?? sp.get('entityUid'))
+  if (entityUid) {
+    const listed = await listStoriesMentioningEntity(entityUid, limit)
+    return resolveWithFingerprint(
+      listed.storyIds,
+      'entity',
+      limit,
+      fresh,
+      listed.finishedAtById,
+      entityUid
+    )
+  }
   if (sp.get('all') === '1' || sp.get('all') === 'true') {
     const listed = await listSucceededStories(limit)
     return resolveWithFingerprint(

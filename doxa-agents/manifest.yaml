@@ -310,3 +310,11 @@ steps:
     source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/08-analysis-pipeline
     deploy_name: analysis_pipeline
     verify_jwt: false
+  - id: project-person-profiles
+    department: 07-analysis-engine
+    workflow: analysis-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/07-analysis-engine/analysis-pipeline/09-project-person-profiles
+    deploy_name: project_person_profiles
+    verify_jwt: false

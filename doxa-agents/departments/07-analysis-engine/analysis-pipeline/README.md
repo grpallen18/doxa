@@ -11,6 +11,7 @@ Rebuildable L4 jobs. JWT-off internal chain via `analysis_pipeline`.
 | update-held-by-tracks | [05-update-held-by-tracks](05-update-held-by-tracks/) | `update_held_by_tracks` | Temporal Agent→Proposition |
 | link-derived-media-clips | [06-link-derived-media-clips](06-link-derived-media-clips/) | `link_derived_media_clips` | Clip DERIVED_FROM parent asset |
 | project-analysis-summaries | [07-project-analysis-summaries](07-project-analysis-summaries/) | `project_analysis_summaries` | Supabase graph_assessments |
+| project-person-profiles | [09-project-person-profiles](09-project-person-profiles/) | `project_person_profiles` | Supabase graph_people (Explore /people) |
 | analysis-pipeline | [08-analysis-pipeline](08-analysis-pipeline/) | `analysis_pipeline` | Orchestrator |
 
-Upstream: Phase 2 Controversies / Propositions. Downstream: Admin graph-controversies Analyzed UI.
+Upstream: Phase 2 Controversies / Propositions. Downstream: Admin graph-controversies Analyzed UI; consumer people profiles.

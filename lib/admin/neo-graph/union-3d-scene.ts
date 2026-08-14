@@ -3,8 +3,8 @@ import type { Union3DLink, Union3DNode } from '@/lib/admin/neo-graph/union-3d'
 
 export const NEO_DPR_CAP = 1.75
 
-const MAX_NODES = 8000
-const MAX_EDGES = 16000
+const MAX_NODES = 25000
+const MAX_EDGES = 50000
 
 function starWorldSize(node: Union3DNode): number {
   const heat = Math.max(0, Math.min(1, node.heat ?? 0))

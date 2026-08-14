@@ -86,7 +86,8 @@ function isNavActive(pathname: string, item: NavItem) {
       pathname === '/' ||
       pathname.startsWith('/c/') ||
       pathname.startsWith('/topics/') ||
-      pathname.startsWith('/entities/')
+      pathname.startsWith('/entities/') ||
+      pathname.startsWith('/people/')
     )
   }
   if (item.matchPrefix) {
