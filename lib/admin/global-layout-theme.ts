@@ -1,3 +1,5 @@
+import { LANDING_PATH } from '@/lib/constants'
+
 export type ThemeMode = 'light' | 'dark'
 
 export type GlobalLayoutColorVar = {
@@ -307,6 +309,12 @@ export function clearThemeColorOverrides(mode: ThemeMode): void {
 }
 
 /**
+ * Pages rendered on light brand artwork, so the user's dark preference is
+ * ignored there. Shared by the boot script and ThemeProvider.
+ */
+export const FORCED_LIGHT_PATHS: readonly string[] = ['/login', LANDING_PATH]
+
+/**
  * Blocking `<head>` script: light/dark class + localStorage color overrides
  * before first paint (avoids FOUC of default CSS variables).
  */
@@ -321,9 +329,10 @@ export function getThemeBootScript(): string {
   return `(function(){
   try {
     var root = document.documentElement;
-    var isLogin = window.location.pathname === '/login';
+    var forcedLightPaths = ${JSON.stringify(FORCED_LIGHT_PATHS)};
+    var forceLight = forcedLightPaths.indexOf(window.location.pathname) !== -1;
     var mode = 'light';
-    if (isLogin) {
+    if (forceLight) {
       root.classList.remove('dark');
     } else {
       var stored = localStorage.getItem('doxa-theme');

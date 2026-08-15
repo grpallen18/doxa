@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { LANDING_PATH } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 
 export function LogoutButton({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -10,7 +11,7 @@ export function LogoutButton({ className, children }: { className?: string; chil
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    router.push('/login')
+    router.push(LANDING_PATH)
     router.refresh()
   }
 

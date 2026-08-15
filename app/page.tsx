@@ -5,7 +5,6 @@ import { ExploreSearchField } from '@/components/explore/explore-search-field'
 import { ControversyListRow } from '@/components/explore/controversy-list-row'
 import { SparseStatePanel } from '@/components/explore/sparse-state-panel'
 import { Panel } from '@/components/Panel'
-import { Button } from '@/components/Button'
 import { topicHubPath } from '@/lib/explore-routes'
 import { DoxaLink } from '@/components/doxa-link'
 
@@ -36,7 +35,6 @@ export default async function HomePage() {
             evidence you can open.
           </p>
           <ExploreSearchField className="mx-auto max-w-xl" autoFocus />
-          <p className="text-xs text-muted">No account needed to read</p>
         </div>
       </section>
 
@@ -113,7 +111,7 @@ export default async function HomePage() {
               },
               {
                 title: 'Contribute',
-                body: 'Sign up free to save debates and leave structured feedback that improves the model.',
+                body: 'Save debates and leave structured feedback that improves the model.',
               },
             ].map((step) => (
               <Panel key={step.title} variant="base" className="space-y-2 p-5">
@@ -128,9 +126,6 @@ export default async function HomePage() {
 
         <footer className="flex flex-wrap items-center gap-4 border-t border-border pt-8">
           <DoxaLink href="/about">About</DoxaLink>
-          <Button variant="secondary" href="/login">
-            Create account
-          </Button>
         </footer>
       </div>
     </main>

@@ -4,11 +4,12 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PostLoginLoader } from '@/components/auth/PostLoginLoader'
 import { LOADER_DURATION_MS } from '@/lib/constants'
+import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 function AuthTransitionContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = searchParams.get('redirect') ?? '/'
+  const redirect = sanitizeRedirectPath(searchParams.get('redirect'))
   const [loaderFadingOut, setLoaderFadingOut] = useState(false)
 
   useEffect(() => {

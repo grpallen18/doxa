@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
+import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 import {
   Card,
   CardContent,
@@ -48,7 +49,7 @@ type LoginValues = z.infer<typeof loginSchema>
 
 export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') ?? '/'
+  const redirectTo = sanitizeRedirectPath(searchParams.get('redirect'))
   const [error, setError] = useState<string | null>(null)
   const emailSectionRef = useRef<HTMLDivElement>(null)
 
@@ -175,7 +176,14 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
           <Separator />
           <CardFooter className="flex flex-col gap-2 pt-6 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link href="/auth/sign-up" className="font-medium text-foreground underline underline-offset-2">
+            <Link
+              href={
+                redirectTo === '/'
+                  ? '/auth/sign-up'
+                  : `/auth/sign-up?redirect=${encodeURIComponent(redirectTo)}`
+              }
+              className="font-medium text-foreground underline underline-offset-2"
+            >
               Sign up
         </Link>
       </CardFooter>

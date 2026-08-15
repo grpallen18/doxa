@@ -15,18 +15,26 @@ export async function requireAdmin(): Promise<
   | NextResponse
 > {
   const supabase = await createClient()
+  // getUser() validates the access token against the Auth server. getSession()
+  // alone only decodes cookies, so a forged token would pass its user check.
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
 
-  if (!session?.user) {
+  if (error || !user) {
     return NextResponse.json(
       { data: null, error: { message: 'Authentication required' } },
       { status: 401 }
     )
   }
 
-  const role = getUserRole(session.access_token ?? '')
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  // Safe to read claims now that getUser() proved the token is authentic.
+  const role = getUserRole(session?.access_token ?? '')
   if (role !== 'admin') {
     return NextResponse.json(
       { data: null, error: { message: 'Admin access required' } },
@@ -34,5 +42,5 @@ export async function requireAdmin(): Promise<
     )
   }
 
-  return { user: session.user, role }
+  return { user, role }
 }

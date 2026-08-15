@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { applyThemeColorOverrides } from '@/lib/admin/global-layout-theme'
+import { applyThemeColorOverrides, FORCED_LIGHT_PATHS } from '@/lib/admin/global-layout-theme'
 
 const STORAGE_KEY = 'doxa-theme'
 
@@ -28,8 +28,6 @@ function getInitialTheme(): Theme {
   return 'light'
 }
 
-const LOGIN_PATH = '/login'
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [theme, setThemeState] = useState<Theme>(getInitialTheme)
@@ -50,7 +48,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!mounted || typeof document === 'undefined') return
-    if (pathname === LOGIN_PATH) {
+    if (FORCED_LIGHT_PATHS.includes(pathname)) {
       document.documentElement.classList.remove('dark')
       applyThemeColorOverrides('light')
     } else {

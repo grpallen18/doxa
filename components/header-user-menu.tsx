@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { LANDING_PATH } from '@/lib/constants'
 import type { User } from '@supabase/supabase-js'
 import { useLogoutTransition } from '@/components/LogoutTransitionWrapper'
 import { NavUser } from '@/components/nav-user'
@@ -33,7 +34,7 @@ export function HeaderUserMenu() {
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('fromLogoutTransition', '1')
         }
-        window.location.href = '/login'
+        window.location.href = LANDING_PATH
       })
     }
   }

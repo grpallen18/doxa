@@ -138,6 +138,47 @@ const config: Config = {
   					WebkitMaskPosition: '0% 0',
   				},
   			},
+  			/*
+  			  Bottom-to-top reveal of the statue. Positions are not evenly spaced
+  			  on purpose: the figure's ink varies hugely down its height (a hem
+  			  dissolving into the marble, a wide robe, a narrow head), so a
+  			  constant-speed sweep delivers 2% of it in the first sixth of the
+  			  travel and then surges — a faint ghost followed by an abrupt fill
+  			  that reads as two separate fades. These stops come from inverting
+  			  the measured ink-vs-position curve, so the edge moves fast where the
+  			  figure is sparse and slow where it is dense, materializing it at an
+  			  even rate. Pair with linear timing; the ease is in the spacing.
+
+  			  Regenerate with the alpha profile printed by
+  			  scripts/build-landing-statue.mjs if the artwork or its fade changes.
+  			*/
+  			'statue-btt': {
+  				'0%': { maskPosition: '0 0%', WebkitMaskPosition: '0 0%' },
+  				'4.1667%': { maskPosition: '0 12.294%', WebkitMaskPosition: '0 12.294%' },
+  				'8.3333%': { maskPosition: '0 18.091%', WebkitMaskPosition: '0 18.091%' },
+  				'12.5%': { maskPosition: '0 22.928%', WebkitMaskPosition: '0 22.928%' },
+  				'16.6667%': { maskPosition: '0 27.353%', WebkitMaskPosition: '0 27.353%' },
+  				'20.8333%': { maskPosition: '0 31.44%', WebkitMaskPosition: '0 31.44%' },
+  				'25%': { maskPosition: '0 35.3%', WebkitMaskPosition: '0 35.3%' },
+  				'29.1667%': { maskPosition: '0 38.968%', WebkitMaskPosition: '0 38.968%' },
+  				'33.3333%': { maskPosition: '0 42.434%', WebkitMaskPosition: '0 42.434%' },
+  				'37.5%': { maskPosition: '0 45.723%', WebkitMaskPosition: '0 45.723%' },
+  				'41.6667%': { maskPosition: '0 48.903%', WebkitMaskPosition: '0 48.903%' },
+  				'45.8333%': { maskPosition: '0 52.032%', WebkitMaskPosition: '0 52.032%' },
+  				'50%': { maskPosition: '0 55.146%', WebkitMaskPosition: '0 55.146%' },
+  				'54.1667%': { maskPosition: '0 58.262%', WebkitMaskPosition: '0 58.262%' },
+  				'58.3333%': { maskPosition: '0 61.398%', WebkitMaskPosition: '0 61.398%' },
+  				'62.5%': { maskPosition: '0 64.607%', WebkitMaskPosition: '0 64.607%' },
+  				'66.6667%': { maskPosition: '0 68.016%', WebkitMaskPosition: '0 68.016%' },
+  				'70.8333%': { maskPosition: '0 72.012%', WebkitMaskPosition: '0 72.012%' },
+  				'75%': { maskPosition: '0 77.188%', WebkitMaskPosition: '0 77.188%' },
+  				'79.1667%': { maskPosition: '0 82.355%', WebkitMaskPosition: '0 82.355%' },
+  				'83.3333%': { maskPosition: '0 86.441%', WebkitMaskPosition: '0 86.441%' },
+  				'87.5%': { maskPosition: '0 89.745%', WebkitMaskPosition: '0 89.745%' },
+  				'91.6667%': { maskPosition: '0 92.722%', WebkitMaskPosition: '0 92.722%' },
+  				'95.8333%': { maskPosition: '0 95.848%', WebkitMaskPosition: '0 95.848%' },
+  				'100%': { maskPosition: '0 100%', WebkitMaskPosition: '0 100%' },
+  			},
   			'panel-fade-in': {
   				'0%': {
   					opacity: '0'
@@ -206,6 +247,7 @@ const config: Config = {
 		animation: {
 			'doxa-letter': 'doxa-letter 1.2s ease-out forwards',
 			'doxa-logo-ltr': 'doxa-logo-ltr 1.8s ease-out both',
+			'statue-btt': 'statue-btt 2.4s linear both',
 			'panel-fade-in': 'panel-fade-in 2.5s ease-out forwards',
 			'accordion-down': 'accordion-down 0.3s ease-out',
 			'accordion-up': 'accordion-up 0.3s ease-out',

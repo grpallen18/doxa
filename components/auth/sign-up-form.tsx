@@ -38,7 +38,7 @@ const signUpSchema = z
 
 type SignUpValues = z.infer<typeof signUpSchema>
 
-export function SignUpForm() {
+export function SignUpForm({ redirectTo = '/' }: { redirectTo?: string }) {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -143,7 +143,10 @@ export function SignUpForm() {
       </CardContent>
       <CardFooter className="flex flex-col gap-2 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link href="/login" className="font-medium text-foreground underline underline-offset-2 hover:no-underline">
+        <Link
+          href={redirectTo === '/' ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`}
+          className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+        >
           Sign in
         </Link>
       </CardFooter>

@@ -13,6 +13,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
+import { LANDING_PATH } from '@/lib/constants'
 import { useUserRole } from '@/hooks/use-user-role'
 import { useHeadroomHeader } from '@/hooks/use-headroom-header'
 import { ExploreSidebarNav } from '@/components/explore-sidebar-nav'
@@ -94,10 +95,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const role = useUserRole()
   const headerVisible = useHeadroomHeader()
 
-  const isAuthPage = pathname === '/login' || pathname.startsWith('/auth/')
+  const isBareLayout =
+    pathname === LANDING_PATH || pathname === '/login' || pathname.startsWith('/auth/')
   const isAdmin = pathname.startsWith('/admin')
 
-  if (isAuthPage) {
+  if (isBareLayout) {
     return <>{children}</>
   }
 

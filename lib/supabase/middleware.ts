@@ -1,10 +1,59 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getUserRole } from '@/lib/auth-utils'
+import { LANDING_PATH } from '@/lib/constants'
+import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+/**
+ * Auth routes a signed-in user must still be able to reach: the callbacks that
+ * create the session, the post-login loader, and password recovery (which
+ * itself signs the user in before they set a new password).
+ */
+const AUTH_ROUTES_ALLOWED_WITH_SESSION = new Set([
+  '/auth/callback',
+  '/auth/confirm',
+  '/auth/oauth',
+  '/auth/transition',
+  '/auth/update-password',
+  '/auth/sign-up-success',
+  '/auth/error',
+])
+
+/** Assets the landing and auth pages need before a session exists. */
+const PUBLIC_FILES = new Set([
+  '/logo-color-no-bg.png',
+  '/logo-color-no-bg-dark.png',
+  '/landing-marble-background.jpg',
+])
+
+function isAuthRoute(pathname: string): boolean {
+  return pathname === '/login' || pathname.startsWith('/auth/')
+}
+
+function isPublicPath(pathname: string): boolean {
+  return (
+    pathname === LANDING_PATH ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/favicon') ||
+    pathname === '/apple-touch-icon.png' ||
+    PUBLIC_FILES.has(pathname)
+  )
+}
+
+/**
+ * Carry refreshed Supabase auth cookies (with their original options) onto a
+ * response we build ourselves, so a redirect never drops a rotated session.
+ */
+function withSessionCookies(response: NextResponse, source: NextResponse): NextResponse {
+  source.cookies.getAll().forEach((cookie) => {
+    response.cookies.set(cookie)
+  })
+  return response
+}
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -40,54 +89,63 @@ export async function updateSession(request: NextRequest) {
   }
 
   const pathname = request.nextUrl.pathname
-  const isAuthPage = pathname === '/login' || pathname.startsWith('/auth/')
+  const isApiRequest = pathname.startsWith('/api/')
 
-  // Public explore: read without an account. Contribute/admin still require auth.
-  const isPublicExplore =
-    pathname === '/' ||
-    pathname === '/about' ||
-    pathname === '/search' ||
-    pathname.startsWith('/c/') ||
-    pathname.startsWith('/topics/') ||
-    pathname.startsWith('/entities/') ||
-    pathname.startsWith('/people/') ||
-    pathname.startsWith('/api/explore') ||
-    pathname.startsWith('/api/topics/search') ||
-    pathname.startsWith('/api/theme-presets') ||
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/favicon') ||
-    pathname === '/logo-color-no-bg.png' ||
-    pathname === '/logo-color-no-bg-dark.png'
+  const isSignedInDeadEnd =
+    pathname === LANDING_PATH ||
+    (isAuthRoute(pathname) && !AUTH_ROUTES_ALLOWED_WITH_SESSION.has(pathname))
 
-  if (user && isAuthPage) {
-    const redirectTo = request.nextUrl.searchParams.get('redirect') ?? '/'
-    const redirectResponse = NextResponse.redirect(new URL(redirectTo, request.url))
-    supabaseResponse.cookies.getAll().forEach((cookie) =>
-      redirectResponse.cookies.set(cookie.name, cookie.value)
+  if (user && isSignedInDeadEnd) {
+    const redirectTo = sanitizeRedirectPath(request.nextUrl.searchParams.get('redirect'))
+    return withSessionCookies(
+      NextResponse.redirect(new URL(redirectTo, request.url)),
+      supabaseResponse
     )
-    return redirectResponse
   }
 
-  if (!user && !isAuthPage && !isPublicExplore) {
+  // Everything outside the landing page, the auth flow, and its assets requires
+  // a session.
+  if (!user && !isAuthRoute(pathname) && !isPublicPath(pathname)) {
+    if (isApiRequest) {
+      // API callers get a machine-readable 401 rather than landing-page HTML.
+      return withSessionCookies(
+        NextResponse.json(
+          { data: null, error: { message: 'Authentication required' } },
+          { status: 401 }
+        ),
+        supabaseResponse
+      )
+    }
+
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    redirectUrl.searchParams.set('redirect', pathname)
-    const redirectResponse = NextResponse.redirect(redirectUrl)
-    supabaseResponse.cookies.getAll().forEach((cookie) =>
-      redirectResponse.cookies.set(cookie.name, cookie.value)
-    )
-    return redirectResponse
+    redirectUrl.pathname = LANDING_PATH
+    redirectUrl.search = ''
+    const attempted = `${pathname}${request.nextUrl.search}`
+    if (attempted !== '/') {
+      redirectUrl.searchParams.set('redirect', attempted)
+    }
+    return withSessionCookies(NextResponse.redirect(redirectUrl), supabaseResponse)
   }
 
-  if (user && pathname.startsWith('/admin')) {
+  if (user && (pathname.startsWith('/admin') || pathname.startsWith('/api/admin'))) {
+    // getUser() above already validated this access token against the Auth
+    // server, so its claims can be trusted here.
     const { data: sessionData } = await supabase.auth.getSession()
     const role = getUserRole(sessionData?.session?.access_token ?? '')
     if (role !== 'admin') {
-      const redirectResponse = NextResponse.redirect(new URL('/', request.url))
-      supabaseResponse.cookies.getAll().forEach((cookie) =>
-        redirectResponse.cookies.set(cookie.name, cookie.value)
+      if (isApiRequest) {
+        return withSessionCookies(
+          NextResponse.json(
+            { data: null, error: { message: 'Admin access required' } },
+            { status: 403 }
+          ),
+          supabaseResponse
+        )
+      }
+      return withSessionCookies(
+        NextResponse.redirect(new URL('/', request.url)),
+        supabaseResponse
       )
-      return redirectResponse
     }
   }
 

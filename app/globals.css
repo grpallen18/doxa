@@ -76,6 +76,31 @@
     -2px -2px 5px rgba(255, 255, 255, 0.4);
   --shadow-button-secondary: 3px 3px 8px rgba(0, 0, 0, 0.06),
     -2px -2px 5px rgba(255, 255, 255, 0.56);
+
+  /*
+    Liquid-glass CTA (landing hero only). Polished metal rim over a translucent
+    fill.
+
+    Two shadow layers: a crisp contact shadow, and an ambient one that carries
+    the sense of height. Idle sits the furthest off the surface — larger offset,
+    wider blur, a touch of spread — so hover reads as the shadow drawing in and
+    sharpening rather than growing. Alpha stays near-constant between the two;
+    the state change is geometry, not darkness. Pressed collapses the ambient
+    layer and thins the contact shadow to a hairline. Both layers are declared in
+    all three states because box-shadow only interpolates across matching layer
+    counts — a shorter list snaps instead of fading.
+  */
+  --glass-rim: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #c9c9c9 9%,
+    #a1a1a1 32%,
+    #757575 73%,
+    #ffffff 100%
+  );
+  --glass-shadow: 0 3px 9px 0 rgba(0, 0, 0, 0.36), 0 20px 44px 2px rgba(0, 0, 0, 0.24);
+  --glass-shadow-hover: 0 2px 6px 0 rgba(0, 0, 0, 0.38), 0 12px 28px 0 rgba(0, 0, 0, 0.2);
+  --glass-shadow-pressed: 0 1px 2px 0 rgba(0, 0, 0, 0.4), 0 12px 28px 0 rgba(0, 0, 0, 0);
   --shadow-inset-strong: inset 3px 3px 6px rgba(0, 0, 0, 0.06),
     inset -3px -3px 6px rgba(255, 255, 255, 0.48);
   --shadow-inset-soft: inset 2px 2px 5px rgba(0, 0, 0, 0.06),
@@ -408,6 +433,73 @@ body {
     -webkit-mask-size: 250% 100%;
     mask-size: 250% 100%;
   }
+
+  /*
+    The statue dissolves into the marble along its lower portion, and reveals
+    itself from hem to head on load. These are two separate masks on nested
+    elements on purpose.
+
+    Both effects attenuate alpha, so a single combined mask multiplies them: the
+    reveal's transitional band, while it sits inside the dissolve, is faded
+    twice and lingers as a washed-out ghost that firms up afterwards — the
+    figure appears to fade in a second time. Keeping the dissolve static on the
+    wrapper and sweeping the reveal across un-faded artwork means everything
+    behind the reveal edge is already at its final alpha.
+
+    Stops mirror the alpha ramp scripts/build-landing-statue.mjs used to bake
+    into the artwork; regenerate both together if that changes.
+  */
+  .statue-fade {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 38.002%,
+      rgba(0, 0, 0, 0.8) 53.502%,
+      rgba(0, 0, 0, 0.5) 69.001%,
+      rgba(0, 0, 0, 0.2) 82.641%,
+      rgba(0, 0, 0, 0.04) 92.56%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      #000 38.002%,
+      rgba(0, 0, 0, 0.8) 53.502%,
+      rgba(0, 0, 0, 0.5) 69.001%,
+      rgba(0, 0, 0, 0.2) 82.641%,
+      rgba(0, 0, 0, 0.04) 92.56%,
+      transparent 100%
+    );
+  }
+
+  /*
+    Reveal layer. The mask is 2.1x the figure's height — a clear band its full
+    height, a ramp 10% of it, then solid — so 0% hides the figure entirely and
+    100% clears its top with no wasted travel at either end. The ramp is kept
+    short so only a tenth of the figure is mid-transition at any moment.
+
+    Travels at a deliberately uneven speed; see the statue-btt keyframes.
+  */
+  .statue-btt {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 47.619%,
+      #000 52.381%,
+      #000 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 47.619%,
+      #000 52.381%,
+      #000 100%
+    );
+    -webkit-mask-size: 100% 210%;
+    mask-size: 100% 210%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: 0 100%;
+    mask-position: 0 100%;
+  }
 }
 
 @layer components {
@@ -494,6 +586,163 @@ body {
     box-shadow:
       inset 0 2px 4px rgba(0, 0, 0, 0.12),
       0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  /*
+    Liquid-glass CTA for the landing hero. Values are literal rather than
+    tokenized: this sits on the marble artwork, not on themed surfaces.
+  */
+  .glass-button {
+    @apply relative inline-flex items-center justify-center overflow-hidden;
+    padding: 0.6875rem 2rem;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 500;
+    text-decoration: none;
+    background-color: var(--glass-fill);
+    -webkit-backdrop-filter: blur(14px) saturate(170%);
+    backdrop-filter: blur(14px) saturate(170%);
+    box-shadow: var(--glass-shadow);
+    /* Streak strength at hover; the tinted variant needs less or the label fades. */
+    --glass-sheen: 1;
+    --glass-sheen-rgb: 255, 255, 255;
+    transition:
+      transform 220ms cubic-bezier(0.2, 0.8, 0.3, 1),
+      box-shadow 220ms cubic-bezier(0.2, 0.8, 0.3, 1),
+      background-color 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  /*
+    Specular streak: a narrow diagonal band that sweeps across once per hover.
+    The overall lightening is handled by --glass-fill-lit instead, since a wide
+    ramp on an already pale fill just clips toward white and reads as an even
+    wash. Parked off the left edge at rest so releasing hover doesn't flash the
+    band back through the middle while its opacity fades out.
+  */
+  .glass-button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      315deg,
+      rgba(var(--glass-sheen-rgb), 0) 18%,
+      rgba(var(--glass-sheen-rgb), 0.1) 40%,
+      rgba(var(--glass-sheen-rgb), 0.9) 50%,
+      rgba(var(--glass-sheen-rgb), 0.1) 60%,
+      rgba(var(--glass-sheen-rgb), 0) 82%
+    );
+    transition: opacity 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  /*
+    forwards leaves the band parked off the right edge, so it stays gone for the
+    rest of the hover instead of snapping back to centre when the run ends.
+  */
+  @keyframes glass-button-sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  /*
+    Chrome rim, masked down to the outer 2px. As a background layer beneath the
+    fill it would show through the translucent glass, and its white bottom stop
+    would read as the fill fading lighter toward the base.
+  */
+  @supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
+    .glass-button::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 2px;
+      border-radius: inherit;
+      pointer-events: none;
+      background: var(--glass-rim);
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      mask-composite: exclude;
+    }
+  }
+
+  .glass-button:hover::before {
+    opacity: var(--glass-sheen);
+    animation: glass-button-sweep 750ms linear forwards;
+  }
+
+  .glass-button > span {
+    position: relative;
+  }
+
+  /* Pressed keeps the hover fill, so the surface holds still under the click. */
+  .glass-button:hover,
+  .glass-button:active {
+    background-color: var(--glass-fill-lit);
+  }
+
+  .glass-button:hover {
+    box-shadow: var(--glass-shadow-hover);
+  }
+
+  .glass-button:active {
+    transform: scale(0.975);
+    box-shadow: var(--glass-shadow-pressed);
+  }
+
+  .glass-button:focus-visible {
+    outline: 2px solid #241f1a;
+    outline-offset: 3px;
+  }
+
+  /*
+    Fill is the dark brown sampled from the logo artwork (its dark pixels average
+    rgb(37, 30, 20)). Unlike the chrome variant this one holds its fill across
+    every state — a dark saturated brown turns muddy the moment it lightens, so
+    hover is carried entirely by the warm streak through the middle. The gradient
+    ends at zero alpha, which leaves the edges at exactly their idle darkness.
+  */
+  .glass-button[data-variant='primary'] {
+    --glass-fill: rgba(37, 30, 20, 0.92);
+    --glass-fill-lit: var(--glass-fill);
+    --glass-sheen: 0.2;
+    --glass-sheen-rgb: 255, 243, 226;
+    color: #f7f2ea;
+    text-shadow: 0 1px 2px rgba(18, 13, 8, 0.45);
+  }
+
+  .glass-button[data-variant='secondary'] {
+    --glass-fill: rgba(206, 209, 211, 0.7);
+    --glass-fill-lit: rgba(228, 231, 233, 0.76);
+    color: #241f1a;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glass-button,
+    .glass-button:active {
+      transform: none;
+      transition: none;
+    }
+
+    /* No sweep — the band rests centred and simply appears on hover. */
+    .glass-button::before {
+      transition: none;
+      transform: none;
+    }
+
+    .glass-button:hover::before {
+      animation: none;
+    }
   }
 
   /* Dark filled button variant (surface text on muted/dark background) */
@@ -920,6 +1169,11 @@ body {
   .step-detail-reveal span {
     animation: none !important;
     opacity: 1 !important;
+  }
+
+  /* Resting mask position already shows the whole figure. */
+  .statue-btt {
+    animation: none !important;
   }
 }
 

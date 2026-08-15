@@ -116,11 +116,12 @@ Tokens and component classes live in `app/globals.css` and `tailwind.config.ts`.
 
 ## Navigation & Key Pages
 
-**Public explore:** home, search, topics, controversies (`/c/[uid]`), entities, and about are readable without login. Account required for saves, critiques, polls, and profile.
+**Account required:** every route except the landing page and the auth flow requires a session. Middleware redirects signed-out visitors to `/welcome` (preserving the attempted path in `?redirect=`) and answers `/api/*` with `401` JSON.
 
+- **Landing (`/welcome`):** Marble hero with the dark DOXA logo and the sign-up / log-in entry points. No app chrome, forced light theme. Signed-in visitors are bounced to the app.
 - **Login (`/login`):** Sign-in (email/password + GitHub OAuth). Links to sign-up and forgot-password.
 - **Sign up / auth routes:** `/auth/sign-up`, `/auth/callback`, `/auth/confirm`, `/auth/forgot-password`, `/auth/update-password`, `/auth/error`.
-- **Home (`/`):** Search-first landing — brand, headline, search (`SpotlightBorder`), trending controversies from `graph_controversies`, featured topic hubs (density bar + `graph_topic_links`), how-it-works.
+- **Home (`/`):** Search-first app home (signed in) — brand, headline, search (`SpotlightBorder`), trending controversies from `graph_controversies`, featured topic hubs (density bar + `graph_topic_links`), how-it-works.
 - **Search (`/search?q=`):** Controversies first, then published topics.
 - **Controversy (`/c/[uid]`):** Primary product page — question, shared/clash/disputes, viewpoint columns, evidence sheet, assessments (labeled Analyzed), related debates, feedback.
 - **Topic hub (`/topics/[slug]`):** Core facts + linked controversies (only meaningful when links exist). Nested: `/topics/[slug]/c/[uid]`.
@@ -227,7 +228,7 @@ For database schema, data dictionary, and implementation status of the topic lif
 
 The following are out of scope for the current phase and should be tackled later. Document here so they are not forgotten.
 
-- **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to `/login`. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages are wrapped with the Doxa Panel/layout for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
+- **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to the `/welcome` landing page. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages are wrapped with the Doxa Panel/layout for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
 - **Poll backend:** Real poll questions and answers in the database; persistence and participation (e.g. sign-in to participate).
 - **Trending data:** The home page shows KEEP stories from the pipeline (ingest → relevance_gate). Future: traffic, multi-outlet coverage, or curated lists.
 - **Search API:** Wire the search bar to a backend that searches topics by query (e.g. by headline/topic).

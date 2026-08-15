@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { LANDING_PATH } from '@/lib/constants'
 
 const FADE_DURATION_MS = 500
 const LOGOUT_STORAGE_KEY = 'fromLogoutTransition'
@@ -33,16 +34,16 @@ export function LogoutTransitionWrapper({ children }: { children: React.ReactNod
         if (typeof window !== 'undefined') {
           sessionStorage.setItem(LOGOUT_STORAGE_KEY, '1')
         }
-        router.push('/login')
+        router.push(LANDING_PATH)
         router.refresh()
       })
     }, FADE_DURATION_MS)
     return () => clearTimeout(t)
   }, [isLoggingOut, router])
 
-  // When we've navigated to login, stop hiding content so the login page (and its fade-in) is visible
+  // Once we've left the app, stop hiding content so the destination page (and its fade-in) is visible
   useEffect(() => {
-    if (pathname === '/login') {
+    if (pathname === LANDING_PATH || pathname === '/login') {
       setIsLoggingOut(false)
     }
   }, [pathname])

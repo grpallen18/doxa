@@ -8,6 +8,7 @@ import { Panel } from '@/components/Panel'
 import { PostLoginLoader } from '@/components/auth/PostLoginLoader'
 import { LoginFadeWrapper } from '@/components/LoginFadeWrapper'
 import { LOADER_DURATION_MS } from '@/lib/constants'
+import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 import { cn } from '@/lib/utils'
 
 const LOGO_REVEAL_DELAY_MS = 500
@@ -41,7 +42,7 @@ function LoginBrandLogo() {
 function LoginFormWrapper() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') ?? '/'
+  const redirectTo = sanitizeRedirectPath(searchParams.get('redirect'))
   const [transitioning, setTransitioning] = useState(false)
   const [loaderFadingOut, setLoaderFadingOut] = useState(false)
 

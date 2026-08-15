@@ -1,0 +1,48 @@
+---
+description: Accept React Bits (reactbits.dev) as a source for animated UI components and design patterns
+globs: app/**/*.{tsx,jsx},components/**/*.{tsx,jsx},lib/**/*.{tsx,jsx}
+alwaysApply: false
+---
+
+# React Bits
+
+**[React Bits](https://www.reactbits.dev/)** is an approved source for animated UI components, backgrounds, text effects, and related design patterns in Doxa—alongside shadcn/ui and Motion Primitives.
+
+## Source of truth
+
+- Catalog / docs: https://www.reactbits.dev/
+- Installation: https://www.reactbits.dev/get-started/installation
+- GitHub: https://github.com/DavidHDev/react-bits
+- Prefer **TypeScript + Tailwind** variants (`TS` / `TW`) to match this repo.
+
+## How to add a component
+
+1. Prefer the shadcn CLI (owned source copied into the repo). Use the command from the component’s docs page, or the free-registry form:
+
+```bash
+npx shadcn@latest add https://reactbits.dev/r/<ComponentName>-TS-TW
+```
+
+Example: `npx shadcn@latest add https://reactbits.dev/r/SplitText-TS-TW`
+
+2. Or copy from the component Code tab (stack: TypeScript + Tailwind) into [`components/react-bits/`](components/react-bits/).
+
+Install any peer deps listed on that page (`gsap`, `three`, etc.) only when the chosen component needs them.
+
+## Conventions
+
+- Keep copied components under `components/react-bits/` (or the path the CLI writes—then relocate there if it lands elsewhere).
+- Customize copied source to match Doxa tokens (`app/globals.css`, neumorphic panel language)—same ownership model as shadcn under `components/ui/`.
+- Use existing `cn` from `@/lib/utils`; do not add a second utils helper for React Bits components.
+- Prefer purposeful motion that supports hierarchy and presence. Avoid decorative noise, endless loops on dense admin surfaces, and purple/glow demos that fight the design system.
+- **Compose, don’t replace:**
+  - shadcn/ui — default for non-animated primitives (Button, Dialog, forms, etc.)
+  - Motion Primitives — preferred for focused motion primitives already covered there
+  - React Bits — creative animations, backgrounds, and text effects when they fit the surface
+- **Do not** suggest React Bits Pro (`@reactbits-pro/...`) unless the project has an active Pro license configured.
+
+## When not to use it
+
+- Pipeline / agents / Supabase Edge / workers — no UI animation stack there.
+- Data-heavy tables and critical admin workflows — keep motion minimal or none.
+- Prefer Motion Primitives when that catalog already covers the interaction (text effect, in-view reveal, spotlight, tilt, etc.).
