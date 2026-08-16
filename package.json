@@ -28,6 +28,7 @@
     "e2e:preview-claims": "tsx scripts/run-preview-claims-e2e.ts",
     "test:e2e": "playwright test",
     "test:neo-graph": "tsx scripts/test-neo-graphology-adapter.ts",
+    "test:safe-redirect": "tsx scripts/test-safe-redirect.ts",
     "test:story-step-runs": "tsx scripts/test-story-step-runs.ts"
   },
   "dependencies": {

@@ -1,16 +1,10 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { getPersonProfile } from '@/lib/explore/person'
 import { ExploreBreadcrumbs } from '@/components/explore/explore-breadcrumbs'
+import { PersonEidosCanvasLazy } from '@/components/explore/person-eidos-canvas-lazy'
 import { SparseStatePanel } from '@/components/explore/sparse-state-panel'
 import { homePath, peoplePath } from '@/lib/explore-routes'
-
-const PersonEidosCanvas = dynamic(
-  () =>
-    import('@/components/explore/person-eidos-canvas').then((m) => m.PersonEidosCanvas),
-  { ssr: false, loading: () => <p className="text-sm text-muted">Loading Eidos…</p> }
-)
 
 type PageProps = {
   params: Promise<{ uid: string }>
@@ -61,7 +55,7 @@ export default async function PersonEidosPage({ params }: PageProps) {
           </SparseStatePanel>
         ) : (
           <div className="h-[min(70vh,36rem)] overflow-hidden rounded-bevel border border-border bg-surface">
-            <PersonEidosCanvas nodes={profile.eidos.nodes} edges={profile.eidos.edges} />
+            <PersonEidosCanvasLazy nodes={profile.eidos.nodes} edges={profile.eidos.edges} />
           </div>
         )}
       </div>
