@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { HOME_PATH } from '@/lib/constants'
 import { topicHubPath } from '@/lib/explore-routes'
 
 type PageProps = {
@@ -18,5 +19,5 @@ export default async function LegacyTopicRedirect({ params }: PageProps) {
   if (data?.slug) {
     redirect(topicHubPath(data.slug as string))
   }
-  redirect('/')
+  redirect(HOME_PATH)
 }

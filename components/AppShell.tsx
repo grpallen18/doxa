@@ -13,7 +13,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
-import { LANDING_PATH } from '@/lib/constants'
+import { HOME_PATH, LANDING_PATH } from '@/lib/constants'
 import { useUserRole } from '@/hooks/use-user-role'
 import { useHeadroomHeader } from '@/hooks/use-headroom-header'
 import { ExploreSidebarNav } from '@/components/explore-sidebar-nav'
@@ -90,13 +90,21 @@ function ExploreSidebarPane({
   )
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+}: {
+  children: React.ReactNode
+  /** @deprecated Unused after landing/home split; kept so callers need not change yet. */
+  signedIn?: boolean
+}) {
   const pathname = usePathname()
   const role = useUserRole()
   const headerVisible = useHeadroomHeader()
 
   const isBareLayout =
-    pathname === LANDING_PATH || pathname === '/login' || pathname.startsWith('/auth/')
+    pathname === LANDING_PATH ||
+    pathname === '/login' ||
+    pathname.startsWith('/auth/')
   const isAdmin = pathname.startsWith('/admin')
 
   if (isBareLayout) {
@@ -113,7 +121,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div className="relative flex h-[--header-height] w-full items-stretch">
           <Link
-            href={isAdmin ? '/admin' : '/'}
+            href={isAdmin ? '/admin' : HOME_PATH}
             className="inline-flex w-fit shrink-0 items-center py-2 pl-3"
             aria-label={isAdmin ? 'Admin Center' : 'Doxa home'}
           >

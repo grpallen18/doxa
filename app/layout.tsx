@@ -9,8 +9,9 @@ import {
 } from '@/components/scroll-restoration'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { Toaster } from '@/components/ui/sonner'
-import { getThemeBootScript } from '@/lib/admin/global-layout-theme'
+import { getThemeBootScript, SIGNED_IN_ATTRIBUTE } from '@/lib/admin/global-layout-theme'
 import { appFont } from '@/lib/fonts'
+import { getCurrentUser } from '@/lib/supabase/current-user'
 
 export const metadata: Metadata = {
   title: 'Doxa - Community-Calibrated Political Knowledge Graph',
@@ -28,24 +29,30 @@ export const metadata: Metadata = {
 
 const themeScript = getThemeBootScript()
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  /*
+    Marketing landing and auth share the `(marble)` layout. Signed-in explore
+    home is `/home`. Session still drives product chrome and theme preference.
+  */
+  const signedIn = Boolean(await getCurrentUser())
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" {...{ [SIGNED_IN_ATTRIBUTE]: String(signedIn) }} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: SCROLL_RESTORATION_BOOT_SCRIPT }} />
       </head>
       <body className={`${appFont.variable} ${appFont.className} font-sans`}>
-        <ThemeProvider>
+        <ThemeProvider signedIn={signedIn}>
           <ScrollRestoration />
           <NavigationOverlayProvider>
-            <LogoutTransitionWrapper>
-            <AppShell>{children}</AppShell>
-          </LogoutTransitionWrapper>
+            <LogoutTransitionWrapper signedIn={signedIn}>
+              <AppShell signedIn={signedIn}>{children}</AppShell>
+            </LogoutTransitionWrapper>
             <PageNavigationOverlay />
           </NavigationOverlayProvider>
           <Toaster position="bottom-center" />

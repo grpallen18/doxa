@@ -26,3 +26,27 @@ export function GlassButton({
     </Link>
   )
 }
+
+type GlassSubmitButtonProps = React.ComponentProps<'button'> & {
+  variant?: GlassButtonVariant
+}
+
+/** Same material as the hero CTA for the auth forms, which submit rather than navigate. */
+export function GlassSubmitButton({
+  children,
+  variant = 'primary',
+  className,
+  type = 'submit',
+  ...props
+}: GlassSubmitButtonProps) {
+  return (
+    <button
+      type={type}
+      data-variant={variant}
+      className={cn('glass-button disabled:cursor-not-allowed disabled:opacity-70', className)}
+      {...props}
+    >
+      <span>{children}</span>
+    </button>
+  )
+}

@@ -24,6 +24,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useTopicExplore, type TocSection } from '@/components/topic-explore-context'
+import { HOME_PATH } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
@@ -34,7 +35,7 @@ type NavItem = {
 }
 
 const mainNav: NavItem[] = [
-  { label: 'Explore', icon: Compass, href: '/', matchPrefix: false },
+  { label: 'Explore', icon: Compass, href: HOME_PATH, matchPrefix: false },
   { label: 'Search', icon: Search, href: '/search', matchPrefix: true },
   { label: 'About', icon: Info, href: '/about' },
   { label: 'Profile', icon: User, href: '/profile' },
@@ -81,9 +82,9 @@ function isSectionHidden(
 }
 
 function isNavActive(pathname: string, item: NavItem) {
-  if (item.href === '/') {
+  if (item.href === HOME_PATH) {
     return (
-      pathname === '/' ||
+      pathname === HOME_PATH ||
       pathname.startsWith('/c/') ||
       pathname.startsWith('/topics/') ||
       pathname.startsWith('/entities/') ||

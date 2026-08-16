@@ -1,0 +1,39 @@
+---
+description: Use official shadcn skill + MCP for UI work; keep Doxa tokens and composition
+globs: components/ui/**/*.{tsx,ts},components.json,app/**/*.{tsx,jsx},components/**/*.{tsx,jsx}
+alwaysApply: false
+---
+
+# shadcn/ui in Doxa
+
+Official docs: [Skills](https://ui.shadcn.com/docs/skills) · [MCP](https://ui.shadcn.com/docs/mcp)
+
+## Always do this for UI work
+
+1. Follow the project skill: read [`.agents/skills/shadcn/SKILL.md`](../../.agents/skills/shadcn/SKILL.md) (Cursor entry: [`.cursor/skills/shadcn/SKILL.md`](../skills/shadcn/SKILL.md)).
+2. Use the **shadcn MCP** (configured in `.cursor/mcp.json`) to search/view registries and get add commands before hand-rolling primitives.
+3. Install with `npx shadcn@latest add <item>` so files land under `components/ui/` with our aliases.
+
+## Project facts (do not guess)
+
+- Framework: Next.js App Router, RSC, TypeScript
+- Style: `new-york`, base: **radix**, icons: **lucide**
+- Tailwind **v3** + CSS variables in `app/globals.css`
+- Aliases: `@/components`, `@/components/ui`, `@/lib/utils`, `@/hooks`
+
+Confirm with `npx shadcn@latest info --json` when unsure.
+
+## Doxa overlays (skill rules still apply, with these exceptions)
+
+- **Surfaces:** Prefer existing `Panel` / neumorphic panel classes over inventing new card chrome on app pages. Auth/marketing marble + `glass-panel` is intentional — don’t replace with default `Card` stacks on those pages.
+- **Colors:** Semantic tokens only (`bg-background`, `text-muted`, `border-border`, brand accents). Never introduce purple/indigo demo palettes or raw `bg-blue-500`-style one-offs.
+- **Forms today:** Most existing forms use `react-hook-form` + `@/components/ui/form` (`Form`, `FormField`, …). Keep that pattern when editing those files. For **new** forms, follow the skill (`Field` / `FieldGroup`) — install missing primitives via CLI first (`field`, `input-group`, etc. are not all present yet).
+- **Toasts:** Use `sonner` (`@/components/ui/sonner`) — matches Radix projects in the skill.
+- **Motion:** Prefer Motion Primitives / approved React Bits for animation; shadcn for structure. See `motion-primitives.mdc` and `react-bits.mdc`.
+- **Inputs:** Keep `SpotlightBorder` on `@/components/ui/input` and `textarea` — don’t reintroduce focus rings that fight that pattern.
+
+## Do not
+
+- Run the **migrate-radix-to-base** skill unless the user explicitly asks to move to Base UI.
+- Hand-edit installed `components/ui/*` away from shadcn patterns without a reason; prefer `npx shadcn@latest add` / diff / docs.
+- Bypass MCP/CLI discovery when adding a registry component that already exists upstream.

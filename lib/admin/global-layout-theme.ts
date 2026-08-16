@@ -309,10 +309,22 @@ export function clearThemeColorOverrides(mode: ThemeMode): void {
 }
 
 /**
- * Pages rendered on light brand artwork, so the user's dark preference is
- * ignored there. Shared by the boot script and ThemeProvider.
+ * Pages rendered on the light marble artwork, so the user's dark preference is
+ * ignored there. Path-only: `/` is marketing landing, never the signed-in home.
  */
-export const FORCED_LIGHT_PATHS: readonly string[] = ['/login', LANDING_PATH]
+export function shouldForceLightTheme(pathname: string, _signedIn = false): boolean {
+  return (
+    pathname === LANDING_PATH ||
+    pathname === '/login' ||
+    pathname.startsWith('/auth/')
+  )
+}
+
+/**
+ * Marks whether the server rendered this document for a signed-in visitor, so
+ * the blocking boot script can resolve the landing page before React loads.
+ */
+export const SIGNED_IN_ATTRIBUTE = 'data-signed-in'
 
 /**
  * Blocking `<head>` script: light/dark class + localStorage color overrides
@@ -329,8 +341,11 @@ export function getThemeBootScript(): string {
   return `(function(){
   try {
     var root = document.documentElement;
-    var forcedLightPaths = ${JSON.stringify(FORCED_LIGHT_PATHS)};
-    var forceLight = forcedLightPaths.indexOf(window.location.pathname) !== -1;
+    var path = window.location.pathname;
+    var landingPath = ${JSON.stringify(LANDING_PATH)};
+    var forceLight = path === landingPath
+      || path === '/login'
+      || path.indexOf('/auth/') === 0;
     var mode = 'light';
     if (forceLight) {
       root.classList.remove('dark');

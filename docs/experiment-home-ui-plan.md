@@ -27,7 +27,7 @@ The default home and app shell mirror `docs/UI Layout.png`. Data is **mock-only*
 | Orchestrator | [components/topic-explore-home.tsx](../components/topic-explore-home.tsx) |
 | Sidebar nav | [components/explore-sidebar-nav.tsx](../components/explore-sidebar-nav.tsx) |
 | Sections | `topic-header.tsx`, `topic-brief-panel.tsx`, `position-landscape.tsx`, `position-card.tsx`, `source-diversity-grid.tsx`, `discourse-evolution-chart.tsx`, `position-detail-panel.tsx` |
-| Shell / page | [components/AppShell.tsx](../components/AppShell.tsx), [app/page.tsx](../app/page.tsx) |
+| Shell / page | [components/AppShell.tsx](../components/AppShell.tsx), [app/home/page.tsx](../app/home/page.tsx), [app/(marble)/page.tsx](../app/(marble)/page.tsx) |
 | Tests | [playwright.config.ts](../playwright.config.ts), [e2e/experiment-home.spec.ts](../e2e/experiment-home.spec.ts) |
 
 ## Testing

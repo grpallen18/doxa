@@ -7,14 +7,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+  AuthCardHeading,
+  authLinkClassName,
+  glassFieldClassName,
+} from '@/components/auth/auth-scene'
+import { GlassSubmitButton } from '@/components/landing/glass-button'
 import {
   Form,
   FormControl,
@@ -56,50 +53,52 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <Card className="w-full max-w-sm border-border bg-card">
-      <CardHeader>
-        <CardTitle className="text-2xl">Forgot password</CardTitle>
-        <CardDescription>
-          Enter your email and we&apos;ll send you a link to reset your password.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                {error}
-              </p>
+    <div className="space-y-5">
+      <AuthCardHeading
+        title="Forgot password"
+        description="Enter your email and we'll send you a link to reset your password."
+      />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {error && (
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+          {message && (
+            <p className="rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-800" role="status">
+              {message}
+            </p>
+          )}
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className={glassFieldClassName}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-            {message && (
-              <p className="rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-800 dark:text-green-200" role="status">
-                {message}
-              </p>
-            )}
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" autoComplete="email" placeholder="you@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? 'Sending…' : 'Send reset link'}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-      <CardFooter className="flex flex-col gap-2 text-center text-sm text-muted-foreground">
-        <Link href="/login" className="font-medium text-foreground underline underline-offset-2 hover:no-underline">
-          Back to sign in
+          />
+          <GlassSubmitButton className="!mt-5 w-full" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? 'Sending…' : 'Send reset link'}
+          </GlassSubmitButton>
+        </form>
+      </Form>
+      <p className="border-t border-[rgba(36,31,26,0.14)] pt-4 text-center text-sm">
+        <Link href="/login" className={authLinkClassName}>
+          Back to log in
         </Link>
-      </CardFooter>
-    </Card>
+      </p>
+    </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { applyThemeColorOverrides, FORCED_LIGHT_PATHS } from '@/lib/admin/global-layout-theme'
+import { applyThemeColorOverrides, shouldForceLightTheme } from '@/lib/admin/global-layout-theme'
 
 const STORAGE_KEY = 'doxa-theme'
 
@@ -28,7 +28,13 @@ function getInitialTheme(): Theme {
   return 'light'
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({
+  children,
+  signedIn = false,
+}: {
+  children: React.ReactNode
+  signedIn?: boolean
+}) {
   const pathname = usePathname()
   const [theme, setThemeState] = useState<Theme>(getInitialTheme)
   const [mounted, setMounted] = useState(false)
@@ -48,7 +54,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!mounted || typeof document === 'undefined') return
-    if (FORCED_LIGHT_PATHS.includes(pathname)) {
+    if (shouldForceLightTheme(pathname, signedIn)) {
       document.documentElement.classList.remove('dark')
       applyThemeColorOverrides('light')
     } else {
@@ -56,7 +62,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(STORAGE_KEY, theme)
       applyThemeColorOverrides(theme)
     }
-  }, [mounted, theme, pathname])
+  }, [mounted, theme, pathname, signedIn])
 
   function setTheme(next: Theme) {
     setThemeState(next)

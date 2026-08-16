@@ -98,6 +98,7 @@ Doxa publishes structured models of facts, disagreement, and framing, continuous
 - **Styling:** Tailwind CSS
 - **UI primitives:** [shadcn/ui](https://ui.shadcn.com/) under `components/ui/`
 - **UI motion:** [Motion Primitives](https://motion-primitives.com) (`motion` + copy-paste components under `components/motion-primitives/`) — prefer these for React animations the same way we prefer shadcn for primitives
+- **Agent UI tooling:** Official [shadcn skill](https://ui.shadcn.com/docs/skills) in `.agents/skills/shadcn` (Cursor entry under `.cursor/skills/shadcn`) plus the [shadcn MCP](https://ui.shadcn.com/docs/mcp) in `.cursor/mcp.json`. Project overlays live in `.cursor/rules/shadcn.mdc`. Refresh with `npm run ui:skills:update`; inspect config with `npm run ui:info`.
 
 ## Design System (UI Aesthetic)
 
@@ -116,12 +117,12 @@ Tokens and component classes live in `app/globals.css` and `tailwind.config.ts`.
 
 ## Navigation & Key Pages
 
-**Account required:** every route except the landing page and the auth flow requires a session. Middleware redirects signed-out visitors to `/welcome` (preserving the attempted path in `?redirect=`) and answers `/api/*` with `401` JSON.
+**Account required:** every route except the landing page and the auth flow requires a session. Middleware redirects signed-out visitors to `/` (preserving the attempted path in `?redirect=`) and answers `/api/*` with `401` JSON. Signed-in visitors hitting `/` are sent to `/home`.
 
-- **Landing (`/welcome`):** Marble hero with the dark DOXA logo and the sign-up / log-in entry points. No app chrome, forced light theme. Signed-in visitors are bounced to the app.
-- **Login (`/login`):** Sign-in (email/password + GitHub OAuth). Links to sign-up and forgot-password.
-- **Sign up / auth routes:** `/auth/sign-up`, `/auth/callback`, `/auth/confirm`, `/auth/forgot-password`, `/auth/update-password`, `/auth/error`.
-- **Home (`/`):** Search-first app home (signed in) — brand, headline, search (`SpotlightBorder`), trending controversies from `graph_controversies`, featured topic hubs (density bar + `graph_topic_links`), how-it-works.
+- **Landing (`/`):** Marble hero with the dark DOXA logo and the sign-up / log-in entry points. No app chrome, forced light theme. Shares a persistent `(marble)` layout with login/auth so the stone and statue stay mounted across those navigations. The old `/welcome` URL permanently redirects here.
+- **Login (`/login`):** Sign-in (email/password + social OAuth) on the same marble scene, in a frosted `glass-panel` card. Links to sign-up and forgot-password.
+- **Sign up / auth routes:** `/auth/sign-up`, `/auth/callback`, `/auth/confirm`, `/auth/forgot-password`, `/auth/update-password`, `/auth/error` — content columns under the shared marble layout and the forced light theme.
+- **Home (`/home`):** Signed-in explore home — brand, headline, search (`SpotlightBorder`), trending controversies from `graph_controversies`, featured topic hubs (density bar + `graph_topic_links`), how-it-works.
 - **Search (`/search?q=`):** Controversies first, then published topics.
 - **Controversy (`/c/[uid]`):** Primary product page — question, shared/clash/disputes, viewpoint columns, evidence sheet, assessments (labeled Analyzed), related debates, feedback.
 - **Topic hub (`/topics/[slug]`):** Core facts + linked controversies (only meaningful when links exist). Nested: `/topics/[slug]/c/[uid]`.
@@ -228,7 +229,7 @@ For database schema, data dictionary, and implementation status of the topic lif
 
 The following are out of scope for the current phase and should be tackled later. Document here so they are not forgotten.
 
-- **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to the `/welcome` landing page. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages are wrapped with the Doxa Panel/layout for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
+- **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to the landing page at `/`. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages share the landing page's marble scene (`AuthScene` + `glass-panel`) for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
 - **Poll backend:** Real poll questions and answers in the database; persistence and participation (e.g. sign-in to participate).
 - **Trending data:** The home page shows KEEP stories from the pipeline (ingest → relevance_gate). Future: traffic, multi-outlet coverage, or curated lists.
 - **Search API:** Wire the search bar to a backend that searches topics by query (e.g. by headline/topic).

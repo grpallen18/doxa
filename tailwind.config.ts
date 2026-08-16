@@ -179,7 +179,7 @@ const config: Config = {
   				'95.8333%': { maskPosition: '0 95.848%', WebkitMaskPosition: '0 95.848%' },
   				'100%': { maskPosition: '0 100%', WebkitMaskPosition: '0 100%' },
   			},
-  			'panel-fade-in': {
+  			'scene-fade-in': {
   				'0%': {
   					opacity: '0'
   				},
@@ -246,9 +246,9 @@ const config: Config = {
 		},
 		animation: {
 			'doxa-letter': 'doxa-letter 1.2s ease-out forwards',
-			'doxa-logo-ltr': 'doxa-logo-ltr 1.8s ease-out both',
-			'statue-btt': 'statue-btt 2.4s linear both',
-			'panel-fade-in': 'panel-fade-in 2.5s ease-out forwards',
+			'doxa-logo-ltr': 'doxa-logo-ltr var(--scene-reveal-duration) ease-out both',
+			'statue-btt': 'statue-btt var(--scene-reveal-duration) linear both',
+			'scene-fade-in': 'scene-fade-in var(--scene-reveal-duration) ease-out both',
 			'accordion-down': 'accordion-down 0.3s ease-out',
 			'accordion-up': 'accordion-up 0.3s ease-out',
 			'collapsible-down': 'collapsible-down 0.3s ease-out',

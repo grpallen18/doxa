@@ -12,6 +12,12 @@ const nextConfig = {
         destination: '/admin',
         permanent: false,
       },
+      {
+        // The landing page moved to the root URL; keep old links working.
+        source: '/welcome',
+        destination: '/',
+        permanent: true,
+      },
     ]
   },
   async headers() {

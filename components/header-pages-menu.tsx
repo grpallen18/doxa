@@ -22,6 +22,7 @@ import {
   headerChromeIconButtonClassName,
 } from '@/lib/header-chrome-styles'
 import { useUserRole } from '@/hooks/use-user-role'
+import { HOME_PATH } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 type NavLink = {
@@ -32,7 +33,7 @@ type NavLink = {
 }
 
 const exploreLinks: NavLink[] = [
-  { label: 'Explore', href: '/' },
+  { label: 'Explore', href: HOME_PATH },
   { label: 'Search', href: '/search', matchPrefix: true },
   { label: 'About', href: '/about' },
   { label: 'Profile', href: '/profile' },
@@ -51,9 +52,9 @@ function isActive(pathname: string, link: NavLink): boolean {
   if (link.href === '/admin') {
     return pathname === '/admin'
   }
-  if (link.href === '/') {
+  if (link.href === HOME_PATH) {
     return (
-      pathname === '/' ||
+      pathname === HOME_PATH ||
       pathname.startsWith('/c/') ||
       pathname.startsWith('/topics/') ||
       pathname.startsWith('/entities/') ||

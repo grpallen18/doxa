@@ -6,14 +6,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
+import { HOME_PATH } from '@/lib/constants'
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+  AuthCardHeading,
+  authLinkClassName,
+  glassFieldClassName,
+} from '@/components/auth/auth-scene'
+import { GlassSubmitButton } from '@/components/landing/glass-button'
 import {
   Form,
   FormControl,
@@ -38,7 +37,7 @@ const signUpSchema = z
 
 type SignUpValues = z.infer<typeof signUpSchema>
 
-export function SignUpForm({ redirectTo = '/' }: { redirectTo?: string }) {
+export function SignUpForm({ redirectTo = HOME_PATH }: { redirectTo?: string }) {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -66,90 +65,108 @@ export function SignUpForm({ redirectTo = '/' }: { redirectTo?: string }) {
   }
 
   return (
-    <Card className="w-full max-w-sm border-border bg-card">
-      <CardHeader>
-        <CardTitle className="text-2xl">Create an account</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                {error}
-              </p>
+    <div className="space-y-5">
+      <AuthCardHeading title="Create an account" />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {error && (
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+          {message && (
+            <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success-foreground" role="status">
+              {message}
+            </p>
+          )}
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Your name"
+                    className={glassFieldClassName}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-            {message && (
-              <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success-foreground" role="status">
-                {message}
-              </p>
+          />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className={glassFieldClassName}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input type="text" autoComplete="name" placeholder="Your name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" autoComplete="email" placeholder="you@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm password</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? 'Creating account…' : 'Sign up'}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-      <CardFooter className="flex flex-col gap-2 text-center text-sm text-muted-foreground">
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    className={glassFieldClassName}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Confirm password</FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    className={glassFieldClassName}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <GlassSubmitButton className="!mt-5 w-full" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? 'Creating account…' : 'Sign up'}
+          </GlassSubmitButton>
+        </form>
+      </Form>
+      <p className="border-t border-[rgba(36,31,26,0.14)] pt-4 text-center text-sm text-muted">
         Already have an account?{' '}
         <Link
-          href={redirectTo === '/' ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`}
-          className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+          href={redirectTo === HOME_PATH ? '/login' : `/login?redirect=${encodeURIComponent(redirectTo)}`}
+          className={authLinkClassName}
         >
-          Sign in
+          Log in
         </Link>
-      </CardFooter>
-    </Card>
+      </p>
+    </div>
   )
 }

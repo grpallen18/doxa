@@ -1,7 +1,9 @@
 /** Consumer explore route helpers (controversy-first IA). */
 
+import { HOME_PATH } from '@/lib/constants'
+
 export function homePath() {
-  return '/'
+  return HOME_PATH
 }
 
 export function searchPath(q?: string) {

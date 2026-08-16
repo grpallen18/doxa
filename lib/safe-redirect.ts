@@ -4,7 +4,10 @@
  * used to bounce users from a real Doxa login link to an attacker's page.
  */
 
-export const DEFAULT_REDIRECT_PATH = '/'
+import { HOME_PATH } from '@/lib/constants'
+
+/** Post-auth fallback when no `?redirect=` is present — the signed-in explore home. */
+export const DEFAULT_REDIRECT_PATH = HOME_PATH
 
 const MAX_REDIRECT_LENGTH = 512
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/

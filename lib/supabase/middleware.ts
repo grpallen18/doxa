@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getUserRole } from '@/lib/auth-utils'
-import { LANDING_PATH } from '@/lib/constants'
+import { HOME_PATH, LANDING_PATH } from '@/lib/constants'
 import { sanitizeRedirectPath } from '@/lib/safe-redirect'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -91,12 +91,23 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isApiRequest = pathname.startsWith('/api/')
 
+  // Landing is marketing-only; signed-in visitors belong on the explore home.
+  if (user && pathname === LANDING_PATH) {
+    let redirectTo = sanitizeRedirectPath(request.nextUrl.searchParams.get('redirect'))
+    // An explicit `?redirect=/` would bounce forever — map it to the app home.
+    if (redirectTo === LANDING_PATH) redirectTo = HOME_PATH
+    return withSessionCookies(
+      NextResponse.redirect(new URL(redirectTo, request.url)),
+      supabaseResponse
+    )
+  }
+
   const isSignedInDeadEnd =
-    pathname === LANDING_PATH ||
-    (isAuthRoute(pathname) && !AUTH_ROUTES_ALLOWED_WITH_SESSION.has(pathname))
+    isAuthRoute(pathname) && !AUTH_ROUTES_ALLOWED_WITH_SESSION.has(pathname)
 
   if (user && isSignedInDeadEnd) {
-    const redirectTo = sanitizeRedirectPath(request.nextUrl.searchParams.get('redirect'))
+    let redirectTo = sanitizeRedirectPath(request.nextUrl.searchParams.get('redirect'))
+    if (redirectTo === LANDING_PATH) redirectTo = HOME_PATH
     return withSessionCookies(
       NextResponse.redirect(new URL(redirectTo, request.url)),
       supabaseResponse
@@ -121,7 +132,7 @@ export async function updateSession(request: NextRequest) {
     redirectUrl.pathname = LANDING_PATH
     redirectUrl.search = ''
     const attempted = `${pathname}${request.nextUrl.search}`
-    if (attempted !== '/') {
+    if (attempted !== LANDING_PATH) {
       redirectUrl.searchParams.set('redirect', attempted)
     }
     return withSessionCookies(NextResponse.redirect(redirectUrl), supabaseResponse)
@@ -143,7 +154,7 @@ export async function updateSession(request: NextRequest) {
         )
       }
       return withSessionCookies(
-        NextResponse.redirect(new URL('/', request.url)),
+        NextResponse.redirect(new URL(HOME_PATH, request.url)),
         supabaseResponse
       )
     }

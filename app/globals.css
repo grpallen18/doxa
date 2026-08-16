@@ -122,6 +122,10 @@
   /* Interactive */
   --interactive-duration: 200ms;
 
+  /* One reveal length for every element that fades in over the marble scene —
+     logo, statue, landing CTAs, auth card — so the signed-out pages settle together. */
+  --scene-reveal-duration: 1.75s;
+
   /* Graph visualization */
   --graph-node-stable: #a68b6d;
   --graph-node-under-review: #7eb8b3;
@@ -742,6 +746,57 @@ body {
 
     .glass-button:hover::before {
       animation: none;
+    }
+  }
+
+  /*
+    Frosted card the auth forms sit in. Same material as the hero CTA — literal
+    pale fill, blurred backdrop, chrome rim — but held still: nothing here is a
+    control, so it gets no hover state or sheen.
+
+    One fade, on the panel itself. Translucency lives in the fill alpha, so the
+    entrance can end fully opaque rather than leaving the form washed out, and
+    fill, rim and content can never drift out of sync.
+  */
+  .glass-panel {
+    @apply relative;
+    border-radius: 1.75rem;
+    background-color: rgba(252, 251, 249, 0.48);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    box-shadow: var(--glass-shadow);
+    animation: glass-panel-fade-in var(--scene-reveal-duration) ease-out both;
+  }
+
+  @keyframes glass-panel-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
+    .glass-panel::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      border-radius: inherit;
+      pointer-events: none;
+      /* Thinner and dimmer than the CTA rim: at card scale the full chrome
+         gradient reads as a hard metal frame around the form. */
+      opacity: 0.5;
+      background: var(--glass-rim);
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      mask-composite: exclude;
     }
   }
 

@@ -29,7 +29,9 @@
     "test:e2e": "playwright test",
     "test:neo-graph": "tsx scripts/test-neo-graphology-adapter.ts",
     "test:safe-redirect": "tsx scripts/test-safe-redirect.ts",
-    "test:story-step-runs": "tsx scripts/test-story-step-runs.ts"
+    "test:story-step-runs": "tsx scripts/test-story-step-runs.ts",
+    "ui:info": "shadcn info",
+    "ui:skills:update": "npx skills add shadcn/ui"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

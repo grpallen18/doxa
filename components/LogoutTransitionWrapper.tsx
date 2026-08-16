@@ -18,7 +18,13 @@ export function useLogoutTransition() {
   return useContext(LogoutTransitionContext)
 }
 
-export function LogoutTransitionWrapper({ children }: { children: React.ReactNode }) {
+export function LogoutTransitionWrapper({
+  children,
+  signedIn = false,
+}: {
+  children: React.ReactNode
+  signedIn?: boolean
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -41,12 +47,19 @@ export function LogoutTransitionWrapper({ children }: { children: React.ReactNod
     return () => clearTimeout(t)
   }, [isLoggingOut, router])
 
-  // Once we've left the app, stop hiding content so the destination page (and its fade-in) is visible
+  // Landing is a real route change from /home, so path alone ends the fade.
   useEffect(() => {
     if (pathname === LANDING_PATH || pathname === '/login') {
       setIsLoggingOut(false)
     }
   }, [pathname])
+
+  // Session refresh also clears the overlay if the path check races.
+  useEffect(() => {
+    if (!signedIn) {
+      setIsLoggingOut(false)
+    }
+  }, [signedIn])
 
   return (
     <LogoutTransitionContext.Provider value={{ startLogout }}>
