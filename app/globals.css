@@ -10,26 +10,26 @@
 
 :root {
   /* Surfaces — background = page canvas; surface* = raised / recessed depth */
-  --background: #ffffff;
+  --background: #f7f0e4;
   --foreground: #1a1712;
-  --surface: #faf9f7;
-  --surface-soft: #ffffff;
-  --surface-section: #f5f3f0;
+  --surface: #fefbf1;
+  --surface-soft: #fffdfa;
+  --surface-section: #fffdfa;
   --surface-accordion: var(--surface-section);
 
   /* Borders — admin edits --border; muted/subtle derive darker steps */
-  --border: #ebe7e2;
+  --border: #dbdbdb;
   --border-muted: color-mix(in srgb, var(--border) 70%, var(--foreground));
   --border-subtle: color-mix(in srgb, var(--border) 45%, var(--foreground));
   --input: var(--border);
 
   /* Text: muted = secondary; inverted = on filled / tinted chrome */
-  --muted: #3f3629;
+  --muted: #5c5957;
   --muted-bg: var(--surface);
   --inverted: #ffffff;
 
   /* Brand accents — shadcn primary/ring alias these */
-  --accent-primary: #2d5a4a;
+  --accent-primary: #775909;
   --accent-primary-foreground: #faf9f7;
   --accent-primary-soft: color-mix(in srgb, var(--accent-primary) 18%, transparent);
   --provenance-highlight: color-mix(in srgb, var(--accent-primary) 10%, white);
@@ -182,11 +182,11 @@
 
 .dark {
   /* Surfaces */
-  --background: #151515;
-  --foreground: #e8e6e3;
-  --surface: #1e1e1e;
-  --surface-soft: #2a2a2a;
-  --surface-section: #252525;
+  --background: #141414;
+  --foreground: #ffffff;
+  --surface: #1f1f1f;
+  --surface-soft: #292929;
+  --surface-section: #141414;
   --surface-accordion: #1a1a1a;
 
   /* Borders — admin edits --border; muted/subtle derive stronger steps */
@@ -196,22 +196,22 @@
   --input: var(--border);
 
   /* Text */
-  --muted: #b4b4b4;
+  --muted: #dedede;
   --muted-bg: var(--surface-soft);
   --inverted: #000000;
 
   /* Accents (off-whites for monochromatic dark mode) */
-  --accent-primary: #f0edea;
+  --accent-primary: #e1c993;
   --accent-primary-foreground: #1a1712;
   --accent-primary-soft: color-mix(in srgb, var(--accent-primary) 20%, transparent);
   --provenance-highlight: color-mix(in srgb, var(--link-accent) 12%, transparent);
   --provenance-highlight-mark: color-mix(in srgb, var(--link-accent) 18%, transparent);
-  --accent-secondary: #e0ddd9;
+  --accent-secondary: #1f1f1f;
   --accent-secondary-foreground: #1a1712;
   --accent-secondary-soft: color-mix(in srgb, var(--accent-secondary) 25%, transparent);
   --accent-secondary-hover: color-mix(in srgb, var(--accent-secondary) 90%, var(--surface));
-  --accent-tertiary: #b8c4d4;
-  --accent-tertiary-foreground: #1a1712;
+  --accent-tertiary: #ededed;
+  --accent-tertiary-foreground: #1b1409;
   --accent-tertiary-soft: color-mix(in srgb, var(--accent-tertiary) 25%, transparent);
   --accent-tertiary-hover: color-mix(in srgb, var(--accent-tertiary) 90%, var(--surface));
 
@@ -220,9 +220,9 @@
   --record-section-header-hover: var(--record-section-header-bg);
   --record-section-header-border: var(--accent-secondary);
 
-  /* Active link (editable) — green defaults in dark */
-  --link-accent: #008000;
-  --link-accent-hover: #00c400;
+  /* Active link (editable) */
+  --link-accent: #febe34;
+  --link-accent-hover: #ffc766;
   --link-underline-idle: var(--link-accent);
   --link-underline-active: var(--link-accent-hover);
   --link-underline-idle-opacity: 0.4;
@@ -280,7 +280,7 @@
   --primary-foreground: var(--accent-primary-foreground);
   --secondary: var(--surface-soft);
   --secondary-foreground: var(--foreground);
-  --destructive: #7f1d1d;
+  --destructive: #ff0000;
   --destructive-foreground: #fafafa;
   --ring: var(--accent-primary);
   --chart-1: var(--accent-primary);
@@ -288,7 +288,7 @@
   --chart-3: #a8a8a8;
   --chart-4: #7a7a7a;
   --chart-5: #f87171;
-  --success: #166534;
+  --success: #00ff62;
   --success-foreground: #dcfce7;
   --sidebar-background: 0 0% 12%;
   --sidebar-foreground: 30 10% 92%;
@@ -436,6 +436,26 @@ body {
     mask-image: linear-gradient(to right, #000 40%, transparent 70%);
     -webkit-mask-size: 250% 100%;
     mask-size: 250% 100%;
+  }
+
+  /*
+    Painted width of the statue, which is not its box. The figure is
+    object-contain anchored bottom-right inside a box 58% of the scene wide, so
+    on a wide monitor most of that box is empty space to the left of the art —
+    content positioned off the box would look stranded mid-screen.
+
+    The artwork is 0.583:1 and its box runs the full height of the scene less
+    0.5rem (top-10 against -bottom-8), so object-contain is height-driven at
+    every size we support and the art is that height times its ratio. min()
+    covers the degenerate very-wide-and-short case where the box constrains
+    width instead. The percentage resolves against the scene, so only use this
+    in a width on a direct child of it, where that reference matches the box's.
+
+    Regenerate alongside the artwork: a new figure with a different ratio needs
+    this constant updated or the column will drift toward the statue.
+  */
+  .marble-scene {
+    --statue-art-width: min(58%, calc(0.583 * (100svh - 0.5rem)));
   }
 
   /*
@@ -1117,7 +1137,7 @@ body {
     background: radial-gradient(circle at 30% 20%, #fff7e0 0, var(--accent-primary) 55%, var(--muted) 100%);
     box-shadow:
       0 0 0 3px var(--accent-primary-soft),
-      0 0 8px rgba(45, 90, 74, 0.35);
+      0 0 8px color-mix(in srgb, var(--accent-primary) 35%, transparent);
   }
 
   .knob {

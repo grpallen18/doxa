@@ -12,8 +12,14 @@
  */
 export const MARBLE_CONTENT_MIN_HEIGHT_CLASS = 'min-h-[35rem]'
 
+/**
+ * `mx-auto` centres the column in the space the scene gives it, which from lg
+ * up is the marble left of the statue. Capping at the logo's own maximum keeps
+ * the brand, cards and CTAs sharing one left edge instead of each centring on
+ * its own width.
+ */
 export const marbleColumnClassName =
-  'flex w-full flex-col items-center py-10 text-center lg:max-w-[48%] lg:items-start lg:text-left'
+  'mx-auto flex w-full max-w-[34rem] flex-col items-center py-10 text-center lg:items-start lg:text-left'
 
 export const marbleContentSlotClassName = `mt-8 flex ${MARBLE_CONTENT_MIN_HEIGHT_CLASS} w-full flex-col items-center lg:items-start`
 

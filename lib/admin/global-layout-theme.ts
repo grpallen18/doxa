@@ -1,7 +1,13 @@
 import { LANDING_PATH } from '@/lib/constants'
 
 export type ThemeMode = 'light' | 'dark'
+export type ThemePreferenceMode = ThemeMode | 'system'
+export type ThemeColorsByMode = Record<ThemeMode, Record<string, string>>
 
+export const THEME_STYLE_ELEMENT_IDS: Record<ThemeMode, string> = {
+  light: 'doxa-theme-vars-light',
+  dark: 'doxa-theme-vars-dark',
+}
 export type GlobalLayoutColorVar = {
   key: string
   label: string
@@ -18,43 +24,43 @@ export const GLOBAL_LAYOUT_COLOR_VARS: GlobalLayoutColorVar[] = [
     key: '--background',
     label: 'Background',
     group: 'Surfaces',
-    defaults: { light: '#ffffff', dark: '#151515' },
+    defaults: { light: '#f7f0e4', dark: '#141414' },
   },
   {
     key: '--surface',
     label: 'Surface',
     group: 'Surfaces',
-    defaults: { light: '#faf9f7', dark: '#1e1e1e' },
+    defaults: { light: '#fefbf1', dark: '#1f1f1f' },
   },
   {
     key: '--surface-soft',
     label: 'Surface soft',
     group: 'Surfaces',
-    defaults: { light: '#ffffff', dark: '#2a2a2a' },
+    defaults: { light: '#fffdfa', dark: '#292929' },
   },
   {
     key: '--surface-section',
     label: 'Surface section',
     group: 'Surfaces',
-    defaults: { light: '#f5f3f0', dark: '#252525' },
+    defaults: { light: '#fffdfa', dark: '#141414' },
   },
   {
     key: '--border',
     label: 'Border',
     group: 'Borders',
-    defaults: { light: '#ebe7e2', dark: '#333333' },
+    defaults: { light: '#dbdbdb', dark: '#333333' },
   },
   {
     key: '--foreground',
     label: 'Foreground',
     group: 'Text',
-    defaults: { light: '#1a1712', dark: '#e8e6e3' },
+    defaults: { light: '#1a1712', dark: '#ffffff' },
   },
   {
     key: '--muted',
     label: 'Muted text',
     group: 'Text',
-    defaults: { light: '#3f3629', dark: '#b4b4b4' },
+    defaults: { light: '#5c5957', dark: '#dedede' },
   },
   {
     key: '--inverted',
@@ -66,7 +72,7 @@ export const GLOBAL_LAYOUT_COLOR_VARS: GlobalLayoutColorVar[] = [
     key: '--accent-primary',
     label: 'Accent primary',
     group: 'Accents',
-    defaults: { light: '#2d5a4a', dark: '#f0edea' },
+    defaults: { light: '#775909', dark: '#e1c993' },
   },
   {
     key: '--accent-primary-foreground',
@@ -78,7 +84,7 @@ export const GLOBAL_LAYOUT_COLOR_VARS: GlobalLayoutColorVar[] = [
     key: '--accent-secondary',
     label: 'Accent secondary',
     group: 'Accents',
-    defaults: { light: '#a68b6d', dark: '#e0ddd9' },
+    defaults: { light: '#a68b6d', dark: '#1f1f1f' },
   },
   {
     key: '--accent-secondary-foreground',
@@ -90,19 +96,19 @@ export const GLOBAL_LAYOUT_COLOR_VARS: GlobalLayoutColorVar[] = [
     key: '--accent-tertiary',
     label: 'Accent tertiary',
     group: 'Accents',
-    defaults: { light: '#3d5a80', dark: '#b8c4d4' },
+    defaults: { light: '#3d5a80', dark: '#ededed' },
   },
   {
     key: '--accent-tertiary-foreground',
     label: 'Accent tertiary foreground',
     group: 'Accents',
-    defaults: { light: '#faf9f7', dark: '#1a1712' },
+    defaults: { light: '#faf9f7', dark: '#1b1409' },
   },
   {
     key: '--destructive',
     label: 'Destructive',
     group: 'Status',
-    defaults: { light: '#dc2626', dark: '#7f1d1d' },
+    defaults: { light: '#dc2626', dark: '#ff0000' },
   },
   {
     key: '--destructive-foreground',
@@ -114,7 +120,7 @@ export const GLOBAL_LAYOUT_COLOR_VARS: GlobalLayoutColorVar[] = [
     key: '--success',
     label: 'Success',
     group: 'Status',
-    defaults: { light: '#16a34a', dark: '#166534' },
+    defaults: { light: '#16a34a', dark: '#00ff62' },
   },
   {
     key: '--success-foreground',
@@ -126,13 +132,13 @@ export const GLOBAL_LAYOUT_COLOR_VARS: GlobalLayoutColorVar[] = [
     key: '--link-accent',
     label: 'Link',
     group: 'Links',
-    defaults: { light: '#0000ee', dark: '#008000' },
+    defaults: { light: '#0000ee', dark: '#febe34' },
   },
   {
     key: '--link-accent-hover',
     label: 'Link hover',
     group: 'Links',
-    defaults: { light: '#3358f5', dark: '#00c400' },
+    defaults: { light: '#3358f5', dark: '#ffc766' },
   },
 ]
 
@@ -177,12 +183,6 @@ const LEGACY_COLOR_KEY_MAP: Record<string, string> = {
   '--input': '--border',
   '--muted-bg': '--surface',
   '--surface-accordion': '--surface-section',
-}
-
-const STORAGE_PREFIX = 'doxa-theme-colors'
-
-export function themeColorsStorageKey(mode: ThemeMode): string {
-  return `${STORAGE_PREFIX}-${mode}`
 }
 
 function allowedColorKeys(): Set<string> {
@@ -237,30 +237,6 @@ export function migrateLegacyThemeColors(
   return out
 }
 
-export function loadThemeColorOverrides(mode: ThemeMode): Record<string, string> {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = localStorage.getItem(themeColorsStorageKey(mode))
-    if (!raw) return {}
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object') return {}
-    return migrateLegacyThemeColors(parsed as Record<string, unknown>, mode)
-  } catch {
-    return {}
-  }
-}
-
-export function saveThemeColorOverrides(
-  mode: ThemeMode,
-  overrides: Record<string, string>
-): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(
-    themeColorsStorageKey(mode),
-    JSON.stringify(migrateLegacyThemeColors(overrides, mode))
-  )
-}
-
 export function isHexColor(value: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(value.trim())
 }
@@ -282,30 +258,31 @@ export function toPickerHex(value: string, fallback: string): string {
   return isHexColor(fallback) ? fallback.toLowerCase() : '#000000'
 }
 
-export function applyThemeColorOverrides(
+export function buildThemeCssRule(
   mode: ThemeMode,
-  overrides: Record<string, string> = loadThemeColorOverrides(mode)
-): void {
-  if (typeof document === 'undefined') return
-  const root = document.documentElement
-  for (const entry of GLOBAL_LAYOUT_COLOR_VARS) {
-    root.style.removeProperty(entry.key)
-  }
-  for (const key of RETIRED_INLINE_COLOR_KEYS) {
-    root.style.removeProperty(key)
-  }
-  const allowed = allowedColorKeys()
-  const migrated = migrateLegacyThemeColors(overrides, mode)
-  for (const [key, value] of Object.entries(migrated)) {
-    if (!allowed.has(key)) continue
-    if (isHexColor(value)) root.style.setProperty(key, value.toLowerCase())
-  }
+  colors: Record<string, unknown>
+): string {
+  const normalized = normalizeThemeColors(colors, mode)
+  const selector = mode === 'dark' ? '.dark' : ':root'
+  const declarations = GLOBAL_LAYOUT_COLOR_VARS.map(
+    ({ key }) => `${key}:${normalized[key]};`
+  ).join('')
+  return `${selector}{${declarations}}`
 }
 
-export function clearThemeColorOverrides(mode: ThemeMode): void {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem(themeColorsStorageKey(mode))
-  applyThemeColorOverrides(mode, {})
+export function updateThemeStyleElement(
+  mode: ThemeMode,
+  colors: Record<string, unknown>
+): void {
+  if (typeof document === 'undefined') return
+  const style = document.getElementById(THEME_STYLE_ELEMENT_IDS[mode])
+  if (style) style.textContent = buildThemeCssRule(mode, colors)
+  for (const entry of GLOBAL_LAYOUT_COLOR_VARS) {
+    document.documentElement.style.removeProperty(entry.key)
+  }
+  for (const key of RETIRED_INLINE_COLOR_KEYS) {
+    document.documentElement.style.removeProperty(key)
+  }
 }
 
 /**
@@ -327,17 +304,13 @@ export function shouldForceLightTheme(pathname: string, _signedIn = false): bool
 export const SIGNED_IN_ATTRIBUTE = 'data-signed-in'
 
 /**
- * Blocking `<head>` script: light/dark class + localStorage color overrides
- * before first paint (avoids FOUC of default CSS variables).
+ * Blocking `<head>` script: resolve the light/dark class before first paint.
+ * Signed-in mode comes from the server; anonymous mode may use localStorage.
  */
-export function getThemeBootScript(): string {
-  const allowedKeys = JSON.stringify(
-    GLOBAL_LAYOUT_COLOR_VARS.map((entry) => entry.key)
-  )
-  const retiredKeys = JSON.stringify([...RETIRED_INLINE_COLOR_KEYS])
-  const legacyMap = JSON.stringify(LEGACY_COLOR_KEY_MAP)
-  const colorsPrefix = JSON.stringify(STORAGE_PREFIX)
-
+export function getThemeBootScript(
+  preferenceMode: ThemePreferenceMode = 'system',
+  signedIn = false
+): string {
   return `(function(){
   try {
     var root = document.documentElement;
@@ -350,111 +323,29 @@ export function getThemeBootScript(): string {
     if (forceLight) {
       root.classList.remove('dark');
     } else {
-      var stored = localStorage.getItem('doxa-theme');
-      if (stored === 'dark') {
+      var preference = ${signedIn ? JSON.stringify(preferenceMode) : "localStorage.getItem('doxa-theme') || 'system'"};
+      if (preference === 'dark') {
         root.classList.add('dark');
         mode = 'dark';
-      } else if (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      } else if (preference !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         root.classList.add('dark');
         mode = 'dark';
       } else {
         root.classList.remove('dark');
       }
     }
-
-    var allowed = ${allowedKeys};
-    var retired = ${retiredKeys};
-    var legacyMap = ${legacyMap};
-    var allowedSet = Object.create(null);
-    for (var i = 0; i < allowed.length; i++) allowedSet[allowed[i]] = true;
-
-    for (var r = 0; r < retired.length; r++) root.style.removeProperty(retired[r]);
-    for (var a = 0; a < allowed.length; a++) root.style.removeProperty(allowed[a]);
-
-    var raw = localStorage.getItem(${colorsPrefix} + '-' + mode);
-    if (!raw) return;
-    var parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return;
-
-    var hex = /^#[0-9a-fA-F]{6}$/;
-    var out = Object.create(null);
-    for (var key in parsed) {
-      if (!Object.prototype.hasOwnProperty.call(parsed, key)) continue;
-      var val = parsed[key];
-      if (typeof val === 'string' && hex.test(val.trim()) && allowedSet[key]) {
-        out[key] = val.trim().toLowerCase();
-      }
-    }
-    for (var legacy in legacyMap) {
-      if (!Object.prototype.hasOwnProperty.call(legacyMap, legacy)) continue;
-      var target = legacyMap[legacy];
-      if (out[target]) continue;
-      var lv = parsed[legacy];
-      if (typeof lv === 'string' && hex.test(lv.trim()) && allowedSet[target]) {
-        out[target] = lv.trim().toLowerCase();
-      }
-    }
-    if (!out['--link-accent']) {
-      var linkKey = mode === 'dark' ? '--link-default-green' : '--link-default-blue';
-      var linkVal = parsed[linkKey];
-      if (typeof linkVal === 'string' && hex.test(linkVal.trim())) {
-        out['--link-accent'] = linkVal.trim().toLowerCase();
-      }
-    }
-    if (!out['--link-accent-hover']) {
-      var linkHoverKey = mode === 'dark' ? '--link-default-green-hover' : '--link-default-blue-hover';
-      var linkHoverVal = parsed[linkHoverKey];
-      if (typeof linkHoverVal === 'string' && hex.test(linkHoverVal.trim())) {
-        out['--link-accent-hover'] = linkHoverVal.trim().toLowerCase();
-      }
-    }
-    for (var applyKey in out) {
-      if (Object.prototype.hasOwnProperty.call(out, applyKey)) {
-        root.style.setProperty(applyKey, out[applyKey]);
-      }
-    }
+    root.setAttribute('data-theme-mode', mode);
+    localStorage.removeItem('doxa-theme-colors-light');
+    localStorage.removeItem('doxa-theme-colors-dark');
+    localStorage.removeItem('doxa-selected-theme-preset-light');
+    localStorage.removeItem('doxa-selected-theme-preset-dark');
   } catch (e) {}
 })();`
 }
 
-const SELECTED_PRESET_PREFIX = 'doxa-selected-theme-preset'
-
 export type ThemePresetSelection = {
   id: string
   name: string
-}
-
-export function selectedThemePresetStorageKey(mode: ThemeMode): string {
-  return `${SELECTED_PRESET_PREFIX}-${mode}`
-}
-
-export function loadSelectedThemePreset(mode: ThemeMode): ThemePresetSelection | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(selectedThemePresetStorageKey(mode))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object') return null
-    const id = (parsed as { id?: unknown }).id
-    const name = (parsed as { name?: unknown }).name
-    if (typeof id !== 'string' || typeof name !== 'string') return null
-    return { id, name }
-  } catch {
-    return null
-  }
-}
-
-export function saveSelectedThemePreset(
-  mode: ThemeMode,
-  selection: ThemePresetSelection | null
-): void {
-  if (typeof window === 'undefined') return
-  const key = selectedThemePresetStorageKey(mode)
-  if (!selection) {
-    localStorage.removeItem(key)
-    return
-  }
-  localStorage.setItem(key, JSON.stringify(selection))
 }
 
 export function normalizeThemeColors(
@@ -546,21 +437,4 @@ export function mapThemePresetRow(row: {
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
-}
-
-/**
- * Persist a preset for its mode, switch light/dark if needed, then apply colors.
- * Same path as the admin “Load theme” action.
- */
-export function applyThemePreset(
-  preset: Pick<ThemePresetRecord, 'id' | 'name' | 'mode' | 'colors'>,
-  setTheme?: (mode: ThemeMode) => void
-): ThemePresetSelection {
-  const selection = { id: preset.id, name: preset.name }
-  // Persist colors for this mode first so ThemeProvider picks them up on switch.
-  saveThemeColorOverrides(preset.mode, preset.colors)
-  saveSelectedThemePreset(preset.mode, selection)
-  setTheme?.(preset.mode)
-  applyThemeColorOverrides(preset.mode, preset.colors)
-  return selection
 }

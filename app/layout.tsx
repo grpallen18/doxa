@@ -9,8 +9,14 @@ import {
 } from '@/components/scroll-restoration'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { Toaster } from '@/components/ui/sonner'
-import { getThemeBootScript, SIGNED_IN_ATTRIBUTE } from '@/lib/admin/global-layout-theme'
+import {
+  buildThemeCssRule,
+  getThemeBootScript,
+  SIGNED_IN_ATTRIBUTE,
+  THEME_STYLE_ELEMENT_IDS,
+} from '@/lib/admin/global-layout-theme'
 import { appFont } from '@/lib/fonts'
+import { getServerThemeState } from '@/lib/server-theme'
 import { getCurrentUser } from '@/lib/supabase/current-user'
 
 export const metadata: Metadata = {
@@ -27,8 +33,6 @@ export const metadata: Metadata = {
   },
 }
 
-const themeScript = getThemeBootScript()
-
 export default async function RootLayout({
   children,
 }: {
@@ -38,16 +42,36 @@ export default async function RootLayout({
     Marketing landing and auth share the `(marble)` layout. Signed-in explore
     home is `/home`. Session still drives product chrome and theme preference.
   */
-  const signedIn = Boolean(await getCurrentUser())
+  const user = await getCurrentUser()
+  const signedIn = Boolean(user)
+  const themeState = await getServerThemeState(user?.id)
+  const themeScript = getThemeBootScript(themeState.preferenceMode, signedIn)
 
   return (
     <html lang="en" {...{ [SIGNED_IN_ATTRIBUTE]: String(signedIn) }} suppressHydrationWarning>
       <head>
+        <style
+          id={THEME_STYLE_ELEMENT_IDS.light}
+          dangerouslySetInnerHTML={{
+            __html: buildThemeCssRule('light', themeState.colors.light),
+          }}
+        />
+        <style
+          id={THEME_STYLE_ELEMENT_IDS.dark}
+          dangerouslySetInnerHTML={{
+            __html: buildThemeCssRule('dark', themeState.colors.dark),
+          }}
+        />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: SCROLL_RESTORATION_BOOT_SCRIPT }} />
       </head>
       <body className={`${appFont.variable} ${appFont.className} font-sans`}>
-        <ThemeProvider signedIn={signedIn}>
+        <ThemeProvider
+          signedIn={signedIn}
+          initialPreferenceMode={themeState.preferenceMode}
+          initialColors={themeState.colors}
+          initialSelections={themeState.selections}
+        >
           <ScrollRestoration />
           <NavigationOverlayProvider>
             <LogoutTransitionWrapper signedIn={signedIn}>

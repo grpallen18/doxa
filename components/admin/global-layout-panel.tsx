@@ -21,16 +21,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from '@/components/ThemeProvider'
 import {
-  applyThemeColorOverrides,
-  applyThemePreset,
   captureCurrentThemeColors,
-  clearThemeColorOverrides,
   groupGlobalLayoutColorVars,
-  loadSelectedThemePreset,
-  loadThemeColorOverrides,
-  saveSelectedThemePreset,
-  saveThemeColorOverrides,
+  normalizeThemeColors,
   toPickerHex,
+  updateThemeStyleElement,
   isProtectedThemePresetName,
   type ThemeMode,
   type ThemePresetRecord,
@@ -65,19 +60,18 @@ export function GlobalLayoutPanel() {
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
   const groups = useMemo(() => groupGlobalLayoutColorVars(), [])
 
-  const syncFromStorage = useCallback(() => {
-    const next = loadThemeColorOverrides(activeMode)
+  const syncFromTheme = useCallback(() => {
+    const next = captureCurrentThemeColors(activeMode)
     setOverrides(next)
-    setSelected(loadSelectedThemePreset(activeMode))
-    applyThemeColorOverrides(activeMode, next)
+    setSelected(themeCtx?.selections[activeMode] ?? null)
     setColorsReady(true)
-  }, [activeMode])
+  }, [activeMode, themeCtx?.selections])
 
   useEffect(() => {
     if (!mounted) return
     setColorsReady(false)
-    syncFromStorage()
-  }, [mounted, syncFromStorage])
+    syncFromTheme()
+  }, [mounted, syncFromTheme])
 
   useEffect(() => {
     if (loadOpen) setLoadMode(activeMode)
@@ -131,15 +125,13 @@ export function GlobalLayoutPanel() {
     const hex = toPickerHex(value, fallback)
     setOverrides((prev) => {
       const next = { ...prev, [key]: hex }
-      saveThemeColorOverrides(activeMode, next)
-      applyThemeColorOverrides(activeMode, next)
+      updateThemeStyleElement(activeMode, next)
       return next
     })
   }
 
-  function applyPresetColors(mode: ThemeMode, colors: Record<string, string>) {
-    saveThemeColorOverrides(mode, colors)
-    applyThemeColorOverrides(mode, colors)
+  function previewPresetColors(mode: ThemeMode, colors: Record<string, string>) {
+    updateThemeStyleElement(mode, colors)
     if (mode === activeMode || themeCtx?.theme === mode) {
       setOverrides(colors)
       setColorsReady(true)
@@ -147,10 +139,11 @@ export function GlobalLayoutPanel() {
   }
 
   function resetToSelectedTheme() {
-    const current = loadSelectedThemePreset(activeMode)
+    const current = themeCtx?.selections[activeMode] ?? null
     if (!current) {
-      clearThemeColorOverrides(activeMode)
-      setOverrides({})
+      const defaults = normalizeThemeColors({}, activeMode)
+      updateThemeStyleElement(activeMode, defaults)
+      setOverrides(defaults)
       setSelected(null)
       showPipelineSuccess('Reset to default colors')
       return
@@ -169,16 +162,16 @@ export function GlobalLayoutPanel() {
         }
         const preset = json.data.presets.find((row) => row.id === current.id)
         if (!preset) {
-          saveSelectedThemePreset(activeMode, null)
-          clearThemeColorOverrides(activeMode)
-          setOverrides({})
+          const defaults = normalizeThemeColors({}, activeMode)
+          updateThemeStyleElement(activeMode, defaults)
+          setOverrides(defaults)
           setSelected(null)
           showPipelineError('Selected theme no longer exists; reset to defaults')
           return
         }
-        applyPresetColors(activeMode, preset.colors)
+        await themeCtx?.applyPreset(preset)
+        previewPresetColors(activeMode, preset.colors)
         setSelected({ id: preset.id, name: preset.name })
-        saveSelectedThemePreset(activeMode, { id: preset.id, name: preset.name })
         showPipelineSuccess(`Reset to “${preset.name}”`)
       } catch {
         showPipelineError('Failed to reset theme')
@@ -189,9 +182,9 @@ export function GlobalLayoutPanel() {
   async function loadPreset(preset: ThemePresetRecord) {
     setLoadingId(preset.id)
     try {
-      const selection = applyThemePreset(preset, themeCtx?.setTheme)
+      await themeCtx?.applyPreset(preset)
       setOverrides(preset.colors)
-      setSelected(selection)
+      setSelected({ id: preset.id, name: preset.name })
       setColorsReady(true)
 
       showPipelineSuccess(`Loaded “${preset.name}” (${preset.mode})`)
@@ -219,10 +212,21 @@ export function GlobalLayoutPanel() {
 
       setPresets((prev) => prev.filter((row) => row.id !== preset.id))
 
-      const selectedForMode = loadSelectedThemePreset(preset.mode)
+      const selectedForMode = themeCtx?.selections[preset.mode] ?? null
       if (selectedForMode?.id === preset.id) {
-        saveSelectedThemePreset(preset.mode, null)
-        if (preset.mode === activeMode) setSelected(null)
+        const defaultPreset = presets.find(
+          (row) =>
+            row.mode === preset.mode && isProtectedThemePresetName(row.name)
+        )
+        if (defaultPreset) {
+          await themeCtx?.applyPreset(defaultPreset)
+          if (preset.mode === activeMode) {
+            setSelected({ id: defaultPreset.id, name: defaultPreset.name })
+            setOverrides(defaultPreset.colors)
+          }
+        } else if (preset.mode === activeMode) {
+          setSelected(null)
+        }
       }
       showPipelineSuccess(`Deleted “${preset.name}”`)
     } catch {
@@ -232,10 +236,10 @@ export function GlobalLayoutPanel() {
     }
   }
 
-  function finishSave(preset: ThemePresetRecord, message: string) {
-    applyPresetColors(preset.mode, preset.colors)
+  async function finishSave(preset: ThemePresetRecord, message: string) {
+    await themeCtx?.applyPreset(preset)
+    previewPresetColors(preset.mode, preset.colors)
     const selection = { id: preset.id, name: preset.name }
-    saveSelectedThemePreset(preset.mode, selection)
     setSelected(selection)
     showPipelineSuccess(message)
     setSaveOpen(false)
@@ -265,7 +269,7 @@ export function GlobalLayoutPanel() {
     try {
       const preset = await putPresetColors(presetId)
       if (preset) {
-        finishSave(preset, `Saved “${preset.name}” (${preset.mode})`)
+        await finishSave(preset, `Saved “${preset.name}” (${preset.mode})`)
       }
     } catch {
       showPipelineError('Failed to save theme')
@@ -295,7 +299,7 @@ export function GlobalLayoutPanel() {
         }
         const preset = await putPresetColors(conflictId)
         if (preset) {
-          finishSave(preset, `Saved “${preset.name}” (${preset.mode})`)
+          await finishSave(preset, `Saved “${preset.name}” (${preset.mode})`)
         }
         return
       }
@@ -303,7 +307,10 @@ export function GlobalLayoutPanel() {
         showPipelineError(json.error?.message ?? 'Failed to save theme')
         return
       }
-      finishSave(json.data.preset, `Saved “${json.data.preset.name}” (${json.data.preset.mode})`)
+      await finishSave(
+        json.data.preset,
+        `Saved “${json.data.preset.name}” (${json.data.preset.mode})`
+      )
     } catch {
       showPipelineError('Failed to save theme')
     } finally {
@@ -477,7 +484,7 @@ export function GlobalLayoutPanel() {
             ) : (
               presets.map((preset) => {
                 const isSelected =
-                  loadSelectedThemePreset(loadMode)?.id === preset.id
+                  themeCtx?.selections[loadMode]?.id === preset.id
                 const protectedPreset = isProtectedThemePresetName(preset.name)
                 return (
                   <div

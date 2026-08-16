@@ -13,7 +13,7 @@ export function MarbleScene({
   className?: string
 }) {
   return (
-    <main className="relative isolate flex min-h-svh flex-col overflow-clip">
+    <main className="marble-scene relative isolate flex min-h-svh flex-col overflow-clip">
       <Image
         src="/landing-marble-background.jpg"
         alt=""
@@ -58,9 +58,16 @@ export function MarbleScene({
         </div>
       </div>
 
+      {/*
+        Not the app's centred max-w-content column: this one owns the marble to
+        the left of the figure and centres its content in it, so the brand keeps
+        the same relationship to the statue from a laptop to an ultrawide.
+        Below lg the figure is a faint full-width wash, so the scene is simply
+        full width there and the column centres on the viewport as before.
+      */}
       <div
         className={cn(
-          'relative mx-auto flex w-full max-w-content flex-1 flex-col justify-center px-6',
+          'relative flex w-full flex-1 flex-col justify-center px-6 lg:w-[calc(100%_-_1.25rem_-_var(--statue-art-width))]',
           className
         )}
       >

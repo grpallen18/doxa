@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 
 import { useTheme } from '@/components/ThemeProvider'
@@ -14,19 +14,9 @@ import {
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  applyThemePreset,
-  loadSelectedThemePreset,
   type ThemeMode,
   type ThemePresetRecord,
-  type ThemePresetSelection,
 } from '@/lib/admin/global-layout-theme'
-
-function readSelections(): Record<ThemeMode, ThemePresetSelection | null> {
-  return {
-    light: loadSelectedThemePreset('light'),
-    dark: loadSelectedThemePreset('dark'),
-  }
-}
 
 export function ThemePickerMenu() {
   const themeCtx = useTheme()
@@ -35,18 +25,7 @@ export function ThemePickerMenu() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fetched, setFetched] = useState(false)
-  const [selected, setSelected] = useState<Record<ThemeMode, ThemePresetSelection | null>>(
-    () => ({ light: null, dark: null })
-  )
   const [applyingId, setApplyingId] = useState<string | null>(null)
-
-  const refreshSelections = useCallback(() => {
-    setSelected(readSelections())
-  }, [])
-
-  useEffect(() => {
-    refreshSelections()
-  }, [refreshSelections])
 
   async function ensurePresets() {
     if (fetched || loading) return
@@ -64,7 +43,6 @@ export function ThemePickerMenu() {
       }
       setPresets(json.data?.presets ?? [])
       setFetched(true)
-      refreshSelections()
     } catch {
       setError('Failed to load themes')
     } finally {
@@ -72,14 +50,13 @@ export function ThemePickerMenu() {
     }
   }
 
-  function handlePresetSelect(preset: ThemePresetRecord) {
+  async function handlePresetSelect(preset: ThemePresetRecord) {
     setApplyingId(preset.id)
+    setError(null)
     try {
-      const selection = applyThemePreset(preset, themeCtx?.setTheme)
-      setSelected((prev) => ({
-        ...prev,
-        [preset.mode]: selection,
-      }))
+      await themeCtx?.applyPreset(preset)
+    } catch {
+      setError('Failed to save theme preference')
     } finally {
       setApplyingId(null)
     }
@@ -88,13 +65,12 @@ export function ThemePickerMenu() {
   const lightPresets = presets.filter((p) => p.mode === 'light')
   const darkPresets = presets.filter((p) => p.mode === 'dark')
   // Only the preset currently applied (active mode + saved selection) shows a check.
-  const activeSelectedId = selected[activeMode]?.id ?? null
+  const activeSelectedId = themeCtx?.selections[activeMode]?.id ?? null
 
   return (
     <DropdownMenuSub
       onOpenChange={(open) => {
         if (open) {
-          refreshSelections()
           void ensurePresets()
         }
       }}
@@ -173,7 +149,7 @@ function ThemePresetSection({
               disabled={isApplying}
               onSelect={(e) => {
                 e.preventDefault()
-                onSelect(preset)
+                void onSelect(preset)
               }}
               className="gap-2"
             >
