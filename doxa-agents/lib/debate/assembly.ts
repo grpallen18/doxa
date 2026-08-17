@@ -83,3 +83,77 @@ export function assembleComponents(
   }
   return results;
 }
+
+/**
+ * Mega-merge guard: split connected components that exceed maxMembers by
+ * growing BFS clusters and leaving remainder as sibling components.
+ */
+export function splitOversizedComponents(
+  components: Component[],
+  edges: RelEdge[],
+  maxMembers: number
+): Component[] {
+  if (maxMembers < 2) return components;
+  const out: Component[] = [];
+  for (const comp of components) {
+    if (comp.memberIds.length <= maxMembers) {
+      out.push(comp);
+      continue;
+    }
+    out.push(...partitionComponent(comp, edges, maxMembers));
+  }
+  return out;
+}
+
+function partitionComponent(
+  comp: Component,
+  edges: RelEdge[],
+  maxMembers: number
+): Component[] {
+  const memberSet = new Set(comp.memberIds);
+  const adj = new Map<string, string[]>();
+  for (const id of comp.memberIds) adj.set(id, []);
+  const internal: RelEdge[] = [];
+  for (const e of edges) {
+    if (!memberSet.has(e.a) || !memberSet.has(e.b)) continue;
+    internal.push(e);
+    adj.get(e.a)!.push(e.b);
+    adj.get(e.b)!.push(e.a);
+  }
+
+  const remaining = new Set(comp.memberIds);
+  const parts: Component[] = [];
+  while (remaining.size) {
+    const start = [...remaining].sort()[0];
+    const cluster: string[] = [];
+    const queue = [start];
+    const seen = new Set<string>([start]);
+    while (queue.length && cluster.length < maxMembers) {
+      const cur = queue.shift()!;
+      if (!remaining.has(cur)) continue;
+      cluster.push(cur);
+      remaining.delete(cur);
+      for (const nxt of adj.get(cur) ?? []) {
+        if (!seen.has(nxt) && remaining.has(nxt) && cluster.length + queue.length < maxMembers) {
+          seen.add(nxt);
+          queue.push(nxt);
+        }
+      }
+    }
+    if (!cluster.length) break;
+    const clusterSet = new Set(cluster);
+    const edgeDecisionUids = [
+      ...new Set(
+        internal
+          .filter((e) => clusterSet.has(e.a) && clusterSet.has(e.b))
+          .map((e) => e.decisionUid)
+      ),
+    ];
+    parts.push({
+      memberIds: [...cluster].sort(),
+      topicKey: comp.topicKey,
+      edgeDecisionUids,
+    });
+  }
+  return parts.length ? parts : [comp];
+}

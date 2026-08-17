@@ -61,6 +61,10 @@ stages:
         label: Build controversies
         invoke_options:
           timeout_ms: 120000
+      - id: name-controversies
+        label: Name controversies
+        invoke_options:
+          timeout_ms: 300000
       - id: detect-disputes
         label: Detect disputes
         invoke_options:
@@ -114,3 +118,28 @@ stages:
         label: Analysis pipeline (orchestrator)
         invoke_options:
           timeout_ms: 600000
+
+  - id: hygiene
+    label: Graph hygiene
+    scope: global
+    steps:
+      - id: graph-integrity-audit
+        label: Integrity audit
+        invoke_options:
+          timeout_ms: 120000
+      - id: prune-orphans
+        label: Prune orphans
+        invoke_options:
+          timeout_ms: 120000
+      - id: entity-alias-candidates
+        label: Entity alias candidates
+        invoke_options:
+          timeout_ms: 120000
+      - id: projection-reconcile
+        label: Projection reconcile
+        invoke_options:
+          timeout_ms: 120000
+      - id: graph-hygiene
+        label: Graph hygiene (orchestrator)
+        invoke_options:
+          timeout_ms: 300000

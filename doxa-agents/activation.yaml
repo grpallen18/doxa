@@ -17,6 +17,7 @@ active:
   - classify-proposition-relationships
   - build-viewpoints
   - build-controversies
+  - name-controversies
   - detect-disputes
   - project-debate-summaries
   - debate-pipeline

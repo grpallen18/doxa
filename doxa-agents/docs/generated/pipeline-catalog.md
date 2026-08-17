@@ -28,6 +28,7 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | classify-proposition-relationships | `classify_proposition_relationships` | active | — | story_id |
 | build-viewpoints | `build_viewpoints` | active | — | story_id |
 | build-controversies | `build_controversies` | active | — | story_id |
+| name-controversies | `name_controversies` | active | — | story_id |
 | detect-disputes | `detect_disputes` | active | — | story_id |
 | project-debate-summaries | `project_debate_summaries` | active | — | story_id |
 | debate-pipeline | `debate_pipeline` | active | — | story_id |
@@ -45,5 +46,15 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | project-analysis-summaries | `project_analysis_summaries` | active | — | story_id |
 | project-person-profiles | `project_person_profiles` | active | — | story_id |
 | analysis-pipeline | `analysis_pipeline` | active | — | story_id |
+
+## Graph hygiene (`hygiene`)
+
+| Step | Deploy | Status | Optional | Isolation |
+|------|--------|--------|----------|-----------|
+| graph-integrity-audit | `graph_integrity_audit` | inactive | — | story_id |
+| prune-orphans | `prune_orphans` | inactive | — | story_id |
+| entity-alias-candidates | `entity_alias_candidates` | inactive | — | story_id |
+| projection-reconcile | `projection_reconcile` | inactive | — | story_id |
+| graph-hygiene | `graph_hygiene` | inactive | — | story_id |
 
 _Generated from pipeline-admin-catalog.yaml + manifest.yaml._

@@ -12,7 +12,7 @@
 
 import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
-import { resolveIssueUid } from "../../../../lib/debate/issue-assignment.ts";
+import { arenaUidForPair } from "../../../../lib/debate/issue-assignment.ts";
 
 const DEFAULT_LIMIT = 200;
 const DEFAULT_MIN_SIM = 0.72;
@@ -57,8 +57,9 @@ export const handler = async (req: Request) => {
     const limit = clampInt(body.limit, 10, 2000, DEFAULT_LIMIT);
     const minSim = typeof body.min_similarity === "number" ? body.min_similarity : DEFAULT_MIN_SIM;
 
-    const sharedQuota = Math.max(1, Math.floor(limit / 2));
-    const knnQuota = Math.max(1, limit - sharedQuota);
+    const sharedQuota = Math.max(1, Math.floor(limit / 3));
+    const dirtyQuota = Math.max(1, Math.floor(limit / 3));
+    const knnQuota = Math.max(1, limit - sharedQuota - dirtyQuota);
     const entitySample = Math.min(MAX_ENTITY_SAMPLE, Math.max(15, Math.floor(limit / 2)));
     const seedLimit = Math.min(MAX_KNN_SEEDS, Math.max(10, Math.floor(limit / 3)));
 
@@ -106,8 +107,37 @@ export const handler = async (req: Request) => {
       }
     );
 
+    // Dirty-arena pairs: densify under-connected Arenas (not entity mega-buckets).
+    const dirtyPairs = await runCypher<PairRow>(
+      `
+      MATCH (i:Issue)
+      WHERE i.dirty = true AND i.uid STARTS WITH 'arena:'
+      WITH i, rand() AS r
+      ORDER BY r
+      LIMIT $arenaSample
+      MATCH (i)<-[:IN_ISSUE]-(p1:Proposition)
+      MATCH (i)<-[:IN_ISSUE]-(p2:Proposition)
+      WHERE p1.uid < p2.uid
+        AND NOT EXISTS {
+          MATCH (d:Decision {uid: 'paircand:' + p1.uid + ':' + p2.uid})
+          WHERE d.status IN ['pending', 'consumed', 'quarantined']
+        }
+      WITH p1, p2, i, rand() AS r
+      ORDER BY r
+      RETURN p1.uid AS a, p2.uid AS b,
+             'dirty_arena' AS blockReason,
+             coalesce(i.topicKey, i.uid) AS topicKey,
+             0.9 AS score
+      LIMIT $dirtyQuota
+      `,
+      {
+        arenaSample: neoInt(Math.min(20, entitySample)),
+        dirtyQuota: neoInt(dirtyQuota),
+      }
+    );
+
     // Knn: each seed vs a small random neighbor sample — never all Proposition rows.
-    const knnLimit = Math.max(knnQuota, limit - sharedEntityPairs.length);
+    const knnLimit = Math.max(knnQuota, limit - sharedEntityPairs.length - dirtyPairs.length);
     const knnPairs = await runCypher<PairRow>(
       `
       MATCH (p1:Proposition)
@@ -155,7 +185,7 @@ export const handler = async (req: Request) => {
 
     const seen = new Set<string>();
     const candidates: PairRow[] = [];
-    for (const row of [...sharedEntityPairs, ...knnPairs]) {
+    for (const row of [...sharedEntityPairs, ...dirtyPairs, ...knnPairs]) {
       if (!row.a || !row.b) continue;
       const key = pairKey(row.a, row.b);
       if (seen.has(key)) continue;
@@ -170,6 +200,7 @@ export const handler = async (req: Request) => {
         dry_run: true,
         candidate_count: candidates.length,
         shared_entity: sharedEntityPairs.length,
+        dirty_arena: dirtyPairs.length,
         embedding_knn: knnPairs.length,
         caps: {
           entity_sample: entitySample,
@@ -182,11 +213,7 @@ export const handler = async (req: Request) => {
     }
 
     const rows = candidates.map((c) => {
-      const issueUid = resolveIssueUid({
-        blockReason: c.blockReason,
-        entityUid: c.entityUid,
-        topicKey: c.topicKey,
-      });
+      const issueUid = arenaUidForPair(c.a, c.b);
       return {
         a: c.a,
         b: c.b,
@@ -231,16 +258,6 @@ export const handler = async (req: Request) => {
             AND dec.status = 'pending'
           MERGE (dec)-[:ABOUT]->(pa)
           MERGE (dec)-[:ABOUT]->(pb)
-          MERGE (iss:Issue {uid: row.issueUid})
-          ON CREATE SET
-            iss.topicKey = row.topicKey,
-            iss.dirty = false,
-            iss.schemaVersion = '2.3.0',
-            iss.createdAt = datetime()
-          SET iss.topicKey = coalesce(iss.topicKey, row.topicKey),
-              iss.updatedAt = datetime()
-          MERGE (pa)-[:IN_ISSUE]->(iss)
-          MERGE (pb)-[:IN_ISSUE]->(iss)
           RETURN dec.uid AS uid
           `,
           { rows }
@@ -253,6 +270,7 @@ export const handler = async (req: Request) => {
       candidate_count: candidates.length,
       created: written.length,
       shared_entity: sharedEntityPairs.length,
+      dirty_arena: dirtyPairs.length,
       embedding_knn: knnPairs.length,
     });
   } catch (err) {

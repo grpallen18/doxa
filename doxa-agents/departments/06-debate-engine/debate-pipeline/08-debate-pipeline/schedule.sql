@@ -9,7 +9,8 @@
 --    (02-classify-proposition-relationships/schedule.sql).
 --
 -- Body uses limit:50 so candidate gen + classify stay under Edge ~150s idle timeout.
--- First cutover after Issue/stable-uid deploy: invoke once with {"force_full":true,"limit":50}.
+-- pg_net default wait is 5s — debate_pipeline needs timeout_milliseconds := 150000.
+-- First cutover after Arena/CQ deploy: invoke once with {"force_full":true,"limit":50}.
 --
 -- To remove later: select cron.unschedule('debate-pipeline-hourly');
 
@@ -24,7 +25,8 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
     ),
-    body := '{"limit": 50}'::jsonb
+    body := '{"limit": 50}'::jsonb,
+    timeout_milliseconds := 150000
   ) as request_id;
   $$
 );

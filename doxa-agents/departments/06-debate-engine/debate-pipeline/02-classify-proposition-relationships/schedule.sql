@@ -6,7 +6,7 @@
 -- 2. Vault secrets project_url and service_role_key.
 -- 3. Edge Function deployed with --no-verify-jwt + NEO4J_* / OPENAI_API_KEY.
 --
--- Body limit:40 stays under Edge ~150s idle timeout for gpt-4o-mini classify.
+-- Body limit:50 drains backlog between hourly debate_pipeline runs (Edge ~150s).
 --
 -- To remove later: select cron.unschedule('classify-proposition-relationships-every-10min');
 
@@ -21,7 +21,7 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
     ),
-    body := '{"limit": 40}'::jsonb
+    body := '{"limit": 50}'::jsonb
   ) as request_id;
   $$
 );

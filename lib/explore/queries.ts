@@ -66,7 +66,9 @@ export async function listTrendingControversies(
 ): Promise<ExploreControversyListItem[]> {
   const { data, error } = await supabase
     .from('graph_controversies')
-    .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at')
+    .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at, ranking_score')
+    .eq('status', 'open')
+    .order('ranking_score', { ascending: false })
     .order('updated_at', { ascending: false })
     .limit(limit)
   if (error) throw error
@@ -143,6 +145,7 @@ export async function searchExplore(
     supabase
       .from('graph_controversies')
       .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at')
+      .eq('status', 'open')
       .or(
         `question.ilike.${pattern},title.ilike.${pattern},summary.ilike.${pattern},topic_key.ilike.${pattern}`
       )
@@ -208,6 +211,7 @@ export async function getTopicHub(supabase: Sb, slug: string): Promise<ExploreTo
       .from('graph_controversies')
       .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at')
       .in('uid', uids)
+      .eq('status', 'open')
       .order('updated_at', { ascending: false })
     controversies = (rows ?? []).map((r) => ({
       uid: r.uid as string,
@@ -331,6 +335,7 @@ export async function getControversyDetail(
       .from('graph_controversies')
       .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at')
       .eq('topic_key', row.topic_key)
+      .eq('status', 'open')
       .neq('uid', uid)
       .order('updated_at', { ascending: false })
       .limit(8)

@@ -206,9 +206,9 @@ export const handler = async (req: Request) => {
             updatedAt: string | null;
           }>(
             `
-            MATCH (u:Utterance)-[:MENTIONS]->(e:Entity {uid: $uid})
-            MATCH (u)-[:EXPRESSES]->(p:Proposition)<-[:ADVANCES]-(v:Viewpoint)<-[:INCLUDES]-(c:Controversy)
-            WITH c, count(DISTINCT u.documentUid) AS sourceCount
+            MATCH (e:Entity {uid: $uid})-[s:SUBJECT_OF]->(c:Controversy)
+            OPTIONAL MATCH (c)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(:Proposition)<-[:EXPRESSES]-(u:Utterance)
+            WITH c, s, count(DISTINCT u.documentUid) AS sourceCount
             RETURN c.uid AS uid,
                    c.question AS question,
                    coalesce(c.title, c.uid) AS title,
@@ -217,7 +217,7 @@ export const handler = async (req: Request) => {
                    sourceCount,
                    coalesce(c.topicKey, '') AS topicKey,
                    CASE WHEN c.updatedAt IS NULL THEN null ELSE toString(c.updatedAt) END AS updatedAt
-            ORDER BY coalesce(toString(c.updatedAt), '') DESC
+            ORDER BY coalesce(s.weight, 0) DESC, coalesce(toString(c.updatedAt), '') DESC
             LIMIT $cap
             `,
             { uid: person.uid, cap: neoInt(DEBATE_CAP) }

@@ -100,3 +100,20 @@ Inspect tables after each step: `stories`, `story_bodies`, `story_chunks`, `stor
 ## Reset scrape state (SQL)
 
 If a story was `scrape_skipped` after failures, reset before re-invoking `scrape_story_content` — see team notes or run a targeted update on `scrape_skipped`, `scrape_fail_count`, `scrape_dispatched_at`, `scraped_at`, and delete `story_bodies` if you need a clean re-scrape.
+
+---
+
+## Neo debate (Arena / CQ)
+
+| Step | Deploy name | Isolation | Notes |
+|------|-------------|-----------|--------|
+| generate-proposition-pair-candidates | `generate_proposition_pair_candidates` | `limit`, `min_similarity` | Blocking only; no `issue:ent:` buckets |
+| classify-proposition-relationships | `classify_proposition_relationships` | `limit` | Assigns `arena:` membership |
+| build-viewpoints | `build_viewpoints` | `force_full` | Arena-scoped |
+| build-controversies | `build_controversies` | `force_full` | Mega-merge split + chapters |
+| name-controversies | `name_controversies` | `limit`, `force` | CQ titles |
+| detect-disputes | `detect_disputes` | — | `SURFACES_IN` Controversy |
+| project-debate-summaries | `project_debate_summaries` | — | SUBJECT_OF + ranking_score |
+| debate-pipeline | `debate_pipeline` | `force_full`, `limit` | Cutover: `{"force_full":true,"limit":50}` |
+
+Hygiene (inactive until scheduled): `graph_hygiene` orchestrates audit / prune / alias / reconcile.

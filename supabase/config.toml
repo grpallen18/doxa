@@ -345,6 +345,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.build_controversies]
 verify_jwt = false
+[functions.name_controversies]
+verify_jwt = false
 [functions.detect_disputes]
 verify_jwt = false
 [functions.project_debate_summaries]
@@ -368,6 +370,18 @@ verify_jwt = false
 [functions.project_analysis_summaries]
 verify_jwt = false
 [functions.project_person_profiles]
+verify_jwt = false
+
+# Graph hygiene (internal service-role).
+[functions.graph_integrity_audit]
+verify_jwt = false
+[functions.prune_orphans]
+verify_jwt = false
+[functions.entity_alias_candidates]
+verify_jwt = false
+[functions.projection_reconcile]
+verify_jwt = false
+[functions.graph_hygiene]
 verify_jwt = false
 
 # Admin model config: validates OpenAI model IDs using Edge OPENAI_API_KEY.

@@ -68,6 +68,9 @@ export const handler = async (req: Request) => {
           dec.createdAt = coalesce(dec.createdAt, datetime()),
           dec.updatedAt = datetime()
       MERGE (d)-[:DECIDED_BY]->(dec)
+      WITH d
+      MATCH (d)-[:CONCERNS]->(p:Proposition)<-[:ADVANCES]-(:Viewpoint)<-[:INCLUDES]-(c:Controversy)
+      MERGE (d)-[:SURFACES_IN]->(c)
       `,
       {
         uid,

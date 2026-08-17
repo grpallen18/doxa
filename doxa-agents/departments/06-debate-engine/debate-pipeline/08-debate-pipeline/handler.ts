@@ -16,6 +16,7 @@ const STEP_NAMES = [
   "classify_proposition_relationships",
   "build_viewpoints",
   "build_controversies",
+  "name_controversies",
   "detect_disputes",
   "project_debate_summaries",
 ] as const;
@@ -55,6 +56,10 @@ export const handler = async (req: Request) => {
       if (name === "classify_proposition_relationships" && body.limit != null) {
         const n = typeof body.limit === "number" ? body.limit : Number(body.limit);
         stepBody.limit = Number.isFinite(n) ? Math.min(Math.max(1, Math.floor(n)), 25) : 25;
+      }
+      if (name === "name_controversies" && body.limit != null) {
+        const n = typeof body.limit === "number" ? body.limit : Number(body.limit);
+        stepBody.limit = Number.isFinite(n) ? Math.min(Math.max(1, Math.floor(n)), 20) : 20;
       }
       if (name === "build_viewpoints" || name === "build_controversies") {
         stepBody.force_full = forceFull;

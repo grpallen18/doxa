@@ -5,8 +5,8 @@
 // Body: { dry_run?: boolean, limit?: number }
 
 import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
-import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
-import { resolveIssueUid } from "../../../../lib/debate/issue-assignment.ts";
+import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
+import { assignArenaForPair } from "../../../../lib/debate/arena-assign.ts";
 import {
   AUTO_ACCEPT_MIN_CONFIDENCE,
   parsePropositionKind,
@@ -14,7 +14,7 @@ import {
 } from "../../../../lib/debate/proposition-taxonomy.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
-const DEFAULT_LIMIT = 40;
+const DEFAULT_LIMIT = 80;
 
 async function classifyPair(
   apiKey: string,
@@ -111,7 +111,7 @@ export const handler = async (req: Request) => {
            dec.issueUid AS issueUid
     LIMIT $limit
     `,
-    { limit }
+    { limit: neoInt(limit) }
   );
 
   if (dryRun) {
@@ -171,15 +171,16 @@ export const handler = async (req: Request) => {
       entityUid = shared[0]?.uid ?? null;
     }
 
-    const resolvedIssueUid = resolveIssueUid({
-      blockReason: entityUid ? "shared_entity" : row.blockReason,
-      entityUid,
-      topicKey: row.topicKey,
-    });
-    // Prefer entity bucket when known — do not keep a prior sim issueUid.
-    const issueUid = entityUid?.trim()
-      ? resolvedIssueUid
-      : row.issueUid?.trim() || resolvedIssueUid;
+    let issueUid = row.issueUid;
+    if (status === "accepted") {
+      const assigned = await assignArenaForPair({
+        a: row.a,
+        b: row.b,
+        topicKey: row.topicKey,
+      });
+      issueUid = assigned.issueUid;
+      issuesDirtied += 1;
+    }
 
     const relDecisionUid = `prel:${row.a}:${row.b}`;
     await runCypher(
@@ -205,25 +206,12 @@ export const handler = async (req: Request) => {
           dec.updatedAt = datetime()
       MERGE (dec)-[:ABOUT]->(pa)
       MERGE (dec)-[:ABOUT]->(pb)
-      MERGE (iss:Issue {uid: $issueUid})
-      ON CREATE SET
-        iss.topicKey = $topicKey,
-        iss.schemaVersion = '2.3.0',
-        iss.createdAt = datetime(),
-        iss.dirty = false
-      SET iss.topicKey = coalesce(iss.topicKey, $topicKey),
-          iss.updatedAt = datetime()
-      MERGE (pa)-[:IN_ISSUE]->(iss)
-      MERGE (pb)-[:IN_ISSUE]->(iss)
-      WITH pa, pb, dec, iss, $kind AS kind, $status AS status
+      WITH pa, pb, dec, $kind AS kind, $status AS status
       FOREACH (_ IN CASE WHEN status = 'accepted' THEN [1] ELSE [] END |
         MERGE (pa)-[r:RELATES_TO]->(pb)
         SET r.kind = kind,
             r.decisionUid = dec.uid,
             r.updatedAt = datetime()
-      )
-      FOREACH (_ IN CASE WHEN status = 'accepted' THEN [1] ELSE [] END |
-        SET iss.dirty = true, iss.updatedAt = datetime()
       )
       `,
       {
@@ -236,29 +224,10 @@ export const handler = async (req: Request) => {
         rationale: classified.rationale,
         status,
         topicKey: row.topicKey,
-        issueUid,
+        issueUid: issueUid ?? null,
         entityUid: entityUid ?? null,
       }
     );
-
-    if (entityUid?.trim()) {
-      await runCypher(
-        `
-        MATCH (pa:Proposition {uid: $a})
-        MATCH (pb:Proposition {uid: $b})
-        MATCH (iss:Issue {uid: $issueUid})
-        OPTIONAL MATCH (pa)-[r1:IN_ISSUE]->(old1:Issue)
-        WHERE old1.uid <> iss.uid AND old1.uid STARTS WITH 'issue:sim:'
-        DELETE r1
-        WITH pb, iss
-        OPTIONAL MATCH (pb)-[r2:IN_ISSUE]->(old2:Issue)
-        WHERE old2.uid <> iss.uid AND old2.uid STARTS WITH 'issue:sim:'
-        DELETE r2
-        `,
-        { a: row.a, b: row.b, issueUid }
-      );
-    }
-    if (status === "accepted") issuesDirtied += 1;
   }
 
   return json({

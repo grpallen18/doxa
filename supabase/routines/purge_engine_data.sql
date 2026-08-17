@@ -48,6 +48,22 @@ BEGIN
     v_skipped := array_append(v_skipped, 'graph_processing_jobs');
   END IF;
 
+  -- required: graph_entity_alias_candidates
+  IF 'public.graph_entity_alias_candidates'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_entity_alias_candidates RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_entity_alias_candidates');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_entity_alias_candidates');
+  END IF;
+
+  -- required: graph_controversy_subjects
+  IF 'public.graph_controversy_subjects'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_controversy_subjects RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_controversy_subjects');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_controversy_subjects');
+  END IF;
+
   -- required: graph_assessments
   IF 'public.graph_assessments'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.graph_assessments RESTART IDENTITY CASCADE';

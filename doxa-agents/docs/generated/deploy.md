@@ -12,10 +12,16 @@ supabase functions deploy scrape_story_content
 supabase functions deploy enqueue_graph_job
 supabase functions deploy trigger_graph_worker
 supabase functions deploy discord_daily_health
+supabase functions deploy graph_integrity_audit
+supabase functions deploy prune_orphans
+supabase functions deploy entity_alias_candidates
+supabase functions deploy projection_reconcile
+supabase functions deploy graph_hygiene
 supabase functions deploy generate_proposition_pair_candidates
 supabase functions deploy classify_proposition_relationships
 supabase functions deploy build_viewpoints
 supabase functions deploy build_controversies
+supabase functions deploy name_controversies
 supabase functions deploy detect_disputes
 supabase functions deploy project_debate_summaries
 supabase functions deploy debate_pipeline
@@ -40,10 +46,16 @@ supabase functions deploy review_pending_stories --no-verify-jwt
 supabase functions deploy scrape_story_content --no-verify-jwt
 supabase functions deploy enqueue_graph_job --no-verify-jwt
 supabase functions deploy trigger_graph_worker --no-verify-jwt
+supabase functions deploy graph_integrity_audit --no-verify-jwt
+supabase functions deploy prune_orphans --no-verify-jwt
+supabase functions deploy entity_alias_candidates --no-verify-jwt
+supabase functions deploy projection_reconcile --no-verify-jwt
+supabase functions deploy graph_hygiene --no-verify-jwt
 supabase functions deploy generate_proposition_pair_candidates --no-verify-jwt
 supabase functions deploy classify_proposition_relationships --no-verify-jwt
 supabase functions deploy build_viewpoints --no-verify-jwt
 supabase functions deploy build_controversies --no-verify-jwt
+supabase functions deploy name_controversies --no-verify-jwt
 supabase functions deploy detect_disputes --no-verify-jwt
 supabase functions deploy project_debate_summaries --no-verify-jwt
 supabase functions deploy debate_pipeline --no-verify-jwt

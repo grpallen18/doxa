@@ -14,6 +14,7 @@ export type PipelineStepId =
   | "classify-proposition-relationships"
   | "build-viewpoints"
   | "build-controversies"
+  | "name-controversies"
   | "detect-disputes"
   | "project-debate-summaries"
   | "debate-pipeline"
@@ -26,12 +27,18 @@ export type PipelineStepId =
   | "project-analysis-summaries"
   | "project-person-profiles"
   | "analysis-pipeline"
+  | "graph-integrity-audit"
+  | "prune-orphans"
+  | "entity-alias-candidates"
+  | "projection-reconcile"
+  | "graph-hygiene"
 
 export type PipelineStageId =
   | "ingestion"
   | "graph"
   | "debate"
   | "analysis"
+  | "hygiene"
 
 export type PipelineInvokeOptions = {
   usesMaxChunks: boolean
@@ -94,6 +101,7 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
       "classify-proposition-relationships",
       "build-viewpoints",
       "build-controversies",
+      "name-controversies",
       "detect-disputes",
       "project-debate-summaries",
       "debate-pipeline"
@@ -113,6 +121,18 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
       "project-analysis-summaries",
       "project-person-profiles",
       "analysis-pipeline"
+    ]
+  },
+  {
+    "id": "hygiene",
+    "label": "Graph hygiene",
+    "scope": "global",
+    "stepIds": [
+      "graph-integrity-audit",
+      "prune-orphans",
+      "entity-alias-candidates",
+      "projection-reconcile",
+      "graph-hygiene"
     ]
   }
 ]
@@ -325,6 +345,27 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "usesMaxChunks": false,
       "maxChunks": null,
       "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "name-controversies",
+    "deployName": "name_controversies",
+    "label": "Name controversies",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 300000
     },
     "inactiveNote": null
   },
@@ -579,6 +620,111 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "timeoutMs": 600000
     },
     "inactiveNote": null
+  },
+  {
+    "id": "graph-integrity-audit",
+    "deployName": "graph_integrity_audit",
+    "label": "Integrity audit",
+    "stageId": "hygiene",
+    "stageLabel": "Graph hygiene",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "prune-orphans",
+    "deployName": "prune_orphans",
+    "label": "Prune orphans",
+    "stageId": "hygiene",
+    "stageLabel": "Graph hygiene",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "entity-alias-candidates",
+    "deployName": "entity_alias_candidates",
+    "label": "Entity alias candidates",
+    "stageId": "hygiene",
+    "stageLabel": "Graph hygiene",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "projection-reconcile",
+    "deployName": "projection_reconcile",
+    "label": "Projection reconcile",
+    "stageId": "hygiene",
+    "stageLabel": "Graph hygiene",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": "Not active in activation.yaml"
+  },
+  {
+    "id": "graph-hygiene",
+    "deployName": "graph_hygiene",
+    "label": "Graph hygiene (orchestrator)",
+    "stageId": "hygiene",
+    "stageLabel": "Graph hygiene",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "inactive",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 300000
+    },
+    "inactiveNote": "Not active in activation.yaml"
   }
 ]
 
@@ -593,6 +739,7 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "classify_proposition_relationships",
   "build_viewpoints",
   "build_controversies",
+  "name_controversies",
   "detect_disputes",
   "project_debate_summaries",
   "debate_pipeline",
@@ -605,6 +752,11 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "project_analysis_summaries",
   "project_person_profiles",
   "analysis_pipeline",
+  "graph_integrity_audit",
+  "prune_orphans",
+  "entity_alias_candidates",
+  "projection_reconcile",
+  "graph_hygiene",
 ])
 
 const STEP_BY_ID = new Map<PipelineStepId, PipelineCatalogStep>(

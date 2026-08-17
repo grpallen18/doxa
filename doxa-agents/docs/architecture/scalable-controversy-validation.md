@@ -21,7 +21,8 @@
 
 ## Checklist
 
-- [ ] New pair candidates create `Issue` + `IN_ISSUE` (shared_entity → `issue:ent:…`, knn → `issue:sim:…`)
+- [ ] New pair candidates record blocking (`shared_entity` / `embedding_knn`) without entity mega-bucket uids
+- [ ] Accepted classify assigns `arena:` Issue membership (see [arena-cq-validation.md](arena-cq-validation.md))
 - [ ] Accepted classify sets `Issue.dirty = true`
 - [ ] Without `force_full`, `build_viewpoints` / `build_controversies` only touch dirty Issues
 - [ ] No global `MATCH (:Viewpoint) DETACH DELETE` / controversy wipe outside Issue scope
@@ -62,6 +63,6 @@ WHERE a.target_kind = 'controversy'
 - `project_debate_summaries` upserts by Neo uid text PK — stable ids stop row churn after cutover.
 - `run_controversy_assessments` keys `assess:controversy:{uid}` — stable controversy uids preserve skip/reuse.
 
-## Phase 2 (deferred)
+## Phase 2.4
 
-Time chapters, title pass, mega-merge guard, classify worker off Edge — see architecture controversy contract follow-ons.
+Arena grain, CQ title pass, mega-merge guard, SUBJECT_OF, time chapters, ranking decay — [arena-cq-validation.md](arena-cq-validation.md). Classify off Edge remains a follow-on if 10‑min cron cannot drain.

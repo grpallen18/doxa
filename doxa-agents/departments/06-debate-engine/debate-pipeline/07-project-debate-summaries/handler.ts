@@ -5,6 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
+import { rankingScore } from "../../../../lib/debate/ranking.ts";
 
 function truncate(text: string, max: number): string {
   const t = text.trim();
@@ -12,11 +13,14 @@ function truncate(text: string, max: number): string {
   return `${t.slice(0, Math.max(0, max - 1))}…`;
 }
 
-function consumerQuestion(topicKey: string, title: string | null, question: string | null): string {
-  if (question?.trim()) return question.trim();
-  if (title?.trim() && !title.startsWith("Controversy:")) return title.trim();
-  const topicLabel = (topicKey || "this issue").replace(/^sim:/, "related claims on ");
-  return `What are the competing views concerning ${topicLabel}?`;
+function consumerQuestion(_topicKey: string, title: string | null, question: string | null): string {
+  const q = question?.trim() ?? "";
+  if (q && !q.startsWith("What are the competing views concerning")) return q;
+  const t = title?.trim() ?? "";
+  if (t && !t.startsWith("Controversy:") && !t.startsWith("What are the competing views concerning") && !t.startsWith("Untitled controversy")) {
+    return t;
+  }
+  return t && !t.startsWith("What are the competing views concerning") ? t : "Untitled debate";
 }
 
 export const handler = async (req: Request) => {
@@ -45,6 +49,13 @@ export const handler = async (req: Request) => {
     sidesCount: number;
     topicKey: string;
     sourceCount: number;
+    issueUid: string | null;
+    chapterIndex: number;
+    chapterOf: string | null;
+    status: string | null;
+    supersededBy: string | null;
+    closedAt: string | null;
+    updatedAt: string | null;
   }>(
     `
     MATCH (c:Controversy)
@@ -56,7 +67,14 @@ export const handler = async (req: Request) => {
            coalesce(c.summary, '') AS summary,
            coalesce(c.sidesCount, 0) AS sidesCount,
            coalesce(c.topicKey, '') AS topicKey,
-           sourceCount
+           sourceCount,
+           c.issueUid AS issueUid,
+           coalesce(c.chapterIndex, 0) AS chapterIndex,
+           c.chapterOf AS chapterOf,
+           coalesce(c.status, 'open') AS status,
+           c.supersededBy AS supersededBy,
+           CASE WHEN c.closedAt IS NULL THEN null ELSE toString(c.closedAt) END AS closedAt,
+           toString(c.updatedAt) AS updatedAt
     `
   );
 
@@ -196,6 +214,48 @@ export const handler = async (req: Request) => {
     });
   }
 
+  const subjects = await runCypher<{
+    controversyUid: string;
+    entityUid: string;
+    name: string;
+    kindHint: string | null;
+    weight: number;
+    role: string;
+  }>(
+    `
+    MATCH (c:Controversy)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)
+          <-[:EXPRESSES]-(u:Utterance)-[:MENTIONS]->(e:Entity)
+    WHERE coalesce(c.status, 'open') = 'open'
+    WITH c, e, count(DISTINCT u) AS mentions, count(DISTINCT p) AS props
+    WHERE mentions >= 1
+    WITH c, e, mentions, props,
+         CASE WHEN coalesce(e.kindHint, '') = 'person' THEN 'person' ELSE 'subject' END AS role
+    MERGE (e)-[s:SUBJECT_OF]->(c)
+    SET s.weight = mentions,
+        s.propCount = props,
+        s.role = role,
+        s.updatedAt = datetime()
+    RETURN c.uid AS controversyUid,
+           e.uid AS entityUid,
+           coalesce(e.name, e.normalizedName, e.uid) AS name,
+           e.kindHint AS kindHint,
+           mentions AS weight,
+           role
+    `
+  );
+
+  await runCypher(
+    `
+    MATCH (e:Entity)-[s:SUBJECT_OF]->(c:Controversy)
+    WHERE coalesce(c.status, 'open') <> 'open'
+       OR NOT EXISTS {
+      MATCH (c)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(:Proposition)
+            <-[:EXPRESSES]-(:Utterance)-[:MENTIONS]->(e)
+    }
+    DELETE s
+    `
+  );
+
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
     auth: { persistSession: false },
   });
@@ -207,16 +267,29 @@ export const handler = async (req: Request) => {
   const ctrRows = controversies.map((c) => {
     const sc = sharedMap.get(c.uid);
     const question = consumerQuestion(c.topicKey, c.title, c.question);
+    const sides = Number(c.sidesCount) || 0;
+    const sources = Number(c.sourceCount) || 0;
     return {
       uid: c.uid,
       title: question,
       question,
       summary: c.summary?.startsWith("Multi-sided debate")
-        ? `Multi-sided debate with ${c.sidesCount} viewpoint${c.sidesCount === 1 ? "" : "s"} on ${(c.topicKey || "this issue").replace(/^sim:/, "")}.`
+        ? `Multi-sided debate with ${sides} viewpoint${sides === 1 ? "" : "s"}.`
         : c.summary,
-      sides_count: Number(c.sidesCount) || 0,
-      source_count: Number(c.sourceCount) || 0,
+      sides_count: sides,
+      source_count: sources,
       topic_key: c.topicKey,
+      arena_uid: c.issueUid,
+      chapter_index: Number(c.chapterIndex) || 0,
+      chapter_of: c.chapterOf,
+      status: c.status === "closed" ? "closed" : "open",
+      superseded_by: c.supersededBy,
+      closed_at: c.closedAt,
+      ranking_score: rankingScore({
+        sidesCount: sides,
+        sourceCount: sources,
+        updatedAt: c.updatedAt,
+      }),
       shared_bullets: (sc?.shared ?? []).filter(Boolean).map((t) => truncate(t, 180)),
       clash_bullets: (sc?.clash ?? []).filter(Boolean).map((t) => truncate(t, 180)),
       dispute_bullets: (disputeMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180)),
@@ -229,6 +302,53 @@ export const handler = async (req: Request) => {
       onConflict: "uid",
     });
     if (error) return json({ error: error.message }, 500);
+  }
+
+  // Child tables FK to graph_controversies. Neo is read across several round
+  // trips, so a concurrent rebuild can surface a controversy in a child query
+  // that never made it into this pass's parent snapshot.
+  const ctrUids = ctrRows.map((r) => r.uid);
+  const projectedCtr = new Set(ctrUids);
+
+  const subjectRows = subjects
+    .filter((s) => s.controversyUid && s.entityUid && projectedCtr.has(s.controversyUid))
+    .map((s) => ({
+      controversy_uid: s.controversyUid,
+      entity_uid: s.entityUid,
+      name: s.name,
+      kind_hint: s.kindHint,
+      weight: Number(s.weight) || 0,
+      role: s.role,
+      updated_at: now,
+    }));
+  if (ctrRows.length && subjectRows.length === 0) {
+    const { error: delEmpty } = await supabase
+      .from("graph_controversy_subjects")
+      .delete()
+      .in("controversy_uid", ctrRows.map((r) => r.uid));
+    if (delEmpty) return json({ error: delEmpty.message }, 500);
+  } else if (subjectRows.length) {
+    const { error } = await supabase.from("graph_controversy_subjects").upsert(subjectRows, {
+      onConflict: "controversy_uid,entity_uid",
+    });
+    if (error) return json({ error: error.message }, 500);
+    const keepKeys = new Set(subjectRows.map((s) => `${s.controversy_uid}|${s.entity_uid}`));
+    const { data: existingSub, error: subSelErr } = await supabase
+      .from("graph_controversy_subjects")
+      .select("controversy_uid, entity_uid")
+      .in("controversy_uid", ctrRows.map((r) => r.uid));
+    if (subSelErr) return json({ error: subSelErr.message }, 500);
+    for (const row of existingSub ?? []) {
+      const key = `${row.controversy_uid}|${row.entity_uid}`;
+      if (!keepKeys.has(key)) {
+        const { error: delErr } = await supabase
+          .from("graph_controversy_subjects")
+          .delete()
+          .eq("controversy_uid", row.controversy_uid)
+          .eq("entity_uid", row.entity_uid);
+        if (delErr) return json({ error: delErr.message }, 500);
+      }
+    }
   }
 
   const vpRows = viewpoints.map((v) => {
@@ -246,7 +366,8 @@ export const handler = async (req: Request) => {
         : v.summary;
     return {
       uid: v.uid,
-      controversy_uid: v.controversyUid,
+      controversy_uid:
+        v.controversyUid && projectedCtr.has(v.controversyUid) ? v.controversyUid : null,
       label,
       summary,
       thesis: lead || summary || label,
@@ -268,7 +389,7 @@ export const handler = async (req: Request) => {
   }
 
   const evRows = evidence
-    .filter((e) => e.controversyUid && e.documentUid)
+    .filter((e) => e.controversyUid && e.documentUid && projectedCtr.has(e.controversyUid))
     .map((e) => ({
       controversy_uid: e.controversyUid,
       document_uid: e.documentUid,
@@ -284,7 +405,6 @@ export const handler = async (req: Request) => {
   }
 
   // Replace evidence excerpts wholesale for projected controversies.
-  const ctrUids = ctrRows.map((r) => r.uid);
   if (ctrUids.length) {
     const { error: delExErr } = await supabase
       .from("graph_evidence_excerpts")
@@ -293,7 +413,13 @@ export const handler = async (req: Request) => {
     if (delExErr) return json({ error: delExErr.message }, 500);
   }
   const excerptRows = excerpts
-    .filter((e) => e.controversyUid && e.propositionUid && e.excerpt)
+    .filter(
+      (e) =>
+        e.controversyUid &&
+        e.propositionUid &&
+        e.excerpt &&
+        projectedCtr.has(e.controversyUid)
+    )
     .map((e) => ({
       controversy_uid: e.controversyUid,
       proposition_uid: e.propositionUid,
@@ -343,6 +469,7 @@ export const handler = async (req: Request) => {
     await supabase.from("graph_controversy_evidence").delete().in("controversy_uid", staleCtr);
     await supabase.from("graph_viewpoints").delete().in("controversy_uid", staleCtr);
     await supabase.from("graph_topic_links").delete().in("controversy_uid", staleCtr);
+    await supabase.from("graph_controversy_subjects").delete().in("controversy_uid", staleCtr);
     await supabase.from("graph_controversies").delete().in("uid", staleCtr);
   }
 
@@ -386,5 +513,6 @@ export const handler = async (req: Request) => {
     viewpoints: vpRows.length,
     evidence: evRows.length,
     excerpts: excerptRows.length,
+    subjects: subjectRows.length,
   });
 };

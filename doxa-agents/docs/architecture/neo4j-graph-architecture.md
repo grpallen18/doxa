@@ -1,8 +1,8 @@
 # Neo4j graph architecture (steering document)
 
-**Status:** Phase 2 runtime-validated; Phase 3 L4 Analytical in progress  
-**Next:** Phase 3 — Assessments / EvidenceCheck — see [neo4j-overhaul-next.md](neo4j-overhaul-next.md) · [phase3-validation.md](phase3-validation.md)  
-**Validation:** [phase0-validation.md](phase0-validation.md) · [phase1-validation.md](phase1-validation.md) · [phase2-validation.md](phase2-validation.md) · [phase3-validation.md](phase3-validation.md) · [cross-story-neo-validation.md](cross-story-neo-validation.md)
+**Status:** Phase 2 runtime-validated; Phase 3 L4 Analytical live; Arena/CQ grain (2.4) in progress  
+**Next:** Knowledge graph quality — Arenas, contested-question titles, SUBJECT_OF indexes, hygiene — see [arena-cq-validation.md](arena-cq-validation.md)  
+**Validation:** [phase0-validation.md](phase0-validation.md) · [phase1-validation.md](phase1-validation.md) · [phase2-validation.md](phase2-validation.md) · [phase3-validation.md](phase3-validation.md) · [cross-story-neo-validation.md](cross-story-neo-validation.md) · [arena-cq-validation.md](arena-cq-validation.md)
 
 This is the authoritative architecture document for the Neo4j discourse graph. Implementation work should reference this file. Do not maintain contradictory pipeline descriptions elsewhere.
 
@@ -26,7 +26,7 @@ Stack:
 | L0 Source | Publication, Document, MediaAsset, Segment | Immutable once written for a run |
 | L1 Discourse | Utterance, Agent (speaker), ExtractionRun, Decision | Utterances append-only; reprocess replaces Document subgraph |
 | L2 Canonical | Proposition, Entity, Event (Phase 1+) | Versioned; Decision-backed merges |
-| L3 Argumentation | Issue, Argument, Viewpoint, Controversy, Dispute (Phase 2+) | Derived; Issue-scoped rebuildable with stable opaque uids |
+| L3 Argumentation | Issue (Arena), Argument, Viewpoint, Controversy (CQ), Dispute (Phase 2+) | Derived; Arena-scoped rebuildable with stable opaque uids |
 | L4 Analytical | Assessment, MethodRun (Phase 3+) | Explicitly derived; never rewrite L0–L1 |
 | L5 Ops | Jobs, costs (Postgres) | Operational |
 
@@ -199,27 +199,37 @@ Utterances are durable within a Document subgraph. Reprocess **deletes** the Doc
 
 Delete Neo4j subgraph for `Document {uid: story_id}` (Segments, Utterances, document-scoped Agents/MediaAsset/ExtractionRun/Decision), detach `PUBLISHED_BY` without deleting shared Publication nodes, then rebuild. Also clear legacy `Story`/`Assertion`/`Chunk` subgraphs for the same `story_id` during transition.
 
-## Controversy contract (Phase 2+ — Issue-scoped)
+## Controversy contract (Phase 2.4+ — dual axes)
+
+Debate **identity** and **browse** are different axes. An entity is a subject that appears in many unrelated conflicts; it is never the controversy’s identity.
+
+| Axis | Unit | Role |
+|------|------|------|
+| **Debate identity** | Contested Question (CQ) → one `Controversy` | Natural-language question with ≥2 opposing Viewpoints |
+| **Assembly scope** | **Arena** (Neo label still `Issue`) | Dirty-rebuild bucket: size-bounded community of related propositions |
+| **Browse indexes** | Person, Topic (`SUBJECT_OF` / topic links) | Facets into CQs — never the controversy uid |
 
 The graph supports:
 
 - Attributed utterances / propositions about shared entities/topics
-- Candidate agree / oppose / qualify pairs with Decision provenance
-- **`Issue` topic buckets** — `(Proposition)-[:IN_ISSUE]->(Issue)`; entity-backed `issue:ent:{entityUid}` or embedding `issue:sim:{hash}`
+- Candidate agree / oppose / qualify pairs with Decision provenance (`shared_entity` is **blocking recall only**)
+- **Arenas** — `(Proposition)-[:IN_ISSUE]->(Issue)` with uid `arena:{fnv}`; **not** `issue:ent:{entityUid}`
+- **Mega-merge guard** — Arena merge refused above `MAX_ARENA_PROPS`; controversy/viewpoint union-find split above side/prop caps
 - **Stable opaque L3 ids** — `vp_…` / `ctr_…` (membership is mutable edges; Jaccard ≥ 0.5 continuity on rebuild)
-- **Dirty incremental assembly** — accepted `RELATES_TO` sets `Issue.dirty`; `build_viewpoints` / `build_controversies` rebuild only dirty Issues (`force_full` for cutover)
+- **CQ titles** — `name_controversies` writes `question` / `title` / `summary` with Decision `controversy_title`
+- **`SUBJECT_OF`** — `(Entity)-[:SUBJECT_OF {weight, role}]->(Controversy)` for person/topic browse
+- **Time chapters** — hard fork of Controversy identity when **both** hold: best predecessor Jaccard in `(0, 0.5)` **and** newest evidence on the new component is ≥ `CHAPTER_GAP_DAYS` (90) after the predecessor’s newest evidence. Predecessor = best Jaccard match among **open** controversies in this Arena (not closed / already-`chapterOf` targets, not “newest in Arena”). Snapshot evidence times **before** deleting `INCLUDES`. Below-threshold overlap with gap &lt; 90d soft-reuses the predecessor uid (same era). Prior chapter stays in Neo/Postgres as `status=closed` with `supersededBy` / `closedAt`; new chapter gets `chapterOf` / `chapterIndex`. Never prune closed chapters or `chapterOf` targets; never rewrite their `INCLUDES`. Home/trending feeds show `status=open` only (null treated as open for backfill).
+- **Dirty incremental assembly** — accepted `RELATES_TO` sets `Issue.dirty`; rebuild only dirty Arenas (`force_full` for cutover)
 - Multi-sided controversy clusters with evidence paths back to Segments
 
 Debate classification is **Doxa-owned**, not assumed from generic GraphRAG output.
 
-Validation: [scalable-controversy-validation.md](scalable-controversy-validation.md)
+Validation: [scalable-controversy-validation.md](scalable-controversy-validation.md) · [arena-cq-validation.md](arena-cq-validation.md)
 
-### Phase 2 follow-ons (not yet implemented)
+### Follow-ons
 
-- Time **chapters** (Jaccard drop + evidence time gap)
-- Curated titles/summaries
-- Mega-merge guard for oversized Issues
 - Classify off Edge if 10‑min cron cannot drain backlog
+- Relevance decay lives on `graph_controversies.ranking_score` (projected)
 
 ## Deletion rules (later cleanup)
 
@@ -245,6 +255,7 @@ When the Neo4j path through Phase 2 is validated:
 
 - Next phases: [neo4j-overhaul-next.md](neo4j-overhaul-next.md)
 - Scalable controversies: [scalable-controversy-validation.md](scalable-controversy-validation.md)
+- Arena / CQ grain: [arena-cq-validation.md](arena-cq-validation.md)
 - Phase 0 checklist: [phase0-validation.md](phase0-validation.md)
 - Worker: [`services/graph-worker/README.md`](../../../services/graph-worker/README.md)
 - Ingestion: [AGENTS.md](../../AGENTS.md)

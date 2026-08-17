@@ -6,7 +6,7 @@
 
 ```text
 Ingest → Scrape → Clean → enqueue_graph_job → graph-worker (L0–L2a)
-  → debate_pipeline (Proposition pairs → Viewpoints → Controversies → Disputes → project)
+  → debate_pipeline (pairs → classify → viewpoints → controversies → name → disputes → project)
   → analysis_pipeline (EvidenceCheck / Citation / Assessment / HELD_BY / clips → project)
 ```
 
@@ -21,7 +21,7 @@ Admin: `/admin/graph-controversies`, `/admin/neo`, Stories agent-flow (ingestion
 
 ## Cron
 
-- `debate-pipeline-hourly` — see `doxa-agents/departments/06-debate-engine/debate-pipeline/07-debate-pipeline/schedule.sql` (Vault secrets, `{"limit":50}`).
+- `debate-pipeline-hourly` — see `doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql` (Vault secrets, `{"limit":50}`).
 
 ## Docs
 

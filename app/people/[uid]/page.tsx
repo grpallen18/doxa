@@ -25,7 +25,7 @@ export default async function PersonProfilePage({ params }: PageProps) {
       <div className="mx-auto max-w-6xl space-y-6">
         <ExploreBreadcrumbs
           items={[
-            { label: 'Explore', href: homePath() },
+            { label: 'Debates', href: homePath() },
             { label: profile.name },
           ]}
         />

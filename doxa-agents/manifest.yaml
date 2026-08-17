@@ -134,6 +134,46 @@ steps:
       schedule: 0 18 * * *
       sql: doxa-agents/departments/05-business-operations/02-discord-daily-health/schedule.sql
       body: "{}"
+  - id: graph-integrity-audit
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/01-graph-integrity-audit
+    deploy_name: graph_integrity_audit
+    verify_jwt: false
+  - id: prune-orphans
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/02-prune-orphans
+    deploy_name: prune_orphans
+    verify_jwt: false
+  - id: entity-alias-candidates
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/03-entity-alias-candidates
+    deploy_name: entity_alias_candidates
+    verify_jwt: false
+  - id: projection-reconcile
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/04-projection-reconcile
+    deploy_name: projection_reconcile
+    verify_jwt: false
+  - id: graph-hygiene
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/05-graph-hygiene
+    deploy_name: graph_hygiene
+    verify_jwt: false
   - id: purge-drop-stories-monthly
     department: 05-business-operations/maintenance
     workflow: 01-purge-drop-stories
@@ -194,7 +234,7 @@ steps:
       job_name: classify-proposition-relationships-every-10min
       schedule: "*/10 * * * *"
       sql: doxa-agents/departments/06-debate-engine/debate-pipeline/02-classify-proposition-relationships/schedule.sql
-      body: '{"limit": 40}'
+      body: '{"limit": 50}'
   - id: build-viewpoints
     department: 06-debate-engine
     workflow: debate-pipeline
@@ -211,12 +251,23 @@ steps:
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/04-build-controversies
     deploy_name: build_controversies
     verify_jwt: false
+  - id: name-controversies
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/05-name-controversies
+    deploy_name: name_controversies
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
   - id: detect-disputes
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
     status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/05-detect-disputes
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/06-detect-disputes
     deploy_name: detect_disputes
     verify_jwt: false
   - id: project-debate-summaries
@@ -224,7 +275,7 @@ steps:
     workflow: debate-pipeline
     kind: edge_function
     status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/06-project-debate-summaries
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/07-project-debate-summaries
     deploy_name: project_debate_summaries
     verify_jwt: false
   - id: debate-pipeline
@@ -232,13 +283,13 @@ steps:
     workflow: debate-pipeline
     kind: edge_function
     status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/07-debate-pipeline
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline
     deploy_name: debate_pipeline
     verify_jwt: false
     cron:
       job_name: debate-pipeline-hourly
       schedule: 15 * * * *
-      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/07-debate-pipeline/schedule.sql
+      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql
       body: '{"limit": 50}'
   - id: generate-evidence-check-candidates
     department: 07-analysis-engine

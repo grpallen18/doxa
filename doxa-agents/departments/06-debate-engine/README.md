@@ -16,6 +16,7 @@ See [neo4j-graph-architecture.md](../../docs/architecture/neo4j-graph-architectu
 | classify-proposition-relationships | classify_proposition_relationships | active |
 | build-viewpoints | build_viewpoints | active |
 | build-controversies | build_controversies | active |
+| name-controversies | name_controversies | active |
 | detect-disputes | detect_disputes | active |
 | project-debate-summaries | project_debate_summaries | active |
 | debate-pipeline | debate_pipeline | active |

@@ -64,6 +64,7 @@ export async function getEntityDossier(uid: string): Promise<ExploreEntityDossie
       .from('graph_controversies')
       .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at')
       .in('uid', entity.controversyUids)
+      .eq('status', 'open')
       .order('updated_at', { ascending: false })
     controversies = (data ?? []).map((r) => ({
       uid: r.uid as string,

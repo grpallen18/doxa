@@ -30,7 +30,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       <div className="mx-auto max-w-content space-y-6">
         <ExploreBreadcrumbs
           items={[
-            { label: 'Explore', href: homePath() },
+            { label: 'Debates', href: homePath() },
             { label: 'Search' },
           ]}
         />

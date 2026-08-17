@@ -39,11 +39,11 @@ export default async function HomePage() {
         <div className="mx-auto max-w-content space-y-6 text-center">
           <p className="text-4xl font-semibold tracking-tight sm:text-5xl">DOXA</p>
           <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            Navigate disagreement without radicalization
+            Debates, as questions
           </h1>
           <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted">
-            A structured map of debates from the news — facts at the core, viewpoints side by side,
-            evidence you can open.
+            Each controversy is one contested question with sides you can compare. People and topics
+            are ways to find those questions — not the debate itself.
           </p>
           <ExploreSearchField className="mx-auto max-w-xl" autoFocus />
         </div>
@@ -62,7 +62,7 @@ export default async function HomePage() {
 
         <section className="space-y-4">
           <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-            Trending controversies
+            Debates
           </h2>
           {controversies.length === 0 ? (
             <SparseStatePanel>

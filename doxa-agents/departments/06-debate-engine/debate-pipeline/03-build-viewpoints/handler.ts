@@ -1,25 +1,35 @@
 // Supabase Edge Function: build_viewpoints.
 // Issue-scoped agree clusters → stable Viewpoint nodes (opaque vp_ uids).
-// Body: { dry_run?: boolean, force_full?: boolean }
+// Body: { dry_run?, force_full?, backfill_limit?, max_issues?, budget_ms? }
 
-import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
-import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
-import { assembleComponents, type RelEdge } from "../../../../lib/debate/assembly.ts";
+import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
+import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
+import { assembleComponents, splitOversizedComponents, type RelEdge } from "../../../../lib/debate/assembly.ts";
 import { isCoreViewpointUnion } from "../../../../lib/debate/proposition-taxonomy.ts";
-import { resolveIssueUid } from "../../../../lib/debate/issue-assignment.ts";
+import { assignArenaForPair } from "../../../../lib/debate/arena-assign.ts";
+import { MAX_VIEWPOINT_PROPS } from "../../../../lib/debate/issue-assignment.ts";
 import { assignStableUids } from "../../../../lib/debate/stable-identity.ts";
 
 type IssueRow = { uid: string; topicKey: string };
 
-async function backfillIssuesFromRelations(): Promise<number> {
+/**
+ * Edge workers are killed on CPU time, and every heal/assembly item costs
+ * several Neo round trips. Both loops are therefore bounded by count *and*
+ * wall clock, and report what is left so the caller can re-run.
+ */
+const DEFAULT_BACKFILL_LIMIT = 150;
+const DEFAULT_MAX_ISSUES = 100;
+const DEFAULT_BUDGET_MS = 55_000;
+
+async function backfillIssuesFromRelations(
+  limit: number,
+  deadline: number
+): Promise<{ healed: number; pending: number }> {
+  if (limit <= 0) return { healed: 0, pending: 0 };
   const missing = await runCypher<{
     a: string;
     b: string;
     topicKey: string;
-    blockReason: string | null;
-    entityUid: string | null;
-    issueUid: string | null;
-    sharedEntityUid: string | null;
   }>(
     `
     MATCH (pa:Proposition)-[r:RELATES_TO]->(pb:Proposition)
@@ -29,106 +39,54 @@ async function backfillIssuesFromRelations(): Promise<number> {
     OPTIONAL MATCH (pb)-[:IN_ISSUE]->(ib:Issue)
     WITH pa, pb, dec, collect(DISTINCT ia) AS issuesA, collect(DISTINCT ib) AS issuesB
     WHERE size(issuesA) = 0 OR size(issuesB) = 0
-      OR any(i IN issuesA WHERE i.uid STARTS WITH 'issue:sim:')
-      OR any(i IN issuesB WHERE i.uid STARTS WITH 'issue:sim:')
-    OPTIONAL MATCH (pa)<-[:EXPRESSES]-(:Utterance)-[:MENTIONS]->(e:Entity)
-      <-[:MENTIONS]-(:Utterance)-[:EXPRESSES]->(pb)
-    WITH pa, pb, dec, e
-    ORDER BY e.uid
-    WITH pa, pb, dec, collect(e.uid)[0] AS sharedEntityUid
+      OR any(i IN issuesA WHERE i.uid STARTS WITH 'issue:')
+      OR any(i IN issuesB WHERE i.uid STARTS WITH 'issue:')
     RETURN pa.uid AS a, pb.uid AS b,
-           coalesce(dec.topicKey, 'general') AS topicKey,
-           dec.blockReason AS blockReason,
-           dec.entityUid AS entityUid,
-           dec.issueUid AS issueUid,
-           sharedEntityUid
-    LIMIT 2000
-    `
-  );
-  if (!missing.length) return 0;
-
-  const rows = missing.map((m) => {
-    const entityUid = m.entityUid || m.sharedEntityUid;
-    const storedIssue =
-      typeof m.issueUid === "string" && m.issueUid.startsWith("issue:")
-        ? m.issueUid
-        : null;
-    const storedEntIssue =
-      storedIssue && storedIssue.startsWith("issue:ent:") ? storedIssue : null;
-    const preferEntity = Boolean(entityUid?.trim() || storedEntIssue);
-    const issueUid =
-      storedEntIssue ||
-      (preferEntity
-        ? resolveIssueUid({
-            blockReason: "shared_entity",
-            entityUid,
-            topicKey: m.topicKey,
-          })
-        : storedIssue ||
-          resolveIssueUid({
-            blockReason: m.blockReason,
-            entityUid,
-            topicKey: m.topicKey,
-          }));
-    return {
-      a: m.a,
-      b: m.b,
-      topicKey: m.topicKey,
-      issueUid,
-      preferEntity,
-    };
-  });
-
-  if (!rows.length) return 0;
-
-  await runCypher(
-    `
-    UNWIND $rows AS row
-    MATCH (pa:Proposition {uid: row.a})
-    MATCH (pb:Proposition {uid: row.b})
-    MERGE (iss:Issue {uid: row.issueUid})
-    ON CREATE SET
-      iss.topicKey = row.topicKey,
-      iss.schemaVersion = '2.3.0',
-      iss.createdAt = datetime(),
-      iss.dirty = true
-    SET iss.dirty = true,
-        iss.topicKey = coalesce(iss.topicKey, row.topicKey),
-        iss.updatedAt = datetime()
-    MERGE (pa)-[:IN_ISSUE]->(iss)
-    MERGE (pb)-[:IN_ISSUE]->(iss)
-    WITH pa, pb, iss, row
-    WHERE row.preferEntity = true
-    OPTIONAL MATCH (pa)-[r1:IN_ISSUE]->(old1:Issue)
-    WHERE old1.uid <> iss.uid AND old1.uid STARTS WITH 'issue:sim:'
-    DELETE r1
-    WITH pa, pb, iss
-    OPTIONAL MATCH (pb)-[r2:IN_ISSUE]->(old2:Issue)
-    WHERE old2.uid <> iss.uid AND old2.uid STARTS WITH 'issue:sim:'
-    DELETE r2
+           coalesce(dec.topicKey, 'general') AS topicKey
+    LIMIT $limit
     `,
-    { rows }
+    { limit: neoInt(limit) }
   );
-  return rows.length;
+  if (!missing.length) return { healed: 0, pending: 0 };
+
+  let healed = 0;
+  for (const m of missing) {
+    if (Date.now() > deadline) break;
+    await assignArenaForPair({ a: m.a, b: m.b, topicKey: m.topicKey });
+    healed += 1;
+  }
+  return { healed, pending: missing.length - healed };
 }
 
-async function loadIssues(forceFull: boolean): Promise<IssueRow[]> {
+/**
+ * force_full sweeps least-recently-assembled first so repeated invocations
+ * advance through the backlog. The dirty queue is FIFO on `dirtiedAt` instead:
+ * an Arena whose controversy pass ran out of budget stays at the front rather
+ * than being pushed behind newly dirtied Arenas.
+ */
+async function loadIssues(forceFull: boolean, limit: number): Promise<IssueRow[]> {
   if (forceFull) {
     return runCypher<IssueRow>(
       `
       MATCH (i:Issue)
+      WITH i, coalesce(i.assembledAt.epochMillis, 0) AS lastMs
       RETURN i.uid AS uid, coalesce(i.topicKey, i.uid) AS topicKey
-      ORDER BY i.uid
-      `
+      ORDER BY lastMs ASC, i.uid ASC
+      LIMIT $limit
+      `,
+      { limit: neoInt(limit) }
     );
   }
   return runCypher<IssueRow>(
     `
     MATCH (i:Issue)
     WHERE i.dirty = true
+    WITH i, coalesce(i.dirtiedAt.epochMillis, 0) AS dirtyMs
     RETURN i.uid AS uid, coalesce(i.topicKey, i.uid) AS topicKey
-    ORDER BY i.uid
-    `
+    ORDER BY dirtyMs ASC, i.uid ASC
+    LIMIT $limit
+    `,
+    { limit: neoInt(limit) }
   );
 }
 
@@ -144,14 +102,23 @@ export const handler = async (req: Request) => {
   } catch { /* defaults */ }
   const dryRun = Boolean(body.dry_run ?? false);
   const forceFull = Boolean(body.force_full ?? false);
+  const backfillLimit = clampInt(body.backfill_limit, 0, 1000, DEFAULT_BACKFILL_LIMIT);
+  const maxIssues = clampInt(body.max_issues, 1, 1000, DEFAULT_MAX_ISSUES);
+  const budgetMs = clampInt(body.budget_ms, 5_000, 120_000, DEFAULT_BUDGET_MS);
+  const deadline = Date.now() + budgetMs;
 
-  // Heal missing / stale sim IN_ISSUE links (capped). Always run so classify dirty
-  // traffic cannot starve cutover remigration.
-  const backfilled = await backfillIssuesFromRelations();
+  // Heal missing / stale legacy IN_ISSUE links (capped). Always run so classify
+  // dirty traffic cannot starve cutover remigration, but keep it to a slice of
+  // the budget so assembly still happens on backlogged runs.
+  const backfill = await backfillIssuesFromRelations(
+    backfillLimit,
+    Date.now() + Math.floor(budgetMs * 0.4)
+  );
+  const backfilled = backfill.healed;
 
-  let issues = await loadIssues(forceFull);
+  let issues = await loadIssues(forceFull, maxIssues);
   if (!forceFull && issues.length === 0 && backfilled > 0) {
-    issues = await loadIssues(false);
+    issues = await loadIssues(false, maxIssues);
   }
 
   if (dryRun) {
@@ -161,14 +128,20 @@ export const handler = async (req: Request) => {
       issue_count: issues.length,
       force_full: forceFull,
       backfilled,
+      backfill_pending: backfill.pending,
     });
   }
 
   let written = 0;
   let reused = 0;
+  let budgetExhausted = false;
   const issueResults: Array<{ issueUid: string; viewpoints: number }> = [];
 
   for (const issue of issues) {
+    if (Date.now() > deadline) {
+      budgetExhausted = true;
+      break;
+    }
     const agreeRows = await runCypher<{
       a: string;
       b: string;
@@ -194,7 +167,8 @@ export const handler = async (req: Request) => {
       topicKey: issue.topicKey,
     }));
 
-    const components = assembleComponents(edges, (k) => isCoreViewpointUnion(k as "agree"));
+    const rawComponents = assembleComponents(edges, (k) => isCoreViewpointUnion(k as "agree"));
+    const components = splitOversizedComponents(rawComponents, edges, MAX_VIEWPOINT_PROPS);
 
     const orphanRows = await runCypher<{ propUid: string }>(
       `
@@ -346,6 +320,15 @@ export const handler = async (req: Request) => {
       );
     }
 
+    // Round-robin marker so repeated force_full runs advance the backlog.
+    await runCypher(
+      `
+      MATCH (i:Issue {uid: $issueUid})
+      SET i.assembledAt = datetime()
+      `,
+      { issueUid: issue.uid }
+    );
+
     issueResults.push({ issueUid: issue.uid, viewpoints: assigned.length });
   }
 
@@ -353,8 +336,12 @@ export const handler = async (req: Request) => {
     ok: true,
     viewpoint_count: written,
     reused,
-    issues_processed: issues.length,
+    issues_processed: issueResults.length,
+    issues_loaded: issues.length,
+    issues_remaining: budgetExhausted || issues.length === maxIssues,
+    budget_exhausted: budgetExhausted,
     backfilled,
+    backfill_pending: backfill.pending,
     force_full: forceFull,
     issues: issueResults,
   });

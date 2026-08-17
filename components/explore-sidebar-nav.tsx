@@ -35,10 +35,10 @@ type NavItem = {
 }
 
 const mainNav: NavItem[] = [
-  { label: 'Explore', icon: Compass, href: HOME_PATH, matchPrefix: false },
+  { label: 'Debates', icon: Compass, href: HOME_PATH, matchPrefix: false },
+  { label: 'People', icon: User, href: '/people', matchPrefix: true },
   { label: 'Search', icon: Search, href: '/search', matchPrefix: true },
   { label: 'About', icon: Info, href: '/about' },
-  { label: 'Profile', icon: User, href: '/profile' },
 ]
 
 const tocBackLinkClassName =
@@ -83,13 +83,7 @@ function isSectionHidden(
 
 function isNavActive(pathname: string, item: NavItem) {
   if (item.href === HOME_PATH) {
-    return (
-      pathname === HOME_PATH ||
-      pathname.startsWith('/c/') ||
-      pathname.startsWith('/topics/') ||
-      pathname.startsWith('/entities/') ||
-      pathname.startsWith('/people/')
-    )
+    return pathname === HOME_PATH || pathname.startsWith('/c/')
   }
   if (item.matchPrefix) {
     return pathname === item.href || pathname.startsWith(`${item.href}/`)

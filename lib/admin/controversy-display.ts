@@ -5,10 +5,13 @@ export function controversyDisplayName(input: {
   title?: string | null
   topic_key?: string | null
 }): string {
+  const title = input.title?.trim()
+  if (title && !title.startsWith('Untitled controversy')) {
+    const stripped = title.replace(QUESTION_PREFIX, '').replace(/\?$/, '').trim()
+    if (!QUESTION_PREFIX.test(title)) return title
+    if (stripped) return stripped
+  }
   const fromTopic = input.topic_key?.replace(/^sim:/, '').trim()
   if (fromTopic) return fromTopic
-  const title = input.title?.trim()
-  if (!title) return input.uid
-  const stripped = title.replace(QUESTION_PREFIX, '').replace(/\?$/, '').trim()
-  return stripped || title
+  return input.uid
 }

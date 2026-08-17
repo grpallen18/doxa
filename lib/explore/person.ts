@@ -77,6 +77,63 @@ function mapControversies(raw: unknown): ExploreControversyListItem[] {
     .filter((c) => c.uid)
 }
 
+async function controversiesForEntity(
+  supabase: Sb,
+  entityUid: string
+): Promise<ExploreControversyListItem[]> {
+  const { data: links } = await supabase
+    .from('graph_controversy_subjects')
+    .select('controversy_uid, weight')
+    .eq('entity_uid', entityUid)
+    .order('weight', { ascending: false })
+    .limit(24)
+  const uids = (links ?? []).map((r) => r.controversy_uid as string).filter(Boolean)
+  if (!uids.length) return []
+  const { data: rows } = await supabase
+    .from('graph_controversies')
+    .select('uid, title, question, summary, sides_count, source_count, topic_key, updated_at')
+    .in('uid', uids)
+    .eq('status', 'open')
+  const byUid = new Map((rows ?? []).map((r) => [r.uid as string, r]))
+  return uids
+    .map((id): ExploreControversyListItem | null => {
+      const r = byUid.get(id)
+      if (!r) return null
+      return {
+        uid: id,
+        question: String(r.question || r.title || 'Untitled debate').trim(),
+        summary: (r.summary as string | null) ?? null,
+        sides_count: Number(r.sides_count) || 0,
+        source_count: Number(r.source_count) || 0,
+        topic_key: (r.topic_key as string | null) ?? null,
+        updated_at: String(r.updated_at ?? ''),
+        topic_slug: null,
+        topic_title: null,
+      }
+    })
+    .filter((c): c is ExploreControversyListItem => c !== null)
+}
+
+export async function listPeople(
+  supabase: Sb,
+  limit = 40
+): Promise<Array<{ uid: string; name: string; fire_rating: number; debate_count: number }>> {
+  const { data } = await supabase
+    .from('graph_people')
+    .select('uid, name, stats')
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+  return (data ?? []).map((r) => {
+    const stats = asStats(r.stats)
+    return {
+      uid: r.uid as string,
+      name: (r.name as string) || (r.uid as string),
+      fire_rating: stats.fire_rating,
+      debate_count: stats.debate_count,
+    }
+  })
+}
+
 async function neoPersonName(uid: string): Promise<{ name: string; normalized: string } | null> {
   if (!getNeo4jConfig()) return null
   return withNeo4jSession(async (session) => {
@@ -128,6 +185,8 @@ export async function getPersonProfile(uid: string): Promise<ExplorePersonProfil
     .maybeSingle()
 
   if (row) {
+    const fromJson = mapControversies(row.controversies)
+    const fromIndex = await controversiesForEntity(supabase, uid)
     return {
       uid: row.uid as string,
       name: (row.name as string) || uid,
@@ -136,7 +195,7 @@ export async function getPersonProfile(uid: string): Promise<ExplorePersonProfil
       stats: asStats(row.stats),
       publishers: asArray(row.publishers),
       recent_documents: asArray(row.recent_documents),
-      controversies: mapControversies(row.controversies),
+      controversies: fromIndex.length ? fromIndex : fromJson,
       sample_propositions: asArray(row.sample_propositions),
       related_people: asArray(row.related_people),
       pulse: asArray(row.pulse),
@@ -150,7 +209,9 @@ export async function getPersonProfile(uid: string): Promise<ExplorePersonProfil
 
   const neo = await neoPersonName(uid)
   if (!neo) return null
-  return skeletalProfile(uid, neo.name, neo.normalized)
+  const skeletal = skeletalProfile(uid, neo.name, neo.normalized)
+  skeletal.controversies = await controversiesForEntity(supabase, uid)
+  return skeletal
 }
 
 export async function searchPeople(

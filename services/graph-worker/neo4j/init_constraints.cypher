@@ -81,8 +81,14 @@ FOR (a:Argument) ON (a.documentUid);
 CREATE INDEX viewpoint_document_uid IF NOT EXISTS
 FOR (v:Viewpoint) ON (v.documentUid);
 
-CREATE INDEX controversy_topic_key IF NOT EXISTS
-FOR (c:Controversy) ON (c.topicKey);
+CREATE INDEX controversy_issue_uid IF NOT EXISTS
+FOR (c:Controversy) ON (c.issueUid);
+
+CREATE INDEX controversy_chapter_of IF NOT EXISTS
+FOR (c:Controversy) ON (c.chapterOf);
+
+CREATE INDEX controversy_status IF NOT EXISTS
+FOR (c:Controversy) ON (c.status);
 
 CREATE INDEX issue_topic_key IF NOT EXISTS
 FOR (i:Issue) ON (i.topicKey);
