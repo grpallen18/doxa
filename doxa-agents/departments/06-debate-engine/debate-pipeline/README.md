@@ -8,7 +8,7 @@ Arenas (`Issue` label, `arena:` uids) are retired. Controversies are overlays on
 
 | Step | Folder | Deploy | Notes |
 |------|--------|--------|-------|
-| retrieve-or-mint-questions | [09-retrieve-or-mint-questions](09-retrieve-or-mint-questions/) | `retrieve_or_mint_questions` | Thesis → CQ → retrieve/adjudicate → attach / quarantine / mint |
+| retrieve-or-mint-questions | [09-retrieve-or-mint-questions](09-retrieve-or-mint-questions/) | `retrieve_or_mint_questions` | Thesis → CQ → retrieve/adjudicate → attach same / **mint on adjacent or miss** / quarantine `same_weak` only; fail/0-conf → `rejected`. `backfill_adjacent`, `reject_noise`. |
 | assign-question-answers | [10-assign-question-answers](10-assign-question-answers/) | `assign_question_answers` | Polarity on `ANSWERS` toward frozen CQ (theses) |
 | qualify-controversies | [11-qualify-controversies](11-qualify-controversies/) | `qualify_controversies` | FAVOR/AGAINST (etc.) incompatibility → Controversy overlay |
 | build-viewpoints | [03-build-viewpoints](03-build-viewpoints/) | `build_viewpoints` | `(Question, polarity)` key-point clustering → Viewpoint |

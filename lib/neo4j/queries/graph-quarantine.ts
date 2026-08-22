@@ -6,7 +6,13 @@ export type GraphQuarantineRow = {
   label: string | null
   confidence: number | null
   candidateQuestion: string | null
+  propositionUid: string | null
+  propositionText: string | null
+  questionUid: string | null
+  questionText: string | null
+  /** @deprecated Prefer propositionUid */
   propositionUids: string[]
+  /** @deprecated Prefer questionUid */
   questionUids: string[]
   updatedAt: string | null
 }
@@ -41,31 +47,41 @@ export async function listGraphQuarantineDecisions(
       OPTIONAL MATCH (dec)-[:ABOUT]->(p:Proposition)
       OPTIONAL MATCH (dec)-[:ABOUT]->(q:Question)
       WITH dec,
-           collect(DISTINCT p.uid) AS propositionUids,
-           collect(DISTINCT q.uid) AS questionUids
+           head(collect(DISTINCT p)) AS prop,
+           head(collect(DISTINCT q)) AS question
       RETURN dec.uid AS uid,
              dec.decisionType AS decisionType,
              dec.label AS label,
              dec.confidence AS confidence,
              dec.candidateQuestion AS candidateQuestion,
-             propositionUids,
-             questionUids,
+             prop.uid AS propositionUid,
+             coalesce(prop.text, prop.normalizedText) AS propositionText,
+             question.uid AS questionUid,
+             question.question AS questionText,
              toString(dec.updatedAt) AS updatedAt
       ORDER BY dec.updatedAt DESC
-      LIMIT $limit
+      LIMIT toInteger($limit)
       `,
       { limit }
     )
 
-    return result.records.map((record) => ({
-      uid: asString(record.get('uid')) ?? '',
-      decisionType: asString(record.get('decisionType')),
-      label: asString(record.get('label')),
-      confidence: asNumber(record.get('confidence')),
-      candidateQuestion: asString(record.get('candidateQuestion')),
-      propositionUids: asStringArray(record.get('propositionUids')),
-      questionUids: asStringArray(record.get('questionUids')),
-      updatedAt: asString(record.get('updatedAt')),
-    }))
+    return result.records.map((record) => {
+      const propositionUid = asString(record.get('propositionUid'))
+      const questionUid = asString(record.get('questionUid'))
+      return {
+        uid: asString(record.get('uid')) ?? '',
+        decisionType: asString(record.get('decisionType')),
+        label: asString(record.get('label')),
+        confidence: asNumber(record.get('confidence')),
+        candidateQuestion: asString(record.get('candidateQuestion')),
+        propositionUid,
+        propositionText: asString(record.get('propositionText')),
+        questionUid,
+        questionText: asString(record.get('questionText')),
+        propositionUids: asStringArray(propositionUid ? [propositionUid] : []),
+        questionUids: asStringArray(questionUid ? [questionUid] : []),
+        updatedAt: asString(record.get('updatedAt')),
+      }
+    })
   })
 }

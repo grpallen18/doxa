@@ -1,7 +1,9 @@
 // Supabase Edge Function: retrieve_or_mint_questions.
 // Thesis → candidate CQ → retrieve top-k Questions → same|adjacent|unrelated
-// → attach / quarantine / mint. No Viewpoints/Controversies.
-// Env: NEO4J_*, OPENAI_API_KEY. Body: { dry_run?, limit?, proposition_uid?, question_uid?, force? }
+// → attach / mint (adjacent mints new CQ) / quarantine (weak/fail only).
+// Body: { dry_run?, limit?, proposition_uid?, question_uid?, force?, backfill_adjacent?, reject_noise? }
+// backfill_adjacent: mint from stored candidateQuestion on quarantined label=adjacent Decisions.
+// reject_noise: mark fail/0-conf/irrelevant question_match|question_answer quarantines as rejected.
 
 import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
@@ -24,7 +26,7 @@ import {
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_LIMIT = 10;
-const PROMPT_VERSION = "retrieve-mint-v1";
+const PROMPT_VERSION = "retrieve-mint-v2";
 const FETCH_MULTIPLIER = 5;
 
 type PropRow = {
@@ -156,6 +158,116 @@ If it is only a wording swap of the same decision → same. Prefer adjacent when
   return out;
 }
 
+type MintAttachParams = {
+  propUid: string;
+  question: string;
+  questionType: string;
+  exclusivity: string;
+  embedding: number[];
+  qConfidence: number;
+  decisionUid: string;
+  label: string;
+  adjacentQuestionUid?: string;
+  candidateQuestion?: string;
+};
+
+/** Mint (or merge) a Question from candidate text and attach ANSWERS. */
+async function mintAndAttachQuestion(
+  params: MintAttachParams,
+  promptVersion: string,
+  model: string
+): Promise<string> {
+  const uid = await questionUidFromText(params.question);
+  await runCypher(
+    `
+    MATCH (p:Proposition {uid: $propUid})
+    OPTIONAL MATCH (p)-[old:ANSWERS]->(:Question)
+    DELETE old
+    MERGE (q:Question {uid: $uid})
+    ON CREATE SET
+      q.createdAt = datetime(),
+      q.status = 'developing',
+      q.confidence = $qConfidence
+    SET q.question = $question,
+        q.questionType = $questionType,
+        q.answerExclusivity = $exclusivity,
+        q.embedding = $embedding,
+        q.schemaVersion = $schemaVersion,
+        q.updatedAt = datetime()
+    MERGE (dec:Decision {uid: $decisionUid})
+    SET dec.decisionType = 'question_mint',
+        dec.status = 'accepted',
+        dec.actor = 'model',
+        dec.confidence = $qConfidence,
+        dec.label = $label,
+        dec.candidateQuestion = $candidateQuestion,
+        dec.adjacentQuestionUid = $adjacentQuestionUid,
+        dec.promptVersion = $promptVersion,
+        dec.model = $model,
+        dec.createdAt = coalesce(dec.createdAt, datetime()),
+        dec.updatedAt = datetime()
+    MERGE (dec)-[:ABOUT]->(p)
+    MERGE (dec)-[:ABOUT]->(q)
+    WITH p, q, dec
+    OPTIONAL MATCH (adj:Question {uid: $adjacentQuestionUid})
+    FOREACH (_ IN CASE WHEN adj IS NULL THEN [] ELSE [1] END |
+      MERGE (dec)-[:ABOUT]->(adj)
+    )
+    WITH p, q, dec
+    MERGE (p)-[a:ANSWERS]->(q)
+    SET a.debateRole = 'thesis',
+        a.polarity = coalesce(a.polarity, 'NONE'),
+        a.confidence = $qConfidence,
+        a.decisionUid = $decisionUid,
+        a.updatedAt = datetime()
+    `,
+    {
+      propUid: params.propUid,
+      uid,
+      question: params.question,
+      questionType: params.questionType,
+      exclusivity: params.exclusivity,
+      embedding: params.embedding,
+      schemaVersion: QUESTION_SCHEMA_VERSION,
+      decisionUid: params.decisionUid,
+      qConfidence: params.qConfidence,
+      label: params.label,
+      candidateQuestion: params.candidateQuestion ?? params.question,
+      adjacentQuestionUid: params.adjacentQuestionUid ?? "",
+      promptVersion,
+      model,
+    }
+  );
+  return uid;
+}
+
+/** Mark prior adjacent quarantine Decisions for this proposition as consumed. */
+async function consumeAdjacentQuarantine(
+  propUid: string,
+  supersededBy: string
+): Promise<void> {
+  await runCypher(
+    `
+    MATCH (p:Proposition {uid: $propUid})<-[:ABOUT]-(dec:Decision)
+    WHERE dec.decisionType = 'question_match'
+      AND dec.status = 'quarantined'
+      AND dec.label = 'adjacent'
+    SET dec.status = 'consumed',
+        dec.updatedAt = datetime(),
+        dec.supersededBy = $supersededBy
+    `,
+    { propUid, supersededBy }
+  );
+}
+
+type AdjacentBackfillRow = {
+  decisionUid: string;
+  propUid: string;
+  candidateQuestion: string;
+  confidence: number | null;
+  adjacentQuestionUid: string | null;
+};
+
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
@@ -173,11 +285,175 @@ export const handler = async (req: Request) => {
 
   const dryRun = Boolean(body.dry_run ?? false);
   const force = Boolean(body.force ?? false);
-  const limit = clampInt(body.limit, 1, 25, DEFAULT_LIMIT);
+  const backfillAdjacent = Boolean(body.backfill_adjacent ?? false);
+  const rejectNoise = Boolean(body.reject_noise ?? false);
+  const limit = backfillAdjacent
+    ? clampInt(body.limit, 1, 100, 50)
+    : clampInt(body.limit, 1, 25, DEFAULT_LIMIT);
   const onlyUid =
     typeof body.proposition_uid === "string" ? body.proposition_uid.trim() : "";
   const questionUid =
     typeof body.question_uid === "string" ? body.question_uid.trim() : "";
+
+  if (rejectNoise) {
+    if (dryRun) {
+      const pending = await runCypher<{ n: number }>(
+        `
+        MATCH (d:Decision)
+        WHERE d.status = 'quarantined'
+          AND d.decisionType IN ['question_match', 'question_answer']
+          AND (
+            coalesce(d.confidence, 0.0) = 0.0
+            OR d.relevant = false
+            OR d.label IN ['mint_failed', 'embed_failed', 'adjudicate_failed']
+            OR d.rationale = 'classify_failed'
+          )
+        RETURN count(d) AS n
+        `
+      );
+      return json({
+        ok: true,
+        dry_run: true,
+        reject_noise: true,
+        pending: Number(pending[0]?.n ?? 0),
+      });
+    }
+    const updated = await runCypher<{ n: number }>(
+      `
+      MATCH (d:Decision)
+      WHERE d.status = 'quarantined'
+        AND d.decisionType IN ['question_match', 'question_answer']
+        AND (
+          coalesce(d.confidence, 0.0) = 0.0
+          OR d.relevant = false
+          OR d.label IN ['mint_failed', 'embed_failed', 'adjudicate_failed']
+          OR d.rationale = 'classify_failed'
+        )
+      SET d.status = 'rejected',
+          d.updatedAt = datetime(),
+          d.rejectedReason = coalesce(d.label, d.rationale, 'noise')
+      RETURN count(d) AS n
+      `
+    );
+    return json({
+      ok: true,
+      reject_noise: true,
+      rejected: Number(updated[0]?.n ?? 0),
+    });
+  }
+
+  if (backfillAdjacent) {
+    const rows = await runCypher<AdjacentBackfillRow>(
+      `
+      MATCH (dec:Decision)
+      WHERE dec.status = 'quarantined'
+        AND dec.decisionType = 'question_match'
+        AND dec.label = 'adjacent'
+        AND dec.candidateQuestion IS NOT NULL
+        AND trim(dec.candidateQuestion) <> ''
+      OPTIONAL MATCH (dec)-[:ABOUT]->(p:Proposition)
+      OPTIONAL MATCH (dec)-[:ABOUT]->(q:Question)
+      WITH dec, head(collect(DISTINCT p)) AS prop, head(collect(DISTINCT q)) AS adj
+      WHERE prop IS NOT NULL
+        AND NOT EXISTS {
+          MATCH (prop)-[:ANSWERS]->(:Question)
+        }
+      RETURN dec.uid AS decisionUid,
+             prop.uid AS propUid,
+             dec.candidateQuestion AS candidateQuestion,
+             dec.confidence AS confidence,
+             adj.uid AS adjacentQuestionUid
+      ORDER BY dec.updatedAt ASC
+      LIMIT $limit
+      `,
+      { limit: neoInt(limit) }
+    );
+
+    if (dryRun) {
+      return json({
+        ok: true,
+        dry_run: true,
+        backfill_adjacent: true,
+        pending: rows.length,
+      });
+    }
+
+    // Clear adjacent quarantine on props that already have ANSWERS (no remint).
+    await runCypher(
+      `
+      MATCH (dec:Decision)
+      WHERE dec.status = 'quarantined'
+        AND dec.decisionType = 'question_match'
+        AND dec.label = 'adjacent'
+      MATCH (dec)-[:ABOUT]->(p:Proposition)
+      WHERE EXISTS { MATCH (p)-[:ANSWERS]->(:Question) }
+      SET dec.status = 'consumed',
+          dec.updatedAt = datetime(),
+          dec.supersededBy = 'already_attached'
+      `
+    );
+
+    let minted = 0;
+    let failed = 0;
+    let skippedAttached = 0;
+    const seenProps = new Set<string>();
+    for (const row of rows) {
+      if (seenProps.has(row.propUid)) {
+        await consumeAdjacentQuarantine(row.propUid, row.decisionUid);
+        skippedAttached += 1;
+        continue;
+      }
+      const question = ensureQuestionMark(String(row.candidateQuestion ?? "").trim()).slice(
+        0,
+        240
+      );
+      if (!question) {
+        failed += 1;
+        continue;
+      }
+      try {
+        const [emb] = await embedTexts(OPENAI_API_KEY, [question], EMBEDDING_MODEL);
+        if (!emb?.length) {
+          failed += 1;
+          continue;
+        }
+        const conf =
+          typeof row.confidence === "number" && Number.isFinite(row.confidence)
+            ? Math.max(0, Math.min(1, row.confidence))
+            : 0.6;
+        await mintAndAttachQuestion(
+          {
+            propUid: row.propUid,
+            question,
+            questionType: "factual",
+            exclusivity: "unknown",
+            embedding: emb,
+            qConfidence: conf,
+            decisionUid: row.decisionUid,
+            label: "adjacent_minted",
+            adjacentQuestionUid: row.adjacentQuestionUid ?? undefined,
+            candidateQuestion: question,
+          },
+          PROMPT_VERSION,
+          MODEL
+        );
+        seenProps.add(row.propUid);
+        await consumeAdjacentQuarantine(row.propUid, row.decisionUid);
+        minted += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    return json({
+      ok: true,
+      backfill_adjacent: true,
+      scanned: rows.length,
+      minted,
+      failed,
+      skipped_duplicate_prop: skippedAttached,
+    });
+  }
 
   if (questionUid && !onlyUid && !force) {
     return json({
@@ -197,14 +473,15 @@ export const handler = async (req: Request) => {
     `
     MATCH (p:Proposition)
     WHERE ($onlyUid = '' OR p.uid = $onlyUid)
-      AND ($force = true OR (
+        AND ($force = true OR (
         NOT EXISTS {
           MATCH (p)-[a:ANSWERS]->(:Question)
           WHERE a.decisionUid IS NOT NULL
         }
         AND NOT EXISTS {
           MATCH (d:Decision)-[:ABOUT]->(p)
-          WHERE d.decisionType = 'question_match' AND d.status = 'quarantined'
+          WHERE d.decisionType = 'question_match'
+            AND d.status IN ['quarantined', 'rejected']
         }
       ))
     OPTIONAL MATCH (u:Utterance)-[:EXPRESSES]->(p)
@@ -258,6 +535,7 @@ export const handler = async (req: Request) => {
   let attached = 0;
   let minted = 0;
   let quarantined = 0;
+  let rejected = 0;
 
   for (const prop of props) {
     scanned += 1;
@@ -283,7 +561,7 @@ export const handler = async (req: Request) => {
         MATCH (p:Proposition {uid: $propUid})
         MERGE (dec:Decision {uid: $decisionUid})
         SET dec.decisionType = 'question_match',
-            dec.status = 'quarantined',
+            dec.status = 'rejected',
             dec.actor = 'model',
             dec.confidence = coalesce($confidence, 0.0),
             dec.label = 'mint_failed',
@@ -301,7 +579,7 @@ export const handler = async (req: Request) => {
           model: MODEL,
         }
       );
-      quarantined += 1;
+      rejected += 1;
       continue;
     }
 
@@ -313,7 +591,7 @@ export const handler = async (req: Request) => {
         MATCH (p:Proposition {uid: $propUid})
         MERGE (dec:Decision {uid: $decisionUid})
         SET dec.decisionType = 'question_match',
-            dec.status = 'quarantined',
+            dec.status = 'rejected',
             dec.actor = 'model',
             dec.confidence = 0.0,
             dec.label = 'embed_failed',
@@ -332,7 +610,7 @@ export const handler = async (req: Request) => {
           model: MODEL,
         }
       );
-      quarantined += 1;
+      rejected += 1;
       continue;
     }
 
@@ -375,7 +653,7 @@ export const handler = async (req: Request) => {
         MATCH (q:Question {uid: $questionUid})
         MERGE (dec:Decision {uid: $decisionUid})
         SET dec.decisionType = 'question_match',
-            dec.status = 'quarantined',
+            dec.status = 'rejected',
             dec.actor = 'model',
             dec.confidence = 0.0,
             dec.label = 'adjudicate_failed',
@@ -396,7 +674,7 @@ export const handler = async (req: Request) => {
           model: MODEL,
         }
       );
-      quarantined += 1;
+      rejected += 1;
       continue;
     }
 
@@ -448,41 +726,33 @@ export const handler = async (req: Request) => {
         }
       );
       attached += 1;
+      await consumeAdjacentQuarantine(prop.uid, decisionUid);
       continue;
     }
 
     if (adjacentBest) {
-      const decisionUid = `qadj:${prop.uid}:${adjacentBest.uid}`.slice(0, 180);
-      await runCypher(
-        `
-        MATCH (p:Proposition {uid: $propUid})
-        MATCH (q:Question {uid: $questionUid})
-        MERGE (dec:Decision {uid: $decisionUid})
-        SET dec.decisionType = 'question_match',
-            dec.status = 'quarantined',
-            dec.actor = 'model',
-            dec.confidence = $confidence,
-            dec.label = 'adjacent',
-            dec.candidateQuestion = $candidate,
-            dec.promptVersion = $promptVersion,
-            dec.model = $model,
-            dec.createdAt = coalesce(dec.createdAt, datetime()),
-            dec.updatedAt = datetime()
-        MERGE (dec)-[:ABOUT]->(p)
-        MERGE (dec)-[:ABOUT]->(q)
-        `,
+      // Adjacent = different decision: mint a new CQ (do not merge with registry hit).
+      const uid = await questionUidFromText(candidate.question);
+      const decisionUid = `qadjmint:${prop.uid}:${uid}`.slice(0, 180);
+      await mintAndAttachQuestion(
         {
           propUid: prop.uid,
-          questionUid: adjacentBest.uid,
+          question: candidate.question,
+          questionType: candidate.questionType,
+          exclusivity: candidate.exclusivity,
+          embedding: candEmb,
+          qConfidence: candidate.confidence,
           decisionUid,
-          confidence: adjacentBest.confidence,
-          candidate: candidate.question,
-          promptVersion: PROMPT_VERSION,
-          model: MODEL,
-        }
+          label: "adjacent_minted",
+          adjacentQuestionUid: adjacentBest.uid,
+          candidateQuestion: candidate.question,
+        },
+        PROMPT_VERSION,
+        MODEL
       );
-      quarantined += 1;
-      // Do not mint when adjacent to an existing CQ — avoids near-miss explosion.
+      await consumeAdjacentQuarantine(prop.uid, decisionUid);
+      minted += 1;
+      registry.push({ uid, question: candidate.question, embedding: candEmb });
       continue;
     }
 
@@ -524,54 +794,22 @@ export const handler = async (req: Request) => {
     // Mint on miss / all unrelated.
     const uid = await questionUidFromText(candidate.question);
     const decisionUid = `qmint:${prop.uid}:${uid}`.slice(0, 180);
-    await runCypher(
-      `
-      MATCH (p:Proposition {uid: $propUid})
-      OPTIONAL MATCH (p)-[old:ANSWERS]->(:Question)
-      DELETE old
-      MERGE (q:Question {uid: $uid})
-      ON CREATE SET
-        q.createdAt = datetime(),
-        q.status = 'developing',
-        q.confidence = $qConfidence
-      SET q.question = $question,
-          q.questionType = $questionType,
-          q.answerExclusivity = $exclusivity,
-          q.embedding = $embedding,
-          q.schemaVersion = $schemaVersion,
-          q.updatedAt = datetime()
-      MERGE (dec:Decision {uid: $decisionUid})
-      SET dec.decisionType = 'question_mint',
-          dec.status = 'accepted',
-          dec.actor = 'model',
-          dec.confidence = $qConfidence,
-          dec.promptVersion = $promptVersion,
-          dec.model = $model,
-          dec.createdAt = coalesce(dec.createdAt, datetime()),
-          dec.updatedAt = datetime()
-      MERGE (dec)-[:ABOUT]->(p)
-      MERGE (dec)-[:ABOUT]->(q)
-      MERGE (p)-[a:ANSWERS]->(q)
-      SET a.debateRole = 'thesis',
-          a.polarity = coalesce(a.polarity, 'NONE'),
-          a.confidence = $qConfidence,
-          a.decisionUid = $decisionUid,
-          a.updatedAt = datetime()
-      `,
+    await mintAndAttachQuestion(
       {
         propUid: prop.uid,
-        uid,
         question: candidate.question,
         questionType: candidate.questionType,
         exclusivity: candidate.exclusivity,
         embedding: candEmb,
-        schemaVersion: QUESTION_SCHEMA_VERSION,
-        decisionUid,
         qConfidence: candidate.confidence,
-        promptVersion: PROMPT_VERSION,
-        model: MODEL,
-      }
+        decisionUid,
+        label: "minted",
+        candidateQuestion: candidate.question,
+      },
+      PROMPT_VERSION,
+      MODEL
     );
+    await consumeAdjacentQuarantine(prop.uid, decisionUid);
     minted += 1;
     registry.push({ uid, question: candidate.question, embedding: candEmb });
   }
@@ -583,6 +821,7 @@ export const handler = async (req: Request) => {
     attached,
     minted,
     quarantined,
+    rejected,
     registry_size: registry.length,
   });
 };

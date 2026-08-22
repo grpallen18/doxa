@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { AlertCircleIcon } from 'lucide-react'
 import { Panel } from '@/components/Panel'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -28,6 +29,7 @@ type Stage = {
   value: string
   detail?: string
   warn?: boolean
+  href?: string
 }
 
 function StageList({ title, stages }: { title: string; stages: Stage[] }) {
@@ -45,7 +47,18 @@ function StageList({ title, stages }: { title: string; stages: Stage[] }) {
         <TableBody>
           {stages.map((stage) => (
             <TableRow key={stage.id}>
-              <TableCell className="font-medium">{stage.label}</TableCell>
+              <TableCell className="font-medium">
+                {stage.href ? (
+                  <Link
+                    href={stage.href}
+                    className="text-accent-primary hover:underline"
+                  >
+                    {stage.label}
+                  </Link>
+                ) : (
+                  stage.label
+                )}
+              </TableCell>
               <TableCell className="text-right tabular-nums">
                 {stage.warn ? (
                   <Badge variant="secondary">{stage.value}</Badge>
@@ -175,8 +188,15 @@ function buildDebateStages(data: ObservabilityPipelineCounts): Stage[] {
       id: 'answers',
       label: 'ANSWERS edges',
       value: formatCount(neo.answersEdges),
-      detail: `quarantine ${formatCount(neo.quarantinedQuestionMatch)}`,
+      detail: 'Successful Proposition → Question attachments',
+    },
+    {
+      id: 'quarantine',
+      label: 'Question quarantine',
+      value: formatCount(neo.quarantinedQuestionMatch),
+      detail: 'Quarantined question_match / question_answer Decisions',
       warn: neo.quarantinedQuestionMatch > 0,
+      href: '/admin/graph-controversies',
     },
     {
       id: 'controversies-neo',

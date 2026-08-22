@@ -31,6 +31,7 @@ const KIND_SIZE: Record<
 > = {
   document: { baseSize: 4, priority: 90 },
   controversy: { baseSize: 9, priority: 110 },
+  question: { baseSize: 8, priority: 105 },
   viewpoint: { baseSize: 7, priority: 95 },
   proposition: { baseSize: 6, priority: 88 },
   dispute: { baseSize: 6, priority: 86 },
@@ -54,6 +55,7 @@ const KIND_SIZE_COMPACT: Record<
 > = {
   document: { baseSize: 1.05, priority: 90 },
   controversy: { baseSize: 1.55, priority: 110 },
+  question: { baseSize: 1.4, priority: 105 },
   viewpoint: { baseSize: 1.2, priority: 95 },
   proposition: { baseSize: 1.1, priority: 88 },
   dispute: { baseSize: 1.1, priority: 86 },

@@ -9,7 +9,7 @@ import { parsePolarity, type AnswerPolarity } from "../../../../lib/debate/quest
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_LIMIT = 15;
-const PROMPT_VERSION = "assign-answer-v1";
+const PROMPT_VERSION = "assign-answer-v2";
 const AUTO_ACCEPT = 0.7;
 
 type Row = {
@@ -134,6 +134,8 @@ export const handler = async (req: Request) => {
   let assigned = 0;
   let skipped = 0;
   let irrelevant = 0;
+  let rejected = 0;
+  let quarantined = 0;
 
   for (const row of rows) {
     if (!row.propText.trim() || !row.question.trim()) {
@@ -160,12 +162,13 @@ export const handler = async (req: Request) => {
             a.updatedAt = datetime()
         MERGE (dec:Decision {uid: $decisionUid})
         SET dec.decisionType = 'question_answer',
-            dec.status = 'quarantined',
+            dec.status = 'rejected',
             dec.actor = 'model',
             dec.confidence = 0.0,
             dec.relevant = false,
             dec.polarity = 'NONE',
             dec.rationale = 'classify_failed',
+            dec.rejectedReason = 'classify_failed',
             dec.promptVersion = $promptVersion,
             dec.model = $model,
             dec.createdAt = coalesce(dec.createdAt, datetime()),
@@ -181,23 +184,25 @@ export const handler = async (req: Request) => {
           model: MODEL,
         }
       );
-      irrelevant += 1;
+      rejected += 1;
       continue;
     }
 
-    if (!result.relevant || result.confidence < AUTO_ACCEPT) {
+    // Noise / clear miss: auto-reject (no human queue).
+    if (!result.relevant || result.confidence <= 0) {
       await runCypher(
         `
         MATCH (p:Proposition {uid: $propUid})-[a:ANSWERS]->(q:Question {uid: $questionUid})
         DELETE a
         MERGE (dec:Decision {uid: $decisionUid})
         SET dec.decisionType = 'question_answer',
-            dec.status = 'quarantined',
+            dec.status = 'rejected',
             dec.actor = 'model',
             dec.confidence = $confidence,
             dec.relevant = $relevant,
             dec.polarity = $polarity,
             dec.rationale = $rationale,
+            dec.rejectedReason = CASE WHEN $relevant THEN 'zero_confidence' ELSE 'irrelevant' END,
             dec.promptVersion = $promptVersion,
             dec.model = $model,
             dec.createdAt = coalesce(dec.createdAt, datetime()),
@@ -217,7 +222,44 @@ export const handler = async (req: Request) => {
           model: MODEL,
         }
       );
+      rejected += 1;
       irrelevant += 1;
+      continue;
+    }
+
+    // Relevant but below auto-accept: keep in quarantine for rare review/retry.
+    if (result.confidence < AUTO_ACCEPT) {
+      await runCypher(
+        `
+        MATCH (p:Proposition {uid: $propUid})-[a:ANSWERS]->(q:Question {uid: $questionUid})
+        DELETE a
+        MERGE (dec:Decision {uid: $decisionUid})
+        SET dec.decisionType = 'question_answer',
+            dec.status = 'quarantined',
+            dec.actor = 'model',
+            dec.confidence = $confidence,
+            dec.relevant = true,
+            dec.polarity = $polarity,
+            dec.rationale = $rationale,
+            dec.promptVersion = $promptVersion,
+            dec.model = $model,
+            dec.createdAt = coalesce(dec.createdAt, datetime()),
+            dec.updatedAt = datetime()
+        MERGE (dec)-[:ABOUT]->(p)
+        MERGE (dec)-[:ABOUT]->(q)
+        `,
+        {
+          propUid: row.propUid,
+          questionUid: row.questionUid,
+          decisionUid,
+          confidence: result.confidence,
+          polarity: result.polarity,
+          rationale: result.rationale,
+          promptVersion: PROMPT_VERSION,
+          model: MODEL,
+        }
+      );
+      quarantined += 1;
       continue;
     }
 
@@ -258,5 +300,13 @@ export const handler = async (req: Request) => {
     assigned += 1;
   }
 
-  return json({ ok: true, scanned: rows.length, assigned, skipped, irrelevant });
+  return json({
+    ok: true,
+    scanned: rows.length,
+    assigned,
+    skipped,
+    irrelevant,
+    rejected,
+    quarantined,
+  });
 };
