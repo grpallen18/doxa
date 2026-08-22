@@ -9,7 +9,6 @@ import { createClient } from '@/lib/supabase/client'
 import { HOME_PATH } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import {
-  AuthCardHeading,
   authLinkClassName,
   glassFieldClassName,
   glassOutlineButtonClassName,
@@ -96,7 +95,6 @@ export function LoginForm({
 
   return (
     <div className="space-y-5">
-      <AuthCardHeading title="Log in" />
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {error && (

@@ -303,6 +303,7 @@ export async function getControversyDetail(
       'uid, title, question, summary, sides_count, source_count, topic_key, updated_at, shared_bullets, clash_bullets, dispute_bullets'
     )
     .eq('uid', uid)
+    .eq('status', 'open')
     .maybeSingle()
   if (error) throw error
   if (!row) return null

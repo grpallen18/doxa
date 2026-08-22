@@ -85,6 +85,11 @@ const MULTI_AGAINST: Fixture = {
 }
 
 async function main() {
+  if (process.env.ALLOW_FIXTURE_SEED !== '1') {
+    throw new Error(
+      'Refusing fixture seed. Set ALLOW_FIXTURE_SEED=1 in env for local dev only.'
+    )
+  }
   const uri = process.env.NEO4J_URI?.trim()
   const username = process.env.NEO4J_USERNAME?.trim()
   const password = process.env.NEO4J_PASSWORD?.trim()

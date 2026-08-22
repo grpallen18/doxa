@@ -198,18 +198,3 @@ export function PageSkeletonTopicDetail() {
     </main>
   )
 }
-
-export function PageSkeletonAdminTopics() {
-  return (
-    <main className={contentClass}>
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-        <Skeleton className="h-12 w-64" />
-        <div className="space-y-4">
-          <Skeleton className="h-4 w-48" />
-          <Skeleton className="h-10 w-full rounded-lg" />
-        </div>
-        <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
-    </main>
-  )
-}

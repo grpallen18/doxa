@@ -1,23 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 
-/** Returns all topics (including draft). Uses service role to bypass RLS. Admin only. */
-export async function GET(request: NextRequest) {
+type SourceRow = {
+  domain: string
+  total: number
+  successes: number
+  failures: number
+}
+
+/** Returns scrape stats by domain for the last 24h. Admin only. */
+export async function GET() {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
   try {
     const supabase = createAdminClient()
-    const searchParams = request.nextUrl.searchParams
-    const limit = parseInt(searchParams.get('limit') || '100')
-    const offset = parseInt(searchParams.get('offset') || '0')
-
-    const { data: topics, error } = await supabase
-      .from('topics')
-      .select('topic_id, slug, title, status, summary, created_at')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+    const { data, error } = await supabase.rpc('get_scrape_stats_by_source')
 
     if (error) {
       return NextResponse.json(
@@ -26,11 +25,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    if (!topics?.length) {
-      return NextResponse.json({ data: [], error: null })
-    }
+    const formatted = (data ?? []).map((row: SourceRow) => ({
+      domain: row.domain,
+      total: Number(row.total ?? 0),
+      successes: Number(row.successes ?? 0),
+      failures: Number(row.failures ?? 0),
+    }))
 
-    return NextResponse.json({ data: topics, error: null })
+    return NextResponse.json({ data: formatted, error: null })
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes('SUPABASE_SERVICE_ROLE_KEY')) {
       return NextResponse.json(

@@ -50,7 +50,7 @@ test.describe('unauthenticated visitors', () => {
   })
 
   test('api requests get a 401 instead of landing-page html', async ({ request }) => {
-    const response = await request.get('/api/admin/health')
+    const response = await request.get('/api/admin/observability/pipeline-counts')
 
     expect(response.status()).toBe(401)
     expect(await response.json()).toMatchObject({

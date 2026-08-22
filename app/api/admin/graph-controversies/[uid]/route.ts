@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
@@ -9,11 +9,13 @@ export async function GET(_req: Request, { params }: Params) {
   if (auth instanceof NextResponse) return auth
 
   const { uid } = await params
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data: controversy, error } = await supabase
     .from('graph_controversies')
-    .select('uid, title, summary, sides_count, topic_key, updated_at')
+    .select(
+      'uid, title, question, summary, sides_count, source_count, topic_key, status, publish_block_reason, updated_at'
+    )
     .eq('uid', uid)
     .maybeSingle()
 

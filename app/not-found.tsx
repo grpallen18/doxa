@@ -1,27 +1,5 @@
-import { Panel } from '@/components/Panel'
-import { Button } from '@/components/Button'
-import { defaultTopicId } from '@/lib/mock/topic-explore'
-import { topicPath } from '@/lib/topic-routes'
+import { NotFoundView } from '@/components/landing/not-found-view'
 
 export default function NotFound() {
-  return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8">
-      <Panel variant="soft" className="max-w-md space-y-6 p-8 text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Page not found
-        </h1>
-        <p className="text-sm text-muted">
-          The page you&apos;re looking for doesn&apos;t exist or has been moved.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Button href="/" variant="primary">
-            Go home
-          </Button>
-          <Button href={topicPath(defaultTopicId)} variant="primary">
-            Explore topics
-          </Button>
-        </div>
-      </Panel>
-    </main>
-  )
+  return <NotFoundView />
 }

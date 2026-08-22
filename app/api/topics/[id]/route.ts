@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { TopicWithDetails, TopicControversy, TopicRelationship } from '@/lib/types'
-import { requireAdmin } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
@@ -98,48 +97,6 @@ export async function GET(
 
     return NextResponse.json({ data: topicWithDetails, error: null })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal server error'
-    return NextResponse.json(
-      { data: null, error: { message } },
-      { status: 500 }
-    )
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await requireAdmin()
-  if (auth instanceof NextResponse) return auth
-
-  const { id: topicId } = await params
-  if (!topicId) {
-    return NextResponse.json(
-      { data: null, error: { message: 'Topic ID required' } },
-      { status: 400 }
-    )
-  }
-
-  try {
-    const supabase = createAdminClient()
-    const { error } = await supabase.from('topics').delete().eq('topic_id', topicId)
-
-    if (error) {
-      return NextResponse.json(
-        { data: null, error: { message: error.message } },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ data: { deleted: true }, error: null })
-  } catch (error: unknown) {
-    if (error instanceof Error && error.message.includes('SUPABASE_SERVICE_ROLE_KEY')) {
-      return NextResponse.json(
-        { data: null, error: { message: 'Admin client not configured' } },
-        { status: 503 }
-      )
-    }
     const message = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json(
       { data: null, error: { message } },

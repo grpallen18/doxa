@@ -29,7 +29,7 @@ export const DEFAULT_CHART_HREFS: Record<ChartCatalogId, string> = {
   stories: '/admin/stories',
   daily_ingest: '/admin/stories',
   story_gating: '/admin/stories',
-  scrape_rate: '/admin/health',
+  scrape_rate: '/admin/observability',
   qa_backlog: '/admin/stories',
 }
 

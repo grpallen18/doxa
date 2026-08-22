@@ -1,27 +1,11 @@
-import { Panel } from '@/components/Panel'
-import { Button } from '@/components/Button'
-import { defaultTopicId } from '@/lib/mock/topic-explore'
-import { topicPath } from '@/lib/topic-routes'
+import { NotFoundView } from '@/components/landing/not-found-view'
+import { HOME_PATH } from '@/lib/constants'
 
 export default function TopicNotFound() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8">
-      <Panel variant="soft" className="max-w-md space-y-6 p-8 text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Topic not found
-        </h1>
-        <p className="text-sm text-muted">
-          The topic you&apos;re looking for doesn&apos;t exist or has been removed.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Button href={topicPath(defaultTopicId)} variant="primary">
-            Explore topics
-          </Button>
-          <Button href="/" variant="primary">
-            Go home
-          </Button>
-        </div>
-      </Panel>
-    </main>
+    <NotFoundView
+      message="This topic isn't here — it may have been removed, or the link is out of date."
+      homeHref={HOME_PATH}
+    />
   )
 }

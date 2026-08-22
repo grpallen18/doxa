@@ -1,5 +1,5 @@
 ---
-description: Doxa agent pipeline conventions — handlers, sync, deploy reminders
+description: Doxa agent pipeline conventions — handlers, sync, deploy & run ops yourself
 globs: doxa-agents/**,supabase/functions/**,workers/**
 alwaysApply: true
 ---
@@ -33,20 +33,18 @@ Follow [doxa-agents/docs/directory-layout.md](doxa-agents/docs/directory-layout.
 
 ## Engine data purge
 
-When adding or removing pipeline output tables, edit `doxa-agents/ops/purge-engine-tables.yaml` and run `npm run agents:refresh` (regenerates `supabase/routines/purge_engine_data.sql`). Re-apply that routine in SQL Editor on deployed DBs; new installs get migration `121_purge_engine_data.sql`.
+When adding or removing pipeline output tables, edit `doxa-agents/ops/purge-engine-tables.yaml` and run `npm run agents:refresh` (regenerates `supabase/routines/purge_engine_data.sql`). Then re-apply that routine on the deployed DB yourself (see Agent-owned ops). New installs get migration `121_purge_engine_data.sql`.
 
-## User-owned ops (remind in final message when relevant)
+## Agent-owned ops (do these yourself — do not hand back to the user)
 
-- **Secret values** in Supabase / Cloudflare (names are in [doxa-agents/docs/generated/secrets.md](doxa-agents/docs/generated/secrets.md))
-- **`doxa-agents/activation.yaml`** — add step id when user wants workflow marked active (does not schedule crons)
-- **Run `schedule.sql`** in Supabase SQL Editor to enable pg_cron
-- **`supabase/migrations/`** for schema changes
+When credentials / CLI / MCP are available (project `.env.local`, linked `supabase` ref, Supabase MCP), **execute** the following after relevant code changes. Prefer action over reminders.
 
-### Edge function deploy
+- **Migrations** — apply new `supabase/migrations/*.sql` via Supabase MCP `apply_migration` or CLI; do not ask the user to paste SQL into the dashboard.
+- **Edge function deploy** — deploy touched functions yourself (CLI preferred for multi-file handlers). Use [doxa-agents/docs/generated/deploy.md](doxa-agents/docs/generated/deploy.md) for the full list.
+- **Pipeline re-runs** — after deploy, invoke the changed step (or its orchestrator) with service-role auth when the change needs a data refresh to take effect.
+- **Purge routine** — after `purge-engine-tables.yaml` changes and `agents:refresh`, re-apply `supabase/routines/purge_engine_data.sql` on the deployed DB (new installs still get migration `121_purge_engine_data.sql`).
 
-When a handler or stub under `supabase/functions/` changed, remind the user to deploy. Use [doxa-agents/docs/generated/deploy.md](doxa-agents/docs/generated/deploy.md) for the full list.
-
-**Default:** `supabase functions deploy <deploy_name>`
+**Default deploy:** `supabase functions deploy <deploy_name>`
 
 **JWT disabled (must pass flag on every CLI deploy):** These functions use a shared secret or service-role caller instead of a user JWT. Deploying without `--no-verify-jwt` causes **401 Invalid JWT** for the Cloudflare worker callback or internal invokes.
 
@@ -74,17 +72,24 @@ When a handler or stub under `supabase/functions/` changed, remind the user to d
 | `clean_scraped_content` | Admin / cron (service role) |
 | `enqueue_graph_job` | Admin / clean callback (service role) |
 | `trigger_graph_worker` | Admin run-step (service role) |
+| `retrieve_or_mint_questions` | Invoked by `debate_pipeline` |
+| `assign_question_answers` | Invoked by `debate_pipeline` |
+| `qualify_controversies` | Invoked by `debate_pipeline` |
 
 ```bash
 supabase functions deploy <deploy_name> --no-verify-jwt
 ```
 
-In the final message: if the user changed **any** step in the JWT table (or you touched its handler/stub), give the **exact** deploy command including `--no-verify-jwt` for that `deploy_name` only—do not omit the flag. For other functions, a normal deploy line is enough.
+When deploying any JWT-off function above, always include `--no-verify-jwt`. Mirror new JWT-off functions in `supabase/config.toml` as `[functions.<deploy_name>]` with `verify_jwt = false`.
 
-Also mirror new JWT-off functions in `supabase/config.toml` as `[functions.<deploy_name>]` with `verify_jwt = false` (local + documentation).
+## Still user-owned (cannot fully automate)
+
+- **Secret values** in Supabase / Cloudflare dashboards (names are in [doxa-agents/docs/generated/secrets.md](doxa-agents/docs/generated/secrets.md)) — agent may name them; user must set values if missing.
+- **`doxa-agents/activation.yaml`** — add step id only when the user asks to mark a workflow active (does not schedule crons).
+- **pg_cron enablement** — run `schedule.sql` yourself when Vault/`project_url`/`service_role_key` are available; otherwise note the blocker briefly.
 
 ### Isolated pipeline testing
 
-When the user is walking one article through the pipeline, remind them of [doxa-agents/docs/pipeline-test-params.md](doxa-agents/docs/pipeline-test-params.md): which POST fields isolate a row (`story_id`, `story_claim_id`, etc.) per deploy name. Shared helpers live in `doxa-agents/lib/pipeline-test-params.ts`.
+When the user is walking one article through the pipeline, use [doxa-agents/docs/pipeline-test-params.md](doxa-agents/docs/pipeline-test-params.md) for isolation POST fields (`story_id`, `story_claim_id`, etc.). Shared helpers live in `doxa-agents/lib/pipeline-test-params.ts`.
 
 Do not update `activation.yaml` unless the user asks to enable a workflow.

@@ -8,7 +8,6 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import { HOME_PATH } from '@/lib/constants'
 import {
-  AuthCardHeading,
   authLinkClassName,
   glassFieldClassName,
 } from '@/components/auth/auth-scene'
@@ -66,7 +65,6 @@ export function SignUpForm({ redirectTo = HOME_PATH }: { redirectTo?: string }) 
 
   return (
     <div className="space-y-5">
-      <AuthCardHeading title="Create an account" />
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {error && (

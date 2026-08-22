@@ -16,7 +16,10 @@ type Detail = {
     title: string | null
     summary: string | null
     sides_count: number
+    source_count: number
     topic_key: string | null
+    status: string
+    publish_block_reason: string | null
   }
   viewpoints: Array<{
     uid: string
@@ -83,7 +86,15 @@ export default function AdminGraphControversyDetailPage() {
               </h1>
               <p className="mt-2 text-sm text-muted">{detail.controversy.summary}</p>
               <p className="mt-1 text-xs text-muted">
-                {detail.controversy.sides_count} sides · {detail.controversy.topic_key || '—'}
+                {detail.controversy.sides_count} sides · {detail.controversy.source_count} sources
+                · {detail.controversy.topic_key || '—'}
+              </p>
+              <p className="mt-2 text-xs">
+                <span className="font-semibold uppercase tracking-wide text-muted">Status</span>{' '}
+                <span className="text-foreground">{detail.controversy.status}</span>
+                {detail.controversy.publish_block_reason && (
+                  <span className="text-muted"> · {detail.controversy.publish_block_reason}</span>
+                )}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

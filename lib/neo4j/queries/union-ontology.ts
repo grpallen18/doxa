@@ -83,10 +83,9 @@ export async function getUnionOntologyOverlay(
       MATCH (d:Document)
       WHERE d.uid IN $uids
       OPTIONAL MATCH (u:Utterance {documentUid: d.uid})-[:EXPRESSES]->(p:Proposition)
-      OPTIONAL MATCH (v:Viewpoint)-[:ADVANCES]->(p)
-      OPTIONAL MATCH (c:Controversy)-[:INCLUDES]->(v)
-      OPTIONAL MATCH (disp:Dispute)-[:CONCERNS]->(p)
-      OPTIONAL MATCH (p)-[:RELATES_TO]-(peer:Proposition)
+      OPTIONAL MATCH (c:Controversy {status: 'established'})-[:INCLUDES]->(v:Viewpoint)-[:ADVANCES]->(p)
+      OPTIONAL MATCH (disp:Dispute)-[:SURFACES_IN]->(:Question)
+      OPTIONAL MATCH (disp)-[:CONCERNS]->(p)
       WITH
         collect(DISTINCT CASE WHEN c IS NULL THEN null ELSE {
           uid: c.uid, title: c.title, label: c.label
@@ -109,12 +108,8 @@ export async function getUnionOntologyOverlay(
         collect(DISTINCT CASE
           WHEN disp IS NOT NULL AND p IS NOT NULL
           THEN {fromUid: disp.uid, toUid: p.uid}
-        END) AS concerns,
-        collect(DISTINCT CASE
-          WHEN p IS NOT NULL AND peer IS NOT NULL
-          THEN {fromUid: p.uid, toUid: peer.uid}
-        END) AS relates
-      RETURN cs, vs, ds, includes, advances, concerns, relates
+        END) AS concerns
+      RETURN cs, vs, ds, includes, advances, concerns
       `,
       { uids }
     )
@@ -185,7 +180,7 @@ export async function getUnionOntologyOverlay(
       includes: uniqEdges((record.get('includes') as unknown[]) ?? []),
       advances: uniqEdges((record.get('advances') as unknown[]) ?? []),
       concerns: uniqEdges((record.get('concerns') as unknown[]) ?? []),
-      relatesTo: uniqEdges((record.get('relates') as unknown[]) ?? []),
+      relatesTo: [],
     }
   })
 }

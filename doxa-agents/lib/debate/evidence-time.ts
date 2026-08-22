@@ -4,8 +4,10 @@
  * .epochMillis on it directly.
  */
 
-import { CHAPTER_GAP_DAYS } from "./issue-assignment.ts";
 import { STABLE_IDENTITY_JACCARD } from "./stable-identity.ts";
+
+/** Minimum evidence gap (days) before a time-chapter fork (deferred feature). */
+export const CHAPTER_GAP_DAYS = 90;
 
 export const CHAPTER_GAP_MS = CHAPTER_GAP_DAYS * 24 * 60 * 60 * 1000;
 

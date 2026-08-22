@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
 import { rankingScore } from "../../../../lib/debate/ranking.ts";
+import { evaluatePublishability, isPublishable } from "../../../../lib/debate/publishability.ts";
 
 function truncate(text: string, max: number): string {
   const t = text.trim();
@@ -257,15 +258,59 @@ export const handler = async (req: Request) => {
     auth: { persistSession: false },
   });
 
+  const ctrUidsForStatus = controversies.map((c) => c.uid);
+  const existingStatusByUid = new Map<string, string>();
+  const STATUS_CHUNK = 100;
+  for (let i = 0; i < ctrUidsForStatus.length; i += STATUS_CHUNK) {
+    const chunk = ctrUidsForStatus.slice(i, i + STATUS_CHUNK);
+    const { data: existingStatusRows, error: statusFetchErr } = await supabase
+      .from("graph_controversies")
+      .select("uid, status")
+      .in("uid", chunk)
+      .limit(STATUS_CHUNK);
+    if (statusFetchErr) return json({ error: statusFetchErr.message }, 500);
+    for (const row of existingStatusRows ?? []) {
+      if (row.uid && row.status) existingStatusByUid.set(row.uid as string, row.status as string);
+    }
+  }
+
+  const viewpointCountByCtr = new Map<string, number>();
+  for (const v of viewpoints) {
+    if (!v.controversyUid) continue;
+    viewpointCountByCtr.set(
+      v.controversyUid,
+      (viewpointCountByCtr.get(v.controversyUid) ?? 0) + 1
+    );
+  }
+
   const now = new Date().toISOString();
   const kpMap = new Map(keyPointBullets.map((r) => [r.controversyUid, r.bullets ?? []]));
   const disputeMap = new Map(disputes.map((r) => [r.controversyUid, r.bullets ?? []]));
+
+  const pendingOpenMeta = new Map<
+    string,
+    { sides: number; sources: number; updatedAt: string | null }
+  >();
 
   const ctrRows = controversies.map((c) => {
     const question = (c.question ?? "").trim() || "Untitled debate";
     const sides = Number(c.sidesCount) || 0;
     const sources = Number(c.sourceCount) || 0;
+    const viewpointCount = viewpointCountByCtr.get(c.uid) ?? 0;
+    const existingStatus = existingStatusByUid.get(c.uid);
+    const publish = evaluatePublishability({
+      sidesCount: sides,
+      sourceCount: sources,
+      viewpointCount,
+      existingStatus,
+    });
     const bullets = (kpMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180));
+    const publishable = isPublishable(publish);
+    const alreadyOpen = existingStatus === "open";
+    const deferOpen = publishable && !alreadyOpen;
+    if (deferOpen) {
+      pendingOpenMeta.set(c.uid, { sides, sources, updatedAt: c.updatedAt });
+    }
     return {
       uid: c.uid,
       title: question,
@@ -279,14 +324,18 @@ export const handler = async (req: Request) => {
       arena_uid: null,
       chapter_index: 0,
       chapter_of: null,
-      status: "open",
+      status: deferOpen ? "developing" : publish.status,
+      publish_block_reason: deferOpen ? null : publish.publishBlockReason,
       superseded_by: null,
       closed_at: null,
-      ranking_score: rankingScore({
-        sidesCount: sides,
-        sourceCount: sources,
-        updatedAt: c.updatedAt,
-      }),
+      ranking_score:
+        publishable && alreadyOpen
+          ? rankingScore({
+              sidesCount: sides,
+              sourceCount: sources,
+              updatedAt: c.updatedAt,
+            })
+          : 0,
       shared_bullets: bullets.slice(0, 4),
       clash_bullets: [] as string[],
       dispute_bullets: (disputeMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180)),
@@ -294,14 +343,16 @@ export const handler = async (req: Request) => {
     };
   });
 
-  if (ctrRows.length) {
-    const { error } = await supabase.from("graph_controversies").upsert(ctrRows, {
+  const ctrRowsForDb = ctrRows;
+
+  if (ctrRowsForDb.length) {
+    const { error } = await supabase.from("graph_controversies").upsert(ctrRowsForDb, {
       onConflict: "uid",
     });
     if (error) return json({ error: error.message }, 500);
   }
 
-  const ctrUids = ctrRows.map((r) => r.uid);
+  const ctrUids = ctrRowsForDb.map((r) => r.uid);
   const projectedCtr = new Set(ctrUids);
 
   const subjectRows = subjects
@@ -315,11 +366,11 @@ export const handler = async (req: Request) => {
       role: s.role,
       updated_at: now,
     }));
-  if (ctrRows.length && subjectRows.length === 0) {
+  if (ctrRowsForDb.length && subjectRows.length === 0) {
     const { error: delEmpty } = await supabase
       .from("graph_controversy_subjects")
       .delete()
-      .in("controversy_uid", ctrRows.map((r) => r.uid));
+      .in("controversy_uid", ctrRowsForDb.map((r) => r.uid));
     if (delEmpty) return json({ error: delEmpty.message }, 500);
   } else if (subjectRows.length) {
     const { error } = await supabase.from("graph_controversy_subjects").upsert(subjectRows, {
@@ -330,7 +381,7 @@ export const handler = async (req: Request) => {
     const { data: existingSub, error: subSelErr } = await supabase
       .from("graph_controversy_subjects")
       .select("controversy_uid, entity_uid")
-      .in("controversy_uid", ctrRows.map((r) => r.uid));
+      .in("controversy_uid", ctrRowsForDb.map((r) => r.uid));
     if (subSelErr) return json({ error: subSelErr.message }, 500);
     for (const row of existingSub ?? []) {
       const key = `${row.controversy_uid}|${row.entity_uid}`;
@@ -499,12 +550,35 @@ export const handler = async (req: Request) => {
     }
   }
 
+  const openRows = ctrRowsForDb
+    .filter((r) => pendingOpenMeta.has(r.uid))
+    .map((row) => {
+      const meta = pendingOpenMeta.get(row.uid)!;
+      return {
+        ...row,
+        status: "open",
+        publish_block_reason: null,
+        ranking_score: rankingScore({
+          sidesCount: meta.sides,
+          sourceCount: meta.sources,
+          updatedAt: meta.updatedAt,
+        }),
+      };
+    });
+  if (openRows.length) {
+    const { error: openErr } = await supabase.from("graph_controversies").upsert(openRows, {
+      onConflict: "uid",
+    });
+    if (openErr) return json({ error: openErr.message }, 500);
+  }
+
   const { error: linkErr } = await supabase.rpc("link_graph_controversies_to_topics");
   if (linkErr) return json({ error: linkErr.message }, 500);
 
   return json({
     ok: true,
-    controversies: ctrRows.length,
+    controversies: ctrRowsForDb.length,
+    open: openRows.length,
     viewpoints: vpRows.length,
     evidence: evRows.length,
     excerpts: excerptRows.length,

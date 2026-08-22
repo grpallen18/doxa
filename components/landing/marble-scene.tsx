@@ -8,12 +8,23 @@ import { cn } from '@/lib/utils'
 export function MarbleScene({
   children,
   className,
+  rootClassName,
+  as: Root = 'main',
 }: {
   children: React.ReactNode
+  /** Applied to the left content column (not the scene root). */
   className?: string
+  /** Applied to the scene root — use for full-bleed overlays like 404. */
+  rootClassName?: string
+  as?: 'main' | 'div'
 }) {
   return (
-    <main className="marble-scene relative isolate flex min-h-svh flex-col overflow-clip">
+    <Root
+      className={cn(
+        'marble-scene relative isolate flex min-h-svh flex-col overflow-clip',
+        rootClassName
+      )}
+    >
       <Image
         src="/landing-marble-background.jpg"
         alt=""
@@ -73,6 +84,6 @@ export function MarbleScene({
       >
         {children}
       </div>
-    </main>
+    </Root>
   )
 }

@@ -81,6 +81,7 @@ export const handler = async (req: Request) => {
     MATCH (d:Decision)
     WHERE d.decisionType IN [
       'proposition_pair_candidate',
+      'proposition_relationship',
       'controversy_title',
       'dispute'
     ]

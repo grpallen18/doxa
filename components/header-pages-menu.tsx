@@ -42,10 +42,8 @@ const exploreLinks: NavLink[] = [
 const adminLinks: NavLink[] = [
   { label: 'Admin Center', href: '/admin' },
   { label: 'Stories', href: '/admin/stories', matchPrefix: true },
-  { label: 'Health', href: '/admin/health', matchPrefix: true },
+  { label: 'Observability', href: '/admin/observability', matchPrefix: true },
   { label: 'Debate', href: '/admin/graph-controversies', matchPrefix: true },
-  { label: 'Topics', href: '/admin/topics', matchPrefix: true },
-  { label: 'Pipeline Roadmap', href: '/admin/pipeline-roadmap' },
 ]
 
 function isActive(pathname: string, link: NavLink): boolean {

@@ -18,6 +18,6 @@ Arenas (`Issue` label, `arena:` uids) are retired. Controversies are overlays on
 
 Upstream: graph-worker Arguments + gold-seeded `:Question` registry (`npx tsx scripts/seed-question-registry.ts`). Downstream: Explore/Admin via `graph_*` projections.
 
-Smoke: `npx tsx scripts/seed-controversy-fixtures.ts`, `npx tsx scripts/seed-dispute-fixtures.ts`, then `POST debate_pipeline` with `{ "dry_run": true, "limit": 5 }` or `{ "limit": 10, "skip_llm": true }`. Eval: `npx tsx scripts/test-detect-dispute.ts`, `npx tsx scripts/eval-viewpoint-gold.ts`.
+Smoke (dev only — set `ALLOW_FIXTURE_SEED=1`): `npx tsx scripts/seed-controversy-fixtures.ts`, `npx tsx scripts/seed-dispute-fixtures.ts`, then `POST debate_pipeline` with `{ "dry_run": true, "limit": 5 }` or `{ "limit": 10, "skip_llm": true }`. Eval: `npx tsx scripts/test-detect-dispute.ts`, `npx tsx scripts/eval-viewpoint-gold.ts`.
 
 Historical cron job `classify-proposition-relationships-every-10min` is dead — unschedule only if still present in pg_cron.
