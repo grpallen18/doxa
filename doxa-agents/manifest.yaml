@@ -174,6 +174,35 @@ steps:
     source: doxa-agents/departments/05-business-operations/graph-hygiene/05-graph-hygiene
     deploy_name: graph_hygiene
     verify_jwt: false
+  - id: wipe-l3-analytical
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/06-wipe-l3-analytical
+    deploy_name: wipe_l3_analytical
+    verify_jwt: false
+  - id: label-cq-gold-batch
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/07-label-cq-gold-batch
+    deploy_name: label_cq_gold_batch
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: seed-question-registry
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/08-seed-question-registry
+    deploy_name: seed_question_registry
+    secrets:
+      - OPENAI_API_KEY
+    verify_jwt: false
   - id: purge-drop-stories-monthly
     department: 05-business-operations/maintenance
     workflow: 01-purge-drop-stories
@@ -211,30 +240,6 @@ steps:
     status: inactive
     source: doxa-agents/departments/05-business-operations/maintenance/03-clustering-cleanup-unschedule
     description: One-time unschedule of deprecated crons
-  - id: generate-proposition-pair-candidates
-    department: 06-debate-engine
-    workflow: debate-pipeline
-    kind: edge_function
-    status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/01-generate-proposition-pair-candidates
-    deploy_name: generate_proposition_pair_candidates
-    verify_jwt: false
-  - id: classify-proposition-relationships
-    department: 06-debate-engine
-    workflow: debate-pipeline
-    kind: edge_function
-    status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/02-classify-proposition-relationships
-    deploy_name: classify_proposition_relationships
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
-    verify_jwt: false
-    cron:
-      job_name: classify-proposition-relationships-every-10min
-      schedule: "*/10 * * * *"
-      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/02-classify-proposition-relationships/schedule.sql
-      body: '{"limit": 50}'
   - id: build-viewpoints
     department: 06-debate-engine
     workflow: debate-pipeline
@@ -242,22 +247,6 @@ steps:
     status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/03-build-viewpoints
     deploy_name: build_viewpoints
-    verify_jwt: false
-  - id: build-controversies
-    department: 06-debate-engine
-    workflow: debate-pipeline
-    kind: edge_function
-    status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/04-build-controversies
-    deploy_name: build_controversies
-    verify_jwt: false
-  - id: name-controversies
-    department: 06-debate-engine
-    workflow: debate-pipeline
-    kind: edge_function
-    status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/05-name-controversies
-    deploy_name: name_controversies
     secrets:
       - OPENAI_API_KEY
       - OPENAI_MODEL
@@ -269,6 +258,9 @@ steps:
     status: active
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/06-detect-disputes
     deploy_name: detect_disputes
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
     verify_jwt: false
   - id: project-debate-summaries
     department: 06-debate-engine
@@ -290,7 +282,37 @@ steps:
       job_name: debate-pipeline-hourly
       schedule: 15 * * * *
       sql: doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql
-      body: '{"limit": 50}'
+      body: '{"limit": 8, "skip_llm": true}'
+  - id: retrieve-or-mint-questions
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/09-retrieve-or-mint-questions
+    deploy_name: retrieve_or_mint_questions
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: assign-question-answers
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/10-assign-question-answers
+    deploy_name: assign_question_answers
+    secrets:
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+    verify_jwt: false
+  - id: qualify-controversies
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/11-qualify-controversies
+    deploy_name: qualify_controversies
+    verify_jwt: false
   - id: generate-evidence-check-candidates
     department: 07-analysis-engine
     workflow: analysis-pipeline

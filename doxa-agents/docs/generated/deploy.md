@@ -17,14 +17,16 @@ supabase functions deploy prune_orphans
 supabase functions deploy entity_alias_candidates
 supabase functions deploy projection_reconcile
 supabase functions deploy graph_hygiene
-supabase functions deploy generate_proposition_pair_candidates
-supabase functions deploy classify_proposition_relationships
+supabase functions deploy wipe_l3_analytical
+supabase functions deploy label_cq_gold_batch
+supabase functions deploy seed_question_registry
 supabase functions deploy build_viewpoints
-supabase functions deploy build_controversies
-supabase functions deploy name_controversies
 supabase functions deploy detect_disputes
 supabase functions deploy project_debate_summaries
 supabase functions deploy debate_pipeline
+supabase functions deploy retrieve_or_mint_questions
+supabase functions deploy assign_question_answers
+supabase functions deploy qualify_controversies
 supabase functions deploy generate_evidence_check_candidates
 supabase functions deploy run_evidence_checks
 supabase functions deploy extract_citations
@@ -51,14 +53,16 @@ supabase functions deploy prune_orphans --no-verify-jwt
 supabase functions deploy entity_alias_candidates --no-verify-jwt
 supabase functions deploy projection_reconcile --no-verify-jwt
 supabase functions deploy graph_hygiene --no-verify-jwt
-supabase functions deploy generate_proposition_pair_candidates --no-verify-jwt
-supabase functions deploy classify_proposition_relationships --no-verify-jwt
+supabase functions deploy wipe_l3_analytical --no-verify-jwt
+supabase functions deploy label_cq_gold_batch --no-verify-jwt
+supabase functions deploy seed_question_registry --no-verify-jwt
 supabase functions deploy build_viewpoints --no-verify-jwt
-supabase functions deploy build_controversies --no-verify-jwt
-supabase functions deploy name_controversies --no-verify-jwt
 supabase functions deploy detect_disputes --no-verify-jwt
 supabase functions deploy project_debate_summaries --no-verify-jwt
 supabase functions deploy debate_pipeline --no-verify-jwt
+supabase functions deploy retrieve_or_mint_questions --no-verify-jwt
+supabase functions deploy assign_question_answers --no-verify-jwt
+supabase functions deploy qualify_controversies --no-verify-jwt
 supabase functions deploy generate_evidence_check_candidates --no-verify-jwt
 supabase functions deploy run_evidence_checks --no-verify-jwt
 supabase functions deploy extract_citations --no-verify-jwt

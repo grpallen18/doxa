@@ -24,11 +24,10 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 
 | Step | Deploy | Status | Optional | Isolation |
 |------|--------|--------|----------|-----------|
-| generate-proposition-pair-candidates | `generate_proposition_pair_candidates` | active | — | story_id |
-| classify-proposition-relationships | `classify_proposition_relationships` | active | — | story_id |
+| retrieve-or-mint-questions | `retrieve_or_mint_questions` | active | — | story_id |
+| assign-question-answers | `assign_question_answers` | active | — | story_id |
+| qualify-controversies | `qualify_controversies` | active | — | story_id |
 | build-viewpoints | `build_viewpoints` | active | — | story_id |
-| build-controversies | `build_controversies` | active | — | story_id |
-| name-controversies | `name_controversies` | active | — | story_id |
 | detect-disputes | `detect_disputes` | active | — | story_id |
 | project-debate-summaries | `project_debate_summaries` | active | — | story_id |
 | debate-pipeline | `debate_pipeline` | active | — | story_id |

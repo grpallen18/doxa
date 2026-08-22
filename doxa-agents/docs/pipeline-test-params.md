@@ -103,17 +103,19 @@ If a story was `scrape_skipped` after failures, reset before re-invoking `scrape
 
 ---
 
-## Neo debate (Arena / CQ)
+## Neo debate (Question-first)
 
 | Step | Deploy name | Isolation | Notes |
 |------|-------------|-----------|--------|
-| generate-proposition-pair-candidates | `generate_proposition_pair_candidates` | `limit`, `min_similarity` | Blocking only; no `issue:ent:` buckets |
-| classify-proposition-relationships | `classify_proposition_relationships` | `limit` | Assigns `arena:` membership |
-| build-viewpoints | `build_viewpoints` | `force_full` | Arena-scoped |
-| build-controversies | `build_controversies` | `force_full` | Mega-merge split + chapters |
-| name-controversies | `name_controversies` | `limit`, `force` | CQ titles |
-| detect-disputes | `detect_disputes` | — | `SURFACES_IN` Controversy |
-| project-debate-summaries | `project_debate_summaries` | — | SUBJECT_OF + ranking_score |
-| debate-pipeline | `debate_pipeline` | `force_full`, `limit` | Cutover: `{"force_full":true,"limit":50}` |
+| retrieve-or-mint-questions | `retrieve_or_mint_questions` | `proposition_uid`, `limit`, `force`, `dry_run` | Thesis → CQ attach/mint/quarantine |
+| assign-question-answers | `assign_question_answers` | `proposition_uid`, `limit`, `force`, `dry_run` | Polarity on `ANSWERS` |
+| qualify-controversies | `qualify_controversies` | `question_uid`, `limit`, `force`, `dry_run` | Structural incompatibility → Controversy overlay |
+| build-viewpoints | `build_viewpoints` | `question_uid`, `controversy_uid`, `limit`, `force`, `dry_run` | Key-point clustering inside `(Question, polarity)` |
+| detect-disputes | `detect_disputes` | `question_uid`, `limit`, `force`, `skip_llm`, `dry_run` | Definitional + intra-Question → Dispute on Question |
+| project-debate-summaries | `project_debate_summaries` | `controversy_uid`, `dry_run` | Established Controversies → `graph_*` |
+| debate-pipeline | `debate_pipeline` | `limit`, `proposition_uid`, `question_uid`, `controversy_uid`, `force`, `skip_llm`, `dry_run` | Default: six steps above |
+
+| run-controversy-assessments | `run_controversy_assessments` | `controversy_uid`, `question_uid`, `limit`, `dry_run` | L4 assessments on established Controversies |
 
 Hygiene (inactive until scheduled): `graph_hygiene` orchestrates audit / prune / alias / reconcile.
+

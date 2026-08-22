@@ -1,6 +1,6 @@
 # Debate engine
 
-Cross-document Neo4j debate assembly (Phase 2): proposition pair candidates, relationship classify, Viewpoint / Controversy / Dispute assembly, and Supabase projections.
+Cross-document Neo4j debate assembly (L3 Question-first): retrieve/mint Questions, assign answers, qualify Controversies, build Viewpoints, detect Disputes, project to Supabase.
 
 Document-local **Argument** extraction runs in the Python graph-worker (same job as Phase 0/1). This department owns the **cross-document** debate layer only.
 
@@ -12,13 +12,12 @@ See [neo4j-graph-architecture.md](../../docs/architecture/neo4j-graph-architectu
 
 | Step | Deploy | Status |
 |------|--------|--------|
-| generate-proposition-pair-candidates | generate_proposition_pair_candidates | active |
-| classify-proposition-relationships | classify_proposition_relationships | active |
 | build-viewpoints | build_viewpoints | active |
-| build-controversies | build_controversies | active |
-| name-controversies | name_controversies | active |
 | detect-disputes | detect_disputes | active |
 | project-debate-summaries | project_debate_summaries | active |
 | debate-pipeline | debate_pipeline | active |
+| retrieve-or-mint-questions | retrieve_or_mint_questions | active |
+| assign-question-answers | assign_question_answers | active |
+| qualify-controversies | qualify_controversies | active |
 
 <!-- AGENTS:END -->

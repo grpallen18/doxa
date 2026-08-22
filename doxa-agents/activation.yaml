@@ -9,18 +9,12 @@
 #   5. This file (which workflows are "live" in docs)
 #
 # Everything else (manifest.yaml, docs/generated/*) is auto-synced from code.
+#
+# L3 overhaul Session 5: Question-first six-step debate chain active; debate-pipeline cron in schedule.sql.
 
 active:
   - ingest-newsapi
   - scrape-story-content
-  - generate-proposition-pair-candidates
-  - classify-proposition-relationships
-  - build-viewpoints
-  - build-controversies
-  - name-controversies
-  - detect-disputes
-  - project-debate-summaries
-  - debate-pipeline
   - generate-evidence-check-candidates
   - run-evidence-checks
   - extract-citations
@@ -30,3 +24,10 @@ active:
   - project-analysis-summaries
   - project-person-profiles
   - analysis-pipeline
+  - retrieve-or-mint-questions
+  - assign-question-answers
+  - qualify-controversies
+  - build-viewpoints
+  - detect-disputes
+  - project-debate-summaries
+  - debate-pipeline

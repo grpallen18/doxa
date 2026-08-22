@@ -41,6 +41,14 @@ export const handler = async (req: Request) => {
     RETURN i.uid AS uid
     `
   );
+  const orphanViewpoints = await runCypher<{ uid: string }>(
+    `
+    MATCH (v:Viewpoint)
+    WHERE v.questionUid IS NULL
+       OR NOT EXISTS { MATCH (q:Question {uid: v.questionUid}) }
+    RETURN v.uid AS uid
+    `
+  );
 
   if (dryRun) {
     return json({
@@ -49,6 +57,7 @@ export const handler = async (req: Request) => {
       orphan_assessments: orphanAssess.length,
       orphan_decisions: orphanDec.length,
       empty_issues: emptyIssues.length,
+      orphan_viewpoints: orphanViewpoints.length,
     });
   }
 
@@ -72,8 +81,15 @@ export const handler = async (req: Request) => {
     `
     MATCH (i:Issue)
     WHERE NOT EXISTS { MATCH (i)<-[:IN_ISSUE]-() }
-      AND NOT EXISTS { MATCH (c:Controversy {issueUid: i.uid}) }
     DETACH DELETE i
+    `
+  );
+  await runCypher(
+    `
+    MATCH (v:Viewpoint)
+    WHERE v.questionUid IS NULL
+       OR NOT EXISTS { MATCH (q:Question {uid: v.questionUid}) }
+    DETACH DELETE v
     `
   );
 
@@ -103,6 +119,7 @@ export const handler = async (req: Request) => {
     orphan_assessments: orphanAssess.length,
     orphan_decisions: orphanDec.length,
     empty_issues: emptyIssues.length,
+    orphan_viewpoints: orphanViewpoints.length,
     sql_assessments_deleted: sqlDeleted,
   });
 };

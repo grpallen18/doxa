@@ -88,6 +88,7 @@ const KIND_KEEP_PRIORITY: Record<DoxaGraphNode['kind'], number> = {
   entity: 2,
   agent: 3,
   controversy: 4,
+  question: 4,
   viewpoint: 5,
   proposition: 6,
   dispute: 7,

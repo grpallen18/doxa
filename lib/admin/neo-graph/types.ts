@@ -12,6 +12,7 @@ export type NeoNodeKind =
   | 'argument'
   | 'viewpoint'
   | 'controversy'
+  | 'question'
   | 'dispute'
   | 'assessment'
   | 'evidence_check'
@@ -147,6 +148,7 @@ export const DEFAULT_NEO_LABEL_VISIBILITY: NeoLabelVisibility = {
   argument: false,
   viewpoint: false,
   controversy: false,
+  question: false,
   dispute: false,
   assessment: false,
   evidence_check: false,
@@ -166,6 +168,7 @@ export const DEFAULT_UNION_V2_LABEL_VISIBILITY: NeoLabelVisibility = {
   argument: false,
   viewpoint: false,
   controversy: false,
+  question: false,
   dispute: false,
   assessment: false,
   evidence_check: false,
@@ -185,6 +188,7 @@ export const ALL_NODE_KINDS: NeoNodeKind[] = [
   'argument',
   'viewpoint',
   'controversy',
+  'question',
   'dispute',
   'assessment',
   'evidence_check',
@@ -232,6 +236,7 @@ export const DEFAULT_NEO_FILTERS: NeoGraphFilters = {
     argument: true,
     viewpoint: true,
     controversy: true,
+    question: true,
     dispute: true,
     assessment: false,
     evidence_check: false,
@@ -275,6 +280,7 @@ export const DEFAULT_UNION_V2_FILTERS: NeoGraphFilters = {
     argument: true,
     viewpoint: true,
     controversy: true,
+    question: true,
     dispute: true,
     assessment: false,
     evidence_check: false,

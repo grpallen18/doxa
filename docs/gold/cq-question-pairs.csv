@@ -1,0 +1,11 @@
+question_a,question_b,label,notes
+Should the United States continue military aid to Ukraine?,Should NATO admit Ukraine as a member?,adjacent,adjacent geopolitics; different decisions
+Should the United States continue military aid to Ukraine?,Should Washington keep sending weapons to Kyiv?,same,paraphrase of same policy CQ
+Should the United States continue military aid to Ukraine?,Who should finance Ukraine reconstruction?,adjacent,related entities; different question
+What caused the post-pandemic increase in U.S. inflation?,What was the primary cause of post-pandemic U.S. inflation?,adjacent,compatible vs exclusive framing — not the same CQ
+Did fiscal stimulus materially contribute to inflation?,Did supply-chain disruption materially contribute to inflation?,adjacent,compatible causal answers if exclusivity=compatible; different questions
+Was the 2021 Afghanistan withdrawal handled competently?,Should the United States have withdrawn from Afghanistan in 2021?,adjacent,quality vs policy
+Should abortion access remain a federal constitutional right?,What gestational limit should abortion law use?,adjacent,adjacent reproductive-policy questions
+Will tariffs raise consumer prices?,Should the United States raise tariffs on Chinese goods?,adjacent,predictive/factual vs policy
+Is affirmative action fair?,Should universities consider race in admissions?,adjacent,normative vs policy near-miss
+Who bears primary responsibility for the federal budget deficit?,Should Congress cut discretionary spending?,adjacent,attribution vs policy

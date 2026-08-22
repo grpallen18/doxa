@@ -23,5 +23,8 @@ Health reporting and database maintenance.
 | entity-alias-candidates | entity_alias_candidates | inactive |
 | projection-reconcile | projection_reconcile | inactive |
 | graph-hygiene | graph_hygiene | inactive |
+| wipe-l3-analytical | wipe_l3_analytical | inactive |
+| label-cq-gold-batch | label_cq_gold_batch | inactive |
+| seed-question-registry | seed_question_registry | inactive |
 
 <!-- AGENTS:END -->

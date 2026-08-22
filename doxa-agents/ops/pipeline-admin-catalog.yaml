@@ -45,26 +45,22 @@ stages:
     label: Debate (Neo)
     scope: global
     steps:
-      - id: generate-proposition-pair-candidates
-        label: Proposition pair candidates
-        invoke_options:
-          timeout_ms: 120000
-      - id: classify-proposition-relationships
-        label: Classify proposition relationships
+      - id: retrieve-or-mint-questions
+        label: Retrieve or mint questions
         invoke_options:
           timeout_ms: 300000
+      - id: assign-question-answers
+        label: Assign question answers
+        invoke_options:
+          timeout_ms: 300000
+      - id: qualify-controversies
+        label: Qualify controversies
+        invoke_options:
+          timeout_ms: 120000
       - id: build-viewpoints
         label: Build viewpoints
         invoke_options:
           timeout_ms: 120000
-      - id: build-controversies
-        label: Build controversies
-        invoke_options:
-          timeout_ms: 120000
-      - id: name-controversies
-        label: Name controversies
-        invoke_options:
-          timeout_ms: 300000
       - id: detect-disputes
         label: Detect disputes
         invoke_options:

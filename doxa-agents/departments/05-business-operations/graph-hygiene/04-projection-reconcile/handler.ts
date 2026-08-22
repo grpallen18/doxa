@@ -24,7 +24,9 @@ export const handler = async (req: Request) => {
   } catch { /* defaults */ }
   const dryRun = Boolean(body.dry_run ?? false);
 
-  const neo = await runCypher<{ uid: string }>(`MATCH (c:Controversy) RETURN c.uid AS uid`);
+  const neo = await runCypher<{ uid: string }>(
+    `MATCH (c:Controversy {status: 'established'}) RETURN c.uid AS uid`
+  );
   const neoUids = new Set(neo.map((r) => r.uid));
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });

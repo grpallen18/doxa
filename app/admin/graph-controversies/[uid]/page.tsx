@@ -5,6 +5,10 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Panel } from '@/components/Panel'
 import { controversyDisplayName } from '@/lib/admin/controversy-display'
+import {
+  neoUnionQuestionHref,
+  questionUidFromControversyUid,
+} from '@/lib/admin/question-uid'
 
 type Detail = {
   controversy: {
@@ -82,12 +86,26 @@ export default function AdminGraphControversyDetailPage() {
                 {detail.controversy.sides_count} sides · {detail.controversy.topic_key || '—'}
               </p>
             </div>
-            <Link
-              href={`/admin/neo/union?focus=controversy:${encodeURIComponent(detail.controversy.uid)}`}
-              className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40"
-            >
-              Open in Neo
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/admin/neo/union?focus=controversy:${encodeURIComponent(detail.controversy.uid)}`}
+                className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40"
+              >
+                Open in Neo
+              </Link>
+              {(() => {
+                const qUid = questionUidFromControversyUid(detail.controversy.uid)
+                if (!qUid) return null
+                return (
+                  <Link
+                    href={neoUnionQuestionHref(qUid)}
+                    className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40"
+                  >
+                    Open Question in Neo
+                  </Link>
+                )
+              })()}
+            </div>
           </div>
 
           <Panel>

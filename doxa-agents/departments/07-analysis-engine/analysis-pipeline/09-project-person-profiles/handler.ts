@@ -206,12 +206,13 @@ export const handler = async (req: Request) => {
             updatedAt: string | null;
           }>(
             `
-            MATCH (e:Entity {uid: $uid})-[s:SUBJECT_OF]->(c:Controversy)
+            MATCH (e:Entity {uid: $uid})-[s:SUBJECT_OF]->(q:Question)
+            MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q)
             OPTIONAL MATCH (c)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(:Proposition)<-[:EXPRESSES]-(u:Utterance)
-            WITH c, s, count(DISTINCT u.documentUid) AS sourceCount
+            WITH c, q, s, count(DISTINCT u.documentUid) AS sourceCount
             RETURN c.uid AS uid,
-                   c.question AS question,
-                   coalesce(c.title, c.uid) AS title,
+                   q.question AS question,
+                   coalesce(q.question, c.title, c.uid) AS title,
                    coalesce(c.summary, '') AS summary,
                    coalesce(c.sidesCount, 0) AS sidesCount,
                    sourceCount,

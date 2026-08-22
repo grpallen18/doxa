@@ -1,6 +1,8 @@
 # Neo4j discourse graph — next phases (handoff)
 
-**Completed:** Phase 0 — utterance-grounded foundation. Phase 1 — Proposition + cautious Entity ER. Phase 2 — Argument + Viewpoint/Controversy/Dispute + projections. Cross-story Neo hubs (Controversy / Proposition / Entity).  
+**Completed:** Phase 0 — utterance-grounded foundation. Phase 1 — Proposition + cautious Entity ER. Phase 2 — Argument + Viewpoint/Controversy/Dispute + projections (construction order now superseded). Cross-story Neo hubs (Controversy / Proposition / Entity).
+
+**Next (L3 overhaul):** Session 5 complete (2026-08-22) — L3 Question-first chain live end-to-end (Disputes, projections, L4 assessments, hygiene, dead-code removal). Post-overhaul: organic growth via hourly `debate_pipeline`; optional intra-Question NLI veto later. Plan: [docs/Doxa Architecture Overhaul Plan.md](../../../docs/Doxa%20Architecture%20Overhaul%20Plan.md). Do not extend agree/oppose union-find.  
 **Phase 0 validation:** [phase0-validation.md](phase0-validation.md)  
 **Phase 1 validation:** [phase1-validation.md](phase1-validation.md)  
 **Phase 2 validation:** [phase2-validation.md](phase2-validation.md)  

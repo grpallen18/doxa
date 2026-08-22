@@ -1,7 +1,7 @@
 // Supabase Edge Function: debate_pipeline.
-// Orchestrates Neo4j debate assembly + Supabase projections (JWT off).
+// Orchestrates Neo4j Question-first debate steps (JWT off).
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
-// Body: { dry_run?: boolean, force_full?: boolean, limit?: number, min_similarity?: number }
+// Body: { dry_run?, limit?, proposition_uid?, question_uid?, controversy_uid?, force?, skip_llm? }
 
 import {
   corsHeaders,
@@ -11,15 +11,28 @@ import {
   type StepResult,
 } from "../../../../lib/topology/invoke-step.ts";
 
+/** Session 5 default: Question registry → qualify → viewpoints → disputes → projection. */
 const STEP_NAMES = [
-  "generate_proposition_pair_candidates",
-  "classify_proposition_relationships",
+  "retrieve_or_mint_questions",
+  "assign_question_answers",
+  "qualify_controversies",
   "build_viewpoints",
-  "build_controversies",
-  "name_controversies",
   "detect_disputes",
   "project_debate_summaries",
 ] as const;
+
+function resolveQuestionUid(body: Record<string, unknown>): string {
+  const direct =
+    typeof body.question_uid === "string" ? body.question_uid.trim() : "";
+  if (direct) return direct;
+  const controversy =
+    typeof body.controversy_uid === "string" ? body.controversy_uid.trim() : "";
+  if (controversy.startsWith("ctr_")) {
+    const slug = controversy.slice(4);
+    if (slug) return `cq:${slug}`;
+  }
+  return "";
+}
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -41,35 +54,28 @@ export const handler = async (req: Request) => {
     } catch { /* defaults */ }
 
     const dryRun = Boolean(body.dry_run ?? false);
-    const forceFull = Boolean(body.force_full ?? false);
+    const resolvedQuestionUid = resolveQuestionUid(body);
     const steps: StepResult[] = [];
     let failedStep: string | null = null;
-    let viewpointIssueUids: string[] | null = null;
 
     for (const name of STEP_NAMES) {
       const t0 = performance.now();
       const stepBody: Record<string, unknown> = { dry_run: dryRun };
-      if (name === "generate_proposition_pair_candidates") {
-        if (body.limit != null) stepBody.limit = body.limit;
-        if (body.min_similarity != null) stepBody.min_similarity = body.min_similarity;
+
+      if (body.limit != null) stepBody.limit = body.limit;
+      if (body.force != null) stepBody.force = body.force;
+      if (body.proposition_uid != null) stepBody.proposition_uid = body.proposition_uid;
+      if (resolvedQuestionUid) stepBody.question_uid = resolvedQuestionUid;
+      if (
+        body.controversy_uid != null &&
+        (name === "build_viewpoints" || name === "project_debate_summaries")
+      ) {
+        stepBody.controversy_uid = body.controversy_uid;
       }
-      if (name === "classify_proposition_relationships" && body.limit != null) {
-        const n = typeof body.limit === "number" ? body.limit : Number(body.limit);
-        stepBody.limit = Number.isFinite(n) ? Math.min(Math.max(1, Math.floor(n)), 25) : 25;
+      if (name === "detect_disputes" && body.skip_llm != null) {
+        stepBody.skip_llm = body.skip_llm;
       }
-      if (name === "name_controversies" && body.limit != null) {
-        const n = typeof body.limit === "number" ? body.limit : Number(body.limit);
-        stepBody.limit = Number.isFinite(n) ? Math.min(Math.max(1, Math.floor(n)), 20) : 20;
-      }
-      if (name === "build_viewpoints" || name === "build_controversies") {
-        stepBody.force_full = forceFull;
-        if (body.backfill_issues != null) stepBody.backfill_issues = body.backfill_issues;
-      }
-      if (name === "build_controversies" && viewpointIssueUids !== null) {
-        stepBody.issue_uids = viewpointIssueUids;
-        stepBody.clear_dirty = true;
-        stepBody.force_full = false;
-      }
+
       const res = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, name, stepBody);
       const duration_ms = Math.round(performance.now() - t0);
       steps.push({
@@ -85,14 +91,6 @@ export const handler = async (req: Request) => {
         failedStep = name;
         break;
       }
-      if (name === "build_viewpoints" && res.ok && res.data && typeof res.data === "object") {
-        const issues = (res.data as { issues?: Array<{ issueUid?: string }> }).issues;
-        if (Array.isArray(issues)) {
-          viewpointIssueUids = issues
-            .map((i) => i.issueUid)
-            .filter((u): u is string => typeof u === "string" && u.length > 0);
-        }
-      }
     }
 
     if (failedStep) {
@@ -100,7 +98,6 @@ export const handler = async (req: Request) => {
         {
           ok: false,
           dry_run: dryRun,
-          force_full: forceFull,
           failed_at: failedStep,
           summary: { total_steps: steps.length, failed_step: failedStep },
           steps,
@@ -113,7 +110,6 @@ export const handler = async (req: Request) => {
     return json({
       ok: true,
       dry_run: dryRun,
-      force_full: forceFull,
       summary: { total_steps: steps.length, total_ms },
       steps,
     });

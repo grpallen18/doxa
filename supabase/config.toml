@@ -337,15 +337,8 @@ verify_jwt = false
 # Debate pipeline (Neo Phase 2): internal service-role chain — JWT off.
 [functions.debate_pipeline]
 verify_jwt = false
-[functions.generate_proposition_pair_candidates]
-verify_jwt = false
-[functions.classify_proposition_relationships]
-verify_jwt = false
+
 [functions.build_viewpoints]
-verify_jwt = false
-[functions.build_controversies]
-verify_jwt = false
-[functions.name_controversies]
 verify_jwt = false
 [functions.detect_disputes]
 verify_jwt = false
@@ -382,6 +375,18 @@ verify_jwt = false
 [functions.projection_reconcile]
 verify_jwt = false
 [functions.graph_hygiene]
+verify_jwt = false
+[functions.wipe_l3_analytical]
+verify_jwt = false
+[functions.label_cq_gold_batch]
+verify_jwt = false
+[functions.seed_question_registry]
+verify_jwt = false
+[functions.retrieve_or_mint_questions]
+verify_jwt = false
+[functions.assign_question_answers]
+verify_jwt = false
+[functions.qualify_controversies]
 verify_jwt = false
 
 # Admin model config: validates OpenAI model IDs using Edge OPENAI_API_KEY.

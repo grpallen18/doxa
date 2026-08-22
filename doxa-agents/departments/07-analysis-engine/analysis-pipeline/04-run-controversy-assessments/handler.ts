@@ -1,6 +1,6 @@
 // Supabase Edge Function: run_controversy_assessments.
 // Assessment + MethodRun for Controversies (analyzed, not extracted facts).
-// Env: NEO4J_*, OPENAI_API_KEY. Body: { dry_run?: boolean, limit?: number }
+// Env: NEO4J_*, OPENAI_API_KEY. Body: { dry_run?, limit?, controversy_uid?, question_uid? }
 
 import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
@@ -82,6 +82,10 @@ export const handler = async (req: Request) => {
 
   const dryRun = Boolean(body.dry_run ?? false);
   const limit = clampInt(body.limit, 1, 50, DEFAULT_LIMIT);
+  const controversyUid =
+    typeof body.controversy_uid === "string" ? body.controversy_uid.trim() : "";
+  const questionUid =
+    typeof body.question_uid === "string" ? body.question_uid.trim() : "";
 
   try {
     const controversies = await runCypher<{
@@ -91,22 +95,26 @@ export const handler = async (req: Request) => {
       sidesCount: number;
     }>(
       `
-      MATCH (c:Controversy)
-      WHERE NOT EXISTS {
-        MATCH (a:Assessment {targetUid: c.uid, targetKind: 'controversy'})
-      }
-      AND NOT EXISTS {
-        MATCH (d:Decision {decisionType: 'assessment'})-[:ABOUT]->(c)
-        WHERE d.status = 'accepted' OR coalesce(d.attempts, 0) >= 3
-      }
+      MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q:Question)
+      WHERE ($controversyUid = '' OR c.uid = $controversyUid)
+        AND ($questionUid = '' OR q.uid = $questionUid)
+        AND NOT EXISTS {
+          MATCH (a:Assessment {targetUid: c.uid, targetKind: 'controversy'})
+        }
+        AND NOT EXISTS {
+          MATCH (d:Decision {decisionType: 'assessment'})-[:ABOUT]->(c)
+          WHERE d.status = 'accepted' OR coalesce(d.attempts, 0) >= 3
+        }
+      OPTIONAL MATCH (c)-[:INCLUDES]->(v:Viewpoint)
+      WITH c, q, count(DISTINCT v) AS sidesCount
       RETURN c.uid AS uid,
-             coalesce(c.title, c.uid) AS title,
+             coalesce(q.question, c.question, c.uid) AS title,
              coalesce(c.summary, '') AS summary,
-             coalesce(c.sidesCount, 0) AS sidesCount
+             sidesCount
       ORDER BY c.updatedAt DESC
       LIMIT $limit
       `,
-      { limit: neoInt(limit) }
+      { limit: neoInt(limit), controversyUid, questionUid }
     );
 
     if (dryRun) {

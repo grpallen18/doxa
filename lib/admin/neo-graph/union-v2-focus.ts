@@ -31,8 +31,12 @@ export function unionV2ControversyHref(uid: string): string {
   return neoUnionControversyHref(uid)
 }
 
+export function neoUnionQuestionHref(uid: string): string {
+  return neoUnionHref(`question:${uid}`)
+}
+
 export function neoUnionNodeHref(
-  kind: 'document' | 'controversy' | 'proposition' | 'entity',
+  kind: 'document' | 'controversy' | 'question' | 'proposition' | 'entity',
   uid: string
 ): string {
   return neoUnionHref(`${kind}:${uid}`)
@@ -40,7 +44,7 @@ export function neoUnionNodeHref(
 
 /** @deprecated Use neoUnionNodeHref */
 export function unionV2NodeHref(
-  kind: 'document' | 'controversy' | 'proposition' | 'entity',
+  kind: 'document' | 'controversy' | 'question' | 'proposition' | 'entity',
   uid: string
 ): string {
   return neoUnionNodeHref(kind, uid)
@@ -58,6 +62,7 @@ export function resolveFocusNodeId(
   const candidates = [
     `document:${raw}`,
     `controversy:${raw}`,
+    `question:${raw}`,
     `proposition:${raw}`,
     `entity:${raw}`,
     `publication:${raw}`,

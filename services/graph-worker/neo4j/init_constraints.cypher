@@ -50,6 +50,10 @@ FOR (i:Issue) REQUIRE i.uid IS UNIQUE;
 CREATE CONSTRAINT dispute_uid IF NOT EXISTS
 FOR (d:Dispute) REQUIRE d.uid IS UNIQUE;
 
+# L3 Question-first (Session 2) — contested question registry (not Arena :Issue)
+CREATE CONSTRAINT question_uid IF NOT EXISTS
+FOR (q:Question) REQUIRE q.uid IS UNIQUE;
+
 # Phase 3 — L4 Analytical
 CREATE CONSTRAINT assessment_uid IF NOT EXISTS
 FOR (a:Assessment) REQUIRE a.uid IS UNIQUE;
@@ -95,6 +99,12 @@ FOR (i:Issue) ON (i.topicKey);
 
 CREATE INDEX issue_dirty IF NOT EXISTS
 FOR (i:Issue) ON (i.dirty);
+
+CREATE INDEX question_status IF NOT EXISTS
+FOR (q:Question) ON (q.status);
+
+CREATE INDEX question_type IF NOT EXISTS
+FOR (q:Question) ON (q.questionType);
 
 CREATE INDEX assessment_target_uid IF NOT EXISTS
 FOR (a:Assessment) ON (a.targetUid);

@@ -1,9 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
 import { unionV2NodeHref } from '@/lib/admin/neo-graph/union-v2-focus'
 
-type HubKind = 'controversy' | 'proposition' | 'entity'
+type HubKind = 'controversy' | 'question' | 'proposition' | 'entity'
 
-const KINDS: HubKind[] = ['controversy', 'proposition', 'entity']
+const KINDS: HubKind[] = ['controversy', 'question', 'proposition', 'entity']
 
 function isHubKind(value: string): value is HubKind {
   return KINDS.includes(value as HubKind)

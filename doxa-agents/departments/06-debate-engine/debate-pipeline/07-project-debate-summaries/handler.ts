@@ -1,6 +1,6 @@
 // Supabase Edge Function: project_debate_summaries.
-// Upsert Neo Controversy/Viewpoint summaries + evidence excerpts into Supabase.
-// Env: SUPABASE_*, NEO4J_*. Body: { dry_run?: boolean }
+// Question-first projection of established Controversies + Viewpoints → Supabase.
+// Env: SUPABASE_*, NEO4J_*. Body: { dry_run?: boolean, controversy_uid?: string }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
@@ -11,16 +11,6 @@ function truncate(text: string, max: number): string {
   const t = text.trim();
   if (t.length <= max) return t;
   return `${t.slice(0, Math.max(0, max - 1))}…`;
-}
-
-function consumerQuestion(_topicKey: string, title: string | null, question: string | null): string {
-  const q = question?.trim() ?? "";
-  if (q && !q.startsWith("What are the competing views concerning")) return q;
-  const t = title?.trim() ?? "";
-  if (t && !t.startsWith("Controversy:") && !t.startsWith("What are the competing views concerning") && !t.startsWith("Untitled controversy")) {
-    return t;
-  }
-  return t && !t.startsWith("What are the competing views concerning") ? t : "Untitled debate";
 }
 
 export const handler = async (req: Request) => {
@@ -40,42 +30,37 @@ export const handler = async (req: Request) => {
     if (raw && typeof raw === "object" && !Array.isArray(raw)) body = raw as Record<string, unknown>;
   } catch { /* defaults */ }
   const dryRun = Boolean(body.dry_run ?? false);
+  const controversyUid =
+    typeof body.controversy_uid === "string" ? body.controversy_uid.trim() : "";
+  const cypherParams = { controversyUid };
 
   const controversies = await runCypher<{
     uid: string;
-    title: string;
-    question: string | null;
+    question: string;
     summary: string;
     sidesCount: number;
     topicKey: string;
     sourceCount: number;
-    issueUid: string | null;
-    chapterIndex: number;
-    chapterOf: string | null;
-    status: string | null;
-    supersededBy: string | null;
-    closedAt: string | null;
+    questionUid: string;
     updatedAt: string | null;
   }>(
     `
-    MATCH (c:Controversy)
+    MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q:Question)
+    WHERE $controversyUid = '' OR c.uid = $controversyUid
     OPTIONAL MATCH (c)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(:Proposition)<-[:EXPRESSES]-(u:Utterance)
-    WITH c, count(DISTINCT u.documentUid) AS sourceCount
+    WITH c, q, count(DISTINCT u.documentUid) AS sourceCount
+    OPTIONAL MATCH (c)-[:INCLUDES]->(v:Viewpoint)
+    WITH c, q, sourceCount, count(DISTINCT v) AS sidesCount
     RETURN c.uid AS uid,
-           coalesce(c.title, c.uid) AS title,
-           c.question AS question,
+           coalesce(q.question, c.question, c.uid) AS question,
            coalesce(c.summary, '') AS summary,
-           coalesce(c.sidesCount, 0) AS sidesCount,
-           coalesce(c.topicKey, '') AS topicKey,
+           sidesCount,
+           coalesce(c.topicKey, q.uid, '') AS topicKey,
            sourceCount,
-           c.issueUid AS issueUid,
-           coalesce(c.chapterIndex, 0) AS chapterIndex,
-           c.chapterOf AS chapterOf,
-           coalesce(c.status, 'open') AS status,
-           c.supersededBy AS supersededBy,
-           CASE WHEN c.closedAt IS NULL THEN null ELSE toString(c.closedAt) END AS closedAt,
+           q.uid AS questionUid,
            toString(c.updatedAt) AS updatedAt
-    `
+    `,
+    cypherParams
   );
 
   const viewpoints = await runCypher<{
@@ -83,13 +68,15 @@ export const handler = async (req: Request) => {
     controversyUid: string | null;
     label: string;
     summary: string;
+    keyPoint: string | null;
+    polarity: string | null;
     topicKey: string;
     memberCount: number;
     sampleProps: Array<{ uid: string; text: string }> | null;
   }>(
     `
-    MATCH (v:Viewpoint)
-    OPTIONAL MATCH (c:Controversy)-[:INCLUDES]->(v)
+    MATCH (c:Controversy {status: 'established'})-[:INCLUDES]->(v:Viewpoint)
+    WHERE $controversyUid = '' OR c.uid = $controversyUid
     OPTIONAL MATCH (v)-[:ADVANCES]->(p:Proposition)
     WITH v, c, p
     ORDER BY coalesce(p.text, p.normalizedText, '')
@@ -100,12 +87,15 @@ export const handler = async (req: Request) => {
          })[0..5] AS sampleProps
     RETURN v.uid AS uid,
            c.uid AS controversyUid,
-           coalesce(v.label, v.uid) AS label,
-           coalesce(v.summary, '') AS summary,
-           coalesce(v.topicKey, '') AS topicKey,
+           coalesce(v.label, v.keyPoint, v.uid) AS label,
+           coalesce(v.summary, v.keyPoint, '') AS summary,
+           v.keyPoint AS keyPoint,
+           v.polarity AS polarity,
+           coalesce(v.topicKey, v.questionUid, '') AS topicKey,
            coalesce(v.memberCount, size(sampleProps), 0) AS memberCount,
            sampleProps
-    `
+    `,
+    cypherParams
   );
 
   const evidence = await runCypher<{
@@ -114,33 +104,27 @@ export const handler = async (req: Request) => {
     utteranceCount: number;
   }>(
     `
-    MATCH (c:Controversy)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)<-[:EXPRESSES]-(u:Utterance)
+    MATCH (c:Controversy {status: 'established'})-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)<-[:EXPRESSES]-(u:Utterance)
+    WHERE $controversyUid = '' OR c.uid = $controversyUid
     RETURN c.uid AS controversyUid,
            u.documentUid AS documentUid,
            count(DISTINCT u) AS utteranceCount
-    `
+    `,
+    cypherParams
   );
 
-  const sharedClash = await runCypher<{
+  const keyPointBullets = await runCypher<{
     controversyUid: string;
-    shared: string[];
-    clash: string[];
+    bullets: string[];
   }>(
     `
-    MATCH (c:Controversy)
-    OPTIONAL MATCH (c)-[:INCLUDES]->(va:Viewpoint)-[:ADVANCES]->(pa:Proposition)
-          -[rAgree:RELATES_TO]->(pb:Proposition)<-[:ADVANCES]-(vb:Viewpoint)<-[:INCLUDES]-(c)
-    WHERE va <> vb AND rAgree.kind IN ['compatible', 'qualify', 'broader', 'narrower']
-    WITH c, collect(DISTINCT coalesce(pa.text, pa.normalizedText, '')) AS sharedRaw
-    OPTIONAL MATCH (c)-[:INCLUDES]->(vc:Viewpoint)-[:ADVANCES]->(pc:Proposition)
-          -[rOpp:RELATES_TO]->(pd:Proposition)<-[:ADVANCES]-(vd:Viewpoint)<-[:INCLUDES]-(c)
-    WHERE vc <> vd AND rOpp.kind IN ['oppose']
-    WITH c, sharedRaw,
-         collect(DISTINCT coalesce(pc.text, pc.normalizedText, '') + ' ↔ ' + coalesce(pd.text, pd.normalizedText, '')) AS clashRaw
+    MATCH (c:Controversy {status: 'established'})-[:INCLUDES]->(v:Viewpoint)
+    WHERE $controversyUid = '' OR c.uid = $controversyUid
+    WITH c, collect(DISTINCT coalesce(v.keyPoint, v.label, '')) AS bullets
     RETURN c.uid AS controversyUid,
-           [x IN sharedRaw WHERE x IS NOT NULL AND x <> ''][0..4] AS shared,
-           [x IN clashRaw WHERE x IS NOT NULL AND x <> ''][0..4] AS clash
-    `
+           [x IN bullets WHERE x IS NOT NULL AND x <> ''][0..6] AS bullets
+    `,
+    cypherParams
   );
 
   const disputes = await runCypher<{
@@ -148,12 +132,15 @@ export const handler = async (req: Request) => {
     bullets: string[];
   }>(
     `
-    MATCH (c:Controversy)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)
-    OPTIONAL MATCH (d:Dispute)-[:CONCERNS]->(p)
+    MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q:Question)
+    WHERE $controversyUid = '' OR c.uid = $controversyUid
+    OPTIONAL MATCH (q)<-[:SURFACES_IN]-(d:Dispute)
+    OPTIONAL MATCH (d)-[:CONCERNS]->(p:Proposition)<-[:ADVANCES]-(:Viewpoint)<-[:INCLUDES]-(c)
     WITH c, collect(DISTINCT coalesce(d.summary, d.kind, d.uid, '')) AS bullets
     RETURN c.uid AS controversyUid,
            [x IN bullets WHERE x IS NOT NULL AND x <> ''][0..4] AS bullets
-    `
+    `,
+    cypherParams
   );
 
   const excerpts = await runCypher<{
@@ -169,7 +156,8 @@ export const handler = async (req: Request) => {
     storyUrl: string | null;
   }>(
     `
-    MATCH (c:Controversy)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)<-[:EXPRESSES]-(u:Utterance)
+    MATCH (c:Controversy {status: 'established'})-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)<-[:EXPRESSES]-(u:Utterance)
+    WHERE $controversyUid = '' OR c.uid = $controversyUid
     OPTIONAL MATCH (u)-[:ASSERTED_BY]->(a:Agent)
     OPTIONAL MATCH (u)-[:GROUNDED_IN]->(seg:Segment)
     OPTIONAL MATCH (d:Document {uid: u.documentUid})
@@ -200,7 +188,8 @@ export const handler = async (req: Request) => {
            utt.publicationName AS publicationName,
            utt.storyTitle AS storyTitle,
            utt.storyUrl AS storyUrl
-    `
+    `,
+    cypherParams
   );
 
   if (dryRun) {
@@ -216,6 +205,7 @@ export const handler = async (req: Request) => {
 
   const subjects = await runCypher<{
     controversyUid: string;
+    questionUid: string;
     entityUid: string;
     name: string;
     kindHint: string | null;
@@ -223,37 +213,44 @@ export const handler = async (req: Request) => {
     role: string;
   }>(
     `
-    MATCH (c:Controversy)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)
-          <-[:EXPRESSES]-(u:Utterance)-[:MENTIONS]->(e:Entity)
-    WHERE coalesce(c.status, 'open') = 'open'
-    WITH c, e, count(DISTINCT u) AS mentions, count(DISTINCT p) AS props
+    MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q:Question)
+    WHERE $controversyUid = '' OR c.uid = $controversyUid
+    MATCH (c)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(p:Proposition)<-[:EXPRESSES]-(u:Utterance)-[:MENTIONS]->(e:Entity)
+    WITH c, q, e, count(DISTINCT u) AS mentions, count(DISTINCT p) AS props
     WHERE mentions >= 1
-    WITH c, e, mentions, props,
+    WITH c, q, e, mentions, props,
          CASE WHEN coalesce(e.kindHint, '') = 'person' THEN 'person' ELSE 'subject' END AS role
-    MERGE (e)-[s:SUBJECT_OF]->(c)
+    MERGE (e)-[s:SUBJECT_OF]->(q)
     SET s.weight = mentions,
         s.propCount = props,
         s.role = role,
         s.updatedAt = datetime()
     RETURN c.uid AS controversyUid,
+           q.uid AS questionUid,
            e.uid AS entityUid,
            coalesce(e.name, e.normalizedName, e.uid) AS name,
            e.kindHint AS kindHint,
            mentions AS weight,
            role
-    `
+    `,
+    cypherParams
   );
 
   await runCypher(
     `
-    MATCH (e:Entity)-[s:SUBJECT_OF]->(c:Controversy)
-    WHERE coalesce(c.status, 'open') <> 'open'
-       OR NOT EXISTS {
+    MATCH (e:Entity)-[s:SUBJECT_OF]->(q:Question)
+    WHERE ($controversyUid = '' OR EXISTS {
+      MATCH (c:Controversy {uid: $controversyUid, status: 'established'})-[:ABOUT]->(q)
+    })
+    AND NOT EXISTS {
+      MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q)
+      WHERE $controversyUid = '' OR c.uid = $controversyUid
       MATCH (c)-[:INCLUDES]->(:Viewpoint)-[:ADVANCES]->(:Proposition)
             <-[:EXPRESSES]-(:Utterance)-[:MENTIONS]->(e)
     }
     DELETE s
-    `
+    `,
+    cypherParams
   );
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
@@ -261,37 +258,37 @@ export const handler = async (req: Request) => {
   });
 
   const now = new Date().toISOString();
-  const sharedMap = new Map(sharedClash.map((r) => [r.controversyUid, r]));
+  const kpMap = new Map(keyPointBullets.map((r) => [r.controversyUid, r.bullets ?? []]));
   const disputeMap = new Map(disputes.map((r) => [r.controversyUid, r.bullets ?? []]));
 
   const ctrRows = controversies.map((c) => {
-    const sc = sharedMap.get(c.uid);
-    const question = consumerQuestion(c.topicKey, c.title, c.question);
+    const question = (c.question ?? "").trim() || "Untitled debate";
     const sides = Number(c.sidesCount) || 0;
     const sources = Number(c.sourceCount) || 0;
+    const bullets = (kpMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180));
     return {
       uid: c.uid,
       title: question,
       question,
-      summary: c.summary?.startsWith("Multi-sided debate")
-        ? `Multi-sided debate with ${sides} viewpoint${sides === 1 ? "" : "s"}.`
-        : c.summary,
+      summary: c.summary?.trim()
+        ? c.summary
+        : `Multi-sided debate with ${sides} viewpoint${sides === 1 ? "" : "s"}.`,
       sides_count: sides,
       source_count: sources,
-      topic_key: c.topicKey,
-      arena_uid: c.issueUid,
-      chapter_index: Number(c.chapterIndex) || 0,
-      chapter_of: c.chapterOf,
-      status: c.status === "closed" ? "closed" : "open",
-      superseded_by: c.supersededBy,
-      closed_at: c.closedAt,
+      topic_key: c.topicKey || c.questionUid,
+      arena_uid: null,
+      chapter_index: 0,
+      chapter_of: null,
+      status: "open",
+      superseded_by: null,
+      closed_at: null,
       ranking_score: rankingScore({
         sidesCount: sides,
         sourceCount: sources,
         updatedAt: c.updatedAt,
       }),
-      shared_bullets: (sc?.shared ?? []).filter(Boolean).map((t) => truncate(t, 180)),
-      clash_bullets: (sc?.clash ?? []).filter(Boolean).map((t) => truncate(t, 180)),
+      shared_bullets: bullets.slice(0, 4),
+      clash_bullets: [] as string[],
       dispute_bullets: (disputeMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180)),
       updated_at: now,
     };
@@ -304,9 +301,6 @@ export const handler = async (req: Request) => {
     if (error) return json({ error: error.message }, 500);
   }
 
-  // Child tables FK to graph_controversies. Neo is read across several round
-  // trips, so a concurrent rebuild can surface a controversy in a child query
-  // that never made it into this pass's parent snapshot.
   const ctrUids = ctrRows.map((r) => r.uid);
   const projectedCtr = new Set(ctrUids);
 
@@ -356,14 +350,9 @@ export const handler = async (req: Request) => {
       .filter((p) => p?.uid && p?.text)
       .map((p) => ({ uid: p.uid, text: truncate(p.text, 280) }));
     const lead = samples[0]?.text ?? "";
-    const label =
-      v.label?.startsWith("Viewpoint (") && lead
-        ? truncate(lead, 96)
-        : v.label;
-    const summary =
-      v.summary?.startsWith("Agree cluster") && lead
-        ? `Agree cluster of ${v.memberCount} proposition${v.memberCount === 1 ? "" : "s"}: ${truncate(lead, 160)}`
-        : v.summary;
+    const keyPoint = v.keyPoint?.trim() ?? "";
+    const label = keyPoint || v.label || (lead ? truncate(lead, 96) : v.uid);
+    const summary = v.summary?.trim() || keyPoint || label;
     return {
       uid: v.uid,
       controversy_uid:
@@ -404,7 +393,6 @@ export const handler = async (req: Request) => {
     if (error) return json({ error: error.message }, 500);
   }
 
-  // Replace evidence excerpts wholesale for projected controversies.
   if (ctrUids.length) {
     const { error: delExErr } = await supabase
       .from("graph_evidence_excerpts")
@@ -438,7 +426,6 @@ export const handler = async (req: Request) => {
     if (error) return json({ error: error.message }, 500);
   }
 
-  // Enrich story metadata from Postgres when Neo Document lacked title/url.
   const docUids = [...new Set(excerptRows.map((r) => r.document_uid).filter(Boolean))] as string[];
   if (docUids.length) {
     const { data: stories } = await supabase
@@ -459,11 +446,14 @@ export const handler = async (req: Request) => {
     }
   }
 
-  // Purge projection rows no longer present in Neo.
-  const { data: existingCtr } = await supabase.from("graph_controversies").select("uid");
-  const staleCtr = (existingCtr ?? [])
-    .map((r) => r.uid as string)
-    .filter((uid) => !ctrUids.includes(uid));
+  const { data: existingCtr } = controversyUid
+    ? { data: null }
+    : await supabase.from("graph_controversies").select("uid");
+  const staleCtr = controversyUid
+    ? []
+    : (existingCtr ?? [])
+        .map((r) => r.uid as string)
+        .filter((uid) => !ctrUids.includes(uid));
   if (staleCtr.length) {
     await supabase.from("graph_evidence_excerpts").delete().in("controversy_uid", staleCtr);
     await supabase.from("graph_controversy_evidence").delete().in("controversy_uid", staleCtr);
@@ -474,7 +464,12 @@ export const handler = async (req: Request) => {
   }
 
   const vpUids = vpRows.map((r) => r.uid);
-  const { data: existingVp } = await supabase.from("graph_viewpoints").select("uid");
+  const { data: existingVp } = controversyUid
+    ? await supabase
+        .from("graph_viewpoints")
+        .select("uid")
+        .eq("controversy_uid", controversyUid)
+    : await supabase.from("graph_viewpoints").select("uid");
   const staleVp = (existingVp ?? [])
     .map((r) => r.uid as string)
     .filter((uid) => !vpUids.includes(uid));
@@ -482,15 +477,16 @@ export const handler = async (req: Request) => {
     await supabase.from("graph_viewpoints").delete().in("uid", staleVp);
   }
 
-  if (evRows.length === 0) {
+  if (!controversyUid && evRows.length === 0) {
     await supabase.from("graph_controversy_evidence").delete().neq("document_uid", "");
-  } else {
+  } else if (ctrUids.length) {
     const keepKeys = new Set(
       evRows.map((e) => `${e.controversy_uid}|${e.document_uid}`)
     );
     const { data: existingEv } = await supabase
       .from("graph_controversy_evidence")
-      .select("controversy_uid, document_uid");
+      .select("controversy_uid, document_uid")
+      .in("controversy_uid", ctrUids);
     for (const row of existingEv ?? []) {
       const key = `${row.controversy_uid}|${row.document_uid}`;
       if (!keepKeys.has(key)) {
@@ -503,7 +499,6 @@ export const handler = async (req: Request) => {
     }
   }
 
-  // Auto-link controversies to matching topics.
   const { error: linkErr } = await supabase.rpc("link_graph_controversies_to_topics");
   if (linkErr) return json({ error: linkErr.message }, 500);
 
