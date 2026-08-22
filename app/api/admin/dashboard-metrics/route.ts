@@ -99,6 +99,7 @@ export async function GET(request: NextRequest) {
       qaRes,
       keepRes,
       relevanceTotalRes,
+      pendingNowRes,
       scrapeRes,
       gatingRes,
     ] = await Promise.all([
@@ -120,6 +121,10 @@ export async function GET(request: NextRequest) {
         .from('stories')
         .select('*', { count: 'exact', head: true })
         .not('relevance_status', 'is', null),
+      supabase
+        .from('stories')
+        .select('*', { count: 'exact', head: true })
+        .or('relevance_status.eq.PENDING,relevance_status.is.null'),
       supabase.rpc('get_scrape_counts_by_day', { p_days: windowDays }),
       supabase.rpc('get_story_gating_counts_by_day', { p_since: sinceIso }),
     ])
@@ -267,27 +272,14 @@ export async function GET(request: NextRequest) {
       gatingDropTotal += v.drop
       gatingPendingTotal += v.pending
     }
+    const gatingDecidedTotal = gatingKeepTotal + gatingDropTotal
     const gatingPeriodTotal =
       gatingKeepTotal + gatingDropTotal + gatingPendingTotal
     const gatingKeepRate =
-      gatingPeriodTotal === 0
+      gatingDecidedTotal === 0
         ? 0
-        : Math.round((gatingKeepTotal / gatingPeriodTotal) * 1000) / 10
-    const gatingTotals = gatingDays.map(
-      ([, v]) => v.keep + v.drop + v.pending
-    )
-    const mid = Math.floor(gatingDays.length / 2)
-    const sumSlice = (arr: number[], from: number, to: number) =>
-      arr.slice(from, to).reduce((a, b) => a + b, 0)
-    const firstKeep = sumSlice(gatingKeep, 0, mid)
-    const firstTotal = sumSlice(gatingTotals, 0, mid)
-    const secondKeep = sumSlice(gatingKeep, mid, gatingDays.length)
-    const secondTotal = sumSlice(gatingTotals, mid, gatingDays.length)
-    const firstKeepRate =
-      firstTotal === 0 ? 0 : (firstKeep / firstTotal) * 100
-    const secondKeepRate =
-      secondTotal === 0 ? 0 : (secondKeep / secondTotal) * 100
-    const gatingKeepRateChange = secondKeepRate - firstKeepRate
+        : Math.round((gatingKeepTotal / gatingDecidedTotal) * 1000) / 10
+    const gatingPendingNow = pendingNowRes.count ?? 0
 
     const samplePoints = windowDays <= 7 ? windowDays : windowDays <= 30 ? 24 : 28
     const sample = <T,>(arr: T[], maxPoints = samplePoints): T[] => {
@@ -334,9 +326,10 @@ export async function GET(request: NextRequest) {
           keepTotal: gatingKeepTotal,
           dropTotal: gatingDropTotal,
           pendingTotal: gatingPendingTotal,
+          pendingNow: gatingPendingNow,
           periodTotal: gatingPeriodTotal,
+          decidedTotal: gatingDecidedTotal,
           keepRate: gatingKeepRate,
-          changePts: Math.round(gatingKeepRateChange * 10) / 10,
         },
       },
       error: null,

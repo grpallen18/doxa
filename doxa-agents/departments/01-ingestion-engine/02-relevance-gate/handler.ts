@@ -3,6 +3,7 @@
 // Optional: OPENAI_MODEL (default: gpt-5-nano-2025-08-07)
 // Invoke: POST with Authorization Bearer SERVICE_ROLE_KEY.
 // Optional body: { "story_id": "<uuid>" } — classify only that story (ignores lookback/max_stories).
+// Batch default: oldest unclassified first (FIFO), no created_at window. Optional lookback_days.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
@@ -48,6 +49,13 @@ function clampInt(n: unknown, min: number, max: number, fallback: number) {
   const x = Number(n);
   if (!Number.isFinite(x)) return fallback;
   return Math.max(min, Math.min(max, Math.round(x)));
+}
+
+function parseOptionalLookbackDays(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const x = Number(raw);
+  if (!Number.isFinite(x)) return null;
+  return Math.max(1, Math.min(3650, Math.round(x)));
 }
 
 function truncate(s: string, maxLen: number) {
@@ -279,14 +287,15 @@ export const handler = async (req: Request) => {
     return json({ error: "Invalid story_id; expected a UUID" }, 400);
   }
 
-  const lookbackDays = clampInt(body.lookback_days, 1, 14, 7);
+  const lookbackDays = parseOptionalLookbackDays(body.lookback_days ?? body.lookbackDays);
   const maxStories = clampInt(body.max_stories, 1, 2000, 10);
   const contentMaxChars = clampInt(body.content_max_chars, 0, 6000, 2500);
   const dryRun = Boolean(body.dry_run ?? false);
 
-  const sinceIso = new Date(
-    Date.now() - lookbackDays * 24 * 60 * 60 * 1000
-  ).toISOString();
+  const sinceIso =
+    lookbackDays == null
+      ? "1970-01-01T00:00:00.000Z"
+      : new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
 
   let claimedStoryIds: string[] = [];
 
@@ -474,7 +483,9 @@ export const handler = async (req: Request) => {
     if (singleStoryId) {
       console.log(`[relevance_gate] Classifying single story ${singleStoryId}`);
     } else {
-      console.log(`[relevance_gate] Claimed ${stories.length} stories (lookback=${lookbackDays}d, max=${maxStories})`);
+      console.log(
+        `[relevance_gate] Claimed ${stories.length} stories (fifo, lookback=${lookbackDays ?? "all"}d, max=${maxStories})`
+      );
     }
 
     const counts: Record<string, number> = { KEEP: 0, DROP: 0, PENDING: 0 };

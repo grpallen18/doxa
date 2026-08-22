@@ -31,7 +31,13 @@ export type MetricCardProps = {
   title: string
   subtitle: string
   value: string
-  change: string
+  /** Smaller context next to `value` (e.g. "stories kept"). */
+  valueHint?: string
+  change?: string
+  /** Large trailing value (e.g. pending count), styled like `value`. */
+  changeValue?: string
+  /** Caption on the trailing side of the footer (e.g. pending qualification). */
+  changeCaption?: string
   chart: ChartKind
   data?: number[]
   /** Point labels (e.g. dates) aligned with `data` */
@@ -679,6 +685,35 @@ function StackedBarsChart({
   )
 }
 
+function StackedSeriesLegend({
+  series,
+  className,
+}: {
+  series: MetricStackedSeries[]
+  className?: string
+}) {
+  if (!series.length) return null
+  return (
+    <ul
+      className={cn(
+        'flex flex-wrap items-center justify-end gap-x-3 gap-y-1',
+        className
+      )}
+    >
+      {series.map((s) => (
+        <li key={s.key} className="flex items-center gap-1.5 text-xs text-muted">
+          <span
+            className="size-2 shrink-0 rounded-[2px]"
+            style={{ background: s.color }}
+            aria-hidden
+          />
+          {s.label}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function AreaChart({
   data,
   labels,
@@ -1051,7 +1086,10 @@ export function MetricCard({
   title,
   subtitle,
   value,
+  valueHint,
   change,
+  changeValue,
+  changeCaption,
   chart,
   data,
   labels,
@@ -1069,7 +1107,8 @@ export function MetricCard({
   onOpen,
   loading = false,
 }: MetricCardProps) {
-  const trimmed = change.trim()
+  const trimmed = (change ?? '').trim()
+  const showChange = Boolean(trimmed)
   const isNegative = trimmed.startsWith('-')
   const isNeutral = !trimmed || trimmed === '—' || trimmed === '0%' || trimmed === '+0%'
   const seriesLabel = tooltipLabel ?? title
@@ -1106,9 +1145,19 @@ export function MetricCard({
       {drawReady ? (
         <>
           <header className={cn(isRate && 'flex items-start justify-between gap-2')}>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
-              {subtitle ? <p className="mt-0.5 text-xs text-muted">{subtitle}</p> : null}
+              {chart === 'stacked-bars' ? (
+                <div className="mt-0.5 flex items-center justify-between gap-3">
+                  {subtitle ? <p className="text-xs text-muted">{subtitle}</p> : null}
+                  <StackedSeriesLegend
+                    className="shrink-0"
+                    series={stackedSeries ?? []}
+                  />
+                </div>
+              ) : subtitle ? (
+                <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
+              ) : null}
             </div>
             {isRate && badge ? (
               <span className="shrink-0 rounded-full border border-border/80 px-2 py-0.5 text-[11px] font-medium text-muted">
@@ -1154,19 +1203,38 @@ export function MetricCard({
               </div>
 
               <footer className="mt-auto flex items-end justify-between gap-3 pt-3 animate-in fade-in-0 duration-1400 fill-mode-both">
-                <span className="text-2xl font-semibold tabular-nums leading-none tracking-tight text-foreground">
-                  {value}
-                </span>
-                <span
-                  className={cn(
-                    'text-sm tabular-nums leading-none',
-                    isNeutral && 'text-muted',
-                    !isNeutral && isNegative && 'text-destructive',
-                    !isNeutral && !isNegative && 'text-accent-primary'
-                  )}
-                >
-                  {change}
-                </span>
+                <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="text-2xl font-semibold tabular-nums leading-none tracking-tight text-foreground">
+                    {value}
+                  </span>
+                  {valueHint ? (
+                    <span className="text-sm leading-none text-muted">{valueHint}</span>
+                  ) : null}
+                </p>
+                {changeValue || changeCaption || showChange ? (
+                  <p className="flex min-w-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-right">
+                    {changeValue ? (
+                      <span className="text-2xl font-semibold tabular-nums leading-none tracking-tight text-foreground">
+                        {changeValue}
+                      </span>
+                    ) : null}
+                    {changeCaption ? (
+                      <span className="text-sm leading-none text-muted">{changeCaption}</span>
+                    ) : null}
+                    {showChange ? (
+                      <span
+                        className={cn(
+                          'text-sm tabular-nums leading-none',
+                          isNeutral && 'text-muted',
+                          !isNeutral && isNegative && 'text-destructive',
+                          !isNeutral && !isNegative && 'text-accent-primary'
+                        )}
+                      >
+                        {change}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : null}
               </footer>
             </>
           )}

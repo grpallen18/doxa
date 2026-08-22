@@ -17,7 +17,7 @@ export function AdminShell({ children, className, maxWidth = 'default' }: AdminS
   return (
     <div
       className={cn(
-        'mx-auto flex w-full flex-col gap-8 px-4 pb-12 pt-4 font-sans sm:px-6 md:px-8 lg:px-10',
+        'mx-auto flex w-full flex-col gap-8 px-4 pb-12 pt-0 font-sans sm:px-6 md:px-8 lg:px-10',
         maxWidthClasses[maxWidth],
         className
       )}

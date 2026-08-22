@@ -3,6 +3,9 @@
 import { usePathname } from 'next/navigation'
 import { AdminCenterNav } from '@/components/admin/admin-center-nav'
 import { AdminShell } from '@/components/admin/admin-shell'
+import { cn } from '@/lib/utils'
+
+const SHELL_X_PADDING = 'px-4 sm:px-6 md:px-8 lg:px-10'
 
 function isEntityRecordRoute(pathname: string): boolean {
   return (
@@ -40,16 +43,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const neoDetail = isNeoDetailRoute(pathname)
   const showCenterNav = !isAgentFlowRoute(pathname) && !neoDetail
-  const entityPadding =
-    isEntityRecordRoute(pathname) && !neoDetail
-      ? 'px-4 sm:px-6 md:px-8 lg:px-10'
-      : undefined
+  const entityRoute = isEntityRecordRoute(pathname) && !neoDetail
 
   return (
-    <AdminShell maxWidth="full" className={adminShellClass(pathname)}>
-      {showCenterNav && <AdminCenterNav className={entityPadding} />}
+    <AdminShell
+      maxWidth="full"
+      className={cn(adminShellClass(pathname), showCenterNav && 'px-0 sm:px-0 md:px-0 lg:px-0')}
+    >
+      {showCenterNav && <AdminCenterNav />}
       {neoDetail ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+      ) : showCenterNav && !entityRoute ? (
+        <div className={SHELL_X_PADDING}>{children}</div>
       ) : (
         children
       )}

@@ -74,9 +74,10 @@ type DashboardMetrics = {
     keepTotal: number
     dropTotal: number
     pendingTotal: number
+    pendingNow: number
     periodTotal: number
+    decidedTotal: number
     keepRate: number
-    changePts: number
   }
 }
 
@@ -96,6 +97,14 @@ function formatRatePct(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—'
   const rounded = Math.round(n * 10) / 10
   return `${rounded}%`
+}
+
+function formatInteger(n: number): string {
+  return Math.round(n).toLocaleString('en-US')
+}
+
+function pendingQualificationHint(count: number): string {
+  return count === 1 ? 'story pending qualification' : 'stories pending qualification'
 }
 
 function scrapeRateBadge(successRate: number, attemptCount: number): string {
@@ -159,33 +168,35 @@ function buildChartProps(id: ChartCatalogId, ctx: ChartBuildCtx) {
     case 'story_gating':
       return {
         ...shared,
-        subtitle: `${windowCopy} · by status`,
+        subtitle: windowCopy,
         value:
-          data && data.gating.periodTotal > 0
+          data && data.gating.decidedTotal > 0
             ? formatRatePct(data.gating.keepRate)
             : '—',
-        change:
-          data && data.gating.periodTotal > 0
-            ? formatSigned(data.gating.changePts, ' pts')
-            : '—',
+        valueHint:
+          data && data.gating.decidedTotal > 0 ? 'stories kept' : undefined,
+        changeValue: data ? formatInteger(data.gating.pendingNow) : undefined,
+        changeCaption: data
+          ? pendingQualificationHint(data.gating.pendingNow)
+          : undefined,
         chart: 'stacked-bars' as const,
         labels: data?.gating.days,
         stackedSeries: [
           {
             key: 'keep',
-            label: 'KEEP',
+            label: 'Keep',
             color: 'var(--chart-1)',
             values: data?.gating.keep ?? [],
           },
           {
             key: 'pending',
-            label: 'PENDING',
+            label: 'Pending',
             color: 'var(--chart-2)',
             values: data?.gating.pending ?? [],
           },
           {
             key: 'drop',
-            label: 'DROP',
+            label: 'Drop',
             color: 'var(--chart-5)',
             values: data?.gating.drop ?? [],
           },

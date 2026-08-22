@@ -20,7 +20,7 @@ export type DashboardChartPrefs = {
 export const DEFAULT_CHART_TITLES: Record<ChartCatalogId, string> = {
   stories: 'Stories',
   daily_ingest: 'Daily ingest',
-  story_gating: 'Story Gating',
+  story_gating: 'Story Qualification',
   scrape_rate: 'Scrape Rate',
   qa_backlog: 'QA backlog',
 }
@@ -82,7 +82,8 @@ export function normalizeDashboardChartPrefs(
     )) {
       if (!isChartCatalogId(key)) continue
       if (typeof value === 'string' && value.trim()) {
-        titles[key] = value.trim().slice(0, 80)
+        const next = value.trim().slice(0, 80)
+        titles[key] = next === 'Story Gating' && key === 'story_gating' ? titles[key] : next
       }
     }
   }
