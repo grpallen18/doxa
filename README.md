@@ -92,7 +92,7 @@ Doxa publishes structured models of facts, disagreement, and framing, continuous
 
 ## Tech Stack
 
-- **Frontend:** Next.js 14 (App Router) + React + TypeScript
+- **Frontend:** Next.js 15 (App Router) + React + TypeScript
 - **Backend:** Next.js API routes + Supabase (PostgreSQL)
 - **AI Integration:** OpenAI API
 - **Styling:** Tailwind CSS
@@ -112,6 +112,7 @@ The site uses a **neumorphic, instrument-panel** look: warm light gray surfaces,
 - **Components:** Use `Panel`, `Button`, and (where relevant) `InstrumentModule` from `components/`. Prefer design tokens and Tailwind theme keys from `tailwind.config.ts`; avoid inline hex colors or shadow strings.
 - **Motion:** Prefer [Motion Primitives](https://motion-primitives.com) for animated UI (CLI: `npx motion-primitives@latest add <name>` → `components/motion-primitives/`). Keep motion purposeful; don’t fight the neumorphic design system.
 - **Spacing:** Align to an 8pt grid (e.g. 8, 12, 16, 24, 32) for padding, gaps, and margins.
+- **Theme persistence:** Signed-in users store `theme_mode` plus light/dark preset IDs on `users` (`/api/theme-preference`). SSR in `app/layout.tsx` via `lib/server-theme.ts`. Signed-out visitors use `localStorage` key `doxa-theme`. Marble/auth routes always render light.
 
 Tokens and component classes live in `app/globals.css` and `tailwind.config.ts`. New surfaces should follow the same beveled-panel and token usage so the app feels like one piece of equipment.
 
@@ -123,14 +124,19 @@ Tokens and component classes live in `app/globals.css` and `tailwind.config.ts`.
 - **Login (`/login`):** Sign-in (email/password + social OAuth) on the same marble scene, in a frosted `glass-panel` card. Links to sign-up and forgot-password.
 - **Sign up / auth routes:** `/auth/sign-up`, `/auth/callback`, `/auth/confirm`, `/auth/forgot-password`, `/auth/update-password`, `/auth/error` — content columns under the shared marble layout and the forced light theme.
 - **Home (`/home`):** Signed-in explore home — brand, headline, search (`SpotlightBorder`), trending controversies from `graph_controversies`, featured topic hubs (density bar + `graph_topic_links`), how-it-works.
-- **Search (`/search?q=`):** Controversies first, then published topics.
-- **Controversy (`/c/[uid]`):** Primary product page — question, shared/clash/disputes, viewpoint columns, evidence sheet, assessments (labeled Analyzed), related debates, feedback.
-- **Topic hub (`/topics/[slug]`):** Core facts + linked controversies (only meaningful when links exist). Nested: `/topics/[slug]/c/[uid]`.
-- **Entity (`/entities/[uid]`):** Neo-backed dossier (P2) — controversies + propositions.
+- **Search (`/search?q=`):** Controversies first, then published topics, then people (`/api/explore/search`).
+- **Controversy (`/c/[uid]`):** Primary product page — question, shared/clash/disputes, viewpoint columns, evidence sheet, assessments (labeled Analyzed), related debates, feedback. Only **`open`** controversies.
+- **Topic hub (`/topics/[slug]`):** Core facts + linked controversies (only listed when `graph_topic_links` meet the density bar). Nested: `/topics/[slug]/c/[uid]`.
+- **People (`/people`, `/people/[uid]`):** Projected person profiles (`graph_people`, filled by `project_person_profiles`). Eidos map: `/people/[uid]/eidos`.
 - **About (`/about`):** Mission copy.
-- **Profile (`/profile`):** Account settings; personalization deferred (no fake ideology meters).
-- **Legacy:** `/page/[id]` redirects to topic hub by slug; mock position routes redirect to the topic hub.
-- **Admin:** unchanged under `/admin/**` (admin role required).
+- **Profile (`/profile`):** Account settings and theme picker; ideology meters are still deferred.
+- **Legacy:** `/page/[id]` redirects to the topic hub by slug; `/entities/[uid]` redirects to `/people/[uid]`; `/welcome` permanently redirects to `/`.
+- **Admin** (JWT role `admin`; others sent to `/home`):
+  - `/admin` — metrics + settings
+  - `/admin/stories` — story pipeline hub
+  - `/admin/neo` — graph explorer
+  - `/admin/graph-controversies` — debate projections + question quarantine
+  - `/admin/observability` — scrape chart + pipeline funnel (`/admin/health` redirects here)
 
 Typography uses **Manrope** (`--font-app`). Prefer `Panel`, design-system `Button`, `DoxaLink`, shadcn primitives, and Motion Primitives — CSS variables only (see Design System above).
 
@@ -156,7 +162,7 @@ npm install
    ```
    OPENAI_API_KEY=your_key_here
    ```
-   - Add `SUPABASE_SERVICE_ROLE_KEY` for admin operations (topic creation, process_topic Edge Function). Get it from Supabase Dashboard → Settings → API → service_role key.
+   - Add `SUPABASE_SERVICE_ROLE_KEY` for admin write paths (run-step, extraction clear/QA override, topic link suggestions, observability service-role reads). Get it from Supabase Dashboard → Settings → API → service_role (or secret) key.
 
 4. **Configure Supabase Dashboard (Auth):**
    - **URL Configuration:** In [Auth → URL Configuration](https://supabase.com/dashboard/project/_/auth/url-configuration), set **Site URL** (e.g. `http://localhost:3000` for dev, `https://yourdomain.com` for production) and add **Redirect URLs**:  
@@ -171,71 +177,71 @@ npm install
 npm run dev
 ```
 
-6. **Open [http://localhost:3000](http://localhost:3000) in your browser.** You will be redirected to `/login` until you sign in or sign up.
+6. **Open [http://localhost:3000](http://localhost:3000) in your browser.** Signed-out visitors see the marble landing at `/`. Sign in or sign up from there; signed-in visitors are sent to `/home`.
+
+## Developer docs
+
+| Doc | Contents |
+|-----|----------|
+| [API_ENDPOINTS.md](./API_ENDPOINTS.md) | App Router APIs (explore, theme, topics, admin) |
+| [TESTING_GUIDE.md](./TESTING_GUIDE.md) | Auth-gated API checks, Playwright gate tests |
+| [ENV_SETUP.md](./ENV_SETUP.md) | `.env.local`, Edge secrets, Neo4j worker |
+| [docs/admin-observability.md](./docs/admin-observability.md) | Observability funnel, scrape drill-down, question quarantine |
+| [docs/admin-story-extraction-review.md](./docs/admin-story-extraction-review.md) | Story hub run-step / QA |
+| [doxa-agents/AGENTS.md](./doxa-agents/AGENTS.md) | Pipeline handlers, deploy, cron |
 
 ## Project Structure
 
 ```
 doxa/
-├── middleware.ts               # Session refresh + redirect unauthenticated to /login
-├── app/                        # Next.js App Router
-│   ├── api/                   # API routes
-│   │   ├── topics/            # Topic list (GET), create (POST), detail ([id]), process ([id]/process)
-│   │   └── viewpoints/        # Viewpoint list (optional ?topic_id filter)
-│   ├── globals.css            # Design tokens and neumorphic component classes
-│   ├── layout.tsx             # Root layout
-│   ├── page.tsx               # Home (search-first landing)
-│   ├── login/                 # Auth landing (sign-in + OAuth)
-│   ├── auth/
-│   │   ├── callback/          # OAuth / magic-link code exchange
-│   │   ├── confirm/           # Email confirmation & password-reset (token_hash)
-│   │   ├── oauth/             # Optional server-side OAuth start
-│   │   ├── sign-up/           # Sign-up page
-│   │   ├── forgot-password/   # Forgot-password page
-│   │   ├── update-password/   # Set new password after reset
-│   │   ├── error/             # Auth error page
-│   │   └── sign-up-success/   # Post-sign-up success message
-│   ├── about/                 # About page (mission, DOXA definition, How it works)
-│   ├── search/                # Search results (placeholder)
-│   ├── profile/               # Profile & ideology stub
-│   ├── page/[id]/             # Topic detail pages
-│   ├── admin/topics/          # Admin: create topics, run process_topic pipeline
-│   ├── graph/                 # Topics list (graph visualization removed)
-│   ├── error.tsx              # Route-level error boundary
-│   ├── global-error.tsx       # Global error boundary
-│   └── not-found.tsx          # 404 page
-├── components/                # React components
-│   ├── Panel.tsx              # Beveled panel (design system)
-│   ├── Button.tsx             # Primary/secondary button (design system)
-│   ├── InstrumentModule.tsx   # Instrument-style metric module
-│   ├── TrendingStoriesList.tsx # Auto-scrolling trending stories panel
-│   ├── auth/                  # Auth forms (login, sign-up, forgot-password, etc.)
-│   ├── graph/                 # Graph visualization components
-│   └── topic/                 # Topic detail UI (viewpoints)
-├── lib/                       # Utilities and helpers
-│   ├── supabase/              # Supabase client helpers
-│   └── types/                 # Shared TypeScript types
-├── workers/                   # Cloudflare Worker (article scraping)
-└── steering-document.md       # Project philosophy and design
+├── middleware.ts                 # Session refresh; unauthenticated → `/` (APIs → 401 JSON)
+├── app/
+│   ├── (marble)/                 # Landing `/` + `/login` + `/auth/*` (shared marble scene)
+│   ├── api/
+│   │   ├── explore/              # Consumer home, search, controversies, polls, saves
+│   │   ├── theme-preference/     # Signed-in theme mode + presets
+│   │   ├── topics/               # SQL topic catalog (list, detail, search, suggest-link)
+│   │   ├── viewpoints/           # SQL viewpoints table (not graph_viewpoints)
+│   │   ├── stories/              # KEEP story feed
+│   │   └── admin/                # Observability, debate, Neo, stories, agents
+│   ├── home/                     # Signed-in explore home
+│   ├── search/                   # Controversy / topic / people search
+│   ├── c/[uid]/                  # Controversy page
+│   ├── topics/[topicId]/         # Topic hubs
+│   ├── people/                   # Person index, profile, eidos
+│   ├── admin/                    # Admin Center, stories, neo, debate, observability
+│   ├── profile/                  # Account + theme
+│   └── about/
+├── components/                   # Panel, explore, admin, auth, ui (shadcn), motion-primitives
+├── lib/
+│   ├── supabase/                 # SSR client + middleware
+│   ├── explore/                  # Projection queries + person profiles
+│   ├── admin/                    # Dashboard, observability, pipeline catalog
+│   └── neo4j/                    # Admin Neo queries (Aura)
+├── doxa-agents/                  # Pipeline handlers + generated catalog
+├── supabase/                     # Migrations, Edge function stubs
+├── services/graph-worker/        # Python utterance graph worker
+├── workers/                      # Cloudflare scrape worker
+└── steering-document.md
 ```
 
 ## Development
 
 See `steering-document.md` for the complete project philosophy and design principles. Product and UX decisions should align with the \"What Doxa Is For (and Not For)\" section above so the site stays focused on epistemic clarity and depolarization, not on becoming a news destination or opinion platform.
 
-For database schema, data dictionary, and implementation status of the topic lifecycle (claims, versions, feedback), see **supabase/README.md**. The clustering engine uses **position_clusters** (supporting-claim stances) and **controversy_clusters** (opposing positions). **classify_claim_pairs** runs every 15 min to grow claim_relationships; **clustering_pipeline** (skip_classify) runs on the 1st and 15th to rebuild positions, controversies, and viewpoints.
+For database schema, see **supabase/README.md**. Cross-story debate assembly is the Edge `debate_pipeline` over Neo4j, projected to `graph_*` tables for Explore/Admin — [doxa-agents/departments/06-debate-engine/debate-pipeline/README.md](doxa-agents/departments/06-debate-engine/debate-pipeline/README.md).
 
 ## Planned / not yet implemented
 
 The following are out of scope for the current phase and should be tackled later. Document here so they are not forgotten.
 
-- **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to the landing page at `/`. Auth uses the Supabase UI Library pattern (shadcn-based forms): `/login` (sign-in + “Login with GitHub”), `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm` (email links), `/auth/callback` (OAuth/magic-link). Session is cookie-based via `@supabase/ssr`. Auth pages share the landing page's marble scene (`AuthScene` + `glass-panel`) for consistent branding. See “Configure Supabase Dashboard (Auth)” above for Site URL, Redirect URLs, providers, and email templates.
-- **Poll backend:** Real poll questions and answers in the database; persistence and participation (e.g. sign-in to participate).
-- **Trending data:** The home page shows KEEP stories from the pipeline (ingest → relevance_gate). Future: traffic, multi-outlet coverage, or curated lists.
-- **Search API:** Wire the search bar to a backend that searches topics by query (e.g. by headline/topic).
+- **Auth and access:** Implemented. The site is gated: middleware redirects unauthenticated users to `/`. Auth: `/login`, `/auth/sign-up`, `/auth/forgot-password`, `/auth/confirm`, `/auth/callback`. Cookie session via `@supabase/ssr`. Marble layout is shared across landing + auth. `?redirect=` is sanitized (`lib/safe-redirect.ts`).
+- **Poll backend:** Tables and `/api/explore/polls` exist; product still needs real poll questions seeded per controversy and participation UX.
+- **Trending data:** Home lists **open** `graph_controversies` by `ranking_score`. Future: traffic, multi-outlet coverage, or curated lists.
+- **Search API:** Implemented (`/api/explore/search` — controversies, topics, people). Ranking/quality still naive `ilike`.
 - **Ideology engine:** Doxa's proprietary system that computes a user's **factor ratings** (e.g. fiscal, social, foreign policy) from behavior—not user-controlled; displayed as read-only on the profile. Plus an **overall ideology** assignment. When implementing, consider existing **political science grading systems** (e.g. for categorizing people into named ideologies).
-- **Validation loop:** User feedback on viewpoint representation ("Is your viewpoint fairly represented?") — on hold until viewpoints and UI are more developed. Will require new schema.
+- **Validation loop:** Critiques API (`/api/explore/critiques`) and advisory `/api/explore/revision-candidates` exist; they are not yet a `topic_version` revision gate.
 - **topic_version:** Immutable topic versions (Core Facts, Viewpoint Clusters, coverage analysis) with audit trail — topic pages point to latest; older versions remain auditable.
-- **Viewpoint votes and validations:** User validation of representation — on hold; see Validation loop above. Will be re-added with new schema once viewpoints and UI are ready.
+- **Viewpoint votes and validations:** User validation of representation — on hold; see Validation loop above.
 - **NewsAPI idempotency:** Check that the NewsAPI edge function (ingest-newsapi) is idempotent—i.e. repeated runs with the same data do not create duplicate sources or stories and behave predictably (e.g. upsert by URL, source name).
 - **Paid features:** None for now. If paid tiers are introduced later (e.g. poll participation, features that influence the feedback loop), document the model in this README.

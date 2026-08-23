@@ -2,7 +2,7 @@
 
 Internal QA surface for comparing article text against pipeline extraction output. The admin UI supports human review, QA override, **clear**, and **step-by-step pipeline runs** across ingestion and claims extraction (through chunk QA review).
 
-**See also:** [Admin pipeline ops roadmap](./admin-pipeline-ops-roadmap.md) (Phases 1–4) · [Pipeline catalog](../doxa-agents/docs/generated/pipeline-catalog.md) (generated step list)
+**See also:** [Admin pipeline ops roadmap](./admin-pipeline-ops-roadmap.md) · [Admin observability](./admin-observability.md) · [Pipeline catalog](../doxa-agents/docs/generated/pipeline-catalog.md) (generated step list)
 
 ## Pipeline stages (story-scoped)
 

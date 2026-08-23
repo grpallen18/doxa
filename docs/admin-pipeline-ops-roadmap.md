@@ -6,7 +6,7 @@ Persistent plan for expanding the admin center into a Salesforce-style pipeline 
 
 **Phase 1 (done):** Story hub + `/ingestion`, `/extraction`, `/canonical` stage pages; shared pipeline components; `reset_story_canonical_links` RPC; unified search on Admin Center hub.
 
-UI summary: [/admin/pipeline-roadmap](/admin/pipeline-roadmap). Docs: [admin-story-extraction-review.md](./admin-story-extraction-review.md), [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md).
+UI: Admin Center [`/admin`](/admin) (search + metrics). The `/admin/pipeline-roadmap` page was removed. Docs: [admin-story-extraction-review.md](./admin-story-extraction-review.md), [admin-observability.md](./admin-observability.md), [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md).
 
 ---
 
@@ -162,7 +162,7 @@ Most topology steps are batch/cron. UI must distinguish:
 
 1. **`pipeline_runs` history panel** per record — last N runs affecting this story/position
 2. **Batch actions** — e.g. re-run canonical for stories with QA passed in last 24h
-3. **Stage-level health** — extend `/admin/health` with extraction/canonical/topology queue depths
+3. **Stage-level health** — extend `/admin/observability` (former `/admin/health`) with extraction/canonical/topology queue depths beyond the current ingest/graph/projection funnel
 4. **Prompt version tagging** on reruns — know which outputs are stale after prompt changes
 5. **`admin_pipeline_actions` audit table** (optional) — admin user + scope + step + timestamp
 
@@ -203,6 +203,7 @@ Add matching `lib/admin/pipeline-status/topology-*.ts` modules.
 
 ## Related docs
 
+- [Admin observability](./admin-observability.md) — scrape funnel, debate quarantine
 - [Admin story extraction review](./admin-story-extraction-review.md) — current story QA UI
 - [Pipeline catalog (generated)](../doxa-agents/docs/generated/pipeline-catalog.md) — stage/step table
 - [Pipeline test params](../doxa-agents/docs/pipeline-test-params.md) — per-step isolation
