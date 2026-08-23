@@ -1,4 +1,5 @@
-// Quick API test script (target schema: topics by topic_id, viewpoints topic-scoped)
+// Connectivity smoke test. Unauthenticated /api/* calls 401 (see middleware).
+// For signed-in checks, use TESTING_GUIDE.md (browser session or Playwright).
 const BASE_URL = 'http://localhost:3000'
 
 async function testEndpoint(name, url, options = {}) {
@@ -25,6 +26,9 @@ async function testEndpoint(name, url, options = {}) {
       }
     } else {
       console.log(`   ❌ Error:`, data.error?.message || 'Unknown error')
+      if (response.status === 401) {
+        console.log('   (Expected without a session — middleware requires auth.)')
+      }
     }
 
     return { success: response.ok, data }
@@ -58,10 +62,10 @@ async function runTests() {
   }
 
   console.log('\n✨ Tests complete!')
-  console.log('\nIf you see errors, check:')
+  console.log('\nIf you see 401s, that is the auth gate (sign in, then retry from the browser).')
+  console.log('If you see connection errors, check:')
   console.log('  1. Dev server is running (npm run dev)')
-  console.log('  2. .env.local has correct Supabase credentials')
-  console.log('  3. Migrations 010 and 011 applied, then supabase/seed_new_schema.sql')
+  console.log('  2. .env.local has correct Supabase credentials (restart after edits)')
 }
 
 runTests().catch(console.error)

@@ -1,69 +1,71 @@
-# API Endpoint Testing Guide
+# API and auth testing
 
 ## Prerequisites
 
-1. **Environment Variables**: Make sure `.env.local` exists with:
+1. `.env.local` in the repo root (`ENV_SETUP.md`). At minimum:
    ```
-   NEXT_PUBLIC_SUPABASE_URL=https://gjxihyaovyfwajjyoyoz.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+   NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon or publishable>
    ```
+   Admin write paths also need `SUPABASE_SERVICE_ROLE_KEY`.
+2. Dev server: `npm run dev`
+3. A signed-in browser session for App Router APIs (middleware returns **401** without one)
 
-2. **Database**: Run migrations 010 and 011, then `supabase/seed_new_schema.sql` (see supabase/README.md).
+## What not to expect
 
-3. **Dev Server Running**: `npm run dev`
+`node test-api.js` calls `/api/topics` and `/api/viewpoints` **without cookies**. Those requests now 401. Use it only as a connectivity smoke test for the gate, or call the same URLs from a signed-in browser.
 
-## Manual Testing
+Do not seed with “migrations 010/011 + `seed_new_schema.sql`” as the primary path — current schema lives in `supabase/migrations/` (see `supabase/README.md`).
 
-### 1. Test Topics Endpoint
-```
-http://localhost:3000/api/topics
-```
+## Manual checks (signed in)
 
-**Expected**: JSON array of topics (`topic_id`, `slug`, `title`, `summary`, `status`).
+Open DevTools → Network after signing in at `/login`.
 
-### 2. Test Viewpoints Endpoint
-```
-http://localhost:3000/api/viewpoints
-```
+| Check | URL | Expect |
+|-------|-----|--------|
+| Explore home | `/api/explore/home` | `{ controversies, topics }` |
+| Search | `/api/explore/search?q=tax` | `{ controversies, topics, people }` (arrays; may be empty) |
+| Inventory | `/api/explore/inventory?format=json` | Counts + `hubs` + `guidance` |
+| Theme | `/api/theme-preference` | `{ data: { preference }, error: null }` |
+| Unauthenticated API | curl without cookies | `401` `{ data: null, error: { message: "Authentication required" } }` |
 
-**Expected**: JSON array of viewpoints (topic-scoped: `viewpoint_id`, `topic_id`, `title`, `summary`).
+Controversy detail: copy a `uid` from home, then `/api/explore/controversies/<uid>`. Closed/developing rows 404 here; they still list in `/admin/graph-controversies`.
 
-### 3. Test Viewpoints by Topic
-Get a `topic_id` from step 1, then:
-```
-http://localhost:3000/api/viewpoints?topic_id=[topic-id]
-```
+Empty hubs on inventory: run `project_debate_summaries` and/or `SELECT link_graph_controversies_to_topics();` — see [API_ENDPOINTS.md](./API_ENDPOINTS.md).
 
-**Expected**: Viewpoints for that topic only.
+## Automated
 
-### 4. Test Topic Details
-Get a topic ID from step 1, then:
-```
-http://localhost:3000/api/topics/[topic-id]
+```bash
+npm run test:e2e              # Playwright: unauthenticated gate (e2e/auth-gate.spec.ts)
+npx tsx scripts/test-safe-redirect.ts
 ```
 
-**Expected**: Full topic object plus `viewpoints` array.
+`auth-gate.spec.ts` asserts:
+
+- `/` is the marble landing (Sign up / Log in)
+- `/welcome` → `/`
+- `/home` and `/admin` redirect to `/?redirect=...`
+- `/api/admin/observability/pipeline-counts` is 401 JSON
+- Off-site and protocol-relative `?redirect=` values are dropped from login/sign-up hrefs
 
 ## Troubleshooting
 
-### 500 Internal Server Error
-- Check that `.env.local` exists and has correct values
-- Restart the dev server after creating/editing `.env.local`
-- Check browser console or terminal for detailed error messages
+### 401 on every `/api/*`
 
-### Empty Results
-- Run migrations 010 and 011, then `supabase/seed_new_schema.sql`
-- Check RLS policies allow public read on `topics` and `viewpoints`
+You are not signed in, or cookies are not sent (wrong origin, `SameSite`). Sign in at `/login` and retry from that origin.
 
-### Connection Errors
-- Make sure `npm run dev` is running
-- Check that port 3000 is not in use by another application
+### 403 on `/api/admin/*`
 
-## Automated Testing
+Session exists but JWT role is not `admin`. Non-admins hitting `/admin` are redirected to `/home`.
 
-Run the test script:
-```bash
-node test-api.js
-```
+### Empty explore home
 
-Make sure the dev server is running first!
+Projections may be empty. Check `/api/explore/inventory?format=json` and Admin → Observability / Debate. Pipeline: [doxa-agents/departments/06-debate-engine/debate-pipeline/README.md](doxa-agents/departments/06-debate-engine/debate-pipeline/README.md).
+
+### Theme PUT 400
+
+`preset_mode` and `preset_id` must be sent together, and the preset’s `mode` must match. `theme_mode` alone is valid (`light` | `dark` | `system`).
+
+### Connection errors
+
+Confirm `npm run dev` on port 3000 and that `.env.local` was present **before** the process started (restart after edits).
