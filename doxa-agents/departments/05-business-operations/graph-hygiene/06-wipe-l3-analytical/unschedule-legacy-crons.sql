@@ -1,6 +1,7 @@
 -- Unschedule inactive legacy pg_cron jobs (claims, positions, clustering, topology).
--- Keeps active: ingest-newsapi-daily, scrape-story-content, clean-scraped-content,
+-- Keeps active: ingest-newsapi-daily, scrape-story-content,
 -- relevance-gate, review-pending-stories, debate-pipeline-hourly.
+-- Note: clean-scraped-content is paused separately via its unschedule.sql when Aura caps.
 
 do $$ begin perform cron.unschedule('chunk-story-bodies-every-2min'); exception when others then null; end $$;
 do $$ begin perform cron.unschedule('classify-position-relationships-every-15min'); exception when others then null; end $$;

@@ -370,6 +370,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.prune_orphans]
 verify_jwt = false
+[functions.prune_oldest_documents]
+verify_jwt = false
 [functions.entity_alias_candidates]
 verify_jwt = false
 [functions.projection_reconcile]

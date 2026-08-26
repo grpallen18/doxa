@@ -227,11 +227,7 @@ const config: Config = {
   				'0%': { transform: 'translateY(0)' },
   				'100%': { transform: 'translateY(-50%)' }
   			},
-  			'advocate-marquee-x': {
-  				'0%': { transform: 'translateX(0)' },
-  				'100%': { transform: 'translateX(-50%)' }
-  			},
-			'stats-marquee-x': {
+			'advocate-marquee-x': {
 				'0%': { transform: 'translateX(0)' },
 				'100%': { transform: 'translateX(-50%)' }
 			},
@@ -256,7 +252,6 @@ const config: Config = {
 			'skeleton-pulse': 'skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
 			'advocate-marquee': 'advocate-marquee 12s linear infinite',
 			'advocate-marquee-x': 'advocate-marquee-x 18s linear infinite',
-			'stats-marquee-x': 'stats-marquee-x 45s linear infinite',
 			'metric-swap-out': 'metric-swap-out 1200ms ease-in-out forwards',
 			'metric-swap-in': 'metric-swap-in 1200ms ease-in-out forwards',
 			'metric-swap-out-fast': 'metric-swap-out 400ms ease-in-out forwards',

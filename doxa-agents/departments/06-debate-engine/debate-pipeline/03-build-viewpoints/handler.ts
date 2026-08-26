@@ -282,6 +282,16 @@ export const handler = async (req: Request) => {
     });
   }
 
+  // Repair: link established Controversies to Viewpoints sharing the Question.
+  await runCypher(
+    `
+    MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q:Question)
+    MATCH (v:Viewpoint {questionUid: q.uid})
+    WHERE NOT EXISTS { MATCH (c)-[:INCLUDES]->(v) }
+    MERGE (c)-[:INCLUDES]->(v)
+    `
+  );
+
   return json({
     ok: true,
     bucket_count: buckets.length,

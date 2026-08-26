@@ -9,6 +9,12 @@
     },
     "supabase": {
       "url": "https://mcp.supabase.com/mcp"
+    },
+    "neo4j": {
+      "command": "node",
+      "args": [
+        ".cursor/neo4j-mcp-wrapper.mjs"
+      ]
     }
   }
 }

@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AdminHealthStatsMarquee } from '@/components/admin/admin-dashboard-widget'
+import { AdminHealthStatsGroup } from '@/components/admin/admin-dashboard-widget'
+import type { DashboardMetrics } from '@/lib/admin/gather-range-metrics'
+import { useAdminMetrics } from '@/lib/admin/use-admin-metrics'
 import { MetricCard, formatMetricCount } from '@/components/admin/metric-card'
 import { MetricCardEditDialog } from '@/components/admin/metric-card-edit-dialog'
 import {
@@ -36,50 +38,6 @@ const RANGES = [
 ] as const
 
 type MetricRange = (typeof RANGES)[number]['id']
-
-type DashboardMetrics = {
-  range: MetricRange
-  windowDays: number
-  stories: {
-    total: number
-    cumulative: number[]
-    daily: number[]
-    days: string[]
-    changePct: number
-    cumulativeChangePct: number
-    periodIngest: number
-  }
-  scrape: {
-    successRateSeries: number[]
-    days: string[]
-    latestRate: number
-    successRate: number
-    failureRate: number
-    attemptCount: number
-    changePts: number
-  }
-  qa: {
-    pending: number
-  }
-  relevance: {
-    keepCount: number
-    keepRate: number
-    totalClassified: number
-  }
-  gating: {
-    days: string[]
-    keep: number[]
-    drop: number[]
-    pending: number[]
-    keepTotal: number
-    dropTotal: number
-    pendingTotal: number
-    pendingNow: number
-    periodTotal: number
-    decidedTotal: number
-    keepRate: number
-  }
-}
 
 type SlotEditState = {
   slotId: ChartSlotId
@@ -256,16 +214,19 @@ function buildChartProps(id: ChartCatalogId, ctx: ChartBuildCtx) {
 
 export function AdminMetricCards({
   className,
-  healthMetrics = [],
 }: {
   className?: string
-  healthMetrics?: { label: string; value: string | number; href?: string }[]
 }) {
   const [range, setRange] = useState<MetricRange>('30d')
-  const [data, setData] = useState<DashboardMetrics | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const hasLoadedRef = useRef(false)
+  const {
+    rangeSections,
+    snapshotSections,
+    charts: data,
+    initialLoading: healthLoading,
+    rangeLoading: loading,
+    snapshotError,
+    rangeError: error,
+  } = useAdminMetrics(range)
   const [prefs, setPrefs] = useState<DashboardChartPrefs>(() => ({
     titles: { ...DEFAULT_DASHBOARD_CHART_PREFS.titles },
     slots: { ...DEFAULT_DASHBOARD_CHART_PREFS.slots },
@@ -290,36 +251,6 @@ export function AdminMetricCards({
     }
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch(`/api/admin/dashboard-metrics?range=${range}`)
-        const json = await res.json()
-        if (!res.ok) {
-          throw new Error(json.error?.message ?? 'Failed to load metrics')
-        }
-        if (!cancelled) {
-          setData(json.data as DashboardMetrics)
-          hasLoadedRef.current = true
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load metrics')
-          if (!hasLoadedRef.current) setData(null)
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [range])
-
   const windowCopy = data
     ? rangeLabel(data.range, data.windowDays)
     : rangeLabel(range, 30)
@@ -329,49 +260,63 @@ export function AdminMetricCards({
     saveDashboardChartPrefs(next)
   }
 
+  const rangeSlicer = (
+    <div
+      role="group"
+      aria-label="Time range"
+      className="flex shrink-0 items-center rounded-md border border-border/70 bg-surface-section p-0.5"
+    >
+      {RANGES.map((item) => {
+        const active = range === item.id
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setRange(item.id)}
+            aria-pressed={active}
+            className={cn(
+              'rounded px-2 py-1 text-[11px] tabular-nums transition-colors',
+              active
+                ? 'bg-[var(--accent-primary-soft)] font-bold text-accent-primary shadow-sm'
+                : 'font-medium text-muted hover:text-foreground'
+            )}
+            style={active ? { fontWeight: 700 } : undefined}
+          >
+            {item.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div className={cn('flex flex-col overflow-visible', className)}>
-      <div className="mb-8 flex min-w-0 items-center justify-between gap-3">
+      <div className="mb-8 min-w-0">
         <h2 className="text-2xl font-semibold tracking-tight text-foreground">
           Key Metrics
         </h2>
-        <div
-          role="group"
-          aria-label="Time range"
-          className="flex shrink-0 items-center rounded-md border border-border/70 bg-surface-section p-0.5"
-        >
-          {RANGES.map((item) => {
-            const active = range === item.id
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setRange(item.id)}
-                aria-pressed={active}
-                className={cn(
-                  'rounded px-2 py-1 text-[11px] tabular-nums transition-colors',
-                  active
-                    ? 'bg-[var(--accent-primary-soft)] font-bold text-accent-primary shadow-sm'
-                    : 'font-medium text-muted hover:text-foreground'
-                )}
-                style={active ? { fontWeight: 700 } : undefined}
-              >
-                {item.label}
-              </button>
-            )
-          })}
-        </div>
       </div>
 
       <div className="mb-8 w-full min-w-0">
-        <AdminHealthStatsMarquee metrics={healthMetrics} />
+        {(snapshotError || error) && (
+          <p className="mb-3 text-xs text-destructive" role="alert">
+            {snapshotError ?? error}
+          </p>
+        )}
+        <div className="flex flex-col" aria-busy={healthLoading || loading}>
+          <AdminHealthStatsGroup
+            title="Over Time"
+            sections={rangeSections}
+            headerAside={rangeSlicer}
+          />
+          <div
+            role="separator"
+            aria-hidden
+            className="my-6 border-t border-border/60"
+          />
+          <AdminHealthStatsGroup title="As Of Now" sections={snapshotSections} />
+        </div>
       </div>
-
-      {error && (
-        <p className="mb-2 text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {CHART_SLOT_IDS.map((slotId) => {

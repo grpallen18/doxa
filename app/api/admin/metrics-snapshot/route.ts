@@ -1,19 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
-import { gatherAdminRangeMetrics } from '@/lib/admin/gather-range-metrics'
-import { parseMetricRange } from '@/lib/admin/metric-range'
+import { gatherCachedAdminHealthSnapshot } from '@/lib/admin/gather-admin-health-snapshot'
+import { createAdminClient } from '@/lib/supabase/server'
 
-/** Admin dashboard sparkline metrics. Query: ?range=7d|30d|3m|6m|1y */
-export async function GET(request: NextRequest) {
+const SNAPSHOT_MAX_AGE_SEC = 15
+
+/** Live pipeline snapshot KPIs for admin dashboard polling. */
+export async function GET() {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
   try {
-    const range = parseMetricRange(request.nextUrl.searchParams.get('range'))
     const supabase = createAdminClient()
-    const { charts } = await gatherAdminRangeMetrics(supabase, range)
-    return NextResponse.json({ data: charts, error: null })
+    const data = await gatherCachedAdminHealthSnapshot(supabase)
+    return NextResponse.json(
+      { data, error: null },
+      {
+        headers: {
+          'Cache-Control': `private, max-age=${SNAPSHOT_MAX_AGE_SEC}, stale-while-revalidate=30`,
+        },
+      }
+    )
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes('SUPABASE_SERVICE_ROLE_KEY')) {
       return NextResponse.json(

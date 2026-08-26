@@ -26,5 +26,6 @@ Health reporting and database maintenance.
 | wipe-l3-analytical | wipe_l3_analytical | inactive |
 | label-cq-gold-batch | label_cq_gold_batch | inactive |
 | seed-question-registry | seed_question_registry | inactive |
+| prune-oldest-documents | prune_oldest_documents | inactive |
 
 <!-- AGENTS:END -->

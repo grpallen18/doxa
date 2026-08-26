@@ -87,10 +87,12 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Gather Postgres + Neo snapshot for Observability pipeline funnel. */
-export async function gatherObservabilityPipelineCounts(
+type PostgresPipelineCounts = Omit<ObservabilityPipelineCounts, 'neo'>
+
+/** Postgres-only pipeline snapshot (no Neo round trip). */
+export async function gatherPostgresPipelineCounts(
   supabase: SupabaseClient
-): Promise<ObservabilityPipelineCounts> {
+): Promise<PostgresPipelineCounts> {
   const [
     storiesTotal,
     relevanceKeep,
@@ -115,7 +117,6 @@ export async function gatherObservabilityPipelineCounts(
     excerptsPg,
     assessmentsPg,
     peoplePg,
-    neo,
   ] = await Promise.all([
     countAll(supabase, 'stories'),
     countEq(supabase, 'stories', 'relevance_status', 'KEEP'),
@@ -140,7 +141,6 @@ export async function gatherObservabilityPipelineCounts(
     countAll(supabase, 'graph_evidence_excerpts'),
     countAll(supabase, 'graph_assessments'),
     countAll(supabase, 'graph_people'),
-    getNeoPipelineCounts(),
   ])
 
   if (healthRes.error) throw healthRes.error
@@ -177,7 +177,6 @@ export async function gatherObservabilityPipelineCounts(
       cancelled: graphCancelled,
     },
     stuckProcessing: num(health.stuck_processing),
-    neo,
     projections: {
       controversiesOpen,
       controversiesDeveloping,
@@ -194,4 +193,15 @@ export async function gatherObservabilityPipelineCounts(
       people: peoplePg,
     },
   }
+}
+
+/** Gather Postgres + Neo snapshot for Observability pipeline funnel. */
+export async function gatherObservabilityPipelineCounts(
+  supabase: SupabaseClient
+): Promise<ObservabilityPipelineCounts> {
+  const [postgres, neo] = await Promise.all([
+    gatherPostgresPipelineCounts(supabase),
+    getNeoPipelineCounts(),
+  ])
+  return { ...postgres, neo }
 }

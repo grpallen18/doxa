@@ -112,6 +112,7 @@ export const handler = async (req: Request) => {
              MATCH (d:Decision)-[:ABOUT]->(p)
              WHERE d.decisionType = 'question_answer'
                AND (d)-[:ABOUT]->(q)
+               AND NOT (d.status = 'quarantined' AND coalesce(d.softKeep, false) = true)
            })
     RETURN p.uid AS propUid,
            coalesce(p.text, p.normalizedText, '') AS propText,
@@ -227,12 +228,17 @@ export const handler = async (req: Request) => {
       continue;
     }
 
-    // Relevant but below auto-accept: keep in quarantine for rare review/retry.
+    // Relevant but below auto-accept: soft-keep ANSWERS edge (no decisionUid) so rematch/retry can upgrade.
     if (result.confidence < AUTO_ACCEPT) {
       await runCypher(
         `
         MATCH (p:Proposition {uid: $propUid})-[a:ANSWERS]->(q:Question {uid: $questionUid})
-        DELETE a
+        SET a.polarity = $polarity,
+            a.confidence = $confidence,
+            a.debateRole = coalesce(a.debateRole, 'thesis'),
+            a.decisionUid = null,
+            a.softKeep = true,
+            a.updatedAt = datetime()
         MERGE (dec:Decision {uid: $decisionUid})
         SET dec.decisionType = 'question_answer',
             dec.status = 'quarantined',
@@ -241,6 +247,7 @@ export const handler = async (req: Request) => {
             dec.relevant = true,
             dec.polarity = $polarity,
             dec.rationale = $rationale,
+            dec.softKeep = true,
             dec.promptVersion = $promptVersion,
             dec.model = $model,
             dec.createdAt = coalesce(dec.createdAt, datetime()),

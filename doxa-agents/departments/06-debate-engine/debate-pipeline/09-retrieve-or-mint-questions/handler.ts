@@ -1,8 +1,9 @@
 // Supabase Edge Function: retrieve_or_mint_questions.
 // Thesis → candidate CQ → retrieve top-k Questions → same|adjacent|unrelated
 // → attach / mint (adjacent mints new CQ) / quarantine (weak/fail only).
-// Body: { dry_run?, limit?, proposition_uid?, question_uid?, force?, backfill_adjacent?, reject_noise? }
+// Body: { dry_run?, limit?, proposition_uid?, question_uid?, force?, backfill_adjacent?, reject_noise?, rematch_singletons? }
 // backfill_adjacent: mint from stored candidateQuestion on quarantined label=adjacent Decisions.
+// rematch_singletons: re-adjudicate theses on Questions with <2 ANSWERS edges (coalesce pass).
 // reject_noise: mark fail/0-conf/irrelevant question_match|question_answer quarantines as rejected.
 
 import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
@@ -110,7 +111,7 @@ Return ONLY JSON: {"matches":[{"uid":"...","label":"same|adjacent|unrelated","co
 - adjacent = related topic but a *different* decision (must not merge)
 - unrelated = different topic
 Always adjacent (never same): "primary cause" vs open "what caused"; policy should-we vs prediction will-X; competence/quality vs should-we; reconstruction financing vs continue military aid; race in admissions vs "is affirmative action fair"
-If it is only a wording swap of the same decision → same. Prefer adjacent when the decision criteria differ.`;
+If it is only a wording swap of the same decision → same. Prefer same when the decision criteria are the same and only entities/phrasing differ. Prefer adjacent only when the decision criteria differ.`;
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -287,9 +288,12 @@ export const handler = async (req: Request) => {
   const force = Boolean(body.force ?? false);
   const backfillAdjacent = Boolean(body.backfill_adjacent ?? false);
   const rejectNoise = Boolean(body.reject_noise ?? false);
+  const rematchSingletons = Boolean(body.rematch_singletons ?? false);
   const limit = backfillAdjacent
     ? clampInt(body.limit, 1, 100, 50)
-    : clampInt(body.limit, 1, 25, DEFAULT_LIMIT);
+    : rematchSingletons
+      ? clampInt(body.limit, 1, 40, 20)
+      : clampInt(body.limit, 1, 25, DEFAULT_LIMIT);
   const onlyUid =
     typeof body.proposition_uid === "string" ? body.proposition_uid.trim() : "";
   const questionUid =
@@ -469,37 +473,67 @@ export const handler = async (req: Request) => {
 
   const fetchLimit = Math.min(limit * FETCH_MULTIPLIER, 120);
 
-  const propsRaw = await runCypher<PropRow>(
-    `
-    MATCH (p:Proposition)
-    WHERE ($onlyUid = '' OR p.uid = $onlyUid)
-        AND ($force = true OR (
-        NOT EXISTS {
-          MATCH (p)-[a:ANSWERS]->(:Question)
-          WHERE a.decisionUid IS NOT NULL
-        }
-        AND NOT EXISTS {
-          MATCH (d:Decision)-[:ABOUT]->(p)
-          WHERE d.decisionType = 'question_match'
-            AND d.status IN ['quarantined', 'rejected']
-        }
-      ))
-    OPTIONAL MATCH (u:Utterance)-[:EXPRESSES]->(p)
-    OPTIONAL MATCH (:Argument)-[hr:HAS_ROLE]->(p)
-    WITH p,
-         [x IN collect(DISTINCT u.speechAct) WHERE x IS NOT NULL] AS speechActs,
-         [r IN collect(DISTINCT hr.role) WHERE r IS NOT NULL] AS roles
-    WHERE any(x IN speechActs WHERE x IN ['prescription','judgment','allegation','prediction'])
-       OR any(r IN roles WHERE r IN ['conclusion','objection','rebuttal','prediction'])
-    RETURN p.uid AS uid,
-           coalesce(p.text, p.normalizedText, '') AS text,
-           speechActs,
-           roles
-    ORDER BY p.uid
-    LIMIT $fetchLimit
-    `,
-    { onlyUid, force, fetchLimit: neoInt(fetchLimit) }
-  );
+  const propsRaw = rematchSingletons
+    ? await runCypher<PropRow>(
+        `
+        MATCH (q:Question)<-[a:ANSWERS]-(p:Proposition)
+        WITH q, count(a) AS ac
+        WHERE ac <= 1
+        MATCH (q)<-[:ANSWERS]-(p2:Proposition)
+        WHERE ($onlyUid = '' OR p2.uid = $onlyUid)
+          AND NOT EXISTS {
+            MATCH (d:Decision)-[:ABOUT]->(p2)
+            WHERE d.decisionType = 'question_link'
+              AND d.status = 'accepted'
+              AND d.label = 'same'
+          }
+        OPTIONAL MATCH (u:Utterance)-[:EXPRESSES]->(p2)
+        OPTIONAL MATCH (:Argument)-[hr:HAS_ROLE]->(p2)
+        WITH p2,
+             [x IN collect(DISTINCT u.speechAct) WHERE x IS NOT NULL] AS speechActs,
+             [r IN collect(DISTINCT hr.role) WHERE r IS NOT NULL] AS roles
+        WHERE any(x IN speechActs WHERE x IN ['prescription','judgment','allegation','prediction'])
+           OR any(r IN roles WHERE r IN ['conclusion','objection','rebuttal','prediction'])
+        RETURN DISTINCT p2.uid AS uid,
+               coalesce(p2.text, p2.normalizedText, '') AS text,
+               speechActs,
+               roles
+        ORDER BY uid
+        LIMIT $fetchLimit
+        `,
+        { onlyUid, fetchLimit: neoInt(fetchLimit) }
+      )
+    : await runCypher<PropRow>(
+        `
+        MATCH (p:Proposition)
+        WHERE ($onlyUid = '' OR p.uid = $onlyUid)
+            AND ($force = true OR (
+            NOT EXISTS {
+              MATCH (p)-[a:ANSWERS]->(:Question)
+              WHERE a.decisionUid IS NOT NULL OR coalesce(a.softKeep, false) = true
+            }
+            AND NOT EXISTS {
+              MATCH (d:Decision)-[:ABOUT]->(p)
+              WHERE d.decisionType = 'question_match'
+                AND d.status IN ['quarantined', 'rejected']
+            }
+          ))
+        OPTIONAL MATCH (u:Utterance)-[:EXPRESSES]->(p)
+        OPTIONAL MATCH (:Argument)-[hr:HAS_ROLE]->(p)
+        WITH p,
+             [x IN collect(DISTINCT u.speechAct) WHERE x IS NOT NULL] AS speechActs,
+             [r IN collect(DISTINCT hr.role) WHERE r IS NOT NULL] AS roles
+        WHERE any(x IN speechActs WHERE x IN ['prescription','judgment','allegation','prediction'])
+           OR any(r IN roles WHERE r IN ['conclusion','objection','rebuttal','prediction'])
+        RETURN p.uid AS uid,
+               coalesce(p.text, p.normalizedText, '') AS text,
+               speechActs,
+               roles
+        ORDER BY p.uid
+        LIMIT $fetchLimit
+        `,
+        { onlyUid, force: rematchSingletons ? true : force, fetchLimit: neoInt(fetchLimit) }
+      );
 
   const props = propsRaw
     .filter(
@@ -516,7 +550,7 @@ export const handler = async (req: Request) => {
     `
   );
 
-  if (dryRun) {
+    if (dryRun) {
     const thesisCount = props.filter(
       (p) =>
         resolveDebateRole({ speechActs: p.speechActs, hasRoles: p.roles }) === "thesis"
@@ -524,6 +558,7 @@ export const handler = async (req: Request) => {
     return json({
       ok: true,
       dry_run: true,
+      rematch_singletons: rematchSingletons,
       pending_props: props.length,
       thesis_candidates: thesisCount,
       registry_size: registry.length,
@@ -555,6 +590,10 @@ export const handler = async (req: Request) => {
       candidate = null;
     }
     if (!candidate?.question || candidate.confidence < 0.4) {
+      if (rematchSingletons) {
+        skipped += 1;
+        continue;
+      }
       const decisionUid = `qmintfail:${prop.uid}`.slice(0, 180);
       await runCypher(
         `
@@ -585,6 +624,10 @@ export const handler = async (req: Request) => {
 
     const [candEmb] = await embedTexts(OPENAI_API_KEY, [candidate.question], EMBEDDING_MODEL);
     if (!candEmb?.length) {
+      if (rematchSingletons) {
+        skipped += 1;
+        continue;
+      }
       const decisionUid = `qembfail:${prop.uid}`.slice(0, 180);
       await runCypher(
         `
@@ -645,6 +688,10 @@ export const handler = async (req: Request) => {
 
     // Fail closed: similar Questions exist but adjudication is incomplete.
     if (ranked.length && (adjudicateFailed || !matches.length || topUnlabeled)) {
+      if (rematchSingletons) {
+        skipped += 1;
+        continue;
+      }
       const hit = ranked[0];
       const decisionUid = `qfail:${prop.uid}:${hit.uid}`.slice(0, 180);
       await runCypher(
@@ -730,8 +777,15 @@ export const handler = async (req: Request) => {
       continue;
     }
 
+    // Rematch pass is coalesce-only: attach on same, never mint/quarantine (leave existing edge).
+    if (rematchSingletons) {
+      skipped += 1;
+      continue;
+    }
+
     if (adjacentBest) {
       // Adjacent = different decision: mint a new CQ (do not merge with registry hit).
+      // Do not auto-attach on high cosine — gold adjacent pairs can still be near in embedding space.
       const uid = await questionUidFromText(candidate.question);
       const decisionUid = `qadjmint:${prop.uid}:${uid}`.slice(0, 180);
       await mintAndAttachQuestion(

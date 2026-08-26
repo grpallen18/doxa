@@ -203,6 +203,14 @@ steps:
     secrets:
       - OPENAI_API_KEY
     verify_jwt: false
+  - id: prune-oldest-documents
+    department: 05-business-operations
+    workflow: graph-hygiene
+    kind: edge_function
+    status: inactive
+    source: doxa-agents/departments/05-business-operations/graph-hygiene/09-prune-oldest-documents
+    deploy_name: prune_oldest_documents
+    verify_jwt: false
   - id: purge-drop-stories-monthly
     department: 05-business-operations/maintenance
     workflow: 01-purge-drop-stories
@@ -282,7 +290,7 @@ steps:
       job_name: debate-pipeline-hourly
       schedule: 15 * * * *
       sql: doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql
-      body: '{"limit": 8, "skip_llm": true}'
+      body: '{"limit": 15, "skip_llm": true, "also_rematch": true}'
   - id: retrieve-or-mint-questions
     department: 06-debate-engine
     workflow: debate-pipeline

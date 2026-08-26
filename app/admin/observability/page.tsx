@@ -31,6 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { AdminMetricCards } from '@/components/admin/admin-metric-cards'
 import { PipelineFunnelPanel } from '@/components/admin/observability/pipeline-funnel-panel'
 
 type ScrapeDay = { day: string; success: number; failure: number }
@@ -524,12 +525,9 @@ export default function AdminObservabilityPage() {
   return (
     <>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-xl font-semibold">Observability</h1>
-            <p className="text-sm text-muted">
-              Pipeline inventory, backlogs, and scrape health across Doxa.
-            </p>
-          </div>
+          <section aria-label="Key metrics">
+            <AdminMetricCards />
+          </section>
 
           <PipelineFunnelPanel />
 

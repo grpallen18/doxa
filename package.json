@@ -30,6 +30,8 @@
     "test:neo-graph": "tsx scripts/test-neo-graphology-adapter.ts",
     "test:safe-redirect": "tsx scripts/test-safe-redirect.ts",
     "test:story-step-runs": "tsx scripts/test-story-step-runs.ts",
+    "verify:l3": "tsx scripts/verify-l3-controversy-path.ts",
+    "prune:oldest-documents": "tsx scripts/prune-oldest-documents.ts",
     "ui:info": "shadcn info",
     "ui:skills:update": "npx skills add shadcn/ui"
   },

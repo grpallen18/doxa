@@ -28,14 +28,14 @@ export function AdminCenterNav() {
     <header className="flex w-full flex-col">
       <nav
         aria-label="Admin sections"
-        className="flex w-full flex-wrap items-center justify-start"
+        className="flex w-full flex-wrap items-stretch justify-start"
       >
         {ADMIN_QUICK_LINKS.map((item, index) => {
           const isActive = item.href === activeHref
 
           return (
             <Fragment key={item.href}>
-              {index > 0 && <Separator orientation="vertical" className="h-6" />}
+              {index > 0 && <Separator orientation="vertical" />}
               <Button
                 variant={isActive ? 'secondary' : 'ghost'}
                 size="sm"

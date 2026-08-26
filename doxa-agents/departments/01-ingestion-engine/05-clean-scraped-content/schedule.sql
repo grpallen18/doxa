@@ -1,12 +1,13 @@
 -- One-time setup: schedule clean_scraped_content via pg_cron.
 -- Cleans raw article text with LLM (removes site chrome). Every 5 minutes.
--- Run after receive_scraped_content populates story_bodies; before chunk_story_bodies.
+-- Also enqueues graph_processing_jobs for the Neo4j graph-worker — do not
+-- re-run while AuraDB is at free-tier node caps (use unschedule.sql to pause).
 --
 -- Prerequisites:
 -- 1. Enable pg_cron and pg_net (Dashboard → Database → Extensions).
 -- 2. Vault secrets project_url and service_role_key (same as other pipeline crons).
 --
--- To remove later: select cron.unschedule('clean-scraped-content-every-5min');
+-- To remove: run unschedule.sql (or select cron.unschedule('clean-scraped-content-every-5min');)
 
 select cron.schedule(
   'clean-scraped-content-every-5min',

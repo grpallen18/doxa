@@ -142,7 +142,16 @@ function buildSubstrateStages(data: ObservabilityPipelineCounts): Stage[] {
       },
     ]
   }
+  const nodeHeadroom = Math.max(0, neo.nodeCap - neo.graphNodes)
+  const atCap = neo.graphNodes >= neo.nodeCap
   return [
+    {
+      id: 'graph-size',
+      label: 'Graph size (nodes)',
+      value: formatCount(neo.graphNodes),
+      detail: `cap ${formatCount(neo.nodeCap)} · headroom ${formatCount(nodeHeadroom)} · rels ${formatCount(neo.graphRels)}/${formatCount(neo.relCap)}`,
+      warn: atCap || nodeHeadroom < 10_000,
+    },
     {
       id: 'documents',
       label: 'Documents',
@@ -188,21 +197,33 @@ function buildDebateStages(data: ObservabilityPipelineCounts): Stage[] {
       id: 'answers',
       label: 'ANSWERS edges',
       value: formatCount(neo.answersEdges),
-      detail: 'Successful Proposition → Question attachments',
+      detail: `degree q0 ${formatCount(neo.answersDegree0)} · q1 ${formatCount(neo.answersDegree1)} · q2+ ${formatCount(neo.answersDegree2Plus)}`,
+      warn: neo.answersDegree2Plus < 10,
+    },
+    {
+      id: 'qualify-pool',
+      label: 'Qualify pool',
+      value: formatCount(neo.qualifyPoolOpposing),
+      detail: `multi HQ ${formatCount(neo.qualifyPoolMultiHq)} · opposing ${formatCount(neo.qualifyPoolOpposing)}`,
+      warn: neo.qualifyPoolOpposing < 5,
     },
     {
       id: 'quarantine',
       label: 'Question quarantine',
-      value: formatCount(neo.quarantinedQuestionMatch),
-      detail: 'Quarantined question_match / question_answer Decisions',
-      warn: neo.quarantinedQuestionMatch > 0,
+      value: formatCount(
+        neo.quarantinedQuestionMatch + neo.quarantinedQuestionAnswer
+      ),
+      detail: `match ${formatCount(neo.quarantinedQuestionMatch)} · answer ${formatCount(neo.quarantinedQuestionAnswer)}`,
+      warn:
+        neo.quarantinedQuestionMatch + neo.quarantinedQuestionAnswer > 0,
       href: '/admin/graph-controversies',
     },
     {
       id: 'controversies-neo',
       label: 'Controversies (Neo)',
       value: formatCount(neo.controversies),
-      detail: `PG open ${formatCount(projections.controversiesOpen)} · developing ${formatCount(projections.controversiesDeveloping)} · closed ${formatCount(projections.controversiesClosed)}`,
+      detail: `sides≥2 ${formatCount(neo.controversiesWithSides)} · zero sides ${formatCount(neo.controversiesZeroSides)} · PG open ${formatCount(projections.controversiesOpen)} · developing ${formatCount(projections.controversiesDeveloping)}`,
+      warn: neo.controversiesZeroSides > 0,
     },
     {
       id: 'viewpoints',

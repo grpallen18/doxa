@@ -20,6 +20,7 @@ supabase functions deploy graph_hygiene
 supabase functions deploy wipe_l3_analytical
 supabase functions deploy label_cq_gold_batch
 supabase functions deploy seed_question_registry
+supabase functions deploy prune_oldest_documents
 supabase functions deploy build_viewpoints
 supabase functions deploy detect_disputes
 supabase functions deploy project_debate_summaries
@@ -56,6 +57,7 @@ supabase functions deploy graph_hygiene --no-verify-jwt
 supabase functions deploy wipe_l3_analytical --no-verify-jwt
 supabase functions deploy label_cq_gold_batch --no-verify-jwt
 supabase functions deploy seed_question_registry --no-verify-jwt
+supabase functions deploy prune_oldest_documents --no-verify-jwt
 supabase functions deploy build_viewpoints --no-verify-jwt
 supabase functions deploy detect_disputes --no-verify-jwt
 supabase functions deploy project_debate_summaries --no-verify-jwt

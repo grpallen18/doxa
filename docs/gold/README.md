@@ -33,6 +33,10 @@ Steering: [Doxa Architecture Overhaul Plan](../Doxa%20Architecture%20Overhaul%20
 
 Seed the live Question registry from **canonical questions you write here**, not from legacy `name_controversies` captions.
 
+**Prune allowlist:** [`prune-allowlist.json`](prune-allowlist.json) — Document uids protected from older-first prune. Gold proposition Documents are also auto-protected by `scripts/prune-oldest-documents.ts`.
+
+**L3 verify fixtures:** [`l3-verify-fixtures.json`](l3-verify-fixtures.json) — shared Questions + opposing prop uids for `npm run verify:l3`.
+
 ## Review tips
 
 - Prefer **background** when the line is a product blurb, sports schedule, condolence, or empty process note.

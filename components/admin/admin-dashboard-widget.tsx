@@ -1,8 +1,32 @@
 'use client'
 
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import CountUp from 'react-countup'
+import { useLayoutEffect, useEffect, useRef, useState } from 'react'
+import { KpiMetricValue } from '@/components/admin/kpi-slot-value'
+import { Button } from '@/components/ui/button'
+import type {
+  AdminHealthMetric,
+  AdminHealthMetricSection,
+} from '@/lib/admin/admin-health-metrics'
 import { cn } from '@/lib/utils'
+
+const HEALTH_STATS_MAX_ROWS = 3
+/** Matches `minmax(9rem, 1fr)` in the health stats grid. */
+const HEALTH_STATS_MIN_COL_PX = 144
+/** Matches Tailwind `gap-8` (2rem). */
+const HEALTH_STATS_COL_GAP_PX = 32
+
+function computeHealthStatsColumns(containerWidth: number): number {
+  if (containerWidth <= 0) return 1
+  return Math.max(
+    1,
+    Math.floor(
+      (containerWidth + HEALTH_STATS_COL_GAP_PX) /
+        (HEALTH_STATS_MIN_COL_PX + HEALTH_STATS_COL_GAP_PX)
+    )
+  )
+}
 
 type AdminDashboardWidgetProps = {
   title?: string
@@ -67,128 +91,195 @@ export function AdminDashboardWidget({
   return body
 }
 
-type HealthMetric = {
-  label: string
-  value: string | number
-  href?: string
-}
-
-/** Ease-out quint — fast start, strong decelerating stop. */
-function easeOutQuint(t: number, b: number, c: number, d: number): number {
-  return c * (Math.pow(t / d - 1, 5) + 1) + b
-}
-
-function parseMetricValue(value: string | number): {
-  end: number
-  suffix: string
-  prefix: string
-  decimals: number
-} {
-  if (typeof value === 'number') {
-    return {
-      end: value,
-      suffix: '',
-      prefix: '',
-      decimals: Number.isInteger(value) ? 0 : 1,
-    }
-  }
-
-  const trimmed = value.trim()
-  const match = trimmed.match(/^([^0-9+\-]*)([+-]?\d+(?:\.\d+)?)(.*)$/)
-  if (!match) {
-    return { end: 0, suffix: trimmed, prefix: '', decimals: 0 }
-  }
-
-  const [, prefix, num, suffix] = match
-  const end = Number(num)
-  return {
-    end: Number.isFinite(end) ? end : 0,
-    prefix,
-    suffix,
-    decimals: num.includes('.') ? Math.min(num.split('.')[1]?.length ?? 0, 2) : 0,
-  }
-}
+type HealthMetric = AdminHealthMetric
 
 function HealthMetricValue({ value }: { value: string | number }) {
-  const { end, prefix, suffix, decimals } = parseMetricValue(value)
-
-  if (!Number.isFinite(end) && suffix && !prefix) {
-    return <>{value}</>
-  }
-
-  return (
-    <CountUp
-      start={0}
-      end={end}
-      duration={1.6}
-      delay={0.05}
-      prefix={prefix}
-      suffix={suffix}
-      decimals={decimals}
-      separator=","
-      useEasing
-      easingFn={easeOutQuint}
-    />
-  )
+  return <KpiMetricValue value={value} />
 }
 
-export function AdminHealthStatsMarquee({
+function HealthMetricCell({ metric }: { metric: HealthMetric }) {
+  const cell = (
+    <>
+      <div className="text-xl font-semibold tabular-nums leading-none">
+        <HealthMetricValue value={metric.value} />
+      </div>
+      <p className="mt-1 whitespace-nowrap text-[11px] leading-snug text-muted">
+        {metric.label}
+      </p>
+    </>
+  )
+
+  if (metric.href) {
+    return (
+      <Link
+        href={metric.href}
+        className="rounded-md px-1 py-0.5 transition-colors hover:text-foreground"
+      >
+        {cell}
+      </Link>
+    )
+  }
+
+  return <div className="px-1 py-0.5">{cell}</div>
+}
+
+export function AdminHealthStatsGrid({
   metrics,
   className,
 }: {
   metrics: HealthMetric[]
   className?: string
 }) {
-  const loop = metrics.length > 0 ? [...metrics, ...metrics] : []
+  const containerRef = useRef<HTMLDivElement>(null)
+  /** null until measured — avoids SSR/hydration flash at columns=1 (vertical + pagination). */
+  const [columns, setColumns] = useState<number | null>(null)
+  const [page, setPage] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const updateColumns = () => {
+      const next = computeHealthStatsColumns(el.clientWidth)
+      setColumns(next)
+    }
+
+    updateColumns()
+    const ro = new ResizeObserver(updateColumns)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [metrics.length])
+
+  const measured = columns != null
+  const itemsPerPage = measured ? columns * HEALTH_STATS_MAX_ROWS : metrics.length
+  const pageCount = Math.max(1, Math.ceil(metrics.length / Math.max(itemsPerPage, 1)))
+  const needsPagination = measured && metrics.length > itemsPerPage
+  const safePage = Math.min(page, pageCount - 1)
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage)
+  }, [page, safePage])
+
+  useEffect(() => {
+    setPage(0)
+  }, [columns, metrics.length])
+
+  if (metrics.length === 0) return null
+
+  const visibleMetrics = needsPagination
+    ? metrics.slice(
+        safePage * itemsPerPage,
+        safePage * itemsPerPage + itemsPerPage
+      )
+    : metrics
+
   const ariaLabel = metrics
     .map((metric) => `${metric.value} ${metric.label}`)
     .join(', ')
 
-  if (metrics.length === 0) return null
-
   return (
     <div
-      className={cn('relative min-w-0 flex-1 overflow-hidden', className)}
+      ref={containerRef}
+      className={cn('relative min-w-0 flex-1', className)}
       aria-label={ariaLabel || 'Health metrics'}
     >
       <div
-        className={cn(
-          'flex w-max items-stretch gap-8',
-          'animate-stats-marquee-x hover:[animation-play-state:paused]',
-          'motion-reduce:animate-none motion-reduce:w-full motion-reduce:flex-wrap motion-reduce:gap-x-6 motion-reduce:gap-y-3'
-        )}
+        className="grid gap-x-8 gap-y-3"
+        style={{
+          gridTemplateColumns: measured
+            ? `repeat(${columns}, minmax(0, 1fr))`
+            : `repeat(auto-fill, minmax(${HEALTH_STATS_MIN_COL_PX}px, 1fr))`,
+        }}
       >
-        {loop.map((metric, index) => {
-          const cell = (
-            <>
-              <p className="text-xl font-semibold tabular-nums leading-none">
-                <HealthMetricValue value={metric.value} />
-              </p>
-              <p className="mt-1 whitespace-nowrap text-[11px] leading-snug text-muted">
-                {metric.label}
-              </p>
-            </>
-          )
-
-          if (metric.href) {
-            return (
-              <Link
-                key={`${metric.label}-${index}`}
-                href={metric.href}
-                className="shrink-0 rounded-md px-1 py-0.5 transition-colors hover:text-foreground"
-              >
-                {cell}
-              </Link>
-            )
-          }
-
-          return (
-            <div key={`${metric.label}-${index}`} className="shrink-0 px-1 py-0.5">
-              {cell}
-            </div>
-          )
-        })}
+        {visibleMetrics.map((metric) => (
+          <HealthMetricCell key={metric.id} metric={metric} />
+        ))}
       </div>
+
+      {needsPagination ? (
+        <nav
+          aria-label="Health metrics pages"
+          className="mt-4 flex items-center justify-center gap-3"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            aria-label="Previous metrics page"
+            disabled={safePage === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="text-xs tabular-nums text-muted">
+            Page {safePage + 1} of {pageCount}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            aria-label="Next metrics page"
+            disabled={safePage >= pageCount - 1}
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </nav>
+      ) : null}
+    </div>
+  )
+}
+
+export function AdminHealthStatsSections({
+  sections,
+  className,
+}: {
+  sections: AdminHealthMetricSection[]
+  className?: string
+}) {
+  const visibleSections = sections.filter((section) => section.metrics.length > 0)
+  if (visibleSections.length === 0) return null
+
+  return (
+    <div className={cn('flex flex-col gap-6', className)}>
+      {visibleSections.map((section) => (
+        <div key={section.id} className="flex flex-col gap-4">
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">
+            {section.title}
+          </h3>
+          <AdminHealthStatsGrid metrics={section.metrics} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Mid-level KPI group (e.g. Over Time / As Of Now) with subsection grids. */
+export function AdminHealthStatsGroup({
+  title,
+  sections,
+  headerAside,
+  className,
+}: {
+  title: string
+  sections: AdminHealthMetricSection[]
+  headerAside?: React.ReactNode
+  className?: string
+}) {
+  const visibleSections = sections.filter((section) => section.metrics.length > 0)
+  if (visibleSections.length === 0) return null
+
+  return (
+    <div className={cn('flex flex-col gap-6', className)}>
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+          {title}
+        </h2>
+        {headerAside}
+      </div>
+      <AdminHealthStatsSections sections={visibleSections} />
     </div>
   )
 }
