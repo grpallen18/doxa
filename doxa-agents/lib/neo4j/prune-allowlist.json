@@ -260,6 +260,8 @@
     "f6aadaa7-541e-4df5-b831-576cd3507dc5",
     "f7b1babf-ea72-4d29-99c5-38ab351c0254",
     "fa2ce4ee-cce0-4f82-9a77-3573a56e2411",
-    "ffcfd6d7-e20c-43ac-9f58-07c18aa03c65"
+    "ffcfd6d7-e20c-43ac-9f58-07c18aa03c65",
+    "doc:verify:policy-shared-fixture",
+    "doc:verify:factual-shared-fixture"
   ]
 }

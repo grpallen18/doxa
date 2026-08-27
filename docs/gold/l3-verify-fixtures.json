@@ -5,36 +5,56 @@
       "question": "Should the United States continue current immigration enforcement policy?",
       "question_type": "policy",
       "exclusivity": "exclusive",
-      "pro_prop_uids": [
-        "prop:00123db1c47b8fb9ecfd",
-        "prop:0028a06e4268a06a1a7e",
-        "prop:0065e5772c4a8c3b7ff0"
-      ],
-      "con_prop_uids": [
-        "prop:00ae5f513e72c2fad2fa",
-        "prop:0164ac2dad01f83fb0dd",
-        "prop:038ff36cf12c0ce1a4e6"
-      ],
       "pro_polarity": "FAVOR",
-      "con_polarity": "AGAINST"
+      "con_polarity": "AGAINST",
+      "pro_theses": [
+        {
+          "uid": "prop:verify:immig-pro-1",
+          "text": "The United States should continue current immigration enforcement, including interior removals and border controls, to uphold the rule of law."
+        },
+        {
+          "uid": "prop:verify:immig-pro-2",
+          "text": "Maintaining present immigration enforcement policy is necessary to deter illegal entry and protect public safety."
+        }
+      ],
+      "con_theses": [
+        {
+          "uid": "prop:verify:immig-con-1",
+          "text": "The United States should stop current immigration enforcement practices because they are cruel and inflict unnecessary harm on migrants and families."
+        },
+        {
+          "uid": "prop:verify:immig-con-2",
+          "text": "Continuing today's immigration enforcement policy is unjust and should be rolled back in favor of more humane alternatives."
+        }
+      ]
     },
     {
       "id": "factual-shared-fixture",
       "question": "Has Iran lost control of the Strait of Hormuz?",
       "question_type": "factual",
       "exclusivity": "exclusive",
-      "pro_prop_uids": [
-        "prop:01c3ec5a59f353be7da4",
-        "prop:01b0320c21b9f1a826bf",
-        "prop:048aab65a9e60e86ee17"
-      ],
-      "con_prop_uids": [
-        "prop:018808453e1a57b5b092",
-        "prop:02d55e00d931ac45466b",
-        "prop:02e3429d01aaccb91cd7"
-      ],
       "pro_polarity": "AFFIRMS",
-      "con_polarity": "DENIES"
+      "con_polarity": "DENIES",
+      "pro_theses": [
+        {
+          "uid": "prop:verify:hormuz-pro-1",
+          "text": "Iran has lost effective control of the Strait of Hormuz and can no longer unilaterally dictate transit there."
+        },
+        {
+          "uid": "prop:verify:hormuz-pro-2",
+          "text": "Evidence shows Iran no longer controls passage through the Strait of Hormuz as it once did."
+        }
+      ],
+      "con_theses": [
+        {
+          "uid": "prop:verify:hormuz-con-1",
+          "text": "Iran has not lost control of the Strait of Hormuz and still retains decisive leverage over the waterway."
+        },
+        {
+          "uid": "prop:verify:hormuz-con-2",
+          "text": "Claims that Iran lost control of the Strait of Hormuz are false; Tehran remains the dominant local power there."
+        }
+      ]
     }
   ]
 }

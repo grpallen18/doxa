@@ -3,21 +3,23 @@
  * Usage: npm run verify:l3
  *
  * 1) Gold evals (question / controversy / viewpoint)
- * 2) Seed fixture Questions + force ANSWERS attachments
- * 3) Invoke qualify → viewpoints → project (or debate_pipeline steps)
- * 4) Assert Neo + Postgres publish gates
+ * 2) Seed synthetic on-topic fixture theses + ANSWERS (no gold prop reassignment)
+ * 3) Assert thesis↔question embedding relevance before pipeline
+ * 4) Invoke qualify → viewpoints → project
+ * 5) Assert Neo + Postgres publish gates + projected viewpoint relevance
  */
 
 import { config as loadDotenv } from 'dotenv'
 import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import neo4j, { type Driver } from 'neo4j-driver'
+import neo4j, { type Driver, type Session } from 'neo4j-driver'
 import { createClient } from '@supabase/supabase-js'
 import { fileURLToPath } from 'url'
 import {
   EMBEDDING_MODEL,
   QUESTION_SCHEMA_VERSION,
+  cosineSimilarity,
   embedTexts,
   ensureQuestionMark,
   questionUidFromText,
@@ -30,16 +32,29 @@ loadDotenv({ path: path.join(REPO_ROOT, '.env.local') })
 
 const FIXTURES_PATH = path.join(REPO_ROOT, 'docs', 'gold', 'l3-verify-fixtures.json')
 const AURA_FREE_NODE_CAP = 200_000
+/** Floor for thesis↔question cosine (text-embedding-3-small). Off-topic gold noise sits ~0.05–0.2. */
+const MIN_THESIS_QUESTION_COSINE = 0.32
+const POISONED_QUESTION_UID = 'cq:fbbbcdccf2679df8cd67'
+const LEGACY_POISON_PROP_UIDS = [
+  'prop:00123db1c47b8fb9ecfd',
+  'prop:0028a06e4268a06a1a7e',
+  'prop:0065e5772c4a8c3b7ff0',
+  'prop:00ae5f513e72c2fad2fa',
+  'prop:0164ac2dad01f83fb0dd',
+  'prop:038ff36cf12c0ce1a4e6',
+]
+
+type FixtureThesis = { uid: string; text: string }
 
 type Fixture = {
   id: string
   question: string
   question_type: string
   exclusivity: string
-  pro_prop_uids: string[]
-  con_prop_uids: string[]
   pro_polarity: string
   con_polarity: string
+  pro_theses: FixtureThesis[]
+  con_theses: FixtureThesis[]
 }
 
 function n(v: unknown): number {
@@ -90,13 +105,145 @@ async function invokeEdge(
   return data
 }
 
+function fixtureTheses(fixture: Fixture): Array<FixtureThesis & { polarity: string }> {
+  const pro = fixture.pro_theses ?? []
+  const con = fixture.con_theses ?? []
+  if (pro.length < 2 || con.length < 2) {
+    throw new Error(
+      `Fixture ${fixture.id} needs ≥2 pro_theses and ≥2 con_theses (got ${pro.length}/${con.length})`
+    )
+  }
+  for (const t of [...pro, ...con]) {
+    if (!t?.uid?.startsWith('prop:verify:')) {
+      throw new Error(
+        `Fixture ${fixture.id} thesis uid must be prop:verify:* (got ${t?.uid}) — do not reassign gold props`
+      )
+    }
+    if (!t.text?.trim() || t.text.trim().length < 24) {
+      throw new Error(`Fixture ${fixture.id} thesis ${t.uid} missing usable text`)
+    }
+  }
+  return [
+    ...pro.map((t) => ({ ...t, polarity: fixture.pro_polarity })),
+    ...con.map((t) => ({ ...t, polarity: fixture.con_polarity })),
+  ]
+}
+
+async function assertThesesRelevantToQuestion(
+  apiKey: string,
+  question: string,
+  theses: FixtureThesis[],
+  label: string
+): Promise<void> {
+  const texts = [question, ...theses.map((t) => t.text)]
+  const embeddings = await embedTexts(apiKey, texts, EMBEDDING_MODEL)
+  const qEmb = embeddings[0] ?? []
+  const failures: string[] = []
+  for (let i = 0; i < theses.length; i++) {
+    const cos = cosineSimilarity(qEmb, embeddings[i + 1] ?? [])
+    if (cos < MIN_THESIS_QUESTION_COSINE) {
+      failures.push(
+        `${theses[i].uid} cos=${cos.toFixed(3)} < ${MIN_THESIS_QUESTION_COSINE} text=${theses[i].text.slice(0, 80)}`
+      )
+    }
+  }
+  if (failures.length) {
+    throw new Error(`${label} semantic relevance failed:\n - ${failures.join('\n - ')}`)
+  }
+}
+
+async function cleanupPoisonedVerifyState(session: Session): Promise<void> {
+  // Detach legacy gold props wrongly forced onto the immigration CQ.
+  await session.run(
+    `
+    UNWIND $propUids AS propUid
+    MATCH (p:Proposition {uid: propUid})-[a:ANSWERS]->(q:Question {uid: $questionUid})
+    DELETE a
+    `,
+    { propUids: LEGACY_POISON_PROP_UIDS, questionUid: POISONED_QUESTION_UID }
+  )
+  await session.run(
+    `
+    MATCH (dec:Decision)
+    WHERE dec.actor = 'verify_l3'
+       OR dec.uid STARTS WITH 'qverify:'
+    OPTIONAL MATCH (dec)-[r]-()
+    DELETE r, dec
+    `
+  )
+  await session.run(
+    `
+    MATCH (c:Controversy)-[:ABOUT]->(q:Question {uid: $questionUid})
+    OPTIONAL MATCH (c)-[:INCLUDES]->(v:Viewpoint)
+    OPTIONAL MATCH (v)-[vr]-()
+    OPTIONAL MATCH (c)-[cr]-()
+    DELETE vr, v, cr, c
+    `,
+    { questionUid: POISONED_QUESTION_UID }
+  )
+  // Orphan viewpoints left with this questionUid.
+  await session.run(
+    `
+    MATCH (v:Viewpoint {questionUid: $questionUid})
+    OPTIONAL MATCH (v)-[r]-()
+    DELETE r, v
+    `,
+    { questionUid: POISONED_QUESTION_UID }
+  )
+  // Prior verify fixture graph (props/utterances/docs) — safe to wipe; reseed next.
+  await session.run(
+    `
+    MATCH (u:Utterance)
+    WHERE u.verifyFixture = true OR u.uid STARTS WITH 'utt:verify:'
+    OPTIONAL MATCH (u)-[r]-()
+    DELETE r, u
+    `
+  )
+  await session.run(
+    `
+    MATCH (p:Proposition)
+    WHERE p.verifyFixture = true OR p.uid STARTS WITH 'prop:verify:'
+    OPTIONAL MATCH (p)-[r]-()
+    DELETE r, p
+    `
+  )
+  await session.run(
+    `
+    MATCH (d:Document)
+    WHERE d.verifyFixture = true OR d.uid STARTS WITH 'doc:verify:'
+    OPTIONAL MATCH (d)-[r]-()
+    DELETE r, d
+    `
+  )
+}
+
+async function cleanupPostgresProjections(ctrUid: string): Promise<void> {
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || ''
+  if (!supabaseUrl || !serviceKey) return
+  const sb = createClient(supabaseUrl, serviceKey)
+  await sb.from('graph_controversy_evidence').delete().eq('controversy_uid', ctrUid)
+  await sb.from('graph_viewpoints').delete().eq('controversy_uid', ctrUid)
+  await sb.from('graph_controversies').delete().eq('uid', ctrUid)
+}
+
 async function seedFixture(
-  session: neo4j.Session,
+  session: Session,
   apiKey: string,
   fixture: Fixture
 ): Promise<string> {
   const question = ensureQuestionMark(fixture.question)
   const uid = await questionUidFromText(question)
+  const attachments = fixtureTheses(fixture)
+  await assertThesesRelevantToQuestion(
+    apiKey,
+    question,
+    attachments,
+    `fixture ${fixture.id}`
+  )
+
   const [embedding] = await embedTexts(apiKey, [question], EMBEDDING_MODEL)
   await session.run(
     `
@@ -119,25 +266,71 @@ async function seedFixture(
     }
   )
 
-  const attachments: Array<{ propUid: string; polarity: string }> = [
-    ...fixture.pro_prop_uids.map((propUid) => ({
-      propUid,
-      polarity: fixture.pro_polarity,
-    })),
-    ...fixture.con_prop_uids.map((propUid) => ({
-      propUid,
-      polarity: fixture.con_polarity,
-    })),
-  ]
+  // Clear prior verify attachments/viewpoints for this CQ only (idempotent re-runs).
+  await session.run(
+    `
+    MATCH (p:Proposition)-[a:ANSWERS]->(q:Question {uid: $questionUid})
+    WHERE p.uid STARTS WITH 'prop:verify:'
+    DELETE a
+    `,
+    { questionUid: uid }
+  )
+  await session.run(
+    `
+    MATCH (c:Controversy)-[:ABOUT]->(q:Question {uid: $questionUid})
+    OPTIONAL MATCH (c)-[:INCLUDES]->(v:Viewpoint)
+    OPTIONAL MATCH (v)-[vr]-()
+    OPTIONAL MATCH (c)-[cr]-()
+    DELETE vr, v, cr, c
+    `,
+    { questionUid: uid }
+  )
+  await session.run(
+    `
+    MATCH (v:Viewpoint {questionUid: $questionUid})
+    OPTIONAL MATCH (v)-[r]-()
+    DELETE r, v
+    `,
+    { questionUid: uid }
+  )
+
+  const documentUid = `doc:verify:${fixture.id}`
+  await session.run(
+    `
+    MERGE (d:Document {uid: $documentUid})
+    ON CREATE SET d.createdAt = datetime()
+    SET d.title = $title,
+        d.verifyFixture = true,
+        d.publishedAt = coalesce(d.publishedAt, datetime()),
+        d.updatedAt = datetime()
+    `,
+    {
+      documentUid,
+      title: `L3 verify fixture: ${fixture.id}`,
+    }
+  )
 
   for (const row of attachments) {
-    const decisionUid = `qverify:${fixture.id}:${row.propUid}`.slice(0, 180)
+    const decisionUid = `qverify:${fixture.id}:${row.uid}`.slice(0, 180)
+    const utteranceUid = `utt:verify:${fixture.id}:${row.uid}`.slice(0, 180)
     await session.run(
       `
-      MATCH (p:Proposition {uid: $propUid})
+      MERGE (p:Proposition {uid: $propUid})
+      ON CREATE SET p.createdAt = datetime()
+      SET p.text = $text,
+          p.schemaVersion = coalesce(p.schemaVersion, 'verify-fixture'),
+          p.updatedAt = datetime(),
+          p.verifyFixture = true
+      WITH p
       MATCH (q:Question {uid: $questionUid})
-      OPTIONAL MATCH (p)-[old:ANSWERS]->(:Question)
-      DELETE old
+      MATCH (d:Document {uid: $documentUid})
+      MERGE (u:Utterance {uid: $utteranceUid})
+      ON CREATE SET u.createdAt = datetime()
+      SET u.text = $text,
+          u.documentUid = $documentUid,
+          u.verifyFixture = true,
+          u.updatedAt = datetime()
+      MERGE (u)-[:EXPRESSES]->(p)
       MERGE (dec:Decision {uid: $decisionUid})
       SET dec.decisionType = 'question_link',
           dec.status = 'accepted',
@@ -156,8 +349,11 @@ async function seedFixture(
           a.updatedAt = datetime()
       `,
       {
-        propUid: row.propUid,
+        propUid: row.uid,
+        text: row.text,
         questionUid: uid,
+        documentUid,
+        utteranceUid,
         decisionUid,
         polarity: row.polarity,
       }
@@ -193,6 +389,7 @@ async function main() {
   const fixtures = (
     JSON.parse(fs.readFileSync(FIXTURES_PATH, 'utf8')) as { fixtures: Fixture[] }
   ).fixtures
+  if (!fixtures?.length) throw new Error(`No fixtures in ${FIXTURES_PATH}`)
 
   const driver: Driver = neo4j.driver(uri, neo4j.auth.basic(user, password), {
     disableLosslessIntegers: true,
@@ -209,12 +406,18 @@ async function main() {
         `Aura at node cap (${nodes}). Run prune-oldest-documents --commit before verify writes.`
       )
     } else {
+      console.log('=== cleanup poisoned verify attachments ===')
+      await cleanupPoisonedVerifyState(session)
+      const poisonCtr = controversyUidFromQuestion(POISONED_QUESTION_UID)
+      await cleanupPostgresProjections(poisonCtr)
+
       console.log('=== seed fixtures + force debate steps ===')
       const primary = fixtures[0]
       seededQuestionUid = await seedFixture(session, apiKey, primary)
       console.log(`seeded ${primary.id} → ${seededQuestionUid}`)
 
-      // qualify → viewpoints → project (mint/assign already forced via seed)
+      await cleanupPostgresProjections(controversyUidFromQuestion(seededQuestionUid))
+
       await invokeEdge('qualify_controversies', {
         question_uid: seededQuestionUid,
         force: true,
@@ -281,16 +484,45 @@ async function main() {
         const ctr = String(s.get('ctr') ?? '')
         const { data, error } = await sb
           .from('graph_controversies')
-          .select('uid,status,publish_block_reason,sides_count,source_count')
+          .select('uid,status,publish_block_reason,sides_count,source_count,question')
           .eq('uid', ctr)
           .maybeSingle()
         if (error) failures.push(`PG lookup failed: ${error.message}`)
         else if (!data || data.status !== 'open') {
-          failures.push(
-            `PG controversy not open: ${JSON.stringify(data)}`
-          )
+          failures.push(`PG controversy not open: ${JSON.stringify(data)}`)
         } else {
           console.log('PG controversy open', data)
+          const { data: vps, error: vpErr } = await sb
+            .from('graph_viewpoints')
+            .select('uid,thesis,summary,label')
+            .eq('controversy_uid', ctr)
+          if (vpErr) failures.push(`PG viewpoints lookup failed: ${vpErr.message}`)
+          else {
+            const qText = String(data.question || primary.question)
+            const thesisRows = (vps ?? [])
+              .map((v) => ({
+                uid: String(v.uid),
+                text: String(v.thesis || v.summary || v.label || '').trim(),
+              }))
+              .filter((v) => v.text.length >= 12)
+            if (thesisRows.length < 2) {
+              failures.push(`PG viewpoints missing theses: ${JSON.stringify(vps)}`)
+            } else {
+              try {
+                await assertThesesRelevantToQuestion(
+                  apiKey,
+                  qText,
+                  thesisRows.map((t) => ({ uid: t.uid, text: t.text })),
+                  `projected viewpoints for ${ctr}`
+                )
+                console.log(
+                  `PG viewpoint relevance OK (${thesisRows.length} theses ≥ ${MIN_THESIS_QUESTION_COSINE})`
+                )
+              } catch (e) {
+                failures.push(String(e))
+              }
+            }
+          }
         }
       }
     }

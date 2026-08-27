@@ -33,6 +33,7 @@ type Stage = {
 }
 
 function StageList({ title, stages }: { title: string; stages: Stage[] }) {
+  if (stages.length === 0) return null
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
@@ -86,6 +87,7 @@ function buildIngestStages(data: ObservabilityPipelineCounts): Stage[] {
       id: 'stories',
       label: 'Stories',
       value: formatCount(ingest.storiesTotal),
+      href: '/admin/stories',
     },
     {
       id: 'relevance',
@@ -108,6 +110,10 @@ function buildIngestStages(data: ObservabilityPipelineCounts): Stage[] {
       id: 'clean',
       label: 'Awaiting clean',
       value: formatCount(clean.awaiting),
+      detail:
+        graphJobs.succeeded > 0
+          ? `${formatCount(graphJobs.succeeded)} graph jobs succeeded (total)`
+          : undefined,
       warn: clean.awaiting > 0,
     },
     {
@@ -137,7 +143,7 @@ function buildSubstrateStages(data: ObservabilityPipelineCounts): Stage[] {
         id: 'neo-off',
         label: 'Neo4j',
         value: '—',
-        detail: 'Not configured',
+        detail: neo.error ?? 'Not configured',
         warn: true,
       },
     ]
@@ -151,6 +157,7 @@ function buildSubstrateStages(data: ObservabilityPipelineCounts): Stage[] {
       value: formatCount(neo.graphNodes),
       detail: `cap ${formatCount(neo.nodeCap)} · headroom ${formatCount(nodeHeadroom)} · rels ${formatCount(neo.graphRels)}/${formatCount(neo.relCap)}`,
       warn: atCap || nodeHeadroom < 10_000,
+      href: '/admin/neo',
     },
     {
       id: 'documents',
@@ -170,7 +177,7 @@ function buildSubstrateStages(data: ObservabilityPipelineCounts): Stage[] {
     {
       id: 'arguments',
       label: 'Arguments',
-      value: formatCount(neo.arguments),
+      value: formatCount(neo.argumentCount),
     },
     {
       id: 'agents',
@@ -180,12 +187,11 @@ function buildSubstrateStages(data: ObservabilityPipelineCounts): Stage[] {
   ]
 }
 
-function buildDebateStages(data: ObservabilityPipelineCounts): Stage[] {
-  const { neo, projections } = data
-  const blocked =
-    projections.publishBlocked.insufficient_sides +
-    projections.publishBlocked.no_sources +
-    projections.publishBlocked.no_viewpoints
+function buildDebateFunnelStages(data: ObservabilityPipelineCounts): Stage[] {
+  const { neo } = data
+  if (!neo.configured) return []
+  if (neo.error) return []
+
   return [
     {
       id: 'questions',
@@ -202,87 +208,130 @@ function buildDebateStages(data: ObservabilityPipelineCounts): Stage[] {
     },
     {
       id: 'qualify-pool',
-      label: 'Qualify pool',
+      label: 'Qualify pool (opposing)',
       value: formatCount(neo.qualifyPoolOpposing),
       detail: `multi HQ ${formatCount(neo.qualifyPoolMultiHq)} · opposing ${formatCount(neo.qualifyPoolOpposing)}`,
       warn: neo.qualifyPoolOpposing < 5,
     },
     {
-      id: 'quarantine',
-      label: 'Question quarantine',
+      id: 'controversies-established',
+      label: 'Controversies established',
+      value: formatCount(neo.controversiesEstablished),
+      detail: `total ${formatCount(neo.controversiesTotal)} · viewpoints≥2 ${formatCount(neo.controversiesWithViewpoints)} · zero viewpoints ${formatCount(neo.controversiesZeroViewpoints)}`,
+      warn: neo.controversiesZeroViewpoints > 0,
+    },
+    {
+      id: 'viewpoints-neo',
+      label: 'Viewpoints (Neo)',
+      value: formatCount(neo.viewpoints),
+    },
+    {
+      id: 'decisions-quarantine',
+      label: 'L3 decisions quarantined',
       value: formatCount(
-        neo.quarantinedQuestionMatch + neo.quarantinedQuestionAnswer
+        neo.decisionsQuarantinedMatch + neo.decisionsQuarantinedAnswer
       ),
-      detail: `match ${formatCount(neo.quarantinedQuestionMatch)} · answer ${formatCount(neo.quarantinedQuestionAnswer)}`,
+      detail: `match ${formatCount(neo.decisionsQuarantinedMatch)} · answer ${formatCount(neo.decisionsQuarantinedAnswer)}`,
       warn:
-        neo.quarantinedQuestionMatch + neo.quarantinedQuestionAnswer > 0,
+        neo.decisionsQuarantinedMatch + neo.decisionsQuarantinedAnswer > 0,
+    },
+  ]
+}
+
+function buildDebateProjectionStages(data: ObservabilityPipelineCounts): Stage[] {
+  const { projections } = data
+  const blocked =
+    projections.publishBlocked.insufficient_sides +
+    projections.publishBlocked.no_sources +
+    projections.publishBlocked.no_viewpoints
+
+  return [
+    {
+      id: 'pg-open',
+      label: 'Controversies open',
+      value: formatCount(projections.controversiesOpen),
+      detail: `developing ${formatCount(projections.controversiesDeveloping)} · closed ${formatCount(projections.controversiesClosed)}`,
       href: '/admin/graph-controversies',
     },
     {
-      id: 'controversies-neo',
-      label: 'Controversies (Neo)',
-      value: formatCount(neo.controversies),
-      detail: `sides≥2 ${formatCount(neo.controversiesWithSides)} · zero sides ${formatCount(neo.controversiesZeroSides)} · PG open ${formatCount(projections.controversiesOpen)} · developing ${formatCount(projections.controversiesDeveloping)}`,
-      warn: neo.controversiesZeroSides > 0,
+      id: 'pg-viewpoints',
+      label: 'Viewpoints (Postgres)',
+      value: formatCount(projections.viewpoints),
     },
     {
-      id: 'viewpoints',
-      label: 'Viewpoints (Neo)',
-      value: formatCount(neo.viewpoints),
-      detail: `PG ${formatCount(projections.viewpoints)}`,
-    },
-    {
-      id: 'disputes',
-      label: 'Disputes',
-      value: formatCount(neo.disputes),
-    },
-    {
-      id: 'blocked',
+      id: 'pg-blocked',
       label: 'Publish blocked',
       value: formatCount(blocked),
       detail: `insufficient sides ${formatCount(projections.publishBlocked.insufficient_sides)} · no sources ${formatCount(projections.publishBlocked.no_sources)} · no viewpoints ${formatCount(projections.publishBlocked.no_viewpoints)}`,
       warn: blocked > 0,
+      href: '/admin/graph-controversies',
     },
   ]
 }
 
 function buildAnalysisStages(data: ObservabilityPipelineCounts): Stage[] {
   const { neo, projections } = data
-  return [
-    {
+  if (!neo.configured || neo.error) {
+    return [
+      {
+        id: 'pg-assessments',
+        label: 'Assessments (Postgres)',
+        value: formatCount(projections.assessments),
+      },
+      {
+        id: 'pg-evidence',
+        label: 'Evidence rows',
+        value: formatCount(projections.evidence),
+        detail: `excerpts ${formatCount(projections.excerpts)} · people ${formatCount(projections.people)}`,
+      },
+    ]
+  }
+
+  const stages: Stage[] = []
+
+  if (neo.pendingEvidenceCheckCandidates > 0) {
+    stages.push({
       id: 'ev-pending',
-      label: 'Evidence backlog',
+      label: 'Evidence check backlog',
       value: formatCount(neo.pendingEvidenceCheckCandidates),
-      warn: neo.pendingEvidenceCheckCandidates > 0,
-    },
+      warn: true,
+    })
+  }
+
+  stages.push(
     {
       id: 'evidence-checks',
-      label: 'EvidenceChecks',
+      label: 'EvidenceChecks (Neo)',
       value: formatCount(neo.evidenceChecks),
     },
     {
       id: 'citations',
-      label: 'Citations',
+      label: 'Citations (Neo)',
       value: formatCount(neo.citations),
     },
     {
       id: 'assessments',
-      label: 'Assessments (Neo)',
+      label: 'Assessments',
       value: formatCount(neo.assessments),
       detail: `PG ${formatCount(projections.assessments)}`,
     },
     {
       id: 'evidence-rows',
-      label: 'Evidence rows',
+      label: 'Evidence rows (Postgres)',
       value: formatCount(projections.evidence),
-      detail: `excerpts ${formatCount(projections.excerpts)}`,
-    },
-    {
-      id: 'people',
-      label: 'People',
-      value: formatCount(projections.people),
-    },
-  ]
+      detail: `excerpts ${formatCount(projections.excerpts)} · people ${formatCount(projections.people)}`,
+    }
+  )
+
+  if (neo.disputes > 0) {
+    stages.push({
+      id: 'disputes',
+      label: 'Disputes (Neo)',
+      value: formatCount(neo.disputes),
+    })
+  }
+
+  return stages
 }
 
 function FunnelLoading() {
@@ -329,14 +378,16 @@ export function PipelineFunnelPanel() {
     }
   }, [])
 
+  const neoError = data?.neo.configured && data.neo.error ? data.neo.error : null
+
   return (
     <Panel variant="soft" interactive={false} className="overflow-hidden">
       <div className="flex flex-col gap-5 p-4 sm:p-6">
         <div className="flex flex-col gap-1">
           <h2 className="font-semibold">Pipeline funnel</h2>
           <p className="text-sm text-muted-foreground">
-            Current inventory and backlogs across ingestion, graph substrate, debate, and
-            analysis.
+            Live inventory and L3 funnel (Neo) plus Postgres projections. Ingestion
+            backlogs are point-in-time.
           </p>
         </div>
 
@@ -350,11 +401,23 @@ export function PipelineFunnelPanel() {
           </Alert>
         ) : data ? (
           <div className="flex flex-col gap-5">
+            {neoError ? (
+              <Alert variant="destructive">
+                <AlertCircleIcon />
+                <AlertTitle>Neo4j snapshot failed</AlertTitle>
+                <AlertDescription>{neoError}</AlertDescription>
+              </Alert>
+            ) : null}
             <StageList title="Ingestion & queues" stages={buildIngestStages(data)} />
             <Separator />
             <StageList title="Graph substrate (L0–L2)" stages={buildSubstrateStages(data)} />
             <Separator />
-            <StageList title="Debate (L3)" stages={buildDebateStages(data)} />
+            <StageList title="Debate funnel (L3 · Neo)" stages={buildDebateFunnelStages(data)} />
+            <Separator />
+            <StageList
+              title="Debate projections (Postgres)"
+              stages={buildDebateProjectionStages(data)}
+            />
             <Separator />
             <StageList title="Analysis (L4)" stages={buildAnalysisStages(data)} />
           </div>
