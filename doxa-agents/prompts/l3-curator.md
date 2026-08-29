@@ -116,7 +116,7 @@ On every `MINT_QUESTION` op also emit:
 
 Do **not** use the generic templates `Yes: {question}.` or `No: it is not the case that {question}.` — write the actual disputed claim both sides answer.
 
-In `overall_rationale`, name each founding speaker, quote the key phrase from `segment_text`, and list every distinct `document_url` you saw (the Slack card also resolves links from the graph).
+In `overall_rationale`, state the decision, why these founding propositions belong together, and whether both sides are present. Quote at most one short phrase per speaker. Do **not** paste URLs, publisher names, or story titles — the Slack card lists each source once from the graph.
 
 ---
 
@@ -180,7 +180,7 @@ Return **only** the JSON object — no prose, no markdown fences, no trailing co
 ```json
 {
   "question_uid": "cq:... (null for a mint item with no existing question)",
-  "overall_rationale": "1) the decision this question asks; 2) the weakest member and why; 3) whether both sides are present after these ops, and what the missing side would have to claim.",
+  "overall_rationale": "1) the decision this question asks; 2) the weakest member and why; 3) whether both sides are present after these ops, and what the missing side would have to claim. For mint: no URLs or restated source titles.",
   "ops": [
     {
       "type": "ADMIT|EVICT|SPLIT_QUESTION|MERGE_QUESTION|RETITLE_QUESTION|MINT_QUESTION|RETYPE_QUESTION|MARK_INCOMPATIBLE|MARK_ORTHOGONAL",

@@ -100,6 +100,112 @@ function slackLink(url: string, label: string): string {
   return `<${safeUrl}|${safeLabel}>`
 }
 
+function escapeMrkdwn(text: string): string {
+  return text.replace(/[<>]/g, '')
+}
+
+type EvidenceGroup = {
+  url: string | null
+  publication: string | null
+  title: string | null
+  props: PropositionSourceContext[]
+}
+
+function groupEvidenceBySource(props: PropositionSourceContext[]): EvidenceGroup[] {
+  const groups: EvidenceGroup[] = []
+  const indexByKey = new Map<string, number>()
+  for (const prop of props) {
+    const url = prop.document_url?.trim() || null
+    const key = url || `uid:${prop.document_uid ?? prop.prop_uid}`
+    const existing = indexByKey.get(key)
+    if (existing != null) {
+      groups[existing].props.push(prop)
+      continue
+    }
+    indexByKey.set(key, groups.length)
+    groups.push({
+      url,
+      publication: prop.publication,
+      title: prop.document_title,
+      props: [prop],
+    })
+  }
+  return groups
+}
+
+function sourceHeading(group: EvidenceGroup): string {
+  const label =
+    [group.publication, group.title].filter(Boolean).join(' — ') || 'Source story'
+  if (group.url) return slackLink(group.url, label)
+  return `*${escapeMrkdwn(label)}*`
+}
+
+const URL_RE = /https?:\/\/[^\s)\]>]+/gi
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function sourceCitations(context: MintApprovalContext): {
+  urls: string[]
+  publications: string[]
+} {
+  const urls = new Set<string>()
+  const publications = new Set<string>()
+  for (const prop of context.founding_props) {
+    if (prop.document_url?.trim()) urls.add(prop.document_url.trim())
+    if (prop.publication?.trim()) publications.add(prop.publication.trim())
+  }
+  for (const link of context.source_links) {
+    if (link.url?.trim()) urls.add(link.url.trim())
+    if (link.publication?.trim()) publications.add(link.publication.trim())
+  }
+  return { urls: [...urls], publications: [...publications] }
+}
+
+/** Drop URLs and parenthetical outlet citations already shown in Evidence. */
+export function stripRationaleSourceNoise(
+  text: string,
+  knownUrls: string[] = [],
+  publications: string[] = []
+): string {
+  let out = text.trim()
+  const urls = [...knownUrls].sort((a, b) => b.length - a.length)
+  for (const url of urls) {
+    if (!url) continue
+    out = out.split(url).join('')
+  }
+  out = out.replace(URL_RE, '')
+  out = out.replace(/,\s*\)/g, ')')
+  out = out.replace(/\(\s*,/g, '(')
+  const pubs = [...publications].filter((p) => p.length >= 3).sort((a, b) => b.length - a.length)
+  for (const pub of pubs) {
+    const escaped = escapeRegExp(pub)
+    out = out.replace(new RegExp(`\\(\\s*${escaped}\\s*\\)`, 'gi'), '')
+  }
+  out = out.replace(/\(\s*[,;]?\s*\)/g, '')
+  out = out.replace(/\[\s*\]/g, '')
+  out = out.replace(/\s+([,;])/g, '$1')
+  out = out.replace(/([,;]){2,}/g, '$1')
+  out = out.replace(/\s{2,}/g, ' ')
+  out = out.replace(/\s+([.!?])/g, '$1')
+  return out.trim()
+}
+
+function clipAtSentence(text: string, max: number): string {
+  const s = text.trim()
+  if (s.length <= max) return s
+  const sliced = s.slice(0, max)
+  const sentence = Math.max(
+    sliced.lastIndexOf('. '),
+    sliced.lastIndexOf('? '),
+    sliced.lastIndexOf('! ')
+  )
+  const cut = sentence >= max * 0.45 ? sentence + 1 : Math.max(sliced.lastIndexOf(' '), 0)
+  const head = (cut > 40 ? sliced.slice(0, cut) : sliced).trim()
+  return `${head}…`
+}
+
 export function formatMintApprovalSlackText(opts: {
   kind: string
   payload: Record<string, unknown>
@@ -112,28 +218,26 @@ export function formatMintApprovalSlackText(opts: {
     lines.push('', '*Question*', context.question_text)
   }
   if (context.pro_answer_statement) {
-    lines.push('', '*Pro (AFFIRMS / yes-side)*', context.pro_answer_statement)
+    lines.push('', '*Pro*', context.pro_answer_statement)
   }
   if (context.con_answer_statement) {
-    lines.push('', '*Con (DENIES / no-side)*', context.con_answer_statement)
+    lines.push('', '*Con*', context.con_answer_statement)
   }
 
   if (context.founding_props.length) {
-    lines.push('', '*Founding propositions*')
-    for (const prop of context.founding_props) {
-      const who = [prop.speaker, prop.publication].filter(Boolean).join(' · ')
-      const head = who ? `*${who}*` : `*${prop.prop_uid}*`
-      lines.push(`• ${head}`, `  "${excerpt(prop.segment_text ?? prop.text)}"`)
-      if (prop.document_url) {
-        const label =
-          [prop.publication, prop.document_title].filter(Boolean).join(' — ') ||
-          'Source story'
-        lines.push(`  ${slackLink(prop.document_url, label)}`)
+    lines.push('', '*Evidence*')
+    const groups = groupEvidenceBySource(context.founding_props)
+    for (let i = 0; i < groups.length; i++) {
+      if (i > 0) lines.push('')
+      const group = groups[i]
+      if (!group) continue
+      lines.push(sourceHeading(group))
+      for (const prop of group.props) {
+        const who = escapeMrkdwn(prop.speaker?.trim() || prop.prop_uid)
+        lines.push(`• *${who}:* "${excerpt(prop.segment_text ?? prop.text)}"`)
       }
     }
-  }
-
-  if (context.source_links.length) {
+  } else if (context.source_links.length) {
     lines.push('', '*Sources*')
     for (const link of context.source_links) {
       const label =
@@ -143,7 +247,15 @@ export function formatMintApprovalSlackText(opts: {
   }
 
   if (context.overall_rationale) {
-    lines.push('', '*Curator rationale*', context.overall_rationale.slice(0, 500))
+    const citations = sourceCitations(context)
+    const cleaned = stripRationaleSourceNoise(
+      context.overall_rationale,
+      citations.urls,
+      citations.publications
+    )
+    if (cleaned) {
+      lines.push('', '*Why mint*', clipAtSentence(cleaned, 2400))
+    }
   }
 
   return lines.join('\n')
