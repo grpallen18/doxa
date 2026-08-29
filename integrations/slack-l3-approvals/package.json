@@ -1,0 +1,6 @@
+{
+  "name": "doxa-l3-approvals",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Slack CLI project for the Doxa L3 Approvals HTTP app"
+}

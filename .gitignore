@@ -46,5 +46,7 @@ next-env.d.ts
 # cursor librarian hook queue (local only)
 .cursor/librarian-queue.json
 
-# Slack CLI local app state
-integrations/slack-l3-approvals/.slack/
+# Slack CLI local app IDs (hooks.json + config.json stay committed)
+integrations/slack-l3-approvals/.slack/apps.json
+integrations/slack-l3-approvals/.slack/apps.dev.json
+integrations/slack-l3-approvals/.slack/cache/

@@ -7,9 +7,10 @@ HTTP handlers live in the Next.js app (`/api/slack/events`, `/api/slack/interact
 ```bash
 slackcli login
 cd integrations/slack-l3-approvals
-slackcli init
 slackcli install
 ```
+
+This folder is a tiny Node project so the Slack CLI can detect a runtime (`package.json` + `hooks/`). Do not run `slackcli init` from the Doxa repo root — it can attach Slack hooks to the Next.js `package.json`.
 
 The desktop Slack app already owns the `slack` command on Windows, so the developer CLI is installed as **`slackcli`**.
 

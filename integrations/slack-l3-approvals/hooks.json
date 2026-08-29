@@ -1,5 +1,0 @@
-{
-  "hooks": {
-    "get-hooks": "echo {}"
-  }
-}
