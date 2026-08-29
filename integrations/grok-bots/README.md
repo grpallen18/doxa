@@ -83,6 +83,8 @@ pending_approval → Slack card → you approve
 apply_l3_proposals → Neo4j Question
 ```
 
+**Mint Slack cards** include the specific question, pro/con answer statements, founding proposition excerpts, and clickable source story links (resolved from Neo4j). The curator must emit `pro_answer_statement` and `con_answer_statement` on every `MINT_QUESTION` — vague questions like "Is {outlet}'s reporting on {person} false?" are rejected by the validator.
+
 Grok proposes; **workers and applier execute**. Grok does not need to be online 24/7.
 
 ## 6. Fallback workers (no Grok required)

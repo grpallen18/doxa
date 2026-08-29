@@ -4,6 +4,11 @@
 
 import type { QueryFn } from "./proposal-validator.ts";
 import { cosineSimilarity } from "./question-identity.ts";
+import {
+  fetchPropositionContexts,
+  uniqueSourceLinks,
+  type PropositionSourceContext,
+} from "./proposition-context.ts";
 
 export type DossierMember = {
   prop_uid: string;
@@ -340,6 +345,20 @@ export async function getControversyDossier(query: QueryFn, controversyUid: stri
   if (!c) return null;
   const dossier = await getQuestionDossier(query, c.questionUid);
   return { ...c, dossier };
+}
+
+/** Mint queue items: prop uids plus full source context for the curator LLM. */
+export async function getMintClusterDossier(
+  query: QueryFn,
+  propUids: string[]
+): Promise<{ mint_cluster: { prop_uids: string[] }; propositions: PropositionSourceContext[]; source_links: ReturnType<typeof uniqueSourceLinks> }> {
+  const uids = [...new Set(propUids.map((u) => u.trim()).filter(Boolean))];
+  const propositions = await fetchPropositionContexts(query, uids);
+  return {
+    mint_cluster: { prop_uids: uids },
+    propositions,
+    source_links: uniqueSourceLinks(propositions),
+  };
 }
 
 export async function searchQuestions(query: QueryFn, text: string, k = 8) {

@@ -8,7 +8,7 @@ import { corsHeaders, json, clampInt,
   requireInternalAuth,
 } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
-import { getQuestionDossier } from "../../../../lib/debate/dossier.ts";
+import { getQuestionDossier, getMintClusterDossier } from "../../../../lib/debate/dossier.ts";
 import { chatJson, estimateCostUsd, llmConfigFromDeno } from "../../../../lib/debate/llm.ts";
 import { CURATOR_SYSTEM } from "../../../../lib/debate/prompts.ts";
 import { normalizeOp, initialProposalStatus } from "../../../../lib/debate/proposal-ops.ts";
@@ -77,11 +77,14 @@ export const handler = async (req: Request) => {
   for (const item of items as Array<Record<string, unknown>>) {
     const questionUid = String(item.question_uid ?? "");
     const payload = (item.payload ?? {}) as Record<string, unknown>;
+    const propUids = Array.isArray(payload.prop_uids)
+      ? payload.prop_uids.map((x) => String(x)).filter(Boolean)
+      : [];
     const dossier = questionUid
       ? await getQuestionDossier(runCypher, questionUid)
-      : {
-          mint_cluster: payload,
-        };
+      : propUids.length
+        ? await getMintClusterDossier(runCypher, propUids)
+        : { mint_cluster: payload };
     if (!dossier) {
       await supabase
         .from("l3_review_queue")

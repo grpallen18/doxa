@@ -1,5 +1,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/server'
+import {
+  formatMintApprovalSlackText,
+  loadMintApprovalContext,
+} from '@/lib/l3/mint-approval-context'
 
 const SLACK_API = 'https://slack.com/api'
 
@@ -74,9 +78,22 @@ function proposalSummary(row: {
   kind: string
   question_uid: string | null
   payload: Record<string, unknown>
+  contextText?: string
 }): string {
+  if (row.contextText) return row.contextText
   const payload = row.payload ?? {}
-  const q = String(payload.question_uid ?? row.question_uid ?? payload.new_question_text ?? '')
+  const mintOp = Array.isArray(payload.ops)
+    ? (payload.ops as Array<Record<string, unknown>>).find(
+        (o) => String(o.type ?? '').toUpperCase() === 'MINT_QUESTION'
+      )
+    : null
+  const q = String(
+    mintOp?.new_question_text ??
+      payload.new_question_text ??
+      payload.question_uid ??
+      row.question_uid ??
+      ''
+  )
   const rationale = String(payload.overall_rationale ?? payload.note ?? '').slice(0, 400)
   const url = payload.url ? String(payload.url) : ''
   const ops = Array.isArray(payload.ops) ? payload.ops.length : 0
@@ -96,10 +113,21 @@ export async function postPendingApprovalCard(proposalUid: string): Promise<void
   if (error || !row) return
   if (row.status !== 'pending_approval') return
 
+  const payload = (row.payload ?? {}) as Record<string, unknown>
+  const kind = String(row.kind)
+  let contextText: string | undefined
+  if (kind === 'mint' || (Array.isArray(payload.ops) && payload.ops.some(
+    (o) => o && typeof o === 'object' && String((o as Record<string, unknown>).type ?? '').toUpperCase() === 'MINT_QUESTION'
+  ))) {
+    const ctx = await loadMintApprovalContext(payload)
+    contextText = formatMintApprovalSlackText({ kind, payload, context: ctx })
+  }
+
   const text = proposalSummary({
-    kind: String(row.kind),
+    kind,
     question_uid: row.question_uid,
-    payload: (row.payload ?? {}) as Record<string, unknown>,
+    payload,
+    contextText,
   })
 
   const posted = await slackPost('chat.postMessage', {

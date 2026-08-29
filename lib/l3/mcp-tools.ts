@@ -8,6 +8,7 @@ import {
   searchQuestions,
 } from '../../doxa-agents/lib/debate/dossier'
 import { initialProposalStatus, normalizeOp } from '../../doxa-agents/lib/debate/proposal-ops'
+import { fetchPropositionContexts } from '../../doxa-agents/lib/debate/proposition-context'
 import { notifyPendingProposal } from '../../doxa-agents/lib/debate/notify-approval'
 import { botMayCallTool } from '@/lib/l3/mcp-allowlist'
 import type { L3Bot } from '@/lib/l3/mcp-auth'
@@ -47,7 +48,8 @@ export const MCP_TOOLS = [
   },
   {
     name: 'get_proposition',
-    description: 'Proposition with utterance/segment provenance',
+    description:
+      'Proposition with speaker, segment excerpt, publication, and source story URL/title when available',
     inputSchema: {
       type: 'object',
       properties: { uid: { type: 'string' } },
@@ -223,20 +225,33 @@ export async function callMcpTool(
       case 'get_controversy_dossier':
         result = await getControversyDossier(runL3Cypher, String(args.controversy_uid))
         break
-      case 'get_proposition':
-        result = (
-          await runL3Cypher(
-            `
-            MATCH (p:Proposition {uid: $uid})
-            OPTIONAL MATCH (p)<-[:EXPRESSES]-(u:Utterance)-[:GROUNDED_IN]->(seg:Segment)
-            RETURN p.uid AS uid,
-                   coalesce(p.text, p.normalizedText, '') AS text,
-                   collect({ utterance_uid: u.uid, segment_text: coalesce(seg.text, u.text) })[0..3] AS utterances
-            `,
-            { uid: String(args.uid) }
-          )
-        )[0] ?? null
+      case 'get_proposition': {
+        const rows = await fetchPropositionContexts(runL3Cypher, [String(args.uid)])
+        const row = rows[0]
+        result = row
+          ? {
+              uid: row.prop_uid,
+              text: row.text,
+              speaker: row.speaker,
+              publication: row.publication,
+              published_at: row.published_at,
+              utterance_uid: row.utterance_uid,
+              segment_text: row.segment_text,
+              document_uid: row.document_uid,
+              document_title: row.document_title,
+              document_url: row.document_url,
+              utterances: row.utterance_uid
+                ? [
+                    {
+                      utterance_uid: row.utterance_uid,
+                      segment_text: row.segment_text,
+                    },
+                  ]
+                : [],
+            }
+          : null
         break
+      }
       case 'get_merge_candidates':
         result = await getMergeCandidates(runL3Cypher, String(args.question_uid))
         break

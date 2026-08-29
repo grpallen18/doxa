@@ -41,7 +41,7 @@ type Metrics = {
 export default function AdminL3ProposalsPage() {
   const [items, setItems] = useState<Proposal[]>([])
   const [metrics, setMetrics] = useState<Metrics | null>(null)
-  const [status, setStatus] = useState('submitted')
+  const [status, setStatus] = useState('pending_approval')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -114,7 +114,7 @@ export default function AdminL3ProposalsPage() {
       )}
 
       <div className="flex gap-2">
-        {['submitted', 'validated', 'applied', 'rejected', 'all'].map((s) => (
+        {['pending_approval', 'submitted', 'validated', 'applied', 'rejected', 'all'].map((s) => (
           <Button
             key={s}
             size="sm"
@@ -133,7 +133,22 @@ export default function AdminL3ProposalsPage() {
           <p className="text-sm text-muted">No proposals for this filter.</p>
         ) : (
           <ul className="divide-y divide-border">
-            {items.map((p) => (
+            {items.map((p) => {
+              const payload = (p.payload ?? {}) as {
+                overall_rationale?: string
+                reason?: string
+                ops?: Array<Record<string, unknown>>
+              }
+              const mintFromPayload = (payload.ops ?? []).find(
+                (o) => String(o.type ?? '').toUpperCase() === 'MINT_QUESTION'
+              )
+              const mintOp = (p.l3_proposal_ops ?? []).find((o) => o.op_type === 'MINT_QUESTION')
+              const mintFields = (mintFromPayload ?? mintOp?.payload ?? {}) as {
+                new_question_text?: string
+                pro_answer_statement?: string
+                con_answer_statement?: string
+              }
+              return (
               <li key={p.proposal_uid} className="flex flex-col gap-2 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{p.kind}</Badge>
@@ -148,12 +163,23 @@ export default function AdminL3ProposalsPage() {
                     </Link>
                   )}
                 </div>
+                {mintFields.new_question_text && (
+                  <p className="text-sm font-medium">{mintFields.new_question_text}</p>
+                )}
+                {mintFields.pro_answer_statement && (
+                  <p className="text-xs text-muted">
+                    <span className="font-medium text-foreground">Pro:</span>{' '}
+                    {mintFields.pro_answer_statement}
+                  </p>
+                )}
+                {mintFields.con_answer_statement && (
+                  <p className="text-xs text-muted">
+                    <span className="font-medium text-foreground">Con:</span>{' '}
+                    {mintFields.con_answer_statement}
+                  </p>
+                )}
                 <p className="text-sm">
-                  {String(
-                    (p.payload as { overall_rationale?: string }).overall_rationale ??
-                      (p.payload as { reason?: string }).reason ??
-                      ''
-                  ).slice(0, 280)}
+                  {String(payload.overall_rationale ?? payload.reason ?? '').slice(0, 480)}
                 </p>
                 {(p.l3_proposal_ops ?? []).map((op) => (
                   <div key={op.op_index} className="flex flex-wrap items-center gap-2 text-xs">
@@ -161,7 +187,7 @@ export default function AdminL3ProposalsPage() {
                       {op.op_type} {String((op.payload as { prop_uid?: string }).prop_uid ?? '')}
                     </span>
                     <Badge variant="secondary">{op.status}</Badge>
-                    {['submitted', 'validated'].includes(p.status) && (
+                    {['submitted', 'validated', 'pending_approval'].includes(p.status) && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -172,7 +198,7 @@ export default function AdminL3ProposalsPage() {
                         Accept op
                       </Button>
                     )}
-                    {['submitted', 'validated'].includes(p.status) && (
+                    {['submitted', 'validated', 'pending_approval'].includes(p.status) && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -188,7 +214,7 @@ export default function AdminL3ProposalsPage() {
                     )}
                   </div>
                 ))}
-                {['submitted', 'validated'].includes(p.status) && (
+                {['submitted', 'validated', 'pending_approval'].includes(p.status) && (
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => act(p.proposal_uid, 'apply')}>
                       Apply
@@ -211,7 +237,7 @@ export default function AdminL3ProposalsPage() {
                   </Button>
                 )}
               </li>
-            ))}
+            )})}
           </ul>
         )}
       </Panel>

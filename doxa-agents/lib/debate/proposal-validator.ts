@@ -12,6 +12,11 @@ import {
   type AuditVerdictPayload,
 } from "./proposal-ops.ts";
 import { isPrimaryCauseNearMiss, parsePolarity, parseQuestionType } from "./question-identity.ts";
+import {
+  isGenericAnswerStatement,
+  isVagueMintQuestion,
+  MIN_MINT_ANSWER_STATEMENT_LEN,
+} from "./proposition-context.ts";
 
 export type QueryFn = <T extends Record<string, unknown> = Record<string, unknown>>(
   cypher: string,
@@ -199,6 +204,31 @@ export async function validateMembershipProposal(
 
     if (op.type === "MINT_QUESTION" || op.type === "SPLIT_QUESTION") {
       if (!op.new_question_text?.trim()) opErrors.push("missing new_question_text");
+    }
+
+    if (op.type === "MINT_QUESTION") {
+      const qText = op.new_question_text?.trim() ?? "";
+      if (qText && isVagueMintQuestion(qText)) {
+        opErrors.push(
+          "MINT question is too vague — name the specific reported claim (outlet + subject + what was alleged), not generic 'reporting is false'"
+        );
+      }
+      const proStmt = op.pro_answer_statement?.trim() ?? "";
+      const conStmt = op.con_answer_statement?.trim() ?? "";
+      if (!proStmt) opErrors.push("MINT requires pro_answer_statement");
+      if (!conStmt) opErrors.push("MINT requires con_answer_statement");
+      if (proStmt.length < MIN_MINT_ANSWER_STATEMENT_LEN) {
+        opErrors.push("pro_answer_statement too short — state the specific affirmative claim");
+      }
+      if (conStmt.length < MIN_MINT_ANSWER_STATEMENT_LEN) {
+        opErrors.push("con_answer_statement too short — state the specific opposing claim");
+      }
+      if (qText && proStmt && isGenericAnswerStatement(proStmt, qText)) {
+        opErrors.push("pro_answer_statement must be a specific declarative claim, not the generic Yes-template");
+      }
+      if (qText && conStmt && isGenericAnswerStatement(conStmt, qText)) {
+        opErrors.push("con_answer_statement must be a specific declarative claim, not the generic No-template");
+      }
     }
 
     if (op.type === "ADMIT" || op.type === "EVICT") {

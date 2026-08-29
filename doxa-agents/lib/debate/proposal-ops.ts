@@ -93,6 +93,10 @@ export type MembershipOp = {
   polarity?: AnswerPolarity | string;
   target_question_uid?: string;
   new_question_text?: string;
+  /** Declarative pro-side answer for MINT/RETITLE (shown to human approvers; used for retrieval). */
+  pro_answer_statement?: string;
+  /** Declarative con-side answer for MINT/RETITLE. */
+  con_answer_statement?: string;
   question_type?: string;
   exclusivity?: string;
   confidence: number;
@@ -175,6 +179,12 @@ export function normalizeOp(raw: Record<string, unknown>): MembershipOp | null {
       ? String(raw.target_question_uid)
       : undefined,
     new_question_text: raw.new_question_text ? String(raw.new_question_text) : undefined,
+    pro_answer_statement: raw.pro_answer_statement
+      ? String(raw.pro_answer_statement).trim()
+      : undefined,
+    con_answer_statement: raw.con_answer_statement
+      ? String(raw.con_answer_statement).trim()
+      : undefined,
     question_type: raw.question_type ? String(raw.question_type) : undefined,
     exclusivity: raw.exclusivity ? String(raw.exclusivity) : undefined,
     confidence,

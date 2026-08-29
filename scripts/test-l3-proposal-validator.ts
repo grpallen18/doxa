@@ -16,6 +16,7 @@ import {
 } from '../doxa-agents/lib/debate/proposal-ops.ts'
 import { shouldBindCandidate } from '../doxa-agents/lib/debate/nli-rerank.ts'
 import { blockingKeyFrom, predicateLemmaFromQuestion } from '../doxa-agents/lib/debate/question-identity.ts'
+import { isVagueMintQuestion } from '../doxa-agents/lib/debate/proposition-context.ts'
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg)
@@ -116,7 +117,9 @@ const fakeQuery: QueryFn = async (cypher, params = {}) => {
 
 const mintOp = {
   type: 'MINT_QUESTION' as const,
-  new_question_text: 'Should we do X?',
+  new_question_text: 'Should the United States continue military aid to Ukraine?',
+  pro_answer_statement: 'The United States should continue military aid to Ukraine.',
+  con_answer_statement: 'The United States should not continue military aid to Ukraine.',
   question_type: 'policy',
   confidence: 0.8,
   rationale: 'contrast pair',
@@ -182,7 +185,45 @@ async function membershipChecks() {
     admitCrossCite.ops[0].errors.some((e) => e.includes('not reachable')),
     `ADMIT still requires its own utterance: ${JSON.stringify(admitCrossCite.ops)}`
   )
+
+  const mintVague = await validateMembershipProposal(fakeQuery, {
+    question_uid: 'cq:x',
+    overall_rationale: 'vague mint',
+    ops: [
+      {
+        ...mintOp,
+        new_question_text: "Is The Atlantic's reporting on Kash Patel false?",
+        pro_answer_statement: 'The Atlantic falsely reported that Patel kept an FBI target notebook.',
+        con_answer_statement: 'The Atlantic accurately reported that Patel kept an FBI target notebook.',
+      },
+    ],
+  })
+  assert(
+    mintVague.ops[0].errors.some((e) => e.includes('too vague')),
+    `vague mint question rejected: ${JSON.stringify(mintVague.ops)}`
+  )
+
+  const mintMissingAnswers = await validateMembershipProposal(fakeQuery, {
+    question_uid: 'cq:x',
+    overall_rationale: 'missing pro/con',
+    ops: [{ ...mintOp, pro_answer_statement: undefined, con_answer_statement: undefined } as never],
+  })
+  assert(
+    mintMissingAnswers.ops[0].errors.some((e) => e.includes('pro_answer_statement')),
+    `MINT requires pro/con statements: ${JSON.stringify(mintMissingAnswers.ops)}`
+  )
 }
+
+assert(
+  isVagueMintQuestion("Is The Atlantic's reporting on Kash Patel false?"),
+  'vague mint detector'
+)
+assert(
+  !isVagueMintQuestion(
+    'Did The Atlantic falsely report that Kash Patel kept an FBI target-list notebook?'
+  ),
+  'specific mint passes vague detector'
+)
 
 membershipChecks()
   .then(() => console.log('test-l3-proposal-validator: ok'))

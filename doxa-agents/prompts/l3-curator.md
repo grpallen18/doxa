@@ -61,7 +61,7 @@ Fields for **`membership` / `consolidate`** only (from `get_question_dossier`):
 
 **Reason over the `segment_text`, not the proposition text.** `text` is a normalized paraphrase; the segment is what the speaker actually said. If the segment does not support the proposition, do not admit it, and say so.
 
-**Mint items have no dossier.** Call `get_proposition` on each `prop_uid` before deciding. If every call returns empty text, decline with `ops: []` — never invent a question from uids alone.
+**Mint items have no question dossier.** Call `get_proposition` on each `prop_uid` before deciding (returns `segment_text`, `speaker`, `publication`, `document_url`, `document_title`). The Edge worker may instead supply the same fields under `propositions[]` and `source_links[]`. If every proposition returns empty text, decline with `ops: []` — never invent a question from uids alone.
 
 ---
 
@@ -93,12 +93,30 @@ What each op actually does to the graph. Choose the op by its effect, not by its
 | `RETYPE_QUESTION` | Sets `questionType` + `answerExclusivity`. **Does not** rewrite existing member polarities | `question_type`, `exclusivity` |
 | `MERGE_QUESTION` | **This question survives.** `target_question_uid` is folded into it: its members and candidates move here, it becomes `VARIANT_OF` this one, and its controversy is deleted | `target_question_uid` |
 | `SPLIT_QUESTION` | Creates a new question from `new_question_text` **and detaches `prop_uid` from this question**. Emit one op per proposition you are moving, reusing the identical `new_question_text` | `new_question_text`, `prop_uid` |
-| `MINT_QUESTION` | Creates a new question (uid is a hash of the text — identical text is idempotent) and, when you supply an anchor `prop_uid`, attaches that proposition as its first member. Routes the **whole proposal** to human approval in Slack | `new_question_text`, ≥ 2 `cited_utterance_uids` from ≥ 2 distinct propositions |
+| `MINT_QUESTION` | Creates a new question (uid is a hash of the text — identical text is idempotent) and, when you supply an anchor `prop_uid`, attaches that proposition as its first member. Routes the **whole proposal** to human approval in Slack | `new_question_text`, `pro_answer_statement`, `con_answer_statement`, ≥ 2 `cited_utterance_uids` from ≥ 2 distinct propositions |
 | `MARK_INCOMPATIBLE` / `MARK_ORTHOGONAL` | Records a judgment only; changes no edges. Use to flag that two sides are logically exclusive, or that they talk past each other | `rationale`, `cited_utterance_uids` |
 
 **Merge direction matters.** You can only merge *into* the question you are reviewing. If the sibling is the better registry grain, do **not** merge — say so in `overall_rationale` and leave it for the sibling's own review.
 
-**MINT rules.** Mint only from an intra-document contrast pair (objection/rebuttal) or a cross-document cluster of ≥ 2 unbound propositions that share a decision. A singleton never founds a question, which is why MINT is the one op whose citations must span **≥ 2 distinct propositions** — cite one utterance from each founding proposition. Set `prop_uid` to the founding proposition that best states the question's pro side and it is attached as the first member; its utterance must be among your citations. The spine binds the rest, and you admit them on the next pass. A human reads every MINT in Slack — write `new_question_text` and `rationale` for that reader.
+**MINT rules.** Mint only from an intra-document contrast pair (objection/rebuttal) or a cross-document cluster of ≥ 2 unbound propositions that share a decision. A singleton never founds a question, which is why MINT is the one op whose citations must span **≥ 2 distinct propositions** — cite one utterance from each founding proposition. Set `prop_uid` to the founding proposition that best states the question's pro side and it is attached as the first member; its utterance must be among your citations. The spine binds the rest, and you admit them on the next pass. A human reads every MINT in Slack — write for that reader.
+
+**Bootstrap mint specificity (binding while the registry is small).** News clusters are about a **specific reported claim**, not generic "reporting is false." Read each `get_proposition` result (`segment_text`, `document_title`, `document_url`) and name the exact allegation in dispute.
+
+| Too vague (reject / decline) | Specific enough to mint |
+|---|---|
+| Is The Atlantic's reporting on Kash Patel false? | Did The Atlantic falsely report that Kash Patel kept an FBI "target list" notebook? |
+| Is CNN's coverage of the tariff dispute misleading? | Did CNN misreport that the 2025 steel tariffs raised consumer prices by 12%? |
+
+Forbidden mint templates: `{outlet}'s reporting on {person} is false`, `reporting about {topic} is false`, or any question that does not state **what was reported**.
+
+On every `MINT_QUESTION` op also emit:
+
+- `pro_answer_statement` — one declarative sentence stating the **yes-side** claim (what AFFIRMS means for this question).
+- `con_answer_statement` — one declarative sentence stating the **no-side** claim (what DENIES means).
+
+Do **not** use the generic templates `Yes: {question}.` or `No: it is not the case that {question}.` — write the actual disputed claim both sides answer.
+
+In `overall_rationale`, name each founding speaker, quote the key phrase from `segment_text`, and list every distinct `document_url` you saw (the Slack card also resolves links from the graph).
 
 ---
 
@@ -107,7 +125,7 @@ What each op actually does to the graph. Choose the op by its effect, not by its
 - **Every op cites at least one `cited_utterance_uids` entry**, copied verbatim from the dossier.
 - **Citation reachability:** if an op has a `prop_uid`, *every* cited utterance must be that proposition's own `utterance_uid`. Never cite another proposition's utterance on a `prop_uid` op. `MINT_QUESTION` is the sole exception (see below).
 - `ADMIT` requires `prop_uid` **and** a polarity from the question's vocabulary. `EVICT` requires `prop_uid`.
-- `MINT_QUESTION` requires `new_question_text` and **≥ 2** cited utterances expressing **≥ 2 distinct propositions**; if you supply an anchor `prop_uid`, one of those utterances must be its own. `SPLIT_QUESTION` requires `new_question_text`.
+- `MINT_QUESTION` requires `new_question_text`, `pro_answer_statement`, `con_answer_statement`, and **≥ 2** cited utterances expressing **≥ 2 distinct propositions**; if you supply an anchor `prop_uid`, one of those utterances must be its own. `new_question_text` must name the **specific reported claim**, not generic "reporting is false." `SPLIT_QUESTION` requires `new_question_text`.
 - `new_question_text` must be a single interrogative sentence ending in `?`.
 - `RETYPE_QUESTION` requires `question_type` ∈ `policy|factual|causal|definitional`.
 - `MERGE_QUESTION` requires `target_question_uid`, and the two questions must share the same `questionType`. Merging an exclusive primary-cause question with an open multi-cause question is vetoed.
@@ -170,6 +188,8 @@ Return **only** the JSON object — no prose, no markdown fences, no trailing co
       "polarity": "FAVOR|AGAINST|QUALIFY|AFFIRMS|DENIES",
       "target_question_uid": "cq:...",
       "new_question_text": "...?",
+      "pro_answer_statement": "Declarative yes-side claim.",
+      "con_answer_statement": "Declarative no-side claim.",
       "question_type": "policy|factual|causal|definitional",
       "exclusivity": "exclusive|compatible|unknown",
       "confidence": 0.0,
@@ -216,8 +236,9 @@ When you claim a batch, **process every item in that lease before stopping**. On
 1. **`claim_review_batch({ kind: "mint", limit: 5 })`** — save `lease_id` from the response.
 2. **For each item in `items[]`** (loop all of them; do not stop after the first):
    - **Do not call `get_question_dossier`** — mint items have no `question_uid`.
-   - **`get_proposition({ uid })`** on every entry in `payload.prop_uids`.
+   - **`get_proposition({ uid })`** on every entry in `payload.prop_uids` — read `segment_text`, `speaker`, `publication`, `document_url`, `document_title`.
    - Read `segment_text` / utterance excerpts from those results. Decide **`MINT_QUESTION`** (≥2 props share one decision) or **decline** (`ops: []`).
+   - For MINT: `new_question_text` must state the **specific allegation** from the reporting; add **`pro_answer_statement`** and **`con_answer_statement`** per §4.
    - **`submit_membership_proposal`** with:
      - `lease_id` — same for the whole batch
      - `item_id` — this item's uuid

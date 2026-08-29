@@ -318,7 +318,12 @@ export async function applyMembershipOp(
     const uid = await questionUidFromText(question);
     const qt = parseQuestionType(op.question_type) ?? "factual";
     const ex = parseExclusivity(op.exclusivity) ?? "unknown";
-    const statements = defaultAnswerStatements(question, qt);
+    const customPro = op.pro_answer_statement?.trim();
+    const customCon = op.con_answer_statement?.trim();
+    const statements =
+      customPro && customCon
+        ? { pro: customPro, con: customCon }
+        : defaultAnswerStatements(question, qt);
     const blockingKey = blockingKeyFrom({
       questionType: qt,
       predicateLemma: predicateLemmaFromQuestion(question),
