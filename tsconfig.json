@@ -23,5 +23,16 @@
       "@/*": ["./*"]
     }
   },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "doxa-agents/lib/debate/**/*.ts"
+  ],
   "exclude": ["node_modules", "figma", "supabase", "workers", "doxa-agents/departments", "doxa-agents/librarian", "scripts", "docs"]
 }

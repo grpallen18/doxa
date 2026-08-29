@@ -46,7 +46,7 @@ export type QuestionDossier = {
   }>;
 };
 
-function asMember(row: Record<string, unknown>, extra?: Partial<DossierCandidate>): DossierMember & Partial<DossierCandidate> {
+function asMember(row: Record<string, unknown>): DossierMember {
   return {
     prop_uid: String(row.propUid ?? ""),
     text: String(row.text ?? ""),
@@ -57,7 +57,14 @@ function asMember(row: Record<string, unknown>, extra?: Partial<DossierCandidate
     published_at: row.publishedAt != null ? String(row.publishedAt) : null,
     utterance_uid: row.utteranceUid != null ? String(row.utteranceUid) : null,
     segment_text: row.segmentText != null ? String(row.segmentText) : null,
-    ...extra,
+  };
+}
+
+function asCandidate(row: Record<string, unknown>): DossierCandidate {
+  return {
+    ...asMember(row),
+    score: Number(row.score) || 0,
+    method: row.method != null ? String(row.method) : null,
   };
 }
 
@@ -210,9 +217,7 @@ export async function getQuestionDossier(
       candidate_count: candidates.length,
     },
     members: members.map((r) => asMember(r)),
-    candidates: candidates.map((r) =>
-      asMember(r, { score: Number(r.score) || 0, method: r.method != null ? String(r.method) : null })
-    ),
+    candidates: candidates.map((r) => asCandidate(r)),
     sibling_questions,
     prior_decisions: prior,
   };
