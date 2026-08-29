@@ -99,6 +99,20 @@ These Edge functions drain the same queues with an LLM when Grok is offline:
 
 Optional Supabase secrets for xAI API: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
 
+## 7. Bootstrap → full cutover
+
+While `graph_questions` count &lt; 30, the spine runs **bootstrap mode**: only `mint` queue items, no dirty-question membership enqueue, no counter-side sweep.
+
+After the first human-approved MINT is proven (Slack → applier → Question in Neo4j):
+
+1. Ensure **`project_debate_summaries`** has run so `graph_questions` reflects Neo4j (otherwise bootstrap stays stuck at 0 projected rows).
+2. Set Edge secret **`L3_BOOTSTRAP=false`** (or `0` / `off`) on curator/enqueue workers to enable membership + consolidate + lead requests before hitting 30 questions.
+3. Re-run **`apply_l3_proposals`** if Grok declines pile up as `submitted` — until applied, queue items recycle and `l3ReviewedAt` is not stamped.
+
+Hourly **`debate_pipeline`** (limit 500) runs `bind_candidates`, **`detect_contrast_seeds`** (intra-doc pro/con pairs), apply, then enqueue (600 unbound props/tick, cursor-rotated).
+
+Force one-off full enqueue without waiting for the secret: POST `enqueue_l3_reviews` with `{"bootstrap": false}`.
+
 ## Related
 
 - [grok-bot-architecture.md](../../doxa-agents/docs/grok-bot-architecture.md)

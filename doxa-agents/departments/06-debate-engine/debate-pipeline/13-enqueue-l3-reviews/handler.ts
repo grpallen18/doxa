@@ -11,6 +11,7 @@ import { cosineSimilarity, UNBOUND_CLUSTER_COSINE } from "../../../../lib/debate
 import { loadBootstrapState, UNBOUND_CLUSTER_MIN_SIZE } from "../../../../lib/debate/bootstrap-config.ts";
 
 const DEFAULT_LIMIT = 80;
+const DEFAULT_UNBOUND_SCAN = 500;
 
 type QRow = {
   uid: string;
@@ -56,6 +57,7 @@ export const handler = async (req: Request) => {
 
   const dryRun = Boolean(body.dry_run ?? false);
   const limit = clampInt(body.limit, 1, 200, DEFAULT_LIMIT);
+  const unboundScanLimit = clampInt(body.unbound_limit, 100, 1000, DEFAULT_UNBOUND_SCAN);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const bootstrap =
@@ -103,8 +105,13 @@ export const handler = async (req: Request) => {
            coalesce(p.text, p.normalizedText, '') AS text,
            p.embedding AS embedding,
            p.l3ReviewedAt IS NOT NULL AS reviewed
-    LIMIT 200
-    `
+    ORDER BY
+      CASE WHEN p.l3ReviewedAt IS NULL THEN 0 ELSE 1 END,
+      coalesce(p.l3EnqueueScannedAt, datetime({epochMillis: 0})),
+      p.uid
+    LIMIT $limit
+    `,
+    { limit: neoInt(unboundScanLimit) }
   );
 
   const clusters: string[][] = [];
@@ -135,6 +142,7 @@ export const handler = async (req: Request) => {
       bootstrap,
       dirty_questions: questions.length,
       unbound_clusters: clusters.length,
+      unbound_scanned: unbound.length,
     });
   }
   let enqueued = 0;
@@ -177,6 +185,14 @@ export const handler = async (req: Request) => {
     if (!error) enqueued += 1;
   }
 
+  const scannedUids = unbound.map((p) => p.uid).filter(Boolean);
+  if (scannedUids.length) {
+    await runCypher(
+      `MATCH (p:Proposition) WHERE p.uid IN $uids SET p.l3EnqueueScannedAt = datetime()`,
+      { uids: scannedUids }
+    );
+  }
+
   let leadRequests = 0;
   if (!bootstrap) {
     const onesided = await runCypher<{ uid: string; thesis: string | null }>(
@@ -211,6 +227,7 @@ export const handler = async (req: Request) => {
     ok: true,
     dirty_questions: questions.length,
     unbound_clusters: clusters.length,
+    unbound_scanned: unbound.length,
     enqueued,
     lead_requests: leadRequests,
     bootstrap,

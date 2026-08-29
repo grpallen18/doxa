@@ -15,17 +15,49 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const STEP_NAMES = [
   "bind_candidates",
   "detect_contrast_seeds",
-  "enqueue_l3_reviews",
-  "attach_approved_lead",
   "apply_l3_proposals",
+  "attach_approved_lead",
+  "enqueue_l3_reviews",
   "qualify_controversies",
   "apply_viewpoint_proposals",
   "detect_disputes",
   "project_debate_summaries",
 ] as const;
 
-/** Keep detect_contrast_seeds on disk; do not call until graph-team MINT is proven (retire last). */
-const DISABLED_STEPS = new Set<string>(["detect_contrast_seeds"]);
+function stepBodyFor(
+  name: (typeof STEP_NAMES)[number],
+  body: Record<string, unknown>,
+  dryRun: boolean,
+  resolvedQuestionUid: string
+): Record<string, unknown> {
+  const stepBody: Record<string, unknown> = { dry_run: dryRun };
+  const pipelineLimit = body.limit != null ? Number(body.limit) : undefined;
+
+  if (name === "bind_candidates") {
+    stepBody.limit = body.bind_limit ?? pipelineLimit ?? 500;
+  } else if (name === "enqueue_l3_reviews") {
+    stepBody.limit = body.enqueue_limit ?? 80;
+    stepBody.unbound_limit = body.unbound_limit ?? 600;
+  } else if (name === "apply_l3_proposals") {
+    stepBody.limit = body.apply_limit ?? pipelineLimit ?? 50;
+  } else if (name === "detect_contrast_seeds") {
+    stepBody.limit = body.contrast_limit ?? Math.min(pipelineLimit ?? 40, 100);
+  } else if (pipelineLimit != null) {
+    stepBody.limit = pipelineLimit;
+  }
+
+  if (body.force != null) stepBody.force = body.force;
+  if (body.force_apply_all != null) stepBody.force_apply_all = body.force_apply_all;
+  if (body.proposition_uid != null) stepBody.proposition_uid = body.proposition_uid;
+  if (resolvedQuestionUid) stepBody.question_uid = resolvedQuestionUid;
+  if (body.controversy_uid != null && name === "project_debate_summaries") {
+    stepBody.controversy_uid = body.controversy_uid;
+  }
+  if (name === "detect_disputes") {
+    stepBody.skip_llm = body.skip_llm != null ? Boolean(body.skip_llm) : true;
+  }
+  return stepBody;
+}
 
 function resolveQuestionUid(body: Record<string, unknown>): string {
   const direct = typeof body.question_uid === "string" ? body.question_uid.trim() : "";
@@ -67,28 +99,8 @@ export const handler = async (req: Request) => {
     const tAll = performance.now();
 
     for (const name of STEP_NAMES) {
-      if (DISABLED_STEPS.has(name)) {
-        steps.push({
-          name,
-          status: "success",
-          duration_ms: 0,
-          result: { skipped: true, reason: "auto_mint_disabled_until_graph_team_mint_proven" },
-        });
-        continue;
-      }
       const t0 = performance.now();
-      const stepBody: Record<string, unknown> = { dry_run: dryRun };
-      if (body.limit != null) stepBody.limit = body.limit;
-      if (body.force != null) stepBody.force = body.force;
-      if (body.force_apply_all != null) stepBody.force_apply_all = body.force_apply_all;
-      if (body.proposition_uid != null) stepBody.proposition_uid = body.proposition_uid;
-      if (resolvedQuestionUid) stepBody.question_uid = resolvedQuestionUid;
-      if (body.controversy_uid != null && name === "project_debate_summaries") {
-        stepBody.controversy_uid = body.controversy_uid;
-      }
-      if (name === "detect_disputes") {
-        stepBody.skip_llm = body.skip_llm != null ? Boolean(body.skip_llm) : true;
-      }
+      const stepBody = stepBodyFor(name, body, dryRun, resolvedQuestionUid);
 
       const res = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, name, stepBody);
       const duration_ms = Math.round(performance.now() - t0);

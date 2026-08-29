@@ -13,7 +13,7 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
     ),
-    body := '{"limit": 40, "skip_llm": true}'::jsonb,
+    body := '{"limit": 500, "skip_llm": true}'::jsonb,
     timeout_milliseconds := 600000
   ) as request_id;
   $$

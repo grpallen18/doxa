@@ -13,7 +13,7 @@ import { maxAnswerCosine } from "../../../../lib/debate/candidate-bind.ts";
 import { lexicalNli, shouldBindCandidate } from "../../../../lib/debate/nli-rerank.ts";
 import { resolveDebateRole, mayBeCandidateAnswer } from "../../../../lib/debate/debate-role.ts";
 
-const DEFAULT_LIMIT = 80;
+const DEFAULT_LIMIT = 500;
 
 type QuestionRow = {
   uid: string;
@@ -50,7 +50,7 @@ export const handler = async (req: Request) => {
   } catch { /* defaults */ }
 
   const dryRun = Boolean(body.dry_run ?? false);
-  const limit = clampInt(body.limit, 1, 200, DEFAULT_LIMIT);
+  const limit = clampInt(body.limit, 1, 2000, DEFAULT_LIMIT);
   const onlyUid = typeof body.proposition_uid === "string" ? body.proposition_uid.trim() : "";
   const questionUid = typeof body.question_uid === "string" ? body.question_uid.trim() : "";
 
@@ -80,6 +80,7 @@ export const handler = async (req: Request) => {
     `
     MATCH (p:Proposition)
     WHERE ($onlyUid = '' OR p.uid = $onlyUid)
+      AND p.embedding IS NOT NULL
       AND coalesce(p.debateEligible, true) <> false
       AND NOT EXISTS { MATCH (p)-[:ANSWERS]->(:Question) }
     OPTIONAL MATCH (p)<-[:EXPRESSES]-(u:Utterance)
@@ -95,7 +96,7 @@ export const handler = async (req: Request) => {
            speechActs,
            roles,
            entityUids
-    ORDER BY p.uid
+    ORDER BY coalesce(p.candidateBindScannedAt, datetime({epochMillis: 0})), p.uid
     LIMIT $limit
     `,
     { onlyUid, limit: neoInt(limit) }
@@ -164,6 +165,14 @@ export const handler = async (req: Request) => {
           c.updatedAt = datetime()
       `,
       { hits }
+    );
+  }
+
+  const scannedUids = props.map((p) => p.uid).filter(Boolean);
+  if (scannedUids.length && !dryRun) {
+    await runCypher(
+      `MATCH (p:Proposition) WHERE p.uid IN $uids SET p.candidateBindScannedAt = datetime()`,
+      { uids: scannedUids }
     );
   }
 

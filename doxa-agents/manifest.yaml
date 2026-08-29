@@ -289,7 +289,7 @@ steps:
       job_name: debate-pipeline-hourly
       schedule: 15 * * * *
       sql: doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql
-      body: '{"limit": 40, "skip_llm": true}'
+      body: '{"limit": 500, "skip_llm": true}'
   - id: bind-candidates
     department: 06-debate-engine
     workflow: debate-pipeline

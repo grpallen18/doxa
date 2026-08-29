@@ -4,9 +4,9 @@ Registry-first L3 assembly. Deterministic candidate binding + proposal applier; 
 
 | Step | Folder | Deploy | Notes |
 |------|--------|--------|-------|
-| bind-candidates | [09-bind-candidates](09-bind-candidates/) | `bind_candidates` | Entity + answer-form kNN → `CANDIDATE_FOR` (no ANSWERS) |
-| detect-contrast-seeds | [12-detect-contrast-seeds](12-detect-contrast-seeds/) | `detect_contrast_seeds` | Intra-doc objection/rebuttal pairs → mint queue |
-| enqueue-l3-reviews | [13-enqueue-l3-reviews](13-enqueue-l3-reviews/) | `enqueue_l3_reviews` | Dirty questions + unbound clusters → `l3_review_queue` |
+| bind-candidates | [09-bind-candidates](09-bind-candidates/) | `bind_candidates` | Entity + answer-form kNN → `CANDIDATE_FOR` (default 500 props/tick, rotated scan) |
+| detect-contrast-seeds | [12-detect-contrast-seeds](12-detect-contrast-seeds/) | `detect_contrast_seeds` | Intra-doc objection/rebuttal pairs → mint queue (priority 80) |
+| enqueue-l3-reviews | [13-enqueue-l3-reviews](13-enqueue-l3-reviews/) | `enqueue_l3_reviews` | Dirty questions + unbound clusters → `l3_review_queue` (runs **after** apply; scans up to 600 unbound props/tick, rotated) |
 | attach-approved-lead | [18-attach-approved-lead](18-attach-approved-lead/) | `attach_approved_lead` | Targeted `CANDIDATE_FOR` for `metadata.approved_lead` stories |
 | apply-l3-proposals | [10-apply-l3-proposals](10-apply-l3-proposals/) | `apply_l3_proposals` | Validate + apply proposals (grounding, blast-radius, revert) |
 | qualify-controversies | [11-qualify-controversies](11-qualify-controversies/) | `qualify_controversies` | Structural overlay from ANSWERS |
