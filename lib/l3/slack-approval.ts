@@ -7,6 +7,26 @@ import {
 
 const SLACK_API = 'https://slack.com/api'
 
+export const MIN_REJECT_REASON_LEN = 8
+
+const PLACEHOLDER_REJECT_REASONS = new Set([
+  'slack_button_reject',
+  'reject',
+  'no',
+  'rejected',
+])
+
+export function normalizeRejectReason(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ')
+}
+
+export function isValidRejectReason(raw: string): boolean {
+  const reason = normalizeRejectReason(raw)
+  if (reason.length < MIN_REJECT_REASON_LEN) return false
+  if (PLACEHOLDER_REJECT_REASONS.has(reason.toLowerCase())) return false
+  return true
+}
+
 export function slackConfigured(): boolean {
   return Boolean(
     process.env.SLACK_BOT_TOKEN &&
@@ -45,7 +65,8 @@ export function parseApprovalText(
     return { verdict: 'approve', reason: trimmed }
   }
   if (/^reject\b/.test(lower) || lower === 'no') {
-    const reason = trimmed.replace(/^(reject|no)\s*:?\s*/i, '').trim() || trimmed
+    const reason = normalizeRejectReason(trimmed.replace(/^(reject|no)\s*:?\s*/i, ''))
+    if (!isValidRejectReason(reason)) return null
     return { verdict: 'reject', reason }
   }
   return null
@@ -136,7 +157,10 @@ export async function postPendingApprovalCard(proposalUid: string): Promise<void
     blocks: [
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: `${text}\n\nReply \`approve\` or \`reject: reason\` in this thread.` },
+        text: {
+          type: 'mrkdwn',
+          text: `${text}\n\nReply \`approve\`, or \`reject: your reason\` in this thread. The Reject button asks for a required reason.`,
+        },
       },
       {
         type: 'actions',
@@ -165,6 +189,47 @@ export async function postPendingApprovalCard(proposalUid: string): Promise<void
     slack_channel: posted.channel ?? channel,
     slack_thread_ts: posted.ts,
     updated_at: new Date().toISOString(),
+  })
+}
+
+export async function openRejectReasonModal(opts: {
+  triggerId: string
+  proposalUid: string
+  slackChannel?: string
+  slackThreadTs?: string
+}): Promise<void> {
+  await slackPost('views.open', {
+    trigger_id: opts.triggerId,
+    view: {
+      type: 'modal',
+      callback_id: 'l3_reject_modal',
+      private_metadata: JSON.stringify({
+        proposal_uid: opts.proposalUid,
+        slack_channel: opts.slackChannel ?? '',
+        slack_thread_ts: opts.slackThreadTs ?? '',
+      }),
+      title: { type: 'plain_text', text: 'Reject proposal' },
+      submit: { type: 'plain_text', text: 'Reject' },
+      close: { type: 'plain_text', text: 'Cancel' },
+      blocks: [
+        {
+          type: 'input',
+          block_id: 'reject_reason_block',
+          label: { type: 'plain_text', text: 'Reason (required)' },
+          element: {
+            type: 'plain_text_input',
+            action_id: 'reject_reason',
+            multiline: true,
+            min_length: MIN_REJECT_REASON_LEN,
+            max_length: 2000,
+            placeholder: {
+              type: 'plain_text',
+              text: 'Explain why this proposal should not be applied (grain, missing context, wrong question, etc.).',
+            },
+          },
+        },
+      ],
+    },
   })
 }
 
@@ -208,13 +273,22 @@ export async function recordApprovalDecision(opts: {
     return { ok: false, error: `proposal already ${row.status}` }
   }
 
+  const rejectReason =
+    opts.verdict === 'reject' ? normalizeRejectReason(opts.reason) : opts.reason
+  if (opts.verdict === 'reject' && !isValidRejectReason(rejectReason)) {
+    return {
+      ok: false,
+      error: `reject reason required (at least ${MIN_REJECT_REASON_LEN} characters, not a placeholder)`,
+    }
+  }
+
   await supabase.from('l3_approval_decisions').insert({
     proposal_uid: opts.proposalUid,
     slack_channel: opts.slackChannel ?? null,
     slack_thread_ts: opts.slackThreadTs ?? null,
     approver_slack_user: opts.slackUser,
     verdict: opts.verdict,
-    reason: opts.reason,
+    reason: rejectReason,
     payload_snapshot: row.payload,
   })
 
@@ -223,7 +297,7 @@ export async function recordApprovalDecision(opts: {
       .from('l3_proposals')
       .update({
         status: 'rejected',
-        validator_errors: { slack: opts.reason },
+        validator_errors: { slack: rejectReason },
         updated_at: new Date().toISOString(),
       })
       .eq('proposal_uid', opts.proposalUid)
@@ -244,14 +318,14 @@ export async function recordApprovalDecision(opts: {
       question_uid: row.question_uid ?? '',
       prop_uid: null,
       op_type: 'MINT_QUESTION',
-      reason: opts.reason,
+      reason: rejectReason,
       proposal_uid: opts.proposalUid,
     })
     if (opts.slackChannel && opts.slackThreadTs) {
       await slackPost('chat.postMessage', {
         channel: opts.slackChannel,
         thread_ts: opts.slackThreadTs,
-        text: `Rejected: ${opts.reason}`,
+        text: `Rejected: ${rejectReason}`,
       }).catch(() => {})
     }
     return { ok: true }
