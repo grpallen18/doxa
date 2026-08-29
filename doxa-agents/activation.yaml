@@ -33,6 +33,7 @@ active:
   - detect-disputes
   - project-debate-summaries
   - debate-pipeline
+  - attach-approved-lead
   - run-l3-curator
   - run-l3-editor
   - run-l3-auditor

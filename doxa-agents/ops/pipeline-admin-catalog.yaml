@@ -57,6 +57,10 @@ stages:
         label: Enqueue L3 reviews
         invoke_options:
           timeout_ms: 120000
+      - id: attach-approved-lead
+        label: Attach approved leads
+        invoke_options:
+          timeout_ms: 180000
       - id: run-l3-curator
         label: Run L3 curator
         invoke_options:

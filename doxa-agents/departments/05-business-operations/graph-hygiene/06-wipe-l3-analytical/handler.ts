@@ -143,11 +143,14 @@ export const handler = async (req: Request) => {
         "graph_viewpoints",
         "graph_controversies",
         "graph_questions",
+        "l3_approval_decisions",
+        "l3_slack_threads",
         "l3_proposal_ops",
+        "l3_gold_negatives",
         "l3_proposals",
         "l3_review_queue",
         "l3_runs",
-        "l3_gold_negatives",
+        "lead_requests",
       ];
       const noUid = new Set([
         "graph_controversy_subjects",
@@ -159,6 +162,9 @@ export const handler = async (req: Request) => {
         "l3_review_queue",
         "l3_runs",
         "l3_gold_negatives",
+        "l3_approval_decisions",
+        "l3_slack_threads",
+        "lead_requests",
       ]);
       for (const table of tables) {
         const q = noUid.has(table)

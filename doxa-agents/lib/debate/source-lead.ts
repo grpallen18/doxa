@@ -58,8 +58,16 @@ export function assertPublicHttpUrl(raw: string): URL {
 
 export async function ingestSourceLead(
   supabase: { from: (table: string) => any },
-  lead: { url: string; title?: string; question_uid: string; note?: string }
-): Promise<{ story_url: string; source_id: string }> {
+  lead: {
+    url: string;
+    title?: string;
+    question_uid: string;
+    note?: string;
+    approved?: boolean;
+    lead_request_id?: string;
+    proposal_uid?: string;
+  }
+): Promise<{ story_url: string; source_id: string; story_id?: string }> {
   const url = lead.url.trim();
   const parsedUrl = assertPublicHttpUrl(url);
   const host = parsedUrl.hostname.replace(/^www\./, "");
@@ -86,7 +94,7 @@ export async function ingestSourceLead(
   }
   if (!sourceId) throw new Error("failed to resolve L3 acquisition source");
 
-  const { error } = await supabase.from("stories").upsert(
+  const { data: story, error } = await supabase.from("stories").upsert(
     {
       source_id: sourceId,
       url,
@@ -98,10 +106,23 @@ export async function ingestSourceLead(
         question_uid: lead.question_uid,
         note: lead.note ?? "",
         expected_domain: host,
+        ...(lead.approved
+          ? {
+              approved_lead: {
+                question_uid: lead.question_uid,
+                lead_request_id: lead.lead_request_id ?? null,
+                proposal_uid: lead.proposal_uid ?? null,
+              },
+            }
+          : {}),
       },
     },
-    { onConflict: "url", ignoreDuplicates: true }
-  );
+    { onConflict: "url", ignoreDuplicates: !lead.approved }
+  ).select("story_id").maybeSingle();
   if (error) throw new Error(error.message);
-  return { story_url: url, source_id: sourceId };
+  return {
+    story_url: url,
+    source_id: sourceId,
+    story_id: story?.story_id ? String(story.story_id) : undefined,
+  };
 }

@@ -27,6 +27,7 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 | bind-candidates | `bind_candidates` | active | — | story_id |
 | detect-contrast-seeds | `detect_contrast_seeds` | active | — | story_id |
 | enqueue-l3-reviews | `enqueue_l3_reviews` | active | — | story_id |
+| attach-approved-lead | `attach_approved_lead` | active | — | story_id |
 | run-l3-curator | `run_l3_curator` | active | — | story_id |
 | apply-l3-proposals | `apply_l3_proposals` | active | — | story_id |
 | qualify-controversies | `qualify_controversies` | active | — | story_id |

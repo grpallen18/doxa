@@ -32,6 +32,9 @@ FOR (m:MediaAsset) REQUIRE m.uid IS UNIQUE;
 CREATE CONSTRAINT proposition_uid IF NOT EXISTS
 FOR (p:Proposition) REQUIRE p.uid IS UNIQUE;
 
+CREATE INDEX proposition_debate_eligible IF NOT EXISTS
+FOR (p:Proposition) ON (p.debateEligible);
+
 CREATE CONSTRAINT entity_uid IF NOT EXISTS
 FOR (e:Entity) REQUIRE e.uid IS UNIQUE;
 

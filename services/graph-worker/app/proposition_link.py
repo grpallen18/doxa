@@ -45,6 +45,7 @@ class LinkedProposition:
     link_score: float | None
     matched_existing: bool
     variant_of_uid: str | None
+    debate_eligible: bool
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,7 @@ def link_propositions(
             link_score=best_score if best else None,
             matched_existing=matched,
             variant_of_uid=variant_of,
+            debate_eligible=prop.debate_eligible,
         )
         linked.append(row)
         if not matched:

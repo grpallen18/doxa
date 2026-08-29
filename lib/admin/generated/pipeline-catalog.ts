@@ -13,6 +13,7 @@ export type PipelineStepId =
   | "bind-candidates"
   | "detect-contrast-seeds"
   | "enqueue-l3-reviews"
+  | "attach-approved-lead"
   | "run-l3-curator"
   | "apply-l3-proposals"
   | "qualify-controversies"
@@ -105,6 +106,7 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
       "bind-candidates",
       "detect-contrast-seeds",
       "enqueue-l3-reviews",
+      "attach-approved-lead",
       "run-l3-curator",
       "apply-l3-proposals",
       "qualify-controversies",
@@ -334,6 +336,27 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "usesMaxChunks": false,
       "maxChunks": null,
       "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "attach-approved-lead",
+    "deployName": "attach_approved_lead",
+    "label": "Attach approved leads",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 180000
     },
     "inactiveNote": null
   },
@@ -853,6 +876,7 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "bind_candidates",
   "detect_contrast_seeds",
   "enqueue_l3_reviews",
+  "attach_approved_lead",
   "run_l3_curator",
   "apply_l3_proposals",
   "qualify_controversies",

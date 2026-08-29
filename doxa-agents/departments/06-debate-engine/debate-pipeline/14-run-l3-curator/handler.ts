@@ -11,7 +11,9 @@ import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
 import { getQuestionDossier } from "../../../../lib/debate/dossier.ts";
 import { chatJson, estimateCostUsd, llmConfigFromDeno } from "../../../../lib/debate/llm.ts";
 import { CURATOR_SYSTEM } from "../../../../lib/debate/prompts.ts";
-import { normalizeOp } from "../../../../lib/debate/proposal-ops.ts";
+import { normalizeOp, initialProposalStatus } from "../../../../lib/debate/proposal-ops.ts";
+import { notifyPendingProposal } from "../../../../lib/debate/notify-approval.ts";
+import { loadBootstrapState } from "../../../../lib/debate/bootstrap-config.ts";
 
 const DEFAULT_LIMIT = 5;
 
@@ -40,13 +42,16 @@ export const handler = async (req: Request) => {
 
   const dryRun = Boolean(body.dry_run ?? false);
   const limit = clampInt(body.limit, 1, 15, DEFAULT_LIMIT);
-  const kinds =
-    typeof body.kind === "string" && body.kind.trim()
-      ? [body.kind.trim()]
-      : ["membership", "mint", "consolidate"];
   const botId = "curator";
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  const bootstrap = (await loadBootstrapState(supabase)).bootstrap;
+  const kinds =
+    typeof body.kind === "string" && body.kind.trim()
+      ? [body.kind.trim()]
+      : bootstrap
+        ? ["mint"]
+        : ["membership", "mint", "consolidate"];
   const items: Array<Record<string, unknown>> = [];
   for (const kind of kinds) {
     const remaining = Math.max(1, limit - items.length);
@@ -97,11 +102,13 @@ export const handler = async (req: Request) => {
             .map((o) => normalizeOp((o ?? {}) as Record<string, unknown>))
             .filter((o): o is NonNullable<typeof o> => o != null)
         : [];
+      const kind = String(item.kind ?? "membership");
       const proposalUid = `curator:${item.lease_id}:${item.item_id}`;
+      const status = initialProposalStatus(kind, ops);
       await supabase.from("l3_proposals").upsert({
         proposal_uid: proposalUid,
         bot_id: botId,
-        kind: String(item.kind ?? "membership"),
+        kind,
         question_uid: questionUid || null,
         lease_id: item.lease_id,
         payload: {
@@ -109,9 +116,12 @@ export const handler = async (req: Request) => {
           overall_rationale: result.parsed.overall_rationale ?? "",
           ops,
         },
-        status: "submitted",
+        status,
         updated_at: new Date().toISOString(),
       });
+      if (status === "pending_approval") {
+        await notifyPendingProposal(proposalUid);
+      }
       await supabase
         .from("l3_review_queue")
         .update({ state: "proposed", updated_at: new Date().toISOString() })

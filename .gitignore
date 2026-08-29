@@ -45,3 +45,6 @@ next-env.d.ts
 
 # cursor librarian hook queue (local only)
 .cursor/librarian-queue.json
+
+# Slack CLI local app state
+integrations/slack-l3-approvals/.slack/

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { TOPIC_HUB_DENSITY_BAR } from '@/lib/explore-routes'
+import { DEBATE_REBUILD_MESSAGE, isDebateRebuildMode } from '@/lib/debate-rebuild'
 
 type InventoryPayload = {
   density_bar: number
@@ -147,6 +148,14 @@ function inventoryHtml(data: InventoryPayload) {
 }
 
 export async function GET(request: NextRequest) {
+  if (isDebateRebuildMode()) {
+    return NextResponse.json({
+      maintenance: true,
+      guidance: DEBATE_REBUILD_MESSAGE,
+      controversies: 0,
+      viewpoints: 0,
+    })
+  }
   try {
     const data = await loadInventory()
     const format = request.nextUrl.searchParams.get('format')

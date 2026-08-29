@@ -9,6 +9,7 @@ from typing import Any
 
 from openai import OpenAI
 
+from app.debate_eligible import debate_eligible, should_echo_fallback
 from app.openai_compat import chat_completion_kwargs
 from app.validate import ValidatedUtterance
 
@@ -31,6 +32,7 @@ class ExtractedProposition:
     certainty: str
     timeframe: str
     scope: str
+    debate_eligible: bool = True
 
 
 def _parse_json_object(raw: str) -> dict[str, Any]:
@@ -108,10 +110,10 @@ def extract_propositions(
             )
         )
 
-    # Ensure every utterance has at least one proposition (under-merge fallback).
+    # Verbatim echo only for assertive speech acts; skip questions/definitions/other.
     covered = {p.utterance_index for p in out}
     for i, u in enumerate(utterances):
-        if i not in covered:
+        if i not in covered and should_echo_fallback(u.speech_act):
             out.append(
                 ExtractedProposition(
                     utterance_index=i,
@@ -121,5 +123,18 @@ def extract_propositions(
                     scope="unspecified",
                 )
             )
-    out.sort(key=lambda p: (p.utterance_index, p.text))
-    return out, token_usage
+    tagged: list[ExtractedProposition] = []
+    for p in out:
+        u = utterances[p.utterance_index]
+        tagged.append(
+            ExtractedProposition(
+                utterance_index=p.utterance_index,
+                text=p.text,
+                certainty=p.certainty,
+                timeframe=p.timeframe,
+                scope=p.scope,
+                debate_eligible=debate_eligible(p.text, u),
+            )
+        )
+    tagged.sort(key=lambda p: (p.utterance_index, p.text))
+    return tagged, token_usage

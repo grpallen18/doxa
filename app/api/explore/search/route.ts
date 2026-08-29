@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { searchExplore } from '@/lib/explore/queries'
+import { isDebateRebuildMode } from '@/lib/debate-rebuild'
 
 export async function GET(request: NextRequest) {
+  if (isDebateRebuildMode()) {
+    return NextResponse.json({ maintenance: true, results: [], controversies: [], topics: [] })
+  }
   try {
     const q = request.nextUrl.searchParams.get('q') ?? ''
     const supabase = await createClient()

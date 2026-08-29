@@ -34,6 +34,7 @@ supabase functions deploy run_l3_curator
 supabase functions deploy run_l3_editor
 supabase functions deploy run_l3_auditor
 supabase functions deploy sweep_counter_side
+supabase functions deploy attach_approved_lead
 supabase functions deploy generate_evidence_check_candidates
 supabase functions deploy run_evidence_checks
 supabase functions deploy extract_citations
@@ -77,6 +78,7 @@ supabase functions deploy run_l3_curator --no-verify-jwt
 supabase functions deploy run_l3_editor --no-verify-jwt
 supabase functions deploy run_l3_auditor --no-verify-jwt
 supabase functions deploy sweep_counter_side --no-verify-jwt
+supabase functions deploy attach_approved_lead --no-verify-jwt
 supabase functions deploy generate_evidence_check_candidates --no-verify-jwt
 supabase functions deploy run_evidence_checks --no-verify-jwt
 supabase functions deploy extract_citations --no-verify-jwt

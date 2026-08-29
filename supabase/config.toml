@@ -398,6 +398,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.wipe_l3_analytical]
 verify_jwt = false
+[functions.attach_approved_lead]
+verify_jwt = false
 [functions.label_cq_gold_batch]
 verify_jwt = false
 [functions.seed_question_registry]

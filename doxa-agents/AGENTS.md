@@ -21,6 +21,8 @@ legacy/               → archived merge / canonical / topology (pending deletio
 
 **Important:** Controversy topology is the product surface; Neo4j is the discourse substrate. Phase 0–2a write Utterances → Propositions/Entities → Arguments in the graph-worker. Cross-document Viewpoint / Controversy / Dispute assembly is the Edge `debate_pipeline`.
 
+**L3 direction (2026-08):** Three Grok teams (provenance, debate, ingestion). Product debate **paused** during rebuild. Read [docs/grok-bot-architecture.md](docs/grok-bot-architecture.md) before changing debate-pipeline handlers.
+
 ## What you edit manually
 
 | Responsibility | Where |

@@ -469,6 +469,7 @@ def write_propositions(
                 "decisionStatus": item.decision_status,
                 "linkScore": item.link_score,
                 "variantOfUid": item.variant_of_uid,
+                "debateEligible": bool(item.debate_eligible),
             }
         )
 
@@ -484,11 +485,13 @@ def write_propositions(
       p.scope = row.scope,
       p.embedding = row.embedding,
       p.schemaVersion = $schema_version,
+      p.debateEligible = row.debateEligible,
       p.createdAt = datetime(),
       p.updatedAt = datetime()
     ON MATCH SET
       p.embedding = coalesce(p.embedding, row.embedding),
       p.schemaVersion = coalesce(p.schemaVersion, $schema_version),
+      p.debateEligible = row.debateEligible,
       p.updatedAt = datetime()
     MERGE (u)-[ex:EXPRESSES]->(p)
     SET ex.linkScore = row.linkScore

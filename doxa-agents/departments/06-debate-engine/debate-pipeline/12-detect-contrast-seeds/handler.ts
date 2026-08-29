@@ -26,6 +26,22 @@ export const handler = async (req: Request) => {
 
   const authError = await requireInternalAuth(req);
   if (authError) return authError;
+
+  return json({
+    ok: true,
+    skipped: true,
+    reason: "auto_mint_disabled_until_graph_team_mint_proven",
+    enqueued: 0,
+  });
+};
+
+/** Original auto-mint enqueue — restore only after grok-bot-architecture retire-auto-mint checklist. */
+export const legacyDetectContrastSeedsHandler = async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";

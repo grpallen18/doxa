@@ -387,6 +387,14 @@ steps:
       schedule: 50 */2 * * *
       sql: doxa-agents/departments/06-debate-engine/debate-pipeline/17-sweep-counter-side/schedule.sql
       body: '{"limit": 20}'
+  - id: attach-approved-lead
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/18-attach-approved-lead
+    deploy_name: attach_approved_lead
+    verify_jwt: false
   - id: generate-evidence-check-candidates
     department: 07-analysis-engine
     workflow: analysis-pipeline

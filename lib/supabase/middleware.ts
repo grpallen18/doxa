@@ -46,7 +46,7 @@ function isPublicPath(pathname: string): boolean {
 
 /** Remote MCP bots authenticate with Bearer tokens on the route, not Supabase sessions. */
 function isPublicApiPath(pathname: string): boolean {
-  return pathname.startsWith('/api/mcp/')
+  return pathname.startsWith('/api/mcp/') || pathname.startsWith('/api/slack/')
 }
 
 /**

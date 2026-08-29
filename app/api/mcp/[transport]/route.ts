@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { authenticateMcpBot, rateLimitOk } from '@/lib/l3/mcp-auth'
 import { callMcpTool, MCP_TOOLS } from '@/lib/l3/mcp-tools'
+import { botMayCallTool } from '@/lib/l3/mcp-allowlist'
 
 export const runtime = 'nodejs'
 
@@ -62,7 +63,9 @@ export async function POST(request: Request) {
     if (method === 'notifications/initialized') {
       return new NextResponse(null, { status: 204 })
     }
-    return rpcResult(body.id, { tools: MCP_TOOLS })
+    return rpcResult(body.id, {
+      tools: MCP_TOOLS.filter((t) => botMayCallTool(bot.kind, t.name)),
+    })
   }
   if (method === 'tools/call') {
     const name = String(body.params?.name ?? '')

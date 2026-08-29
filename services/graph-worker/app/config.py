@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 # Keep in sync with doxa-agents/docs/architecture/neo4j-graph-architecture.md
 # and doxa-agents/lib/graph-jobs.ts
-GRAPH_SCHEMA_VERSION = "2.2.0"
-EXTRACTOR_VERSION = "2.2.0-argument-debate"
+GRAPH_SCHEMA_VERSION = "2.2.1"
+EXTRACTOR_VERSION = "2.2.1-debate-eligible"
 
 # Phase 1 auto-link: cosine ≥ this may reuse an existing Proposition/Entity.
 PROPOSITION_AUTO_LINK_THRESHOLD = 0.92

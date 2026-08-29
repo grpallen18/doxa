@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(request.url)
-  const status = searchParams.get('status')?.trim() || 'submitted'
+  const status = searchParams.get('status')?.trim() || 'pending_approval'
   const supabase = createAdminClient()
 
   let query = supabase

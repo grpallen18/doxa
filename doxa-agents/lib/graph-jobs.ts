@@ -6,8 +6,8 @@
 // The Azure graph-worker overwrites them on claim/finish with the running
 // image versions — that image is the source of truth for what code executes.
 
-export const GRAPH_SCHEMA_VERSION = "2.2.0";
-export const GRAPH_EXTRACTOR_VERSION = "2.2.0-argument-debate";
+export const GRAPH_SCHEMA_VERSION = "2.2.1";
+export const GRAPH_EXTRACTOR_VERSION = "2.2.1-debate-eligible";
 
 /** Default stale threshold for force_stale (matches SQL enqueue_graph_processing_job). */
 export const STALE_RUNNING_MINUTES = 360;

@@ -60,7 +60,29 @@ export type MembershipOpType =
   | "MARK_INCOMPATIBLE"
   | "MARK_ORTHOGONAL";
 
-export type ProposalKind = "membership" | "viewpoint" | "audit" | "mint" | "consolidate";
+export type ProposalKind =
+  | "membership"
+  | "viewpoint"
+  | "audit"
+  | "mint"
+  | "consolidate"
+  | "source_lead"
+  | "lead_candidate";
+
+export const HUMAN_GATED_PROPOSAL_KINDS = new Set<string>([
+  "mint",
+  "source_lead",
+  "lead_candidate",
+]);
+
+export function initialProposalStatus(
+  kind: string,
+  ops?: Array<{ type: string }>
+): "pending_approval" | "submitted" {
+  if (HUMAN_GATED_PROPOSAL_KINDS.has(kind)) return "pending_approval";
+  if (ops?.some((o) => o.type === "MINT_QUESTION")) return "pending_approval";
+  return "submitted";
+}
 
 export type MembershipOp = {
   type: MembershipOpType;

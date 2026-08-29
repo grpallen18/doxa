@@ -13,6 +13,26 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 loadDotenv({ path: path.join(__dirname, '..', '.env.local') })
 
+const KIND_BY_BOT_ID: Record<string, string> = {
+  provenance: 'provenance',
+  acquisition: 'acquisition',
+  curator: 'curator',
+  editor: 'editor',
+  auditor: 'auditor',
+  'lead-reviewer': 'lead-reviewer',
+  admin: 'admin',
+}
+
+function kindFor(botId: string): string {
+  if (KIND_BY_BOT_ID[botId]) return KIND_BY_BOT_ID[botId]
+  if (botId.includes('audit')) return 'auditor'
+  if (botId.includes('edit')) return 'editor'
+  if (botId.includes('acq')) return 'acquisition'
+  if (botId.includes('review')) return 'lead-reviewer'
+  if (botId.includes('prov')) return 'provenance'
+  return 'curator'
+}
+
 async function main() {
   const raw = (process.env.L3_MCP_TOKENS ?? '').trim()
   if (!raw) {
@@ -26,14 +46,7 @@ async function main() {
   for (const part of raw.split(',')) {
     const [botId, token] = part.split(':').map((s) => s.trim())
     if (!botId || !token) continue
-    const kind =
-      botId.includes('audit')
-        ? 'auditor'
-        : botId.includes('edit')
-          ? 'editor'
-          : botId.includes('acq')
-            ? 'acquisition'
-            : 'curator'
+    const kind = kindFor(botId)
     const token_hash = createHash('sha256').update(token).digest('hex')
     const { error } = await supabase.from('l3_bots').upsert({
       bot_id: botId,

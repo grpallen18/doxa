@@ -5,6 +5,8 @@
 import { corsHeaders, json, clampInt, requireInternalAuth } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 import { getCounterSideCandidates } from "../../../../lib/debate/dossier.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadBootstrapState } from "../../../../lib/debate/bootstrap-config.ts";
 
 const DEFAULT_LIMIT = 20;
 
@@ -24,6 +26,22 @@ export const handler = async (req: Request) => {
 
   const dryRun = Boolean(body.dry_run ?? false);
   const limit = clampInt(body.limit, 1, 50, DEFAULT_LIMIT);
+
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+  const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (SUPABASE_URL && SERVICE_ROLE) {
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+    const { bootstrap, questionCount } = await loadBootstrapState(supabase);
+    if (bootstrap) {
+      return json({
+        ok: true,
+        skipped: true,
+        reason: "bootstrap",
+        question_count: questionCount,
+        bound: 0,
+      });
+    }
+  }
 
   const onesided = await runCypher<{ uid: string; pols: string[] }>(
     `

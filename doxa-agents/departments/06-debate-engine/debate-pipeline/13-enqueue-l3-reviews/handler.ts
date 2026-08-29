@@ -8,6 +8,7 @@ import { corsHeaders, json, clampInt,
 } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 import { cosineSimilarity, UNBOUND_CLUSTER_COSINE } from "../../../../lib/debate/question-identity.ts";
+import { loadBootstrapState, UNBOUND_CLUSTER_MIN_SIZE } from "../../../../lib/debate/bootstrap-config.ts";
 
 const DEFAULT_LIMIT = 80;
 
@@ -55,7 +56,15 @@ export const handler = async (req: Request) => {
   const dryRun = Boolean(body.dry_run ?? false);
   const limit = clampInt(body.limit, 1, 200, DEFAULT_LIMIT);
 
-  const questions = await runCypher<QRow>(
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  const bootstrap =
+    body.bootstrap != null
+      ? Boolean(body.bootstrap)
+      : (await loadBootstrapState(supabase)).bootstrap;
+
+  const questions = bootstrap
+    ? []
+    : await runCypher<QRow>(
     `
     MATCH (q:Question)
     OPTIONAL MATCH (p:Proposition)-[:ANSWERS]->(q)
@@ -85,6 +94,7 @@ export const handler = async (req: Request) => {
     `
     MATCH (p:Proposition)
     WHERE p.embedding IS NOT NULL
+      AND coalesce(p.debateEligible, true) <> false
       AND NOT EXISTS { MATCH (p)-[:ANSWERS]->(:Question) }
       AND NOT EXISTS { MATCH (p)-[:CANDIDATE_FOR]->(:Question) }
     RETURN p.uid AS uid,
@@ -107,19 +117,18 @@ export const handler = async (req: Request) => {
         used.add(b.uid);
       }
     }
-    if (group.length >= 2) clusters.push(group);
+    if (group.length >= UNBOUND_CLUSTER_MIN_SIZE) clusters.push(group);
   }
 
   if (dryRun) {
     return json({
       ok: true,
       dry_run: true,
+      bootstrap,
       dirty_questions: questions.length,
       unbound_clusters: clusters.length,
     });
   }
-
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   let enqueued = 0;
 
   for (const q of questions) {
@@ -160,10 +169,42 @@ export const handler = async (req: Request) => {
     if (!error) enqueued += 1;
   }
 
+  let leadRequests = 0;
+  if (!bootstrap) {
+    const onesided = await runCypher<{ uid: string; thesis: string | null }>(
+      `
+      MATCH (q:Question)<-[a:ANSWERS]-(:Proposition)
+      WITH q, collect(DISTINCT a.polarity) AS pols
+      WHERE size(pols) = 1
+      RETURN q.uid AS uid, q.expectedCounterThesis AS thesis
+      LIMIT $limit
+      `,
+      { limit: neoInt(Math.min(limit, 40)) }
+    );
+    for (const q of onesided) {
+      const { data: existing } = await supabase
+        .from("lead_requests")
+        .select("request_id")
+        .eq("question_uid", q.uid)
+        .in("state", ["pending", "claimed"])
+        .limit(1);
+      if (existing?.length) continue;
+      const { error } = await supabase.from("lead_requests").insert({
+        question_uid: q.uid,
+        expected_counter_thesis: q.thesis,
+        priority: 50,
+        created_by: "enqueue_l3_reviews",
+      });
+      if (!error) leadRequests += 1;
+    }
+  }
+
   return json({
     ok: true,
     dirty_questions: questions.length,
     unbound_clusters: clusters.length,
     enqueued,
+    lead_requests: leadRequests,
+    bootstrap,
   });
 };

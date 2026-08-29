@@ -80,6 +80,7 @@ export const handler = async (req: Request) => {
     `
     MATCH (p:Proposition)
     WHERE ($onlyUid = '' OR p.uid = $onlyUid)
+      AND coalesce(p.debateEligible, true) <> false
       AND NOT EXISTS { MATCH (p)-[:ANSWERS]->(:Question) }
     OPTIONAL MATCH (p)<-[:EXPRESSES]-(u:Utterance)
     OPTIONAL MATCH (u)-[:MENTIONS]->(e:Entity)

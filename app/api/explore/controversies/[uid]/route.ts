@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getControversyDetail, getEvidenceBundle } from '@/lib/explore/queries'
+import { DEBATE_REBUILD_MESSAGE, isDebateRebuildMode } from '@/lib/debate-rebuild'
 
 type Params = { params: Promise<{ uid: string }> }
 
 export async function GET(request: NextRequest, { params }: Params) {
+  if (isDebateRebuildMode()) {
+    return NextResponse.json({ error: DEBATE_REBUILD_MESSAGE, maintenance: true }, { status: 503 })
+  }
   try {
     const { uid } = await params
     const decoded = decodeURIComponent(uid)

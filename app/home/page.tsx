@@ -8,6 +8,7 @@ import { SparseStatePanel } from '@/components/explore/sparse-state-panel'
 import { Panel } from '@/components/Panel'
 import { topicHubPath } from '@/lib/explore-routes'
 import { DoxaLink } from '@/components/doxa-link'
+import { isDebateRebuildMode, DEBATE_REBUILD_MESSAGE } from '@/lib/debate-rebuild'
 
 export const metadata: Metadata = {
   title: 'Explore — Doxa',
@@ -20,15 +21,18 @@ export const metadata: Metadata = {
  * landing lives at `/` under the marble layout.
  */
 export default async function HomePage() {
+  const rebuild = isDebateRebuildMode()
   const supabase = await createClient()
   let controversies: Awaited<ReturnType<typeof listTrendingControversies>> = []
   let topics: Awaited<ReturnType<typeof listFeaturedTopics>> = []
   let loadError: string | null = null
   try {
-    ;[controversies, topics] = await Promise.all([
-      listTrendingControversies(supabase, 12),
-      listFeaturedTopics(supabase),
-    ])
+    if (!rebuild) {
+      ;[controversies, topics] = await Promise.all([
+        listTrendingControversies(supabase, 12),
+        listFeaturedTopics(supabase),
+      ])
+    }
   } catch (err) {
     loadError = err instanceof Error ? err.message : 'Failed to load explore data'
   }
@@ -46,6 +50,11 @@ export default async function HomePage() {
             are ways to find those questions — not the debate itself.
           </p>
           <ExploreSearchField className="mx-auto max-w-xl" autoFocus />
+          {rebuild ? (
+            <p className="mx-auto max-w-xl rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-muted">
+              {DEBATE_REBUILD_MESSAGE}
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -64,7 +73,9 @@ export default async function HomePage() {
           <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
             Debates
           </h2>
-          {controversies.length === 0 ? (
+          {rebuild ? (
+            <SparseStatePanel>{DEBATE_REBUILD_MESSAGE}</SparseStatePanel>
+          ) : controversies.length === 0 ? (
             <SparseStatePanel>
               No controversies are projected yet. Once stories run through graph → debate → project,
               debates will appear here.

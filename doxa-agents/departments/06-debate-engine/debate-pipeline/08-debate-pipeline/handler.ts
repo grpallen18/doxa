@@ -16,12 +16,16 @@ const STEP_NAMES = [
   "bind_candidates",
   "detect_contrast_seeds",
   "enqueue_l3_reviews",
+  "attach_approved_lead",
   "apply_l3_proposals",
   "qualify_controversies",
   "apply_viewpoint_proposals",
   "detect_disputes",
   "project_debate_summaries",
 ] as const;
+
+/** Keep detect_contrast_seeds on disk; do not call until graph-team MINT is proven (retire last). */
+const DISABLED_STEPS = new Set<string>(["detect_contrast_seeds"]);
 
 function resolveQuestionUid(body: Record<string, unknown>): string {
   const direct = typeof body.question_uid === "string" ? body.question_uid.trim() : "";
@@ -63,6 +67,15 @@ export const handler = async (req: Request) => {
     const tAll = performance.now();
 
     for (const name of STEP_NAMES) {
+      if (DISABLED_STEPS.has(name)) {
+        steps.push({
+          name,
+          status: "success",
+          duration_ms: 0,
+          result: { skipped: true, reason: "auto_mint_disabled_until_graph_team_mint_proven" },
+        });
+        continue;
+      }
       const t0 = performance.now();
       const stepBody: Record<string, unknown> = { dry_run: dryRun };
       if (body.limit != null) stepBody.limit = body.limit;

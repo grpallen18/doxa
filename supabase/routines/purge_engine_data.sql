@@ -168,6 +168,30 @@ BEGIN
     v_skipped := array_append(v_skipped, 'l3_gold_negatives');
   END IF;
 
+  -- required: l3_approval_decisions
+  IF 'public.l3_approval_decisions'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_approval_decisions RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_approval_decisions');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_approval_decisions');
+  END IF;
+
+  -- required: l3_slack_threads
+  IF 'public.l3_slack_threads'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_slack_threads RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_slack_threads');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_slack_threads');
+  END IF;
+
+  -- required: lead_requests
+  IF 'public.lead_requests'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.lead_requests RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'lead_requests');
+  ELSE
+    v_skipped := array_append(v_skipped, 'lead_requests');
+  END IF;
+
   -- required: l3_bots
   IF 'public.l3_bots'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.l3_bots RESTART IDENTITY CASCADE';

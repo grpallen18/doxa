@@ -11,6 +11,7 @@ import {
   MEMBERSHIP_APPLY_ALL,
   normalizeOp,
   precisionAllowlist,
+  HUMAN_GATED_PROPOSAL_KINDS,
   type MembershipProposalPayload,
   type ViewpointProposalPayload,
   type AuditVerdictPayload,
@@ -25,6 +26,7 @@ import {
   applyViewpointProposal,
 } from "../../../../lib/debate/proposal-applier.ts";
 import { ingestSourceLead } from "../../../../lib/debate/source-lead.ts";
+import { enqueueGraphJob } from "../../../../lib/graph-jobs.ts";
 
 const DEFAULT_LIMIT = 20;
 
@@ -160,6 +162,12 @@ export const handler = async (req: Request) => {
             .map((o) => normalizeOp((o ?? {}) as Record<string, unknown>))
             .filter((o): o is NonNullable<typeof o> => o != null)
         : [];
+      const gated =
+        HUMAN_GATED_PROPOSAL_KINDS.has(kind) || ops.some((o) => o.type === "MINT_QUESTION");
+      const humanApproved = row.status === "validated" || Boolean(onlyUid) || forceApplyAll;
+      if (gated && !humanApproved) {
+        continue;
+      }
       const membership: MembershipProposalPayload = {
         question_uid: String(payload.question_uid ?? row.question_uid ?? ""),
         overall_rationale: String(payload.overall_rationale ?? ""),
@@ -176,9 +184,11 @@ export const handler = async (req: Request) => {
       }));
       await supabase.from("l3_proposal_ops").upsert(opRows, { onConflict: "proposal_uid,op_index" });
 
+      const typesForRow =
+        gated && humanApproved ? [...MEMBERSHIP_APPLY_ALL] : (allowTypes ?? []);
       const autoIndexes = ops
         .map((op, i) =>
-          validation.ops[i]?.ok && (allowTypes ?? []).includes(op.type) ? i : -1
+          validation.ops[i]?.ok && typesForRow.includes(op.type) ? i : -1
         )
         .filter((i) => i >= 0);
       const autoOk = autoIndexes.map((i) => ops[i]);
@@ -312,7 +322,8 @@ export const handler = async (req: Request) => {
       applied += 1;
     }
 
-    if (kind === "source_lead") {
+    if (kind === "source_lead" || kind === "lead_candidate") {
+      if (!onlyUid && !forceApplyAll) continue;
       const url = String(payload.url ?? "");
       const questionUid = String(payload.question_uid ?? row.question_uid ?? "");
       if (!url || !questionUid) {
@@ -328,16 +339,31 @@ export const handler = async (req: Request) => {
         continue;
       }
       try {
-        await ingestSourceLead(supabase, {
+        const ingested = await ingestSourceLead(supabase, {
           url,
           title: payload.title ? String(payload.title) : undefined,
           question_uid: questionUid,
           note: payload.note ? String(payload.note) : undefined,
+          approved: true,
+          lead_request_id: payload.lead_request_id ? String(payload.lead_request_id) : undefined,
+          proposal_uid: String(row.proposal_uid),
         });
+        if (ingested.story_id) {
+          await enqueueGraphJob(supabase, ingested.story_id);
+        }
         await supabase
           .from("l3_proposals")
           .update({ status: "applied", updated_at: new Date().toISOString() })
           .eq("proposal_uid", row.proposal_uid);
+        if (payload.lead_request_id) {
+          await supabase
+            .from("lead_requests")
+            .update({
+              state: "fulfilled",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("request_id", payload.lead_request_id);
+        }
         applied += 1;
       } catch (err) {
         await supabase

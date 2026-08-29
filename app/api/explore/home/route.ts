@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { listFeaturedTopics, listTrendingControversies } from '@/lib/explore/queries'
+import { debateRebuildPayload, isDebateRebuildMode } from '@/lib/debate-rebuild'
 
 export async function GET() {
+  if (isDebateRebuildMode()) {
+    return NextResponse.json(debateRebuildPayload())
+  }
   try {
     const supabase = await createClient()
     const [controversies, topics] = await Promise.all([

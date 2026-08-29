@@ -25,5 +25,6 @@ See [neo4j-graph-architecture.md](../../docs/architecture/neo4j-graph-architectu
 | run-l3-editor | run_l3_editor | active |
 | run-l3-auditor | run_l3_auditor | active |
 | sweep-counter-side | sweep_counter_side | active |
+| attach-approved-lead | attach_approved_lead | active |
 
 <!-- AGENTS:END -->

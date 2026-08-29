@@ -47,6 +47,9 @@ Initial install: migration `121_purge_engine_data.sql`.
 - `l3_review_queue`
 - `l3_runs`
 - `l3_gold_negatives`
+- `l3_approval_decisions`
+- `l3_slack_threads`
+- `lead_requests`
 - `l3_bots`
 - `stories`
 - `topic_relationships`
