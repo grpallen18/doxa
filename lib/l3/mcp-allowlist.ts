@@ -39,6 +39,19 @@ export const MCP_ALLOWLIST: Record<string, readonly string[]> = {
     'search_questions',
   ],
   provenance: [],
+  /** Shared xAI MCP connector — one Bearer token for all Grok personas (prompts differ). */
+  grok: [
+    ...READS,
+    'claim_review_batch',
+    'submit_membership_proposal',
+    'submit_viewpoint_proposal',
+    'submit_audit_verdict',
+    'submit_approval_verdict',
+    'claim_lead_request',
+    'submit_lead_candidate',
+    'report_blocked',
+    'release_review_batch',
+  ],
   admin: [
     ...READS,
     'claim_review_batch',

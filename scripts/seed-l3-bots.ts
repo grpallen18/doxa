@@ -1,7 +1,11 @@
 /**
- * Upsert L3 MCP bot token hashes.
- * Usage: npx tsx scripts/seed-l3-bots.ts
- * Env: L3_MCP_TOKENS="acquisition:secret,curator:secret,admin:secret"
+ * Upsert L3 MCP bot token hashes (manual / CI).
+ *
+ * Usage:
+ *   DOXA_MCP_TOKEN=secret npx tsx scripts/seed-l3-bots.ts
+ *   L3_MCP_TOKENS=grok:secret npx tsx scripts/seed-l3-bots.ts   # legacy multi-bot form
+ *
+ * Prefer: npx tsx scripts/generate-l3-mcp-tokens.ts
  */
 
 import { config as loadDotenv } from 'dotenv'
@@ -14,6 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 loadDotenv({ path: path.join(__dirname, '..', '.env.local') })
 
 const KIND_BY_BOT_ID: Record<string, string> = {
+  grok: 'grok',
   provenance: 'provenance',
   acquisition: 'acquisition',
   curator: 'curator',
@@ -34,9 +39,10 @@ function kindFor(botId: string): string {
 }
 
 async function main() {
-  const raw = (process.env.L3_MCP_TOKENS ?? '').trim()
+  const shared = (process.env.DOXA_MCP_TOKEN ?? '').trim()
+  const raw = shared ? `grok:${shared}` : (process.env.L3_MCP_TOKENS ?? '').trim()
   if (!raw) {
-    console.log('Set L3_MCP_TOKENS=botId:token,...')
+    console.log('Set DOXA_MCP_TOKEN=... or L3_MCP_TOKENS=botId:token,...')
     return
   }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
@@ -44,7 +50,10 @@ async function main() {
   if (!url || !key) throw new Error('Missing supabase url/key')
   const supabase = createClient(url, key, { auth: { persistSession: false } })
   for (const part of raw.split(',')) {
-    const [botId, token] = part.split(':').map((s) => s.trim())
+    const colon = part.indexOf(':')
+    if (colon < 0) continue
+    const botId = part.slice(0, colon).trim()
+    const token = part.slice(colon + 1).trim()
     if (!botId || !token) continue
     const kind = kindFor(botId)
     const token_hash = createHash('sha256').update(token).digest('hex')

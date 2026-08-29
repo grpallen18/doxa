@@ -163,14 +163,15 @@ Gap analysis lives **only** on debate team.
 
 | `bot_id` | kind | Role |
 |----------|------|------|
+| `grok` | grok | **Shared xAI MCP token** — all Grok personas; full debate tool allowlist |
 | `provenance` | provenance | L0–L2 proposals (phase 2) |
-| `acquisition` | ingestion | Lead fetch |
-| `curator` | graph | Membership / MINT / MERGE |
-| `editor` | graph | Viewpoints |
-| `auditor` | graph | Publish gate |
+| `acquisition` | ingestion | Lead fetch (worker/cron; not a separate MCP token) |
+| `curator` | graph | Membership / MINT / MERGE (worker/cron) |
+| `editor` | graph | Viewpoints (worker/cron) |
+| `auditor` | graph | Publish gate (worker/cron) |
 | `lead-reviewer` | graph | Lead + early proposal approval (later auto from human examples) |
 
-Seed: `scripts/seed-l3-bots.ts` or `scripts/generate-l3-mcp-tokens.ts`. xAI wiring: [integrations/grok-bots/README.md](../../../integrations/grok-bots/README.md). Enforce tool allowlists by `bot.kind`.
+Seed: `npx tsx scripts/generate-l3-mcp-tokens.ts` → one `DOXA_MCP_TOKEN` for every xAI MCP connector. Persona bots differ by **system prompt only**. xAI wiring: [integrations/grok-bots/README.md](../../../integrations/grok-bots/README.md). MCP tool allowlist follows `bot.kind` (`grok` = union of debate tools).
 
 ---
 
