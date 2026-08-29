@@ -44,6 +44,11 @@ function isPublicPath(pathname: string): boolean {
   )
 }
 
+/** Remote MCP bots authenticate with Bearer tokens on the route, not Supabase sessions. */
+function isPublicApiPath(pathname: string): boolean {
+  return pathname.startsWith('/api/mcp/')
+}
+
 /**
  * Carry refreshed Supabase auth cookies (with their original options) onto a
  * response we build ourselves, so a redirect never drops a rotated session.
@@ -116,7 +121,7 @@ export async function updateSession(request: NextRequest) {
 
   // Everything outside the landing page, the auth flow, and its assets requires
   // a session.
-  if (!user && !isAuthRoute(pathname) && !isPublicPath(pathname)) {
+  if (!user && !isAuthRoute(pathname) && !isPublicPath(pathname) && !isPublicApiPath(pathname)) {
     if (isApiRequest) {
       // API callers get a machine-readable 401 rather than landing-page HTML.
       return withSessionCookies(
