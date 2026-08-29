@@ -6,6 +6,7 @@
 // Batch default: oldest unclassified first (FIFO), no created_at window. Optional lookback_days.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireInternalAuth } from "../../../lib/topology/invoke-step.ts";
 import {
   recordStoryStepRun,
   recordStoryStepRunsForBatch,
@@ -252,6 +253,9 @@ export const handler = async (req: Request) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";

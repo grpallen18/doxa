@@ -2,7 +2,7 @@
 // Question-scoped Dispute detection (definitional + intra-Question LLM pairs).
 // Env: NEO4J_*, OPENAI_API_KEY. Body: { dry_run?, limit?, question_uid?, force?, skip_llm? }
 
-import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json, clampInt, requireInternalAuth } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 import { ESTABLISH_MIN_CONFIDENCE } from "../../../../lib/debate/qualify-controversy.ts";
 import type { AnswerAssignment } from "../../../../lib/debate/qualify-controversy.ts";
@@ -91,6 +91,9 @@ async function writeDispute(input: {
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   let body: Record<string, unknown> = {};

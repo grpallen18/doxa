@@ -10,7 +10,7 @@
 #
 # Everything else (manifest.yaml, docs/generated/*) is auto-synced from code.
 #
-# L3 overhaul Session 5: Question-first six-step debate chain active; debate-pipeline cron in schedule.sql.
+# L3 curator rebuild: registry-first chain + curator/editor/auditor workers.
 
 active:
   - ingest-newsapi
@@ -24,10 +24,16 @@ active:
   - project-analysis-summaries
   - project-person-profiles
   - analysis-pipeline
-  - retrieve-or-mint-questions
-  - assign-question-answers
+  - bind-candidates
+  - detect-contrast-seeds
+  - enqueue-l3-reviews
+  - apply-l3-proposals
   - qualify-controversies
-  - build-viewpoints
+  - apply-viewpoint-proposals
   - detect-disputes
   - project-debate-summaries
   - debate-pipeline
+  - run-l3-curator
+  - run-l3-editor
+  - run-l3-auditor
+  - sweep-counter-side

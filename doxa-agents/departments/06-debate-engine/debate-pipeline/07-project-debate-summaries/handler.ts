@@ -3,7 +3,9 @@
 // Env: SUPABASE_*, NEO4J_*. Body: { dry_run?: boolean, controversy_uid?: string }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json,
+  requireInternalAuth,
+} from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
 import { rankingScore } from "../../../../lib/debate/ranking.ts";
 import { evaluatePublishability, isPublishable } from "../../../../lib/debate/publishability.ts";
@@ -17,6 +19,9 @@ function truncate(text: string, max: number): string {
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -44,6 +49,9 @@ export const handler = async (req: Request) => {
     sourceCount: number;
     questionUid: string;
     updatedAt: string | null;
+    auditVerdict: string | null;
+    sharedBullets: string[] | null;
+    clashBullets: string[] | null;
   }>(
     `
     MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q:Question)
@@ -59,7 +67,10 @@ export const handler = async (req: Request) => {
            coalesce(c.topicKey, q.uid, '') AS topicKey,
            sourceCount,
            q.uid AS questionUid,
-           toString(c.updatedAt) AS updatedAt
+           toString(c.updatedAt) AS updatedAt,
+           c.auditVerdict AS auditVerdict,
+           c.sharedBullets AS sharedBullets,
+           c.clashBullets AS clashBullets
     `,
     cypherParams
   );
@@ -307,8 +318,9 @@ export const handler = async (req: Request) => {
     const bullets = (kpMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180));
     const publishable = isPublishable(publish);
     const alreadyOpen = existingStatus === "open";
-    const deferOpen = publishable && !alreadyOpen;
-    if (deferOpen) {
+    const auditPass = c.auditVerdict === "pass";
+    const needsAuditGate = publishable && !alreadyOpen;
+    if (needsAuditGate && auditPass) {
       pendingOpenMeta.set(c.uid, { sides, sources, updatedAt: c.updatedAt });
     }
     return {
@@ -324,8 +336,14 @@ export const handler = async (req: Request) => {
       arena_uid: null,
       chapter_index: 0,
       chapter_of: null,
-      status: deferOpen ? "developing" : publish.status,
-      publish_block_reason: deferOpen ? null : publish.publishBlockReason,
+      status: needsAuditGate ? "developing" : publish.status,
+      publish_block_reason: needsAuditGate
+        ? auditPass
+          ? null
+          : c.auditVerdict === "block"
+            ? "audit_blocked"
+            : "audit_pending"
+        : publish.publishBlockReason,
       superseded_by: null,
       closed_at: null,
       ranking_score:
@@ -336,8 +354,8 @@ export const handler = async (req: Request) => {
               updatedAt: c.updatedAt,
             })
           : 0,
-      shared_bullets: bullets.slice(0, 4),
-      clash_bullets: [] as string[],
+      shared_bullets: (c.sharedBullets?.length ? c.sharedBullets : bullets).slice(0, 4),
+      clash_bullets: (c.clashBullets ?? []).slice(0, 6),
       dispute_bullets: (disputeMap.get(c.uid) ?? []).filter(Boolean).map((t) => truncate(t, 180)),
       updated_at: now,
     };
@@ -575,6 +593,72 @@ export const handler = async (req: Request) => {
   const { error: linkErr } = await supabase.rpc("link_graph_controversies_to_topics");
   if (linkErr) return json({ error: linkErr.message }, 500);
 
+  const questionRows = await runCypher<{
+    uid: string;
+    question: string;
+    questionType: string | null;
+    exclusivity: string | null;
+    status: string | null;
+    memberCount: number;
+    candidateCount: number;
+    speakerCount: number;
+    publicationCount: number;
+    controversyUid: string | null;
+    blockingKey: string | null;
+    lastReviewed: string | null;
+    expected: string | null;
+  }>(
+    `
+    MATCH (q:Question)
+    WHERE $controversyUid = '' OR EXISTS {
+      MATCH (c:Controversy {uid: $controversyUid})-[:ABOUT]->(q)
+    }
+    OPTIONAL MATCH (p:Proposition)-[:ANSWERS]->(q)
+    OPTIONAL MATCH (cand:Proposition)-[:CANDIDATE_FOR]->(q)
+    OPTIONAL MATCH (p)<-[:EXPRESSES]-(u:Utterance)-[:ASSERTED_BY]->(ag:Agent)
+    OPTIONAL MATCH (u)-[:GROUNDED_IN]->(:Segment)
+    OPTIONAL MATCH (d:Document {uid: u.documentUid})-[:PUBLISHED_BY]->(pub:Publication)
+    OPTIONAL MATCH (ctr:Controversy)-[:ABOUT]->(q)
+    RETURN q.uid AS uid,
+           q.question AS question,
+           q.questionType AS questionType,
+           q.answerExclusivity AS exclusivity,
+           q.status AS status,
+           count(DISTINCT p) AS memberCount,
+           count(DISTINCT cand) AS candidateCount,
+           count(DISTINCT ag) AS speakerCount,
+           count(DISTINCT pub) AS publicationCount,
+           head(collect(ctr.uid)) AS controversyUid,
+           q.blockingKey AS blockingKey,
+           toString(q.lastReviewedAt) AS lastReviewed,
+           q.expectedCounterThesis AS expected
+    `,
+    cypherParams
+  );
+
+  if (questionRows.length) {
+    const { error: qErr } = await supabase.from("graph_questions").upsert(
+      questionRows.map((q) => ({
+        uid: q.uid,
+        question: q.question,
+        question_type: q.questionType,
+        exclusivity: q.exclusivity,
+        status: q.status === "established" ? "established" : "developing",
+        member_count: Number(q.memberCount) || 0,
+        candidate_count: Number(q.candidateCount) || 0,
+        speaker_count: Number(q.speakerCount) || 0,
+        publication_count: Number(q.publicationCount) || 0,
+        controversy_uid: q.controversyUid,
+        blocking_key: q.blockingKey,
+        last_reviewed_at: q.lastReviewed,
+        expected_counter_thesis: q.expected,
+        updated_at: now,
+      })),
+      { onConflict: "uid" }
+    );
+    if (qErr) return json({ error: qErr.message }, 500);
+  }
+
   return json({
     ok: true,
     controversies: ctrRowsForDb.length,
@@ -583,5 +667,6 @@ export const handler = async (req: Request) => {
     evidence: evRows.length,
     excerpts: excerptRows.length,
     subjects: subjectRows.length,
+    questions: questionRows.length,
   });
 };

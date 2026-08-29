@@ -120,6 +120,62 @@ BEGIN
     v_skipped := array_append(v_skipped, 'graph_controversies');
   END IF;
 
+  -- required: graph_questions
+  IF 'public.graph_questions'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.graph_questions RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'graph_questions');
+  ELSE
+    v_skipped := array_append(v_skipped, 'graph_questions');
+  END IF;
+
+  -- required: l3_proposal_ops
+  IF 'public.l3_proposal_ops'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_proposal_ops RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_proposal_ops');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_proposal_ops');
+  END IF;
+
+  -- required: l3_proposals
+  IF 'public.l3_proposals'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_proposals RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_proposals');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_proposals');
+  END IF;
+
+  -- required: l3_review_queue
+  IF 'public.l3_review_queue'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_review_queue RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_review_queue');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_review_queue');
+  END IF;
+
+  -- required: l3_runs
+  IF 'public.l3_runs'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_runs RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_runs');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_runs');
+  END IF;
+
+  -- required: l3_gold_negatives
+  IF 'public.l3_gold_negatives'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_gold_negatives RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_gold_negatives');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_gold_negatives');
+  END IF;
+
+  -- required: l3_bots
+  IF 'public.l3_bots'::regclass IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.l3_bots RESTART IDENTITY CASCADE';
+    v_truncated := array_append(v_truncated, 'l3_bots');
+  ELSE
+    v_skipped := array_append(v_skipped, 'l3_bots');
+  END IF;
+
   -- required: stories
   IF 'public.stories'::regclass IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE public.stories RESTART IDENTITY CASCADE';

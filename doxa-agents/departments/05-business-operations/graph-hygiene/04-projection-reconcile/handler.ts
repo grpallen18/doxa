@@ -3,12 +3,17 @@
 // Body: { dry_run?: boolean }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json,
+  requireInternalAuth,
+} from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -56,10 +61,19 @@ export const handler = async (req: Request) => {
     await supabase.from("graph_controversies").delete().in("uid", stale);
   }
 
+  const { data: qRows } = await supabase.from("graph_questions").select("uid");
+  const neoQ = await runCypher<{ uid: string }>(`MATCH (q:Question) RETURN q.uid AS uid`);
+  const neoQSet = new Set(neoQ.map((r) => r.uid));
+  const staleQ = (qRows ?? []).map((r) => r.uid as string).filter((uid) => !neoQSet.has(uid));
+  if (staleQ.length) {
+    await supabase.from("graph_questions").delete().in("uid", staleQ);
+  }
+
   return json({
     ok: true,
     neo: neoUids.size,
     stale_deleted: stale.length,
+    questions_stale_deleted: staleQ.length,
     missing_in_sql: missing.length,
     hint: missing.length ? "Run project_debate_summaries" : undefined,
   });

@@ -489,7 +489,7 @@ Not built in v1, but schema supports:
 | 5 | `GET/POST` admin prompt API | App |
 | 6 | Agent page UI (view/edit/versions/audit) | App |
 | 7 | `agents:validate` prompt_kind checks | Librarian |
-| 8 | Docs: update PREVIEW_BRANCH prompt-tuning steps to admin UI | Docs |
+| 8 | Docs: prompt-tuning via admin UI (removed legacy preview-branch workflow) | Docs |
 
 **Deploy notes:** Schema migration on Supabase. Edge deploy `extract_story_claims` after handler change (`supabase functions deploy extract_story_claims --no-verify-jwt`). No redeploy needed for subsequent prompt edits.
 

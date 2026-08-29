@@ -10,6 +10,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
@@ -22,6 +23,5 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "figma", "supabase", "workers", "doxa-agents", "scripts", "docs"]
+  "exclude": ["node_modules", "figma", "supabase", "workers", "doxa-agents/departments", "doxa-agents/librarian", "scripts", "docs"]
 }

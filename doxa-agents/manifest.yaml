@@ -248,17 +248,16 @@ steps:
     status: inactive
     source: doxa-agents/departments/05-business-operations/maintenance/03-clustering-cleanup-unschedule
     description: One-time unschedule of deprecated crons
-  - id: build-viewpoints
+  - id: apply-viewpoint-proposals
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
     status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/03-build-viewpoints
-    deploy_name: build_viewpoints
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/03-apply-viewpoint-proposals
+    deploy_name: apply_viewpoint_proposals
     verify_jwt: false
+    invokes:
+      - apply-l3-proposals
   - id: detect-disputes
     department: 06-debate-engine
     workflow: debate-pipeline
@@ -290,29 +289,28 @@ steps:
       job_name: debate-pipeline-hourly
       schedule: 15 * * * *
       sql: doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql
-      body: '{"limit": 15, "skip_llm": true, "also_rematch": true}'
-  - id: retrieve-or-mint-questions
+      body: '{"limit": 40, "skip_llm": true}'
+  - id: bind-candidates
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
     status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/09-retrieve-or-mint-questions
-    deploy_name: retrieve_or_mint_questions
-    secrets:
-      - OPENAI_API_KEY
-      - OPENAI_MODEL
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/09-bind-candidates
+    deploy_name: bind_candidates
     verify_jwt: false
-  - id: assign-question-answers
+  - id: apply-l3-proposals
     department: 06-debate-engine
     workflow: debate-pipeline
     kind: edge_function
     status: active
-    source: doxa-agents/departments/06-debate-engine/debate-pipeline/10-assign-question-answers
-    deploy_name: assign_question_answers
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/10-apply-l3-proposals
+    deploy_name: apply_l3_proposals
     secrets:
       - OPENAI_API_KEY
-      - OPENAI_MODEL
     verify_jwt: false
+    invoked_by:
+      - app
+      - apply-viewpoint-proposals
   - id: qualify-controversies
     department: 06-debate-engine
     workflow: debate-pipeline
@@ -321,6 +319,74 @@ steps:
     source: doxa-agents/departments/06-debate-engine/debate-pipeline/11-qualify-controversies
     deploy_name: qualify_controversies
     verify_jwt: false
+  - id: detect-contrast-seeds
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/12-detect-contrast-seeds
+    deploy_name: detect_contrast_seeds
+    verify_jwt: false
+  - id: enqueue-l3-reviews
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/13-enqueue-l3-reviews
+    deploy_name: enqueue_l3_reviews
+    verify_jwt: false
+  - id: run-l3-curator
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/14-run-l3-curator
+    deploy_name: run_l3_curator
+    verify_jwt: false
+    cron:
+      job_name: l3-curator-every-20min
+      schedule: "*/20 * * * *"
+      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/14-run-l3-curator/schedule.sql
+      body: '{"limit": 5}'
+  - id: run-l3-editor
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/15-run-l3-editor
+    deploy_name: run_l3_editor
+    verify_jwt: false
+    cron:
+      job_name: l3-editor-hourly
+      schedule: 35 * * * *
+      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/15-run-l3-editor/schedule.sql
+      body: '{"limit": 8}'
+  - id: run-l3-auditor
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/16-run-l3-auditor
+    deploy_name: run_l3_auditor
+    verify_jwt: false
+    cron:
+      job_name: l3-auditor-hourly
+      schedule: 45 * * * *
+      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/16-run-l3-auditor/schedule.sql
+      body: '{"limit": 8}'
+  - id: sweep-counter-side
+    department: 06-debate-engine
+    workflow: debate-pipeline
+    kind: edge_function
+    status: active
+    source: doxa-agents/departments/06-debate-engine/debate-pipeline/17-sweep-counter-side
+    deploy_name: sweep_counter_side
+    verify_jwt: false
+    cron:
+      job_name: l3-sweep-counter-side
+      schedule: 50 */2 * * *
+      sql: doxa-agents/departments/06-debate-engine/debate-pipeline/17-sweep-counter-side/schedule.sql
+      body: '{"limit": 20}'
   - id: generate-evidence-check-candidates
     department: 07-analysis-engine
     workflow: analysis-pipeline

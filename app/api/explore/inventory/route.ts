@@ -69,6 +69,15 @@ async function loadInventory(): Promise<InventoryPayload> {
   }
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function inventoryHtml(data: InventoryPayload) {
   const rows = [
     ['Controversies', String(data.controversies)],
@@ -89,7 +98,7 @@ function inventoryHtml(data: InventoryPayload) {
       : `<ul>${data.hubs
           .map(
             (h) =>
-              `<li><strong>${h.title}</strong> (${h.slug}) — ${h.linked_controversies} linked${h.listed ? ', listed' : ''}</li>`
+              `<li><strong>${escapeHtml(h.title)}</strong> (${escapeHtml(h.slug)}) — ${h.linked_controversies} linked${h.listed ? ', listed' : ''}</li>`
           )
           .join('')}</ul>`
 

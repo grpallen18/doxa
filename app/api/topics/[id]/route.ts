@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { TopicWithDetails, TopicControversy, TopicRelationship } from '@/lib/types'
+import { sanitizePostgrestPattern } from '@/lib/supabase/filters'
 
 export async function GET(
   request: NextRequest,
@@ -23,7 +24,9 @@ export async function GET(
       )
     }
 
-    const topicKeyHints = [topic.slug, topic.title].filter(Boolean) as string[]
+    const topicKeyHints = [topic.slug, topic.title]
+      .map((h) => sanitizePostgrestPattern(String(h ?? '')))
+      .filter(Boolean)
 
     let graphQuery = supabase
       .from('graph_controversies')
@@ -39,12 +42,13 @@ export async function GET(
       )
     }
 
+    const relsQuery = supabase
+      .from('topic_relationships')
+      .select('source_topic_id, target_topic_id, similarity_score')
+
     const [graphCtrRes, relsRes] = await Promise.all([
       graphQuery,
-      supabase
-        .from('topic_relationships')
-        .select('source_topic_id, target_topic_id, similarity_score')
-        .or(`source_topic_id.eq.${topicId},target_topic_id.eq.${topicId}`),
+      relsQuery.or(`source_topic_id.eq.${topicId},target_topic_id.eq.${topicId}`),
     ])
 
     const controversies: TopicControversy[] = (graphCtrRes.data ?? []).map((row, i) => ({

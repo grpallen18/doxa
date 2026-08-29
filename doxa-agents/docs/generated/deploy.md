@@ -21,13 +21,19 @@ supabase functions deploy wipe_l3_analytical
 supabase functions deploy label_cq_gold_batch
 supabase functions deploy seed_question_registry
 supabase functions deploy prune_oldest_documents
-supabase functions deploy build_viewpoints
+supabase functions deploy apply_viewpoint_proposals
 supabase functions deploy detect_disputes
 supabase functions deploy project_debate_summaries
 supabase functions deploy debate_pipeline
-supabase functions deploy retrieve_or_mint_questions
-supabase functions deploy assign_question_answers
+supabase functions deploy bind_candidates
+supabase functions deploy apply_l3_proposals
 supabase functions deploy qualify_controversies
+supabase functions deploy detect_contrast_seeds
+supabase functions deploy enqueue_l3_reviews
+supabase functions deploy run_l3_curator
+supabase functions deploy run_l3_editor
+supabase functions deploy run_l3_auditor
+supabase functions deploy sweep_counter_side
 supabase functions deploy generate_evidence_check_candidates
 supabase functions deploy run_evidence_checks
 supabase functions deploy extract_citations
@@ -58,13 +64,19 @@ supabase functions deploy wipe_l3_analytical --no-verify-jwt
 supabase functions deploy label_cq_gold_batch --no-verify-jwt
 supabase functions deploy seed_question_registry --no-verify-jwt
 supabase functions deploy prune_oldest_documents --no-verify-jwt
-supabase functions deploy build_viewpoints --no-verify-jwt
+supabase functions deploy apply_viewpoint_proposals --no-verify-jwt
 supabase functions deploy detect_disputes --no-verify-jwt
 supabase functions deploy project_debate_summaries --no-verify-jwt
 supabase functions deploy debate_pipeline --no-verify-jwt
-supabase functions deploy retrieve_or_mint_questions --no-verify-jwt
-supabase functions deploy assign_question_answers --no-verify-jwt
+supabase functions deploy bind_candidates --no-verify-jwt
+supabase functions deploy apply_l3_proposals --no-verify-jwt
 supabase functions deploy qualify_controversies --no-verify-jwt
+supabase functions deploy detect_contrast_seeds --no-verify-jwt
+supabase functions deploy enqueue_l3_reviews --no-verify-jwt
+supabase functions deploy run_l3_curator --no-verify-jwt
+supabase functions deploy run_l3_editor --no-verify-jwt
+supabase functions deploy run_l3_auditor --no-verify-jwt
+supabase functions deploy sweep_counter_side --no-verify-jwt
 supabase functions deploy generate_evidence_check_candidates --no-verify-jwt
 supabase functions deploy run_evidence_checks --no-verify-jwt
 supabase functions deploy extract_citations --no-verify-jwt

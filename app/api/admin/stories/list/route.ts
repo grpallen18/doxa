@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, formatSupabaseAdminError } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
-import { isStoryFriendlyId, normalizeStoryFriendlyId } from '@/lib/admin/friendly-id'
+import { isStoryFriendlyId, isUuid, normalizeStoryFriendlyId } from '@/lib/admin/friendly-id'
 import {
   countEntitiesByStory,
   deriveExtractionStatus,
@@ -12,6 +12,7 @@ import {
   storyListField,
   type StorySortRule,
 } from '@/lib/admin/story-list-fields'
+import { sanitizePostgrestPattern } from '@/lib/supabase/filters'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type StoryQuery = any
@@ -135,14 +136,23 @@ export async function GET(request: NextRequest) {
     }
 
     if (keyword) {
-      const orParts = [`title.ilike.%${keyword}%`, `content_snippet.ilike.%${keyword}%`]
+      const safeKeyword = sanitizePostgrestPattern(keyword)
+      const orParts: string[] = []
+      if (safeKeyword) {
+        orParts.push(`title.ilike.%${safeKeyword}%`, `content_snippet.ilike.%${safeKeyword}%`)
+      }
       if (isStoryFriendlyId(keyword)) {
         orParts.push(`friendly_id.eq.${normalizeStoryFriendlyId(keyword)}`)
       }
       if (storyIdsFromBody && storyIdsFromBody.length > 0) {
-        orParts.push(`story_id.in.(${storyIdsFromBody.join(',')})`)
+        const safeIds = storyIdsFromBody.filter((id) => isUuid(id))
+        if (safeIds.length > 0) {
+          orParts.push(`story_id.in.(${safeIds.join(',')})`)
+        }
       }
-      query = query.or(orParts.join(','))
+      if (orParts.length > 0) {
+        query = query.or(orParts.join(','))
+      }
     }
 
     if (qaStatus === 'needs_human_review') {

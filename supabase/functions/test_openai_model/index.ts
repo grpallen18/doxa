@@ -1,3 +1,5 @@
+import { requireInternalAuth } from '../../../doxa-agents/lib/topology/invoke-step.ts'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -80,6 +82,9 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return json({ ok: false, error: 'Method not allowed' }, 405)
   }
+
+  const authError = await requireInternalAuth(req)
+  if (authError) return authError
 
   const apiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
   if (!apiKey) {

@@ -44,6 +44,7 @@ const adminLinks: NavLink[] = [
   { label: 'Stories', href: '/admin/stories', matchPrefix: true },
   { label: 'Observability', href: '/admin/observability', matchPrefix: true },
   { label: 'Debate', href: '/admin/graph-controversies', matchPrefix: true },
+  { label: 'L3', href: '/admin/l3-proposals', matchPrefix: true },
 ]
 
 function isActive(pathname: string, link: NavLink): boolean {

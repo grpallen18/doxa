@@ -34,6 +34,8 @@ const PRO_POLICY = new Set<AnswerPolarity>(["FAVOR"]);
 const CON_POLICY = new Set<AnswerPolarity>(["AGAINST"]);
 const PRO_FACTUAL = new Set<AnswerPolarity>(["AFFIRMS"]);
 const CON_FACTUAL = new Set<AnswerPolarity>(["DENIES"]);
+/** Conditional stance: counts toward density, not a third qualifying side. */
+const CONDITIONAL = new Set<AnswerPolarity>(["QUALIFY"]);
 
 function thesisAssignments(
   assignments: AnswerAssignment[],
@@ -89,6 +91,7 @@ export function evaluateQuestionControversy(input: QualifyInput): QualifyResult 
   if (qType === "policy") {
     const pro = theses.filter((a) => PRO_POLICY.has(a.polarity)).map((a) => a.propUid);
     const con = theses.filter((a) => CON_POLICY.has(a.polarity)).map((a) => a.propUid);
+    const qualify = theses.filter((a) => CONDITIONAL.has(a.polarity)).map((a) => a.propUid);
     if (pro.length && con.length) {
       const conf = Math.min(
         ...theses
@@ -99,15 +102,16 @@ export function evaluateQuestionControversy(input: QualifyInput): QualifyResult 
         qualifies: true,
         reason: "policy_favor_against",
         confidence: conf,
-        sides: { pro, con },
+        sides: { pro: [...pro, ...qualify], con },
       };
     }
-    return { ...empty, reason: "policy_single_side", sides: { pro, con } };
+    return { ...empty, reason: "policy_single_side", sides: { pro: [...pro, ...qualify], con } };
   }
 
   if (qType === "factual") {
     const pro = theses.filter((a) => PRO_FACTUAL.has(a.polarity)).map((a) => a.propUid);
     const con = theses.filter((a) => CON_FACTUAL.has(a.polarity)).map((a) => a.propUid);
+    const qualify = theses.filter((a) => CONDITIONAL.has(a.polarity)).map((a) => a.propUid);
     if (pro.length && con.length) {
       const conf = Math.min(
         ...theses
@@ -118,17 +122,13 @@ export function evaluateQuestionControversy(input: QualifyInput): QualifyResult 
         qualifies: true,
         reason: "factual_affirms_denies",
         confidence: conf,
-        sides: { pro, con },
+        sides: { pro: [...pro, ...qualify], con },
       };
     }
-    return { ...empty, reason: "factual_single_side", sides: { pro, con } };
+    return { ...empty, reason: "factual_single_side", sides: { pro: [...pro, ...qualify], con } };
   }
 
   if (qType === "causal") {
-    if (exclusivity === "compatible") {
-      return { ...empty, reason: "causal_compatible" };
-    }
-    // exclusive or unknown: need pro and con factual-style split on causal answers
     const pro = theses.filter((a) => PRO_FACTUAL.has(a.polarity)).map((a) => a.propUid);
     const con = theses.filter((a) => CON_FACTUAL.has(a.polarity)).map((a) => a.propUid);
     if (pro.length && con.length) {
@@ -139,29 +139,31 @@ export function evaluateQuestionControversy(input: QualifyInput): QualifyResult 
       );
       return {
         qualifies: true,
-        reason: "causal_exclusive_incompatible",
+        reason:
+          exclusivity === "compatible"
+            ? "causal_competing_causes"
+            : "causal_exclusive_incompatible",
         confidence: conf,
         sides: { pro, con },
       };
     }
-    // Two distinct AFFIRMS without DENIES on exclusive causal — still incompatible claims
     const affirms = theses.filter((a) => a.polarity === "AFFIRMS");
-    if (exclusivity === "exclusive" && affirms.length >= 2) {
-      const unique = new Set(affirms.map((a) => a.propUid));
-      if (unique.size >= 2) {
+    if (exclusivity === "compatible" && affirms.length >= 2) {
+      const unique = [...new Set(affirms.map((a) => a.propUid))];
+      if (unique.length >= 2) {
         const conf = Math.min(...affirms.map((a) => a.confidence));
         return {
           qualifies: true,
-          reason: "causal_exclusive_dual_affirms",
+          reason: "causal_competing_causes",
           confidence: conf,
           sides: {
-            pro: affirms.slice(0, 1).map((a) => a.propUid),
-            con: affirms.slice(1).map((a) => a.propUid),
+            pro: unique.slice(0, 1),
+            con: unique.slice(1),
           },
         };
       }
     }
-    return { ...empty, reason: "causal_no_incompatibility" };
+    return { ...empty, reason: "causal_no_incompatibility", sides: { pro, con } };
   }
 
   return empty;

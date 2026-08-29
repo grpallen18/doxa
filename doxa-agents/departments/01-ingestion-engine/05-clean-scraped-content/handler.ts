@@ -13,6 +13,7 @@ import {
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
 import { recordStoryStepRun, resolveStoryStepTrigger } from "../../../lib/story-step-runs.ts";
+import { requireInternalAuth } from "../../../lib/topology/invoke-step.ts";
 
 const STEP_ID = "clean-scraped-content";
 const DEPLOY_NAME = "clean_scraped_content";
@@ -151,6 +152,9 @@ async function callCleanerHeadTail(
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";

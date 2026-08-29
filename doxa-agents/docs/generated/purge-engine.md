@@ -41,6 +41,13 @@ Initial install: migration `121_purge_engine_data.sql`.
 - `graph_controversy_evidence`
 - `graph_viewpoints`
 - `graph_controversies`
+- `graph_questions`
+- `l3_proposal_ops`
+- `l3_proposals`
+- `l3_review_queue`
+- `l3_runs`
+- `l3_gold_negatives`
+- `l3_bots`
 - `stories`
 - `topic_relationships`
 

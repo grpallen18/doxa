@@ -13,11 +13,15 @@ import { fileURLToPath } from 'url'
 import {
   EMBEDDING_MODEL,
   QUESTION_SCHEMA_VERSION,
+  blockingKeyFrom,
+  defaultAnswerStatements,
   embedTexts,
   ensureQuestionMark,
+  expectedCounterThesis,
   normalizeQuestionText,
   parseExclusivity,
   parseQuestionType,
+  predicateLemmaFromQuestion,
   questionUidFromText,
 } from '../doxa-agents/lib/debate/question-identity.ts'
 
@@ -149,12 +153,24 @@ async function main() {
         slice.map((q) => q.question),
         EMBEDDING_MODEL
       )
+      const answerTexts = slice.flatMap((q) => {
+        const stmts = defaultAnswerStatements(q.question, parseQuestionType(q.questionType))
+        return [stmts.pro, stmts.con]
+      })
+      const answerEmbs = await embedTexts(apiKey, answerTexts, EMBEDDING_MODEL)
 
       for (let j = 0; j < slice.length; j++) {
         const item = slice[j]
         const embedding = embeddings[j]
         if (!embedding?.length) continue
         const uid = await questionUidFromText(item.question)
+        const stmts = defaultAnswerStatements(item.question, parseQuestionType(item.questionType))
+        const proEmb = answerEmbs[j * 2]
+        const conEmb = answerEmbs[j * 2 + 1]
+        const blockingKey = blockingKeyFrom({
+          questionType: item.questionType || 'unknown',
+          predicateLemma: predicateLemmaFromQuestion(item.question),
+        })
         await session.run(
           `
           MERGE (q:Question {uid: $uid})
@@ -168,6 +184,12 @@ async function main() {
               q.answerExclusivity = CASE WHEN $exclusivity <> '' THEN $exclusivity
                                         ELSE coalesce(q.answerExclusivity, 'unknown') END,
               q.embedding = $embedding,
+              q.proAnswerStatement = $proStmt,
+              q.conAnswerStatement = $conStmt,
+              q.proAnswerEmbedding = $proEmb,
+              q.conAnswerEmbedding = $conEmb,
+              q.expectedCounterThesis = $expected,
+              q.blockingKey = $blockingKey,
               q.schemaVersion = $schemaVersion,
               q.seededFromGold = true,
               q.updatedAt = datetime()
@@ -178,6 +200,12 @@ async function main() {
             questionType: item.questionType,
             exclusivity: item.exclusivity,
             embedding,
+            proStmt: stmts.pro,
+            conStmt: stmts.con,
+            proEmb,
+            conEmb,
+            expected: expectedCounterThesis(item.question, parseQuestionType(item.questionType)),
+            blockingKey,
             schemaVersion: QUESTION_SCHEMA_VERSION,
           }
         )

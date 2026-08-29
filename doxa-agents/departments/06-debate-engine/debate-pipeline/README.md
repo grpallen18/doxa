@@ -1,23 +1,21 @@
 # Debate pipeline workflow
 
-Cross-document debate assembly over Neo4j. JWT-off internal chain via `debate_pipeline`.
-
-**L3 overhaul Session 5 (complete):** Question-first path through Viewpoints, Disputes, and Postgres projection. Default `debate_pipeline` runs six steps (see table). Arena / pair-first legacy removed. Hourly cron enabled via [08-debate-pipeline/schedule.sql](08-debate-pipeline/schedule.sql) — run in Supabase SQL Editor after deploy.
-
-Arenas (`Issue` label, `arena:` uids) are retired. Controversies are overlays on `:Question`. Identity is `:Question`, not Arena.
+Registry-first L3 assembly. Deterministic candidate binding + proposal applier; Grok/LLM curator-editor-auditor run out of band.
 
 | Step | Folder | Deploy | Notes |
 |------|--------|--------|-------|
-| retrieve-or-mint-questions | [09-retrieve-or-mint-questions](09-retrieve-or-mint-questions/) | `retrieve_or_mint_questions` | Thesis → CQ → retrieve/adjudicate → attach same / **mint on adjacent or miss** / quarantine `same_weak` only; fail/0-conf → `rejected`. `backfill_adjacent`, `reject_noise`. |
-| assign-question-answers | [10-assign-question-answers](10-assign-question-answers/) | `assign_question_answers` | Polarity on `ANSWERS` toward frozen CQ (theses) |
-| qualify-controversies | [11-qualify-controversies](11-qualify-controversies/) | `qualify_controversies` | FAVOR/AGAINST (etc.) incompatibility → Controversy overlay |
-| build-viewpoints | [03-build-viewpoints](03-build-viewpoints/) | `build_viewpoints` | `(Question, polarity)` key-point clustering → Viewpoint |
-| detect-disputes | [06-detect-disputes](06-detect-disputes/) | `detect_disputes` | Definitional + intra-Question pairs → Dispute on Question |
-| project-debate-summaries | [07-project-debate-summaries](07-project-debate-summaries/) | `project_debate_summaries` | Question-first projection → `graph_*` tables |
-| debate-pipeline | [08-debate-pipeline](08-debate-pipeline/) | `debate_pipeline` | Orchestrator (six steps above) |
+| bind-candidates | [09-bind-candidates](09-bind-candidates/) | `bind_candidates` | Entity + answer-form kNN → `CANDIDATE_FOR` (no ANSWERS) |
+| detect-contrast-seeds | [12-detect-contrast-seeds](12-detect-contrast-seeds/) | `detect_contrast_seeds` | Intra-doc objection/rebuttal pairs → mint queue |
+| enqueue-l3-reviews | [13-enqueue-l3-reviews](13-enqueue-l3-reviews/) | `enqueue_l3_reviews` | Dirty questions + unbound clusters → `l3_review_queue` |
+| apply-l3-proposals | [10-apply-l3-proposals](10-apply-l3-proposals/) | `apply_l3_proposals` | Validate + apply proposals (grounding, blast-radius, revert) |
+| qualify-controversies | [11-qualify-controversies](11-qualify-controversies/) | `qualify_controversies` | Structural overlay from ANSWERS |
+| apply-viewpoint-proposals | [03-apply-viewpoint-proposals](03-apply-viewpoint-proposals/) | `apply_viewpoint_proposals` | Apply editor viewpoint proposals |
+| detect-disputes | [06-detect-disputes](06-detect-disputes/) | `detect_disputes` | Definitional disputes |
+| project-debate-summaries | [07-project-debate-summaries](07-project-debate-summaries/) | `project_debate_summaries` | `graph_*` + `graph_questions`; open gated on audit pass |
+| run-l3-curator | [14-run-l3-curator](14-run-l3-curator/) | `run_l3_curator` | Set-level membership LLM |
+| run-l3-editor | [15-run-l3-editor](15-run-l3-editor/) | `run_l3_editor` | Set-level viewpoints |
+| run-l3-auditor | [16-run-l3-auditor](16-run-l3-auditor/) | `run_l3_auditor` | Adversarial publish gate |
+| sweep-counter-side | [17-sweep-counter-side](17-sweep-counter-side/) | `sweep_counter_side` | Counter-thesis candidate recall |
+| debate-pipeline | [08-debate-pipeline](08-debate-pipeline/) | `debate_pipeline` | Orchestrator |
 
-Upstream: graph-worker Arguments + gold-seeded `:Question` registry (`npx tsx scripts/seed-question-registry.ts`). Downstream: Explore/Admin via `graph_*` projections.
-
-Smoke (dev only — set `ALLOW_FIXTURE_SEED=1`): `npx tsx scripts/seed-controversy-fixtures.ts`, `npx tsx scripts/seed-dispute-fixtures.ts`, then `POST debate_pipeline` with `{ "dry_run": true, "limit": 5 }` or `{ "limit": 10, "skip_llm": true }`. Eval: `npx tsx scripts/test-detect-dispute.ts`, `npx tsx scripts/eval-viewpoint-gold.ts`.
-
-Historical cron job `classify-proposition-relationships-every-10min` is dead — unschedule only if still present in pg_cron.
+Grain contract: [docs/gold/question-grain.md](../../../../docs/gold/question-grain.md). Bot acquisition: [docs/l3-bot-acquisition.md](../../../docs/l3-bot-acquisition.md).

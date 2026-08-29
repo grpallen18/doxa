@@ -45,22 +45,46 @@ stages:
     label: Debate (Neo)
     scope: global
     steps:
-      - id: retrieve-or-mint-questions
-        label: Retrieve or mint questions
+      - id: bind-candidates
+        label: Bind candidates
+        invoke_options:
+          timeout_ms: 180000
+      - id: detect-contrast-seeds
+        label: Detect contrast seeds
+        invoke_options:
+          timeout_ms: 120000
+      - id: enqueue-l3-reviews
+        label: Enqueue L3 reviews
+        invoke_options:
+          timeout_ms: 120000
+      - id: run-l3-curator
+        label: Run L3 curator
         invoke_options:
           timeout_ms: 300000
-      - id: assign-question-answers
-        label: Assign question answers
+      - id: apply-l3-proposals
+        label: Apply L3 proposals
         invoke_options:
-          timeout_ms: 300000
+          timeout_ms: 180000
       - id: qualify-controversies
         label: Qualify controversies
         invoke_options:
           timeout_ms: 120000
-      - id: build-viewpoints
-        label: Build viewpoints
+      - id: run-l3-editor
+        label: Run L3 editor
+        invoke_options:
+          timeout_ms: 300000
+      - id: apply-viewpoint-proposals
+        label: Apply viewpoint proposals
         invoke_options:
           timeout_ms: 120000
+      - id: run-l3-auditor
+        label: Run L3 auditor
+        invoke_options:
+          timeout_ms: 180000
+      - id: sweep-counter-side
+        label: Sweep counter side
+        invoke_options:
+          timeout_ms: 180000
       - id: detect-disputes
         label: Detect disputes
         invoke_options:

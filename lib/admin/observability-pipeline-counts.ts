@@ -43,6 +43,17 @@ export type ObservabilityPipelineCounts = {
     assessments: number
     people: number
   }
+  l3: {
+    queuePending: number
+    queueLeased: number
+    proposalsSubmitted: number
+    proposalsApplied: number
+    proposalsRejected: number
+    goldNegatives: number
+    questionsProjected: number
+    q1: number
+    q2plus: number
+  }
 }
 
 async function countEq(
@@ -117,6 +128,14 @@ export async function gatherPostgresPipelineCounts(
     excerptsPg,
     assessmentsPg,
     peoplePg,
+    l3QueuePending,
+    l3QueueLeased,
+    l3Submitted,
+    l3Applied,
+    l3Rejected,
+    l3Gold,
+    l3Questions,
+    l3Q1rows,
   ] = await Promise.all([
     countAll(supabase, 'stories'),
     countEq(supabase, 'stories', 'relevance_status', 'KEEP'),
@@ -141,6 +160,14 @@ export async function gatherPostgresPipelineCounts(
     countAll(supabase, 'graph_evidence_excerpts'),
     countAll(supabase, 'graph_assessments'),
     countAll(supabase, 'graph_people'),
+    countEq(supabase, 'l3_review_queue', 'state', 'pending'),
+    countEq(supabase, 'l3_review_queue', 'state', 'leased'),
+    countEq(supabase, 'l3_proposals', 'status', 'submitted'),
+    countEq(supabase, 'l3_proposals', 'status', 'applied'),
+    countEq(supabase, 'l3_proposals', 'status', 'rejected'),
+    countAll(supabase, 'l3_gold_negatives'),
+    countAll(supabase, 'graph_questions'),
+    supabase.from('graph_questions').select('uid', { count: 'exact', head: true }).eq('member_count', 1),
   ])
 
   if (healthRes.error) throw healthRes.error
@@ -191,6 +218,17 @@ export async function gatherPostgresPipelineCounts(
       excerpts: excerptsPg,
       assessments: assessmentsPg,
       people: peoplePg,
+    },
+    l3: {
+      queuePending: l3QueuePending,
+      queueLeased: l3QueueLeased,
+      proposalsSubmitted: l3Submitted,
+      proposalsApplied: l3Applied,
+      proposalsRejected: l3Rejected,
+      goldNegatives: l3Gold,
+      questionsProjected: l3Questions,
+      q1: l3Q1rows.count ?? 0,
+      q2plus: Math.max(0, l3Questions - (l3Q1rows.count ?? 0)),
     },
   }
 }

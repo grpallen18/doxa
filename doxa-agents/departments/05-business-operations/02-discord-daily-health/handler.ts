@@ -3,6 +3,7 @@
 // Secrets: DISCORD_WEBHOOK (set in Dashboard or supabase secrets set).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireInternalAuth } from "../../../lib/topology/invoke-step.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -269,6 +270,9 @@ export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const webhookUrl = Deno.env.get("DISCORD_WEBHOOK")?.trim();
   if (!webhookUrl) {

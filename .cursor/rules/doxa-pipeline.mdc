@@ -52,9 +52,15 @@ When credentials / CLI / MCP are available (project `.env.local`, linked `supaba
 |-------------|-----|
 | `receive_scraped_content` | Cloudflare Worker callback (`Bearer SCRAPE_SECRET`) |
 | `debate_pipeline` | Internal Neo debate orchestrator (service-role chain) |
-| `generate_proposition_pair_candidates` | Invoked by `debate_pipeline` |
-| `classify_proposition_relationships` | Invoked by `debate_pipeline` |
-| `build_viewpoints` | Invoked by `debate_pipeline` |
+| `bind_candidates` | Invoked by `debate_pipeline` |
+| `detect_contrast_seeds` | Invoked by `debate_pipeline` |
+| `enqueue_l3_reviews` | Invoked by `debate_pipeline` |
+| `apply_l3_proposals` | Invoked by `debate_pipeline` |
+| `apply_viewpoint_proposals` | Invoked by `debate_pipeline` |
+| `run_l3_curator` | L3 curator worker (service role / cron) |
+| `run_l3_editor` | L3 editor worker (service role) |
+| `run_l3_auditor` | L3 auditor worker (service role) |
+| `sweep_counter_side` | Counter-side recall (service role) |
 | `build_controversies` | Invoked by `debate_pipeline` |
 | `detect_disputes` | Invoked by `debate_pipeline` |
 | `project_debate_summaries` | Invoked by `debate_pipeline` |
@@ -72,8 +78,6 @@ When credentials / CLI / MCP are available (project `.env.local`, linked `supaba
 | `clean_scraped_content` | Admin / cron (service role) |
 | `enqueue_graph_job` | Admin / clean callback (service role) |
 | `trigger_graph_worker` | Admin run-step (service role) |
-| `retrieve_or_mint_questions` | Invoked by `debate_pipeline` |
-| `assign_question_answers` | Invoked by `debate_pipeline` |
 | `qualify_controversies` | Invoked by `debate_pipeline` |
 
 ```bash

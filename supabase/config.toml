@@ -338,11 +338,29 @@ verify_jwt = false
 [functions.debate_pipeline]
 verify_jwt = false
 
-[functions.build_viewpoints]
+[functions.bind_candidates]
+verify_jwt = false
+[functions.detect_contrast_seeds]
+verify_jwt = false
+[functions.enqueue_l3_reviews]
+verify_jwt = false
+[functions.apply_l3_proposals]
+verify_jwt = false
+[functions.apply_viewpoint_proposals]
+verify_jwt = false
+[functions.run_l3_curator]
+verify_jwt = false
+[functions.run_l3_editor]
+verify_jwt = false
+[functions.run_l3_auditor]
+verify_jwt = false
+[functions.sweep_counter_side]
 verify_jwt = false
 [functions.detect_disputes]
 verify_jwt = false
 [functions.project_debate_summaries]
+verify_jwt = false
+[functions.qualify_controversies]
 verify_jwt = false
 
 # Analysis pipeline (Neo Phase 3 L4): internal service-role chain — JWT off.
@@ -383,12 +401,6 @@ verify_jwt = false
 [functions.label_cq_gold_batch]
 verify_jwt = false
 [functions.seed_question_registry]
-verify_jwt = false
-[functions.retrieve_or_mint_questions]
-verify_jwt = false
-[functions.assign_question_answers]
-verify_jwt = false
-[functions.qualify_controversies]
 verify_jwt = false
 
 # Admin model config: validates OpenAI model IDs using Edge OPENAI_API_KEY.

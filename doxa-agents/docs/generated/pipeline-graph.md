@@ -5,6 +5,7 @@
 ```mermaid
 flowchart LR
   scrape_worker --> receive_scraped_content
+  apply_viewpoint_proposals --> apply_l3_proposals
 ```
 
 _Generated from manifest invokes._

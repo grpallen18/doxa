@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import threading
@@ -141,10 +142,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _auth_ok(self) -> bool:
         secret = self.settings.graph_worker_secret
+        # Fail closed: when no secret is configured the /run trigger is disabled
+        # rather than left open. The poll loop still processes jobs on its
+        # interval, so an unconfigured secret degrades gracefully.
         if not secret:
-            return True
+            return False
         auth = self.headers.get("Authorization", "")
-        return auth == f"Bearer {secret}"
+        return hmac.compare_digest(auth, f"Bearer {secret}")
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path.rstrip("/") in ("/health", "/healthz"):

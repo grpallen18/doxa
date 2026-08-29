@@ -106,6 +106,9 @@ FOR (q:Question) ON (q.status);
 CREATE INDEX question_type IF NOT EXISTS
 FOR (q:Question) ON (q.questionType);
 
+CREATE INDEX question_blocking_key IF NOT EXISTS
+FOR (q:Question) ON (q.blockingKey);
+
 CREATE INDEX assessment_target_uid IF NOT EXISTS
 FOR (a:Assessment) ON (a.targetUid);
 

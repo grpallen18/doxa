@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { ilikeContainsPattern } from '@/lib/supabase/filters'
 
 export type TopicSearchResult = {
   topic_id: string
@@ -24,8 +25,10 @@ export async function searchTopics(q: string, limit = 20): Promise<TopicSearchRe
   const trimmed = q.trim()
   if (trimmed.length < 1) return []
 
+  const pattern = ilikeContainsPattern(trimmed)
+  if (!pattern) return []
+
   const supabase = await createClient()
-  const pattern = `%${trimmed}%`
   const { data: rows, error } = await supabase
     .from('topics')
     .select('topic_id, title, slug, summary')

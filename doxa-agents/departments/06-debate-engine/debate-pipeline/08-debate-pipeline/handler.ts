@@ -1,7 +1,6 @@
 // Supabase Edge Function: debate_pipeline.
-// Orchestrates Neo4j Question-first debate steps (JWT off).
-// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
-// Body: { dry_run?, limit?, proposition_uid?, question_uid?, controversy_uid?, force?, skip_llm?, rematch_singletons?, also_rematch? }
+// Registry-first L3 chain (JWT off).
+// Body: { dry_run?, limit?, proposition_uid?, question_uid?, controversy_uid?, force? }
 
 import {
   corsHeaders,
@@ -9,24 +8,25 @@ import {
   json,
   toErrorString,
   type StepResult,
+  requireInternalAuth,
 } from "../../../../lib/topology/invoke-step.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-/** Session 5 default: Question registry → qualify → viewpoints → disputes → projection. */
 const STEP_NAMES = [
-  "retrieve_or_mint_questions",
-  "assign_question_answers",
+  "bind_candidates",
+  "detect_contrast_seeds",
+  "enqueue_l3_reviews",
+  "apply_l3_proposals",
   "qualify_controversies",
-  "build_viewpoints",
+  "apply_viewpoint_proposals",
   "detect_disputes",
   "project_debate_summaries",
 ] as const;
 
 function resolveQuestionUid(body: Record<string, unknown>): string {
-  const direct =
-    typeof body.question_uid === "string" ? body.question_uid.trim() : "";
+  const direct = typeof body.question_uid === "string" ? body.question_uid.trim() : "";
   if (direct) return direct;
-  const controversy =
-    typeof body.controversy_uid === "string" ? body.controversy_uid.trim() : "";
+  const controversy = typeof body.controversy_uid === "string" ? body.controversy_uid.trim() : "";
   if (controversy.startsWith("ctr_")) {
     const slug = controversy.slice(4);
     if (slug) return `cq:${slug}`;
@@ -37,6 +37,9 @@ function resolveQuestionUid(body: Record<string, unknown>): string {
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -57,27 +60,21 @@ export const handler = async (req: Request) => {
     const resolvedQuestionUid = resolveQuestionUid(body);
     const steps: StepResult[] = [];
     let failedStep: string | null = null;
+    const tAll = performance.now();
 
     for (const name of STEP_NAMES) {
       const t0 = performance.now();
       const stepBody: Record<string, unknown> = { dry_run: dryRun };
-
       if (body.limit != null) stepBody.limit = body.limit;
       if (body.force != null) stepBody.force = body.force;
+      if (body.force_apply_all != null) stepBody.force_apply_all = body.force_apply_all;
       if (body.proposition_uid != null) stepBody.proposition_uid = body.proposition_uid;
       if (resolvedQuestionUid) stepBody.question_uid = resolvedQuestionUid;
-      if (
-        body.controversy_uid != null &&
-        (name === "build_viewpoints" || name === "project_debate_summaries")
-      ) {
+      if (body.controversy_uid != null && name === "project_debate_summaries") {
         stepBody.controversy_uid = body.controversy_uid;
       }
-      // Default retrieve is normal mint/match. Rematch is a follow-up only when also_rematch.
-      if (name === "retrieve_or_mint_questions" && body.rematch_singletons === true && body.also_rematch !== true) {
-        stepBody.rematch_singletons = true;
-      }
-      if (name === "detect_disputes" && body.skip_llm != null) {
-        stepBody.skip_llm = body.skip_llm;
+      if (name === "detect_disputes") {
+        stepBody.skip_llm = body.skip_llm != null ? Boolean(body.skip_llm) : true;
       }
 
       const res = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, name, stepBody);
@@ -95,39 +92,17 @@ export const handler = async (req: Request) => {
         failedStep = name;
         break;
       }
-
-      if (
-        name === "retrieve_or_mint_questions" &&
-        Boolean(body.also_rematch) &&
-        !dryRun
-      ) {
-        const t1 = performance.now();
-        const rematchBody: Record<string, unknown> = {
-          ...stepBody,
-          rematch_singletons: true,
-        };
-        delete rematchBody.also_rematch;
-        const rematchRes = await invokeFunction(
-          SUPABASE_URL,
-          SERVICE_ROLE,
-          name,
-          rematchBody
-        );
-        const rematch_ms = Math.round(performance.now() - t1);
-        steps.push({
-          name: "retrieve_or_mint_questions_rematch",
-          status: rematchRes.ok ? "success" : "failed",
-          duration_ms: rematch_ms,
-          http_status: rematchRes.http_status,
-          result: rematchRes.ok ? rematchRes.data : undefined,
-          error: rematchRes.ok
-            ? undefined
-            : toErrorString(rematchRes.data?.error) || `HTTP ${rematchRes.http_status}`,
-          error_detail: rematchRes.ok ? undefined : rematchRes.data,
-        });
-        // Rematch is best-effort: do not abort assign/qualify/project if it fails.
-      }
     }
+
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+    await supabase.from("l3_runs").insert({
+      bot_id: "debate_pipeline",
+      kind: "pipeline",
+      items: steps.length,
+      ops_applied: steps.filter((s) => s.status === "success").length,
+      wall_ms: Math.round(performance.now() - tAll),
+      result: { steps, failed_at: failedStep, dry_run: dryRun },
+    });
 
     if (failedStep) {
       return json(

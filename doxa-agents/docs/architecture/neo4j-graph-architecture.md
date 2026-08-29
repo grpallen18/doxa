@@ -205,19 +205,21 @@ Debate **identity** lives on `:Question` nodes; `:Controversy` is a **qualified 
 
 | Axis | Unit | Role |
 |------|------|------|
-| **Debate identity** | `:Question` (`uid` `cq:…`) | Stable contested question; registry + mint path via `retrieve_or_mint_questions` |
-| **Answer membership** | `(Proposition)-[:ANSWERS]->(Question)` | LLM-assigned theses/antitheses with confidence + polarity |
+| **Debate identity** | `:Question` (`uid` `cq:…`) | Curated registry; mint only from contrast pairs or unbound clusters ≥2 |
+| **Answer membership** | `(Proposition)-[:ANSWERS]->(Question)` | Curator ADMIT with polarity + cited utterance; `CANDIDATE_FOR` is not membership |
 | **Controversy overlay** | `:Controversy {status:'established'}` | `(c)-[:ABOUT]->(q)` when ≥2 opposing accepted answers (non-definitional); uid `ctr_…` |
-| **Viewpoint clusters** | `:Viewpoint` inside `(Question, polarity)` | Union-find on propositions that share Question + polarity; `(c)-[:INCLUDES]->(v)-[:ADVANCES]->(p)` |
+| **Viewpoint clusters** | `:Viewpoint` inside `(Question, polarity)` | Editor proposals applied inside `(Question, polarity)` |
 | **Definitional conflict** | `:Dispute` | `(d)-[:SURFACES_IN]->(q)` + `(d)-[:CONCERNS]->(p)` when ≥2 theses on definitional Questions |
 | **Browse indexes** | Person, Topic (`SUBJECT_OF`) | Facets into Questions — never the controversy uid |
 
 Active pipeline (`debate_pipeline`, hourly cron):
 
 ```text
-retrieve_or_mint_questions → assign_question_answers → qualify_controversies
-  → build_viewpoints → detect_disputes → project_debate_summaries
+bind_candidates → detect_contrast_seeds → enqueue_l3_reviews → apply_l3_proposals
+  → qualify_controversies → apply_viewpoint_proposals → detect_disputes → project_debate_summaries
 ```
+
+Curator / editor / auditor workers run out of band (`run_l3_curator`, `run_l3_editor`, `run_l3_auditor`).
 
 Key invariants:
 

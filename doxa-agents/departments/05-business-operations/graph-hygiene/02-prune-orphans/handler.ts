@@ -3,12 +3,17 @@
 // Body: { dry_run?: boolean }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders, json } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json,
+  requireInternalAuth,
+} from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv } from "../../../../lib/neo4j/session.ts";
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   let body: Record<string, unknown> = {};

@@ -143,20 +143,17 @@ async function main() {
     })
 
     const expectQualify =
-      hasBothSides &&
-      agg.exclusivity === 'exclusive' &&
       agg.questionType !== 'definitional' &&
-      !(agg.questionType === 'causal' && agg.exclusivity === 'compatible')
+      (
+        hasBothSides ||
+        (agg.questionType === 'causal' && agg.exclusivity === 'compatible' && pro.length >= 2)
+      )
 
     if (expectQualify) {
       if (!result.qualifies) {
         failures.push(`expected qualify: "${agg.question.slice(0, 60)}" → ${result.reason}`)
       } else positiveOk += 1
-    } else if (agg.questionType === 'causal' && agg.exclusivity === 'compatible' && pro.length >= 2) {
-      if (result.qualifies) {
-        failures.push(`compatible causal must not qualify: "${agg.question.slice(0, 60)}"`)
-      } else negativeOk += 1
-    } else if (!hasBothSides || agg.exclusivity !== 'exclusive') {
+    } else if (!hasBothSides) {
       if (result.qualifies) {
         failures.push(`unexpected qualify: "${agg.question.slice(0, 60)}" → ${result.reason}`)
       } else negativeOk += 1

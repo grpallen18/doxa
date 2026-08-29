@@ -2,11 +2,16 @@
  * Question (CQ) identity helpers for L3 Question-first path.
  */
 
-export const QUESTION_SCHEMA_VERSION = "3.0.0-question";
+export const QUESTION_SCHEMA_VERSION = "4.0.0-question";
 export const QUESTION_UID_PREFIX = "cq:";
 export const EMBEDDING_MODEL = "text-embedding-3-small";
-export const SAME_MATCH_MIN_CONFIDENCE = 0.75;
 export const TOP_K_QUESTIONS = 8;
+/** Floor for CANDIDATE_FOR (not membership). */
+export const CANDIDATE_MIN_COSINE = 0.32;
+export const CANDIDATE_STRONG_COSINE = 0.45;
+export const UNBOUND_CLUSTER_COSINE = 0.55;
+/** @deprecated membership is curator-gated; kept for gold pair eval. */
+export const SAME_MATCH_MIN_CONFIDENCE = 0.75;
 
 export type QuestionType = "policy" | "factual" | "causal" | "definitional";
 export type AnswerExclusivity = "exclusive" | "compatible" | "unknown";
@@ -91,7 +96,7 @@ export function isPrimaryCauseNearMiss(a: string, b: string): boolean {
   return (aPrimary && bOpen) || (bPrimary && aOpen);
 }
 
-/** Apply LLM label with hard near-miss vetoes. */
+/** Gold-eval helper: hard near-miss vetoes on LLM same/adjacent labels. */
 export function resolveMatchLabel(
   a: string,
   b: string,
@@ -102,6 +107,75 @@ export function resolveMatchLabel(
     return { label: "adjacent", confidence: Math.max(confidence, 0.85) };
   }
   return { label: llmLabel ?? "unrelated", confidence };
+}
+
+const STOP = new Set([
+  "the", "a", "an", "of", "to", "for", "in", "on", "and", "or", "we", "should",
+  "does", "did", "is", "are", "will", "can", "what", "why", "how", "who", "do",
+]);
+
+/** Cheap predicate lemma for canonical blocking keys. */
+export function predicateLemmaFromQuestion(question: string): string {
+  return normalizeQuestionText(question)
+    .replace(/[?.,:;!"']/g, " ")
+    .split(/\s+/)
+    .filter((w) => w && !STOP.has(w))
+    .join(" ")
+    .trim()
+    .slice(0, 80);
+}
+
+export function blockingKeyFrom(input: {
+  questionType: string;
+  entityUids?: string[];
+  predicateLemma: string;
+}): string {
+  const entities = [...(input.entityUids ?? [])].filter(Boolean).sort().join(",");
+  const pred = input.predicateLemma.trim().toLowerCase().replace(/\s+/g, "_").slice(0, 48);
+  return `${input.questionType}|${entities}|${pred}`;
+}
+
+/** Canonical declarative answers used for statement-to-statement retrieval. */
+export function defaultAnswerStatements(
+  question: string,
+  questionType: QuestionType | string | null
+): { pro: string; con: string } {
+  const q = question.replace(/[?]+$/g, "").trim();
+  const type = parseQuestionType(questionType) ?? "factual";
+  if (type === "policy") {
+    const stripped = q.replace(/^should\s+/i, "");
+    return {
+      pro: `Yes, ${stripped}.`,
+      con: `No, we should not ${stripped}.`,
+    };
+  }
+  if (type === "causal") {
+    return {
+      pro: `${q} — this is a primary or substantial cause.`,
+      con: `${q} — this is not a substantial cause.`,
+    };
+  }
+  return {
+    pro: `Yes: ${q}.`,
+    con: `No: it is not the case that ${q}.`,
+  };
+}
+
+export function polarityVocabForType(
+  questionType: QuestionType | string | null
+): { pro: AnswerPolarity; con: AnswerPolarity; qualify: AnswerPolarity } {
+  const type = parseQuestionType(questionType);
+  if (type === "policy") {
+    return { pro: "FAVOR", con: "AGAINST", qualify: "QUALIFY" };
+  }
+  return { pro: "AFFIRMS", con: "DENIES", qualify: "QUALIFY" };
+}
+
+export function expectedCounterThesis(
+  question: string,
+  questionType: QuestionType | string | null
+): string {
+  return defaultAnswerStatements(question, questionType).con;
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {

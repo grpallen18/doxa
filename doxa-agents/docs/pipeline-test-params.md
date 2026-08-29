@@ -107,13 +107,19 @@ If a story was `scrape_skipped` after failures, reset before re-invoking `scrape
 
 | Step | Deploy name | Isolation | Notes |
 |------|-------------|-----------|--------|
-| retrieve-or-mint-questions | `retrieve_or_mint_questions` | `proposition_uid`, `limit`, `force`, `dry_run` | Thesis → CQ attach/mint/quarantine |
-| assign-question-answers | `assign_question_answers` | `proposition_uid`, `limit`, `force`, `dry_run` | Polarity on `ANSWERS` |
-| qualify-controversies | `qualify_controversies` | `question_uid`, `limit`, `force`, `dry_run` | Structural incompatibility → Controversy overlay |
-| build-viewpoints | `build_viewpoints` | `question_uid`, `controversy_uid`, `limit`, `force`, `dry_run` | Key-point clustering inside `(Question, polarity)` |
-| detect-disputes | `detect_disputes` | `question_uid`, `limit`, `force`, `skip_llm`, `dry_run` | Definitional + intra-Question → Dispute on Question |
-| project-debate-summaries | `project_debate_summaries` | `controversy_uid`, `dry_run` | Established Controversies → `graph_*` |
-| debate-pipeline | `debate_pipeline` | `limit`, `proposition_uid`, `question_uid`, `controversy_uid`, `force`, `skip_llm`, `dry_run` | Default: six steps above |
+| bind-candidates | `bind_candidates` | `proposition_uid`, `question_uid`, `limit`, `dry_run` | `CANDIDATE_FOR` only |
+| detect-contrast-seeds | `detect_contrast_seeds` | `limit`, `dry_run` | Contrast pairs → mint queue |
+| enqueue-l3-reviews | `enqueue_l3_reviews` | `limit`, `dry_run` | Dirty questions + unbound clusters |
+| run-l3-curator | `run_l3_curator` | `kind`, `limit`, `dry_run` | Set-level membership proposals |
+| apply-l3-proposals | `apply_l3_proposals` | `proposal_uid`, `revert_proposal_uid`, `auto_apply`, `force_apply_all`, `limit`, `dry_run` | Validate + apply |
+| qualify-controversies | `qualify_controversies` | `question_uid`, `limit`, `force`, `dry_run` | Structural overlay |
+| run-l3-editor | `run_l3_editor` | `limit`, `dry_run` | Viewpoint proposals |
+| apply-viewpoint-proposals | `apply_viewpoint_proposals` | `dry_run` | Apply editor output |
+| run-l3-auditor | `run_l3_auditor` | `limit`, `dry_run` | Publish gate |
+| sweep-counter-side | `sweep_counter_side` | `limit`, `dry_run` | Counter-thesis candidates |
+| detect-disputes | `detect_disputes` | `question_uid`, `limit`, `force`, `skip_llm`, `dry_run` | Definitional disputes |
+| project-debate-summaries | `project_debate_summaries` | `controversy_uid`, `dry_run` | `graph_*` + `graph_questions` |
+| debate-pipeline | `debate_pipeline` | `limit`, `proposition_uid`, `question_uid`, `controversy_uid`, `force`, `force_apply_all`, `dry_run` | Deterministic spine |
 
 | run-controversy-assessments | `run_controversy_assessments` | `controversy_uid`, `question_uid`, `limit`, `dry_run` | L4 assessments on established Controversies |
 

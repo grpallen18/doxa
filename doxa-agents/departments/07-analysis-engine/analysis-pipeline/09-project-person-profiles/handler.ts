@@ -3,7 +3,9 @@
 // Env: SUPABASE_*, NEO4J_*. Body: { dry_run?: boolean, limit?: number }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json, clampInt,
+  requireInternalAuth,
+} from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 
 const DEFAULT_LIMIT = 80;
@@ -71,6 +73,9 @@ function deltaPct(last30: number, prior30: number): number {
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { controversyDisplayName } from '@/lib/admin/controversy-display'
 import { isStoryFriendlyId, isUuid, normalizeStoryFriendlyId, storyAdminHref } from '@/lib/admin/friendly-id'
+import { sanitizePostgrestPattern } from '@/lib/supabase/filters'
 
 export type AdminSearchEntityType = 'story' | 'controversy'
 
@@ -30,6 +31,7 @@ export async function searchAdminRecords(
 
   const perType = Math.max(4, Math.ceil(limit / 2))
   const results: AdminSearchResult[] = []
+  const safe = sanitizePostgrestPattern(q)
 
   let storyQuery = supabase
     .from('stories')
@@ -41,17 +43,23 @@ export async function searchAdminRecords(
     storyQuery = storyQuery.eq('story_id', q)
   } else if (isStoryFriendlyId(q)) {
     storyQuery = storyQuery.eq('friendly_id', normalizeStoryFriendlyId(q))
+  } else if (safe) {
+    storyQuery = storyQuery.or(`title.ilike.%${safe}%,url.ilike.%${safe}%`)
   } else {
-    storyQuery = storyQuery.or(`title.ilike.%${q}%,url.ilike.%${q}%`)
+    return []
   }
+
+  const controversyQuery = safe
+    ? supabase
+        .from('graph_controversies')
+        .select('uid, title, summary, topic_key')
+        .or(`title.ilike.%${safe}%,summary.ilike.%${safe}%,topic_key.ilike.%${safe}%`)
+        .limit(perType)
+    : null
 
   const [storiesRes, controversiesRes] = await Promise.all([
     storyQuery,
-    supabase
-      .from('graph_controversies')
-      .select('uid, title, summary, topic_key')
-      .or(`title.ilike.%${q}%,summary.ilike.%${q}%,topic_key.ilike.%${q}%`)
-      .limit(perType),
+    controversyQuery ?? Promise.resolve({ data: [] as Record<string, unknown>[] }),
   ])
 
   for (const row of storiesRes.data ?? []) {

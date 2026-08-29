@@ -1,0 +1,6 @@
+question,label,notes
+Should the US continue military aid to Ukraine?,well_formed,entity-general policy decision
+Should the US send more HIMARS to Ukraine this quarter?,too_narrow,timeboxed platform-specific
+Is affirmative action fair?,too_broad,moral framing not a decision
+Do measles vaccines cause serious harm at population scale?,well_formed,factual contested claim
+What happened in the news yesterday?,too_broad,not a contested decision

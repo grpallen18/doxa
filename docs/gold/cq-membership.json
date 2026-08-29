@@ -1,0 +1,11 @@
+{
+  "schema": "cq-membership-v1",
+  "notes": "Expected member sets keyed by canonical question text. Expand from admin gold negatives.",
+  "questions": [
+    {
+      "question": "Should the US continue military aid to Ukraine?",
+      "question_type": "policy",
+      "members": []
+    }
+  ]
+}

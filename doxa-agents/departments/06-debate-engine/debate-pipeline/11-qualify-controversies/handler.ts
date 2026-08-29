@@ -2,7 +2,7 @@
 // Structural incompatibility → Controversy overlay on Question (Session 3).
 // Env: NEO4J_*. Body: { dry_run?, limit?, question_uid?, force? }
 
-import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json, clampInt, requireInternalAuth } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 import {
   CONTROVERSY_SCHEMA_VERSION,
@@ -38,6 +38,9 @@ type VetoRow = {
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   let body: Record<string, unknown> = {};
@@ -117,10 +120,12 @@ export const handler = async (req: Request) => {
     `
     UNWIND $uids AS quid
     MATCH (q:Question {uid: quid})<-[:ABOUT]-(d:Decision)
-    WHERE d.status = 'quarantined'
-      AND d.decisionType IN ['question_match', 'question_answer']
-      AND d.label IN ['talking_past', 'orthogonal']
-    RETURN q.uid AS questionUid, d.label AS label
+    WHERE d.status = 'accepted'
+      AND (
+        (d.decisionType = 'l3_membership' AND d.polarity = 'orthogonal')
+        OR d.label IN ['talking_past', 'orthogonal']
+      )
+    RETURN q.uid AS questionUid, coalesce(d.polarity, d.label) AS label
     `,
     { uids }
   );

@@ -31,7 +31,11 @@ Steering: [Doxa Architecture Overhaul Plan](../Doxa%20Architecture%20Overhaul%20
 |--------|--------|
 | `label` | `same` / `adjacent` / `unrelated` |
 
-Seed the live Question registry from **canonical questions you write here**, not from legacy `name_controversies` captions.
+**Question grain:** [`question-grain.md`](question-grain.md) — one question per contested decision.
+
+**Membership gold:** [`cq-membership.json`](cq-membership.json) plus thesis rows in `cq-propositions.csv`. Eval: `npx tsx scripts/eval-membership-gold.ts`.
+
+**Question quality:** [`question-quality.csv`](question-quality.csv) — `npx tsx scripts/eval-question-quality.ts`.
 
 **Prune allowlist:** [`prune-allowlist.json`](prune-allowlist.json) — Document uids protected from older-first prune. Gold proposition Documents are also auto-protected by `scripts/prune-oldest-documents.ts`.
 

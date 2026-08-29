@@ -3,7 +3,7 @@
 // Body: { dry_run?, limit?, target_nodes?, protect_gold_props? }
 // Reuses deleteDocumentSubgraph (shared L3 overlays kept).
 
-import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json, clampInt, requireInternalAuth } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 import { deleteDocumentSubgraph } from "../../../../lib/neo4j/delete-document-subgraph.ts";
 import pruneAllowlist from "../../../../lib/neo4j/prune-allowlist.json" with { type: "json" };
@@ -31,6 +31,9 @@ function loadBundledAllowlist(): Set<string> {
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   let body: Record<string, unknown> = {};

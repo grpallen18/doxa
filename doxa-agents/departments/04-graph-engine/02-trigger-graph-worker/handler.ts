@@ -9,6 +9,7 @@ import {
   testScopeFields,
 } from "../../../lib/pipeline-test-params.ts";
 import { recordStoryStepRun, resolveStoryStepTrigger } from "../../../lib/story-step-runs.ts";
+import { requireInternalAuth } from "../../../lib/topology/invoke-step.ts";
 
 const STEP_ID = "trigger-graph-worker";
 const DEPLOY_NAME = "trigger_graph_worker";
@@ -28,6 +29,9 @@ function json(body: unknown, status = 200) {
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const GRAPH_WORKER_URL = (Deno.env.get("GRAPH_WORKER_URL") ?? "").replace(/\/$/, "");
   const GRAPH_WORKER_SECRET = Deno.env.get("GRAPH_WORKER_SECRET") ?? "";

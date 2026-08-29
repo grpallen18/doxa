@@ -2,7 +2,7 @@
 // LLM EvidenceCheck for pending candidates; Decision + EvidenceCheck nodes.
 // Env: NEO4J_*, OPENAI_API_KEY. Body: { dry_run?: boolean, limit?: number }
 
-import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json, clampInt, requireInternalAuth } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 import {
   ANALYSIS_AUTO_ACCEPT_MIN_CONFIDENCE,
@@ -67,6 +67,9 @@ Prefer under-claim: use unsupported or weak when unsure. not_applicable if segme
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";

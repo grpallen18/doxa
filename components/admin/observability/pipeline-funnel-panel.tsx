@@ -227,13 +227,33 @@ function buildDebateFunnelStages(data: ObservabilityPipelineCounts): Stage[] {
     },
     {
       id: 'decisions-quarantine',
-      label: 'L3 decisions quarantined',
+      label: 'L3 proposals',
       value: formatCount(
         neo.decisionsQuarantinedMatch + neo.decisionsQuarantinedAnswer
       ),
-      detail: `match ${formatCount(neo.decisionsQuarantinedMatch)} · answer ${formatCount(neo.decisionsQuarantinedAnswer)}`,
-      warn:
-        neo.decisionsQuarantinedMatch + neo.decisionsQuarantinedAnswer > 0,
+      detail: `legacy quarantine match ${formatCount(neo.decisionsQuarantinedMatch)} · answer ${formatCount(neo.decisionsQuarantinedAnswer)} — review /admin/l3-proposals`,
+      href: '/admin/l3-proposals',
+    },
+    {
+      id: 'l3-queue',
+      label: 'L3 review queue',
+      value: formatCount(data.l3.queuePending + data.l3.queueLeased),
+      detail: `pending ${formatCount(data.l3.queuePending)} · leased ${formatCount(data.l3.queueLeased)}`,
+      href: '/admin/l3-proposals',
+    },
+    {
+      id: 'l3-proposals-pg',
+      label: 'L3 proposals (Postgres)',
+      value: formatCount(data.l3.proposalsSubmitted),
+      detail: `applied ${formatCount(data.l3.proposalsApplied)} · rejected ${formatCount(data.l3.proposalsRejected)} · gold negatives ${formatCount(data.l3.goldNegatives)}`,
+      href: '/admin/l3-proposals',
+    },
+    {
+      id: 'l3-density',
+      label: 'Question density (paired)',
+      value: formatCount(data.l3.questionsProjected),
+      detail: `q1 ${formatCount(data.l3.q1)} · q2+ ${formatCount(data.l3.q2plus)}`,
+      href: '/admin/l3-proposals',
     },
   ]
 }

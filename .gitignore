@@ -26,9 +26,6 @@ yarn-error.log*
 
 # local env files
 .env*.local
-.env.local.branch
-.env.local.main.backup
-.env.local.preview-backup
 .env
 services/graph-worker/azure/.env.azure
 

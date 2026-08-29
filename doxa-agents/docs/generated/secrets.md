@@ -17,10 +17,8 @@ Do not commit secret values to git.
 | discord-daily-health | discord_daily_health | `DISCORD_THREAD_NAME`, `DISCORD_WEBHOOK` |
 | label-cq-gold-batch | label_cq_gold_batch | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | seed-question-registry | seed_question_registry | `OPENAI_API_KEY` |
-| build-viewpoints | build_viewpoints | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | detect-disputes | detect_disputes | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| retrieve-or-mint-questions | retrieve_or_mint_questions | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| assign-question-answers | assign_question_answers | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| apply-l3-proposals | apply_l3_proposals | `OPENAI_API_KEY` |
 | run-evidence-checks | run_evidence_checks | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | run-controversy-assessments | run_controversy_assessments | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 

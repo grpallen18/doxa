@@ -423,7 +423,7 @@ async function main() {
         force: true,
         limit: 10,
       })
-      await invokeEdge('build_viewpoints', {
+      await invokeEdge('apply_viewpoint_proposals', {
         question_uid: seededQuestionUid,
         force: true,
         limit: 20,

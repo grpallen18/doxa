@@ -24,10 +24,16 @@ Story-scoped stages and steps for the admin pipeline UI. Merged from `pipeline-a
 
 | Step | Deploy | Status | Optional | Isolation |
 |------|--------|--------|----------|-----------|
-| retrieve-or-mint-questions | `retrieve_or_mint_questions` | active | — | story_id |
-| assign-question-answers | `assign_question_answers` | active | — | story_id |
+| bind-candidates | `bind_candidates` | active | — | story_id |
+| detect-contrast-seeds | `detect_contrast_seeds` | active | — | story_id |
+| enqueue-l3-reviews | `enqueue_l3_reviews` | active | — | story_id |
+| run-l3-curator | `run_l3_curator` | active | — | story_id |
+| apply-l3-proposals | `apply_l3_proposals` | active | — | story_id |
 | qualify-controversies | `qualify_controversies` | active | — | story_id |
-| build-viewpoints | `build_viewpoints` | active | — | story_id |
+| run-l3-editor | `run_l3_editor` | active | — | story_id |
+| apply-viewpoint-proposals | `apply_viewpoint_proposals` | active | — | story_id |
+| run-l3-auditor | `run_l3_auditor` | active | — | story_id |
+| sweep-counter-side | `sweep_counter_side` | active | — | story_id |
 | detect-disputes | `detect_disputes` | active | — | story_id |
 | project-debate-summaries | `project_debate_summaries` | active | — | story_id |
 | debate-pipeline | `debate_pipeline` | active | — | story_id |

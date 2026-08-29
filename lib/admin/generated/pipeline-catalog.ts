@@ -10,10 +10,16 @@ export type PipelineStepId =
   | "clean-scraped-content"
   | "enqueue-graph-job"
   | "trigger-graph-worker"
-  | "retrieve-or-mint-questions"
-  | "assign-question-answers"
+  | "bind-candidates"
+  | "detect-contrast-seeds"
+  | "enqueue-l3-reviews"
+  | "run-l3-curator"
+  | "apply-l3-proposals"
   | "qualify-controversies"
-  | "build-viewpoints"
+  | "run-l3-editor"
+  | "apply-viewpoint-proposals"
+  | "run-l3-auditor"
+  | "sweep-counter-side"
   | "detect-disputes"
   | "project-debate-summaries"
   | "debate-pipeline"
@@ -96,10 +102,16 @@ export const PIPELINE_STAGES: PipelineCatalogStage[] = [
     "label": "Debate (Neo)",
     "scope": "global",
     "stepIds": [
-      "retrieve-or-mint-questions",
-      "assign-question-answers",
+      "bind-candidates",
+      "detect-contrast-seeds",
+      "enqueue-l3-reviews",
+      "run-l3-curator",
+      "apply-l3-proposals",
       "qualify-controversies",
-      "build-viewpoints",
+      "run-l3-editor",
+      "apply-viewpoint-proposals",
+      "run-l3-auditor",
+      "sweep-counter-side",
       "detect-disputes",
       "project-debate-summaries",
       "debate-pipeline"
@@ -263,9 +275,72 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "inactiveNote": "Not active in activation.yaml"
   },
   {
-    "id": "retrieve-or-mint-questions",
-    "deployName": "retrieve_or_mint_questions",
-    "label": "Retrieve or mint questions",
+    "id": "bind-candidates",
+    "deployName": "bind_candidates",
+    "label": "Bind candidates",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 180000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "detect-contrast-seeds",
+    "deployName": "detect_contrast_seeds",
+    "label": "Detect contrast seeds",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "enqueue-l3-reviews",
+    "deployName": "enqueue_l3_reviews",
+    "label": "Enqueue L3 reviews",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "run-l3-curator",
+    "deployName": "run_l3_curator",
+    "label": "Run L3 curator",
     "stageId": "debate",
     "stageLabel": "Debate (Neo)",
     "scope": "global",
@@ -284,9 +359,9 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "inactiveNote": null
   },
   {
-    "id": "assign-question-answers",
-    "deployName": "assign_question_answers",
-    "label": "Assign question answers",
+    "id": "apply-l3-proposals",
+    "deployName": "apply_l3_proposals",
+    "label": "Apply L3 proposals",
     "stageId": "debate",
     "stageLabel": "Debate (Neo)",
     "scope": "global",
@@ -300,7 +375,7 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "invokeOptions": {
       "usesMaxChunks": false,
       "maxChunks": null,
-      "timeoutMs": 300000
+      "timeoutMs": 180000
     },
     "inactiveNote": null
   },
@@ -326,9 +401,30 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
     "inactiveNote": null
   },
   {
-    "id": "build-viewpoints",
-    "deployName": "build_viewpoints",
-    "label": "Build viewpoints",
+    "id": "run-l3-editor",
+    "deployName": "run_l3_editor",
+    "label": "Run L3 editor",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 300000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "apply-viewpoint-proposals",
+    "deployName": "apply_viewpoint_proposals",
+    "label": "Apply viewpoint proposals",
     "stageId": "debate",
     "stageLabel": "Debate (Neo)",
     "scope": "global",
@@ -343,6 +439,48 @@ export const PIPELINE_STEPS: PipelineCatalogStep[] = [
       "usesMaxChunks": false,
       "maxChunks": null,
       "timeoutMs": 120000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "run-l3-auditor",
+    "deployName": "run_l3_auditor",
+    "label": "Run L3 auditor",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 180000
+    },
+    "inactiveNote": null
+  },
+  {
+    "id": "sweep-counter-side",
+    "deployName": "sweep_counter_side",
+    "label": "Sweep counter side",
+    "stageId": "debate",
+    "stageLabel": "Debate (Neo)",
+    "scope": "global",
+    "optional": false,
+    "manifestStatus": "active",
+    "promptKind": "none",
+    "userPayloadDoc": null,
+    "isolationParams": [
+      "story_id"
+    ],
+    "invokeOptions": {
+      "usesMaxChunks": false,
+      "maxChunks": null,
+      "timeoutMs": 180000
     },
     "inactiveNote": null
   },
@@ -712,10 +850,16 @@ export const PIPELINE_DEPLOY_ALLOWLIST = new Set<string>([
   "clean_scraped_content",
   "enqueue_graph_job",
   "trigger_graph_worker",
-  "retrieve_or_mint_questions",
-  "assign_question_answers",
+  "bind_candidates",
+  "detect_contrast_seeds",
+  "enqueue_l3_reviews",
+  "run_l3_curator",
+  "apply_l3_proposals",
   "qualify_controversies",
-  "build_viewpoints",
+  "run_l3_editor",
+  "apply_viewpoint_proposals",
+  "run_l3_auditor",
+  "sweep_counter_side",
   "detect_disputes",
   "project_debate_summaries",
   "debate_pipeline",

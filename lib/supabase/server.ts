@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
@@ -43,49 +41,9 @@ function serviceRoleKeyHint(): string {
     'Dashboard → Project Settings → API Keys: use the secret key (sb_secret_...) or legacy service_role JWT — not the publishable key.',
   ]
   if (urlRef) {
-    lines.push(`Current URL project ref: ${urlRef}. Preview branch: npm run env:branch (see .env.local.branch.example).`)
+    lines.push(`Current URL project ref: ${urlRef}.`)
   }
   return lines.join(' ')
-}
-
-function getSupabaseKeyUrlMismatchHint(serviceKey: string): string | null {
-  const urlRef = supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
-  if (!urlRef) return null
-
-  try {
-    const branchPath = join(process.cwd(), 'supabase', 'preview-branch.json')
-    const branchEnvPath = join(process.cwd(), '.env.local.branch')
-    if (!existsSync(branchPath) || !existsSync(branchEnvPath)) return null
-
-    const branch = JSON.parse(readFileSync(branchPath, 'utf8')) as { url?: string }
-    const branchRef = branch.url?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
-    if (!branchRef || urlRef === branchRef) return null
-
-    const branchEnv = readFileSync(branchEnvPath, 'utf8')
-    const branchUrlMatch = branchEnv.match(/^NEXT_PUBLIC_SUPABASE_URL=(.+)$/m)
-    const branchUrlRef = branchUrlMatch?.[1]
-      ?.trim()
-      ?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
-    // Only compare keys when .env.local.branch is configured for the preview project.
-    if (branchUrlRef !== branchRef) return null
-
-    const match = branchEnv.match(/^SUPABASE_SERVICE_ROLE_KEY=(.+)$/m)
-    const branchKey = match?.[1]?.trim()
-    if (
-      branchKey &&
-      branchKey !== 'your_preview_secret_or_service_role_key' &&
-      branchKey === serviceKey
-    ) {
-      return (
-        `SUPABASE_SERVICE_ROLE_KEY is from preview branch (${branchRef}) but NEXT_PUBLIC_SUPABASE_URL is ${urlRef}. ` +
-        `For preview work run npm run env:branch and restart dev. For main, use the secret key from the ${urlRef} dashboard.`
-      )
-    }
-  } catch {
-    /* ignore */
-  }
-
-  return null
 }
 
 /** Admin client with service role - bypasses RLS. Use for writes and edge invokes. */
@@ -98,10 +56,6 @@ export function createAdminClient() {
     throw new Error(
       `SUPABASE_SERVICE_ROLE_KEY is the publishable key, not the secret key. ${serviceRoleKeyHint()}`
     )
-  }
-  const mismatchHint = getSupabaseKeyUrlMismatchHint(serviceKey)
-  if (mismatchHint) {
-    throw new Error(mismatchHint)
   }
   return createSupabaseClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
 }

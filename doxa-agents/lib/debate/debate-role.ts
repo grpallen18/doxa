@@ -1,6 +1,7 @@
 /**
- * Cheap debate-role routing from existing speechAct + HAS_ROLE signals.
- * No LLM — used to decide who may found a Question.
+ * Cheap debate-role prior from speechAct + HAS_ROLE signals.
+ * Used only to decide who may *found* a Question (contrast-pair / cluster seed).
+ * Candidacy for ANSWERS is relational: any proposition with text may be a candidate.
  */
 
 export type DebateRole = "thesis" | "premise" | "background";
@@ -47,6 +48,15 @@ export function resolveDebateRole(input: {
   }
 
   return "background";
+}
+
+/** Prior for founding a Question seed — theses preferred, assertions allowed as cluster members. */
+export function mayFoundQuestion(role: DebateRole): boolean {
+  return role === "thesis";
+}
+
+export function mayBeCandidateAnswer(role: DebateRole): boolean {
+  return role === "thesis" || role === "premise";
 }
 
 function toList(raw: string[] | string | null | undefined): string[] {

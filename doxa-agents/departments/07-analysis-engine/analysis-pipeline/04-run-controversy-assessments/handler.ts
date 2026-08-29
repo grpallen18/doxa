@@ -2,7 +2,7 @@
 // Assessment + MethodRun for Controversies (analyzed, not extracted facts).
 // Env: NEO4J_*, OPENAI_API_KEY. Body: { dry_run?, limit?, controversy_uid?, question_uid? }
 
-import { corsHeaders, json, clampInt } from "../../../../lib/topology/invoke-step.ts";
+import { corsHeaders, json, clampInt, requireInternalAuth } from "../../../../lib/topology/invoke-step.ts";
 import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts";
 import {
   ANALYSIS_AUTO_ACCEPT_MIN_CONFIDENCE,
@@ -68,6 +68,9 @@ This is model analysis, not a factual claim. Use confidence 0.75-0.9 when the ti
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   if (!getNeo4jEnv()) return json({ error: "Neo4j not configured" }, 500);
 
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";

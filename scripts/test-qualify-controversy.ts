@@ -40,7 +40,7 @@ assert(
 )
 
 assert(
-  !evaluateQuestionControversy({
+  evaluateQuestionControversy({
     questionUid: q,
     questionType: 'causal',
     answerExclusivity: 'compatible',
@@ -49,7 +49,7 @@ assert(
       { propUid: 'p2', polarity: 'AFFIRMS', confidence: 0.88, debateRole: 'thesis' },
     ],
   }).qualifies,
-  'compatible causal multi-AFFIRMS → no controversy'
+  'compatible causal multi-AFFIRMS → competing causes qualify'
 )
 
 assert(
@@ -63,6 +63,33 @@ assert(
     ],
   }).qualifies,
   'AFFIRMS+DENIES factual → controversy'
+)
+
+assert(
+  evaluateQuestionControversy({
+    questionUid: q,
+    questionType: 'policy',
+    answerExclusivity: 'exclusive',
+    assignments: [
+      { propUid: 'p1', polarity: 'FAVOR', confidence: 0.85, debateRole: 'thesis' },
+      { propUid: 'p2', polarity: 'AGAINST', confidence: 0.8, debateRole: 'thesis' },
+      { propUid: 'p3', polarity: 'QUALIFY', confidence: 0.9, debateRole: 'thesis' },
+    ],
+  }).qualifies,
+  'QUALIFY is a conditional stance and does not block FAVOR+AGAINST'
+)
+
+assert(
+  !evaluateQuestionControversy({
+    questionUid: q,
+    questionType: 'policy',
+    answerExclusivity: 'exclusive',
+    assignments: [
+      { propUid: 'p1', polarity: 'FAVOR', confidence: 0.85, debateRole: 'thesis' },
+      { propUid: 'p3', polarity: 'QUALIFY', confidence: 0.9, debateRole: 'thesis' },
+    ],
+  }).qualifies,
+  'QUALIFY-only with one side does not qualify'
 )
 
 assert(

@@ -519,6 +519,17 @@ export const PLACEHOLDER_SNAPSHOT_HEALTH_SECTIONS: AdminHealthMetricSection[] =
       assessments: 0,
       people: 0,
     },
+    l3: {
+      queuePending: 0,
+      queueLeased: 0,
+      proposalsSubmitted: 0,
+      proposalsApplied: 0,
+      proposalsRejected: 0,
+      goldNegatives: 0,
+      questionsProjected: 0,
+      q1: 0,
+      q2plus: 0,
+    },
   })
 
 /** @deprecated Prefer split snapshot + range endpoints. */

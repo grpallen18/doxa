@@ -5,6 +5,7 @@
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { recordStoryStepRun, resolveStoryStepTrigger } from "../../../lib/story-step-runs.ts";
+import { requireInternalAuth } from "../../../lib/topology/invoke-step.ts";
 
 const STEP_ID = "scrape-story-content";
 const DEPLOY_NAME = "scrape_story_content";
@@ -160,6 +161,9 @@ async function dispatchToWorker(
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
