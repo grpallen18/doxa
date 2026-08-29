@@ -79,6 +79,9 @@ export function initialProposalStatus(
   kind: string,
   ops?: Array<{ type: string }>
 ): "pending_approval" | "submitted" {
+  // "Reviewed, nothing to change" is a legitimate verdict and has nothing to
+  // approve — apply_l3_proposals closes it out as no_op.
+  if (ops && ops.length === 0) return "submitted";
   if (HUMAN_GATED_PROPOSAL_KINDS.has(kind)) return "pending_approval";
   if (ops?.some((o) => o.type === "MINT_QUESTION")) return "pending_approval";
   return "submitted";

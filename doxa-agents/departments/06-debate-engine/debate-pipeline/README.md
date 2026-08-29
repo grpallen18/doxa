@@ -19,4 +19,12 @@ Registry-first L3 assembly. Deterministic candidate binding + proposal applier; 
 | sweep-counter-side | [17-sweep-counter-side](17-sweep-counter-side/) | `sweep_counter_side` | Counter-thesis candidate recall |
 | debate-pipeline | [08-debate-pipeline](08-debate-pipeline/) | `debate_pipeline` | Orchestrator |
 
+## Review lifecycle
+
+A question is enqueued when it has **never been reviewed** or has picked up a candidate created since `q.lastReviewedAt`. Applying any membership op stamps `lastReviewedAt`, so a reviewed question only returns when new evidence arrives.
+
+A proposal with **zero ops** is a verdict, not a failure: `apply_l3_proposals` marks it `no_op`, stamps the review, and closes the queue item as `done`. Without that, "nothing to change" failed validation and recycled the item to `pending` forever. A declined **mint** cluster has no Question to stamp, so its propositions get `l3ReviewedAt` instead and the cluster stays quiet until a new unbound proposition joins it.
+
+Proposals carry `payload.item_id` because one lease covers a whole claimed batch — the applier closes that single row rather than the batch.
+
 Grain contract: [docs/gold/question-grain.md](../../../../docs/gold/question-grain.md). Grok bots: [docs/grok-bot-architecture.md](../../../docs/grok-bot-architecture.md).

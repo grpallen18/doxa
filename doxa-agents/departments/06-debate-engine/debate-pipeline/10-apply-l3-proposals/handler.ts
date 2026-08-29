@@ -141,9 +141,25 @@ export const handler = async (req: Request) => {
     return json({ ok: true, dry_run: true, pending: rows?.length ?? 0 });
   }
 
+  // A lease covers a whole claimed batch, so prefer the proposal's own item id
+  // and only fall back to the lease for proposals submitted without one.
+  const setQueueItemState = async (row: Record<string, unknown>, state: string) => {
+    const proposalPayload = (row.payload ?? {}) as Record<string, unknown>;
+    const itemId = proposalPayload.item_id ? String(proposalPayload.item_id) : "";
+    const leaseId = row.lease_id ? String(row.lease_id) : "";
+    if (!itemId && !leaseId) return;
+    const patch = { state, updated_at: new Date().toISOString() };
+    if (itemId) {
+      await supabase.from("l3_review_queue").update(patch).eq("item_id", itemId);
+    } else {
+      await supabase.from("l3_review_queue").update(patch).eq("lease_id", leaseId);
+    }
+  };
+
   let applied = 0;
   let rejected = 0;
   let partial = 0;
+  let noOp = 0;
 
   for (const row of rows ?? []) {
     const kind = row.kind as string;
@@ -162,6 +178,60 @@ export const handler = async (req: Request) => {
             .map((o) => normalizeOp((o ?? {}) as Record<string, unknown>))
             .filter((o): o is NonNullable<typeof o> => o != null)
         : [];
+
+      // "Reviewed, nothing to change" — close the item instead of failing validation
+      // and recycling it to pending, which re-reviews the same dossier forever.
+      if (!ops.length) {
+        // A declined cluster has no Question to stamp, so mark its propositions
+        // instead: enqueue skips a cluster whose members have all been reviewed
+        // until a new unbound proposition joins it.
+        let clusterProps = Array.isArray(payload.cluster_prop_uids)
+          ? payload.cluster_prop_uids.map((x) => String(x)).filter(Boolean)
+          : [];
+        // The queue row is authoritative when the bot did not echo the cluster back.
+        if (!clusterProps.length) {
+          const itemId = payload.item_id ? String(payload.item_id) : "";
+          const leaseId = row.lease_id ? String(row.lease_id) : "";
+          if (itemId || leaseId) {
+            const lookup = supabase.from("l3_review_queue").select("item_id, payload");
+            const { data: queued } = itemId
+              ? await lookup.eq("item_id", itemId)
+              : await lookup.eq("lease_id", leaseId);
+            // Without an item id a lease is ambiguous unless it holds one row.
+            const item = queued?.length === 1 ? queued[0] : null;
+            const queuedPayload = (item?.payload ?? {}) as Record<string, unknown>;
+            if (Array.isArray(queuedPayload.prop_uids)) {
+              clusterProps = queuedPayload.prop_uids.map((x) => String(x)).filter(Boolean);
+            }
+          }
+        }
+        if (clusterProps.length) {
+          await runCypher(
+            `MATCH (p:Proposition) WHERE p.uid IN $uids SET p.l3ReviewedAt = datetime()`,
+            { uids: clusterProps }
+          );
+        }
+        // A cluster review has no question to stamp, so ignore any question uid
+        // the bot echoed back; trust the spine's column over the payload.
+        const reviewedCluster = kind === "mint" || clusterProps.length > 0;
+        const reviewedUid = reviewedCluster
+          ? ""
+          : String(row.question_uid ?? payload.question_uid ?? "");
+        if (reviewedUid) {
+          await runCypher(
+            `MATCH (q:Question {uid: $uid}) SET q.lastReviewedAt = datetime()`,
+            { uid: reviewedUid }
+          );
+        }
+        await supabase
+          .from("l3_proposals")
+          .update({ status: "no_op", updated_at: new Date().toISOString() })
+          .eq("proposal_uid", row.proposal_uid);
+        await setQueueItemState(row, "done");
+        noOp += 1;
+        continue;
+      }
+
       const gated =
         HUMAN_GATED_PROPOSAL_KINDS.has(kind) || ops.some((o) => o.type === "MINT_QUESTION");
       const humanApproved = row.status === "validated" || Boolean(onlyUid) || forceApplyAll;
@@ -202,15 +272,7 @@ export const handler = async (req: Request) => {
             updated_at: new Date().toISOString(),
           })
           .eq("proposal_uid", row.proposal_uid);
-        if (row.lease_id) {
-          await supabase
-            .from("l3_review_queue")
-            .update({
-              state: validation.ok ? "proposed" : "pending",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("lease_id", row.lease_id);
-        }
+        await setQueueItemState(row, validation.ok ? "proposed" : "pending");
         if (!validation.ok) rejected += 1;
         continue;
       }
@@ -246,15 +308,7 @@ export const handler = async (req: Request) => {
           .eq("proposal_uid", row.proposal_uid)
           .eq("op_index", i);
       }
-      if (row.lease_id) {
-        await supabase
-          .from("l3_review_queue")
-          .update({
-            state: leftoverAccepted.length ? "proposed" : "applied",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("lease_id", row.lease_id);
-      }
+      await setQueueItemState(row, leftoverAccepted.length ? "proposed" : "applied");
       if (status === "applied") applied += 1;
       else if (status === "partially_applied") partial += 1;
       else rejected += 1;
@@ -385,6 +439,7 @@ export const handler = async (req: Request) => {
     applied,
     rejected,
     partial,
+    no_op: noOp,
     auto_apply: allowTypes,
   });
 };

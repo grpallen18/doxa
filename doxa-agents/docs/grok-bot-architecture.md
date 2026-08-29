@@ -170,7 +170,7 @@ Gap analysis lives **only** on debate team.
 | `auditor` | graph | Publish gate |
 | `lead-reviewer` | graph | Lead + early proposal approval (later auto from human examples) |
 
-Seed: `scripts/seed-l3-bots.ts`. Enforce tool allowlists by `bot.kind`.
+Seed: `scripts/seed-l3-bots.ts` or `scripts/generate-l3-mcp-tokens.ts`. xAI wiring: [integrations/grok-bots/README.md](../../../integrations/grok-bots/README.md). Enforce tool allowlists by `bot.kind`.
 
 ---
 

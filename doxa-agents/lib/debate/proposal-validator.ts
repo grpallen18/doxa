@@ -66,6 +66,23 @@ async function utteranceExists(query: QueryFn, utteranceUid: string): Promise<bo
   return rows.length > 0;
 }
 
+/** How many distinct propositions the cited utterances express (MINT founding check). */
+async function distinctPropositionCount(
+  query: QueryFn,
+  utteranceUids: string[]
+): Promise<number> {
+  if (!utteranceUids.length) return 0;
+  const rows = await query<{ n: number }>(
+    `
+    MATCH (u:Utterance)-[:EXPRESSES]->(p:Proposition)
+    WHERE u.uid IN $uids
+    RETURN count(DISTINCT p) AS n
+    `,
+    { uids: utteranceUids }
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
 export async function validateMembershipProposal(
   query: QueryFn,
   payload: MembershipProposalPayload,
@@ -107,12 +124,37 @@ export async function validateMembershipProposal(
     if (!op.cited_utterance_uids?.length) opErrors.push("missing cited_utterance_uids");
     if (op.confidence < 0 || op.confidence > 1) opErrors.push("confidence out of range");
 
-    for (const utt of op.cited_utterance_uids ?? []) {
+    const cited = op.cited_utterance_uids ?? [];
+    if (op.type === "MINT_QUESTION") {
+      // A question is founded by >= 2 distinct propositions, so its citations cannot
+      // all be reachable from one proposition. Each must exist; an optional anchor
+      // (the first member attached by the applier) must be among them.
+      for (const utt of cited) {
+        if (!(await utteranceExists(query, utt))) opErrors.push(`unknown utterance ${utt}`);
+      }
+      if (cited.length < 2) {
+        opErrors.push("MINT requires at least two founding utterances");
+      } else if ((await distinctPropositionCount(query, cited)) < 2) {
+        opErrors.push("MINT founding utterances must express at least two distinct propositions");
+      }
       if (op.prop_uid) {
-        const ok = await utteranceReachableFromProp(query, op.prop_uid, utt);
-        if (!ok) opErrors.push(`utterance ${utt} not reachable from ${op.prop_uid}`);
-      } else if (!(await utteranceExists(query, utt))) {
-        opErrors.push(`unknown utterance ${utt}`);
+        let anchored = false;
+        for (const utt of cited) {
+          if (await utteranceReachableFromProp(query, op.prop_uid, utt)) {
+            anchored = true;
+            break;
+          }
+        }
+        if (!anchored) opErrors.push(`no cited utterance expresses anchor ${op.prop_uid}`);
+      }
+    } else {
+      for (const utt of cited) {
+        if (op.prop_uid) {
+          const ok = await utteranceReachableFromProp(query, op.prop_uid, utt);
+          if (!ok) opErrors.push(`utterance ${utt} not reachable from ${op.prop_uid}`);
+        } else if (!(await utteranceExists(query, utt))) {
+          opErrors.push(`unknown utterance ${utt}`);
+        }
       }
     }
 
@@ -157,9 +199,6 @@ export async function validateMembershipProposal(
 
     if (op.type === "MINT_QUESTION" || op.type === "SPLIT_QUESTION") {
       if (!op.new_question_text?.trim()) opErrors.push("missing new_question_text");
-    }
-    if (op.type === "MINT_QUESTION" && (op.cited_utterance_uids?.length ?? 0) < 2) {
-      opErrors.push("MINT requires at least two founding utterances");
     }
 
     if (op.type === "ADMIT" || op.type === "EVICT") {

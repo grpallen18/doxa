@@ -25,6 +25,7 @@ type UnboundRow = {
   uid: string;
   text: string;
   embedding: number[] | null;
+  reviewed: boolean;
 };
 
 function priority(row: QRow): number {
@@ -68,7 +69,9 @@ export const handler = async (req: Request) => {
     `
     MATCH (q:Question)
     OPTIONAL MATCH (p:Proposition)-[:ANSWERS]->(q)
-    OPTIONAL MATCH (c2:Proposition)-[:CANDIDATE_FOR]->(q)
+    OPTIONAL MATCH (c2:Proposition)-[cf:CANDIDATE_FOR]->(q)
+      WHERE q.lastReviewedAt IS NULL
+         OR coalesce(cf.createdAt, cf.updatedAt) > q.lastReviewedAt
     OPTIONAL MATCH (ctr:Controversy)-[:ABOUT]->(q)
     WITH q,
          count(DISTINCT p) AS memberCount,
@@ -76,7 +79,6 @@ export const handler = async (req: Request) => {
          toString(q.lastReviewedAt) AS lastReviewed,
          count(DISTINCT ctr) > 0 AS hasControversy
     WHERE candidateCount > 0
-       OR memberCount = 1
        OR q.lastReviewedAt IS NULL
     RETURN q.uid AS uid,
            q.status AS status,
@@ -99,13 +101,15 @@ export const handler = async (req: Request) => {
       AND NOT EXISTS { MATCH (p)-[:CANDIDATE_FOR]->(:Question) }
     RETURN p.uid AS uid,
            coalesce(p.text, p.normalizedText, '') AS text,
-           p.embedding AS embedding
+           p.embedding AS embedding,
+           p.l3ReviewedAt IS NOT NULL AS reviewed
     LIMIT 200
     `
   );
 
   const clusters: string[][] = [];
   const used = new Set<string>();
+  const reviewed = new Set(unbound.filter((p) => p.reviewed).map((p) => p.uid));
   for (const a of unbound) {
     if (used.has(a.uid)) continue;
     const group = [a.uid];
@@ -117,7 +121,11 @@ export const handler = async (req: Request) => {
         used.add(b.uid);
       }
     }
-    if (group.length >= UNBOUND_CLUSTER_MIN_SIZE) clusters.push(group);
+    if (group.length < UNBOUND_CLUSTER_MIN_SIZE) continue;
+    // A cluster the curator already declined stays quiet until a new unbound
+    // proposition joins it; otherwise it re-enqueues on every tick.
+    if (group.every((uid) => reviewed.has(uid))) continue;
+    clusters.push(group);
   }
 
   if (dryRun) {

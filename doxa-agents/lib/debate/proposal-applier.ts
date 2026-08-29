@@ -279,6 +279,7 @@ export async function applyMembershipOp(
       MERGE (p)-[c2:CANDIDATE_FOR]->(keep)
       SET c2.method = coalesce(c2.method, 'merge'),
           c2.score = coalesce(c2.score, c.score, 0.5),
+          c2.createdAt = coalesce(c2.createdAt, c.createdAt, datetime()),
           c2.updatedAt = datetime()
       DELETE c
       `,

@@ -115,6 +115,10 @@ export const handler = async (req: Request) => {
           question_uid: result.parsed.question_uid ?? questionUid,
           overall_rationale: result.parsed.overall_rationale ?? "",
           ops,
+          // Lets the applier close this one queue item (a lease covers a whole
+          // batch) and mark a declined cluster as reviewed.
+          item_id: item.item_id,
+          cluster_prop_uids: Array.isArray(payload.prop_uids) ? payload.prop_uids : undefined,
         },
         status,
         updated_at: new Date().toISOString(),

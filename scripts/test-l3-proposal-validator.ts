@@ -3,8 +3,17 @@
  * Usage: npx tsx scripts/test-l3-proposal-validator.ts
  */
 
-import { validateAuditVerdict, validateViewpointProposal } from '../doxa-agents/lib/debate/proposal-validator.ts'
-import { normalizeOp, precisionAllowlist } from '../doxa-agents/lib/debate/proposal-ops.ts'
+import {
+  validateAuditVerdict,
+  validateMembershipProposal,
+  validateViewpointProposal,
+  type QueryFn,
+} from '../doxa-agents/lib/debate/proposal-validator.ts'
+import {
+  initialProposalStatus,
+  normalizeOp,
+  precisionAllowlist,
+} from '../doxa-agents/lib/debate/proposal-ops.ts'
 import { shouldBindCandidate } from '../doxa-agents/lib/debate/nli-rerank.ts'
 import { blockingKeyFrom, predicateLemmaFromQuestion } from '../doxa-agents/lib/debate/question-identity.ts'
 
@@ -71,4 +80,113 @@ const hotFail = precisionAllowlist(
 )
 assert(!hotFail.includes('EVICT'), 'EVICT drops when gold-negative precision is poor')
 
-console.log('test-l3-proposal-validator: ok')
+/**
+ * Fake graph: two propositions, one utterance each, plus one question.
+ * Enough to exercise citation reachability and MINT founding rules.
+ */
+const utterancesByProp: Record<string, string> = {
+  'prop:a': 'utt:a',
+  'prop:b': 'utt:b',
+}
+const fakeQuery: QueryFn = async (cypher, params = {}) => {
+  const p = params as Record<string, never>
+  if (cypher.includes('MATCH (q:Question {uid: $uid})') && cypher.includes('questionType')) {
+    return [{ uid: 'cq:x', questionType: 'policy', question: 'Should we do X?' }] as never[]
+  }
+  if (cypher.includes('count(*) AS n')) return [{ n: 2 }] as never[]
+  if (cypher.includes('[:EXPRESSES]->(p:Proposition)') && cypher.includes('count(DISTINCT p)')) {
+    const uids = (p.uids ?? []) as unknown as string[]
+    const props = new Set(
+      uids.map((u) => Object.keys(utterancesByProp).find((k) => utterancesByProp[k] === u))
+    )
+    props.delete(undefined as never)
+    return [{ n: props.size }] as never[]
+  }
+  if (cypher.includes('EXPRESSES]-(u:Utterance {uid: $utteranceUid})')) {
+    const { propUid, utteranceUid } = p as unknown as { propUid: string; utteranceUid: string }
+    return utterancesByProp[propUid] === utteranceUid ? ([{ ok: 1 }] as never[]) : []
+  }
+  if (cypher.includes('MATCH (u:Utterance {uid: $utteranceUid})')) {
+    const { utteranceUid } = p as unknown as { utteranceUid: string }
+    return Object.values(utterancesByProp).includes(utteranceUid) ? ([{ ok: 1 }] as never[]) : []
+  }
+  if (cypher.includes('MATCH (d:Decision)')) return []
+  return []
+}
+
+const mintOp = {
+  type: 'MINT_QUESTION' as const,
+  new_question_text: 'Should we do X?',
+  question_type: 'policy',
+  confidence: 0.8,
+  rationale: 'contrast pair',
+  cited_utterance_uids: ['utt:a', 'utt:b'],
+}
+
+assert(initialProposalStatus('mint', []) === 'submitted', 'empty ops never wait on approval')
+assert(
+  initialProposalStatus('mint', [{ type: 'MINT_QUESTION' }]) === 'pending_approval',
+  'MINT still gated on approval'
+)
+
+async function membershipChecks() {
+  const mintTwoProps = await validateMembershipProposal(fakeQuery, {
+    question_uid: 'cq:x',
+    overall_rationale: 'mint',
+    ops: [mintOp],
+  })
+  assert(mintTwoProps.ok, `MINT across two propositions validates: ${JSON.stringify(mintTwoProps)}`)
+
+  const mintAnchored = await validateMembershipProposal(fakeQuery, {
+    question_uid: 'cq:x',
+    overall_rationale: 'mint with anchor',
+    ops: [{ ...mintOp, prop_uid: 'prop:a' }],
+  })
+  assert(mintAnchored.ok, `anchored MINT validates: ${JSON.stringify(mintAnchored)}`)
+
+  const mintBadAnchor = await validateMembershipProposal(fakeQuery, {
+    question_uid: 'cq:x',
+    overall_rationale: 'mint with unrelated anchor',
+    ops: [{ ...mintOp, prop_uid: 'prop:c' }],
+  })
+  assert(
+    mintBadAnchor.ops[0].errors.some((e) => e.includes('anchor')),
+    `MINT anchor must be one of the cited propositions: ${JSON.stringify(mintBadAnchor.ops)}`
+  )
+
+  const mintSingleton = await validateMembershipProposal(fakeQuery, {
+    question_uid: 'cq:x',
+    overall_rationale: 'mint from one proposition',
+    ops: [{ ...mintOp, cited_utterance_uids: ['utt:a', 'utt:a'] }],
+  })
+  assert(
+    mintSingleton.ops[0].errors.some((e) => e.includes('two distinct propositions')),
+    `a singleton proposition cannot found a question: ${JSON.stringify(mintSingleton.ops)}`
+  )
+
+  const admitCrossCite = await validateMembershipProposal(fakeQuery, {
+    question_uid: 'cq:x',
+    overall_rationale: 'admit',
+    ops: [
+      {
+        type: 'ADMIT',
+        prop_uid: 'prop:a',
+        polarity: 'FAVOR',
+        confidence: 0.8,
+        rationale: 'x',
+        cited_utterance_uids: ['utt:b'],
+      },
+    ],
+  })
+  assert(
+    admitCrossCite.ops[0].errors.some((e) => e.includes('not reachable')),
+    `ADMIT still requires its own utterance: ${JSON.stringify(admitCrossCite.ops)}`
+  )
+}
+
+membershipChecks()
+  .then(() => console.log('test-l3-proposal-validator: ok'))
+  .catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })

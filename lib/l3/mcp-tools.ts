@@ -272,18 +272,26 @@ export async function callMcpTool(
               .map((o) => normalizeOp((o ?? {}) as Record<string, unknown>))
               .filter((o): o is NonNullable<typeof o> => o != null)
           : []
+        const clusterPropUids = Array.isArray(args.cluster_prop_uids)
+          ? args.cluster_prop_uids.map((x) => String(x)).filter(Boolean)
+          : []
+        // A cluster review is a mint item even when the bot declines it with no ops.
+        const isMint =
+          ops.some((o) => o.type === 'MINT_QUESTION') || clusterPropUids.length > 0
         const proposalUid = `mcp:${bot.bot_id}:${Date.now()}`
-        const status = initialProposalStatus('membership', ops)
+        const status = initialProposalStatus(isMint ? 'mint' : 'membership', ops)
         const { error } = await supabase.from('l3_proposals').insert({
           proposal_uid: proposalUid,
           bot_id: bot.bot_id,
-          kind: ops.some((o) => o.type === 'MINT_QUESTION') ? 'mint' : 'membership',
+          kind: isMint ? 'mint' : 'membership',
           question_uid: args.question_uid ? String(args.question_uid) : null,
           lease_id: args.lease_id ?? null,
           payload: {
             question_uid: args.question_uid,
             overall_rationale: args.overall_rationale ?? '',
             ops,
+            item_id: args.item_id ?? null,
+            cluster_prop_uids: clusterPropUids.length ? clusterPropUids : undefined,
           },
           status,
         })
