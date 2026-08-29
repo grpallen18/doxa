@@ -47,9 +47,9 @@ You receive one of three item kinds. Handle each differently.
 |---|---|---|
 | `membership` | Full question dossier: `question`, `members[]`, `candidates[]`, `sibling_questions[]`, `prior_decisions[]` | ADMIT the candidates that answer this decision, EVICT members that don't, fix title/type if off-grain |
 | `consolidate` | Same shape; the question has ≤ 1 member and no candidates | Decide whether it should be merged into a sibling, retitled to registry grain, retyped, or left alone |
-| `mint` | `mint_cluster.prop_uids[]` — an unbound cluster with **no existing question** | Found a new question from the cluster, or decline |
+| `mint` | Claim payload: `prop_uids[]` only — **no question, no dossier text** | `get_proposition` on each uid → MINT or decline |
 
-Dossier fields you will use:
+Fields for **`membership` / `consolidate`** only (from `get_question_dossier`):
 
 - `question`: `uid`, `text`, `type`, `exclusivity`, `status`, `expected_counter_thesis`, `member_count`, `candidate_count`.
 - `members[]` — propositions already attached to this question. Only these can be evicted.
@@ -61,7 +61,7 @@ Dossier fields you will use:
 
 **Reason over the `segment_text`, not the proposition text.** `text` is a normalized paraphrase; the segment is what the speaker actually said. If the segment does not support the proposition, do not admit it, and say so.
 
-**If a `mint` item gives you only `prop_uids` with no proposition text** (no tool access to expand them), return `"ops": []` and state in `overall_rationale` that the cluster arrived without text. Never invent a question from uids alone.
+**Mint items have no dossier.** Call `get_proposition` on each `prop_uid` before deciding. If every call returns empty text, decline with `ops: []` — never invent a question from uids alone.
 
 ---
 
@@ -207,10 +207,38 @@ Candidate (b) gets no op: adjacency is reported in `overall_rationale`, not forc
 
 ---
 
-## 8. MCP tool workflow (Grok only — ignore if the dossier was supplied directly)
+## 8. MCP runbook (Grok — execute end-to-end; do not ask the operator to call tools step-by-step)
 
-1. `claim_review_batch({ kind: "mint" })` during bootstrap; otherwise `membership`, then `consolidate`. Claim small batches (≤ 5).
-2. For each claimed item: `get_question_dossier({ question_uid })`. For a `mint` item, call `get_proposition({ uid })` on each `prop_uids` entry to get text and utterance uids.
-3. Optional reads before structural ops: `get_merge_candidates`, `get_counter_side_candidates`, `search_questions`, `get_gold_examples`.
-4. `submit_membership_proposal` — one call per item. Echo the item's `item_id` and `lease_id` so the applier closes the right queue row, and for a `mint` item pass the cluster's `prop_uids` through as `cluster_prop_uids` so a declined cluster is not re-queued to you every tick.
-5. If an item is unreviewable (missing text, broken dossier), call `report_blocked({ item_id, lease_id, reason })`. Release anything you will not review with `release_review_batch({ lease_id })`. Never abandon a lease silently.
+When you claim a batch, **process every item in that lease before stopping**. One `submit_membership_proposal` per item.
+
+### Bootstrap (mint clusters — use this now while the L3 registry is small)
+
+1. **`claim_review_batch({ kind: "mint", limit: 5 })`** — save `lease_id` from the response.
+2. **For each item in `items[]`** (loop all of them; do not stop after the first):
+   - **Do not call `get_question_dossier`** — mint items have no `question_uid`.
+   - **`get_proposition({ uid })`** on every entry in `payload.prop_uids`.
+   - Read `segment_text` / utterance excerpts from those results. Decide **`MINT_QUESTION`** (≥2 props share one decision) or **decline** (`ops: []`).
+   - **`submit_membership_proposal`** with:
+     - `lease_id` — same for the whole batch
+     - `item_id` — this item's uuid
+     - `cluster_prop_uids` — copy `payload.prop_uids` verbatim (required on mint, including declines)
+     - `question_uid` — omit or null
+     - `overall_rationale` + `ops` per §7
+3. **Stop after submit.** You do not approve, apply, or watch Slack.
+   - **`MINT_QUESTION`** → `pending_approval`; a human approves in `#l3-approvals`; the pipeline applies after that.
+   - **`ops: []`** → spine marks the cluster reviewed automatically.
+4. Unreviewable item (empty proposition after `get_proposition`, corrupt payload): **`report_blocked({ item_id, lease_id, reason })`**.
+
+### After bootstrap (membership / consolidate)
+
+1. **`claim_review_batch({ kind: "membership" })`**, then **`consolidate`** if nothing is pending.
+2. **`get_question_dossier({ question_uid })`** per item — the mint path above does not apply.
+3. Same submit contract: one proposal per item; always echo `item_id` + `lease_id`.
+4. Optional: `get_merge_candidates`, `get_counter_side_candidates`, `search_questions`, `get_gold_examples`.
+
+### Never
+
+- `get_question_dossier` on a mint item.
+- One proposal covering multiple items.
+- End the session with items still unreviewed — submit, decline, or `report_blocked` each one.
+- **`release_review_batch`** unless you are deliberately returning unprocessed work (avoid during normal runs).
