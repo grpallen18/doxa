@@ -143,7 +143,7 @@ export function formatMintApprovalSlackText(opts: {
   }
 
   if (context.overall_rationale) {
-    lines.push('', '*Curator rationale*', context.overall_rationale.slice(0, 900))
+    lines.push('', '*Curator rationale*', context.overall_rationale.slice(0, 500))
   }
 
   return lines.join('\n')

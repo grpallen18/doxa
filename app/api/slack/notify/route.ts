@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { postPendingApprovalCard, verifySlackSignature } from '@/lib/l3/slack-approval'
+import { postPendingApprovalCard } from '@/lib/l3/slack-approval'
 
 export const runtime = 'nodejs'
 
@@ -19,6 +19,21 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const proposalUid = String(body.proposal_uid ?? '')
   if (!proposalUid) return NextResponse.json({ error: 'proposal_uid required' }, { status: 400 })
-  await postPendingApprovalCard(proposalUid)
-  return NextResponse.json({ ok: true })
+
+  const result = await postPendingApprovalCard(proposalUid)
+  if (result.skipped) {
+    return NextResponse.json({ ok: false, skipped: true, reason: result.skipReason }, { status: 200 })
+  }
+  if (!result.ok) {
+    return NextResponse.json(
+      { ok: false, error: result.error ?? 'slack_post_failed' },
+      { status: 500 }
+    )
+  }
+  return NextResponse.json({
+    ok: true,
+    thread_ts: result.threadTs,
+    used_fallback: result.usedFallback ?? false,
+    warning: result.usedFallback ? result.error : undefined,
+  })
 }

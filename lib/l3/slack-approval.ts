@@ -1,9 +1,23 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/server'
 import {
+  buildApprovalCardBlocks,
+  sectionBlocks,
+  approvalActionBlock,
+} from '@/lib/l3/slack-blocks'
+import {
   formatMintApprovalSlackText,
   loadMintApprovalContext,
 } from '@/lib/l3/mint-approval-context'
+
+export type PostPendingApprovalResult = {
+  ok: boolean
+  error?: string
+  threadTs?: string
+  usedFallback?: boolean
+  skipped?: boolean
+  skipReason?: string
+}
 
 const SLACK_API = 'https://slack.com/api'
 
@@ -122,8 +136,107 @@ function proposalSummary(row: {
   return lines.filter(Boolean).join('\n')
 }
 
-export async function postPendingApprovalCard(proposalUid: string): Promise<void> {
-  if (!slackConfigured()) return
+function mintQuestionHint(payload: Record<string, unknown>, questionUid: string | null): string {
+  const mintOp = Array.isArray(payload.ops)
+    ? (payload.ops as Array<Record<string, unknown>>).find(
+        (o) => String(o.type ?? '').toUpperCase() === 'MINT_QUESTION'
+      )
+    : null
+  return String(
+    mintOp?.new_question_text ??
+      payload.new_question_text ??
+      questionUid ??
+      ''
+  ).trim()
+}
+
+function compactApprovalBody(
+  kind: string,
+  proposalUid: string,
+  payload: Record<string, unknown>,
+  questionUid: string | null
+): string {
+  const mintOp = Array.isArray(payload.ops)
+    ? (payload.ops as Array<Record<string, unknown>>).find(
+        (o) => String(o.type ?? '').toUpperCase() === 'MINT_QUESTION'
+      )
+    : null
+  const lines = [
+    `*${kind}* — human approval required`,
+    '_Full Slack card failed to render; this is a compact fallback._',
+    mintQuestionHint(payload, questionUid) && `*Question:* ${mintQuestionHint(payload, questionUid)}`,
+    mintOp?.pro_answer_statement &&
+      `*Pro:* ${String(mintOp.pro_answer_statement).slice(0, 400)}`,
+    mintOp?.con_answer_statement &&
+      `*Con:* ${String(mintOp.con_answer_statement).slice(0, 400)}`,
+    `*Proposal:* \`${proposalUid}\``,
+  ].filter(Boolean)
+  return lines.join('\n')
+}
+
+function appBaseUrl(): string {
+  return (
+    process.env.DOXA_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    'https://doxa-two.vercel.app'
+  ).replace(/\/$/, '')
+}
+
+async function postApprovalFailureAlert(opts: {
+  channel: string
+  proposalUid: string
+  kind: string
+  questionHint: string
+  error: string
+}): Promise<void> {
+  const adminUrl = `${appBaseUrl()}/admin/l3-proposals`
+  const questionLine = opts.questionHint
+    ? `*Question:* ${opts.questionHint.slice(0, 400)}\n`
+    : ''
+  await slackPost('chat.postMessage', {
+    channel: opts.channel,
+    text: `L3 approval card failed for ${opts.proposalUid}`,
+    blocks: [
+      ...sectionBlocks(
+        [
+          ':warning: *L3 approval card failed to post*',
+          `*Proposal:* \`${opts.proposalUid}\``,
+          `*Kind:* ${opts.kind}`,
+          questionLine.replace(/\n$/, ''),
+          `*Error:* ${opts.error}`,
+          `<${adminUrl}|Open /admin/l3-proposals> (filter \`pending_approval\`)`,
+          'The full card could not be rendered in Slack — use admin or retry after fix.',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      ),
+      approvalActionBlock(opts.proposalUid),
+    ],
+  })
+}
+
+async function persistSlackThread(
+  proposalUid: string,
+  channel: string,
+  posted: { channel?: string; ts?: string }
+): Promise<string | undefined> {
+  const supabase = createAdminClient()
+  const threadTs = posted.ts
+  await supabase.from('l3_slack_threads').upsert({
+    proposal_uid: proposalUid,
+    slack_channel: posted.channel ?? channel,
+    slack_thread_ts: threadTs,
+    updated_at: new Date().toISOString(),
+  })
+  return threadTs
+}
+
+export async function postPendingApprovalCard(
+  proposalUid: string
+): Promise<PostPendingApprovalResult> {
+  if (!slackConfigured()) {
+    return { ok: false, skipped: true, skipReason: 'slack_not_configured' }
+  }
   const channel = process.env.SLACK_APPROVAL_CHANNEL_ID!
   const supabase = createAdminClient()
   const { data: row, error } = await supabase
@@ -131,65 +244,80 @@ export async function postPendingApprovalCard(proposalUid: string): Promise<void
     .select('proposal_uid, kind, question_uid, payload, status')
     .eq('proposal_uid', proposalUid)
     .maybeSingle()
-  if (error || !row) return
-  if (row.status !== 'pending_approval') return
+  if (error || !row) {
+    return { ok: false, skipped: true, skipReason: error?.message ?? 'proposal_not_found' }
+  }
+  if (row.status !== 'pending_approval') {
+    return { ok: false, skipped: true, skipReason: `status_${row.status}` }
+  }
 
   const payload = (row.payload ?? {}) as Record<string, unknown>
   const kind = String(row.kind)
+  const questionHint = mintQuestionHint(payload, row.question_uid)
+
   let contextText: string | undefined
-  if (kind === 'mint' || (Array.isArray(payload.ops) && payload.ops.some(
-    (o) => o && typeof o === 'object' && String((o as Record<string, unknown>).type ?? '').toUpperCase() === 'MINT_QUESTION'
-  ))) {
+  if (
+    kind === 'mint' ||
+    (Array.isArray(payload.ops) &&
+      payload.ops.some(
+        (o) =>
+          o &&
+          typeof o === 'object' &&
+          String((o as Record<string, unknown>).type ?? '').toUpperCase() === 'MINT_QUESTION'
+      ))
+  ) {
     const ctx = await loadMintApprovalContext(payload)
     contextText = formatMintApprovalSlackText({ kind, payload, context: ctx })
   }
 
-  const text = proposalSummary({
+  const bodyText = proposalSummary({
     kind,
     question_uid: row.question_uid,
     payload,
     contextText,
   })
 
-  const posted = await slackPost('chat.postMessage', {
-    channel,
-    text: `L3 approval needed: ${row.kind}`,
-    blocks: [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `${text}\n\nReply \`approve\`, or \`reject: your reason\` in this thread. The Reject button asks for a required reason.`,
-        },
-      },
-      {
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            text: { type: 'plain_text', text: 'Approve' },
-            style: 'primary',
-            action_id: 'l3_approve',
-            value: proposalUid,
-          },
-          {
-            type: 'button',
-            text: { type: 'plain_text', text: 'Reject' },
-            style: 'danger',
-            action_id: 'l3_reject',
-            value: proposalUid,
-          },
-        ],
-      },
-    ],
-  })
+  try {
+    const posted = await slackPost('chat.postMessage', {
+      channel,
+      text: `L3 approval needed: ${row.kind}`,
+      blocks: buildApprovalCardBlocks(proposalUid, bodyText),
+    })
+    const threadTs = await persistSlackThread(proposalUid, channel, posted)
+    return { ok: true, threadTs }
+  } catch (primaryErr) {
+    const primaryMessage =
+      primaryErr instanceof Error ? primaryErr.message : String(primaryErr)
 
-  await supabase.from('l3_slack_threads').upsert({
-    proposal_uid: proposalUid,
-    slack_channel: posted.channel ?? channel,
-    slack_thread_ts: posted.ts,
-    updated_at: new Date().toISOString(),
-  })
+    try {
+      const compactBody = compactApprovalBody(kind, proposalUid, payload, row.question_uid)
+      const posted = await slackPost('chat.postMessage', {
+        channel,
+        text: `L3 approval needed: ${row.kind}`,
+        blocks: buildApprovalCardBlocks(proposalUid, compactBody),
+      })
+      const threadTs = await persistSlackThread(proposalUid, channel, posted)
+      return { ok: true, threadTs, usedFallback: true, error: primaryMessage }
+    } catch (compactErr) {
+      const compactMessage =
+        compactErr instanceof Error ? compactErr.message : String(compactErr)
+      try {
+        await postApprovalFailureAlert({
+          channel,
+          proposalUid,
+          kind,
+          questionHint,
+          error: `${primaryMessage}; compact card also failed: ${compactMessage}`,
+        })
+      } catch {
+        /* last resort — nothing more we can do in Slack */
+      }
+      return {
+        ok: false,
+        error: `${primaryMessage}; compact card also failed: ${compactMessage}`,
+      }
+    }
+  }
 }
 
 export async function openRejectReasonModal(opts: {
