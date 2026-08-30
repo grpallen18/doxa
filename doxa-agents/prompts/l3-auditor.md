@@ -109,6 +109,23 @@ Do not block for: few members, one-sided source quality, awkward wording, missin
 
 ## 7. MCP tool workflow (Grok only — ignore if the dossier was supplied directly)
 
-1. `get_controversy_dossier({ controversy_uid })` — there is no queue-claim tool, so you must be given a `controversy_uid`. Do not guess uids.
-2. `get_question_dossier({ question_uid })` if you need the wider neighborhood (siblings, candidates) to test whether a member belongs to an adjacent question instead.
-3. `submit_audit_verdict` — one call per controversy.
+Execute end-to-end. **Do not narrate your investigation in the Grok chat** — registry walks and dossier probes are tool calls only, not operator-facing prose.
+
+### Find work
+
+1. **`list_audit_ready_controversies({ limit: 8 })`** — start here on every scheduled run. Returns established controversies pending audit with viewpoints on **≥2 distinct polarities**.
+2. If the operator supplied a **`controversy_uid`**, skip step 1 and audit that uid directly.
+3. **Do not** call `search_questions` or `get_question_dossier` on developing questions (single unlabeled member, no controversy uid). Those are not audit-ready.
+
+### Nothing ready
+
+When step 1 returns **zero rows** and you were not given a controversy uid:
+
+1. **`report_auditor_idle({ reason })`** — posts confirmation to `#grok-ops`. **Required** once per scheduled run when you submit no verdicts.
+2. Reply in Grok with **one short sentence** (≤15 words), e.g. *Nothing to audit yet — waiting on curator/editor.* No multi-paragraph explanations, registry dumps, or step-by-step narration.
+
+### Audit a controversy
+
+1. **`get_controversy_dossier({ controversy_uid })`** — required before every verdict.
+2. Optional: **`get_question_dossier({ question_uid })`** only when you need siblings/candidates to test adjacent-question failure.
+3. **`submit_audit_verdict`** — one call per controversy. Put the JSON from §6 in the tool only; after submit, at most one brief chat line (e.g. *Submitted pass for ctr_…*).

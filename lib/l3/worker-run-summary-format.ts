@@ -37,6 +37,8 @@ export type AuditorRunSummary = {
   run_id: string
   pending_scanned: number
   items: AuditorRunItemSummary[]
+  /** Set when the run found nothing to audit (Grok idle report or empty cron scan). */
+  idle_note?: string
 }
 
 export type WorkerRunSummary = EditorRunSummary | AuditorRunSummary
@@ -117,8 +119,18 @@ export function formatAuditorRunSummaryText(summary: AuditorRunSummary): string 
     `Submitted: ${submitted} · Pass: ${passed} · Block: ${blocked}` +
       (skipped ? ` · Skipped: ${skipped}` : '') +
       (errors ? ` · Errors: ${errors}` : ''),
-    '_Audit verdicts auto-apply on the next `debate_pipeline` (:15). Pass flips eligible controversies to `open` on project._',
   ]
+
+  if (submitted === 0 && !errors) {
+    const idle =
+      summary.idle_note?.trim() ||
+      'Nothing to audit — no established controversies with viewpoints on both sides.'
+    lines.push(`_${idle}_`)
+  } else {
+    lines.push(
+      '_Audit verdicts auto-apply on the next `debate_pipeline` (:15). Pass flips eligible controversies to `open` on project._'
+    )
+  }
 
   if (summary.items.length) {
     lines.push('')

@@ -11,10 +11,10 @@ Tracks cutover from mint-only bootstrap to full registry-first L3. Update this d
 | Setting | Value |
 |---------|--------|
 | `L3_BOOTSTRAP` | `false` (manual cutover; not waiting for 30 projected questions) |
-| Grok personas wired | **Curator only** (shared `grok` MCP token) |
+| Grok personas wired | **Curator + Editor + Auditor** (shared `grok` MCP token; xAI schedule) |
 | Curator Grok routine | membership → consolidate → **mint fill** (remaining batch capacity) |
-| Spine cadence | `debate_pipeline` hourly (`:15`); `run_l3_curator` every 20m fallback |
-| Publish path (editor / auditor) | **Edge workers only** (`run_l3_editor` `:35`, `run_l3_auditor` `:45`) — no Grok bots yet |
+| Spine cadence | `debate_pipeline` hourly (`:15`); **Grok** curator + editor on xAI schedule |
+| Publish path | **Grok** curator + editor + auditor (xAI schedule) |
 
 ---
 
@@ -26,8 +26,10 @@ Tracks cutover from mint-only bootstrap to full registry-first L3. Update this d
 - [x] **Mint approved in `#l3-approvals`** — “Have US consumer prices besides eggs become much lower since January 2025?”
 - [x] **Run summaries (code)** — one Slack message per curator **session** (mint + membership + consolidate sections); **10-minute** lease rollup window (Vercel deploy pending)
 - [x] **Curator Grok routine** aligned with edge worker claim order (membership → consolidate → mint)
-- [x] **M2 deploy + cron** — `run_l3_editor` deployed; `l3-editor-hourly` scheduled
-- [x] **M3 deploy + cron** — `run_l3_auditor` deployed (≥2 viewpoints gate); `l3-auditor-hourly` scheduled
+- [x] **M2 deploy** — `run_l3_editor` deployed; edge cron **disabled** (Grok owns editor)
+- [x] **Curator/editor crons off** — `l3-curator-every-20min`, `l3-editor-hourly` unscheduled in prod
+- [x] **M3 deploy** — `run_l3_auditor` deployed (≥2 viewpoints gate); edge cron **disabled** (Grok owns auditor)
+- [x] **Auditor cron off** — `l3-auditor-hourly` unscheduled in prod
 
 ---
 
@@ -36,10 +38,9 @@ Tracks cutover from mint-only bootstrap to full registry-first L3. Update this d
 These happen on cron unless blocked:
 
 1. **`debate_pipeline`** (hourly `:15`) — apply membership + approved mint → qualify → apply viewpoints/audit → project
-2. **`run_l3_editor`** (hourly `:35`) — viewpoint proposals for established controversies missing a side
-3. **`run_l3_auditor`** (hourly `:45`) — audit pass/block when ≥2 viewpoints exist
-4. **`run_l3_curator`** (every 20m) — drains queue if Grok is offline
-5. **`enqueue_l3_reviews`** (inside pipeline) — dirty Questions, unbound clusters, lead_requests
+3. **`enqueue_l3_reviews`** (inside pipeline) — dirty Questions, unbound clusters, lead_requests
+
+**Grok (xAI schedule)** owns curator, editor, and auditor via MCP. Edge crons **`l3-curator-every-20min`**, **`l3-editor-hourly`**, and **`l3-auditor-hourly`** are **disabled** to avoid double-processing.
 
 **Do not** re-run `debate_pipeline` by hand unless debugging; hourly cron is the intended driver.
 
@@ -48,11 +49,9 @@ These happen on cron unless blocked:
 | Time | Function | Effect |
 |------|----------|--------|
 | `:15` | `debate_pipeline` | Apply proposals from prior hour; qualify; project |
-| `:35` | `run_l3_editor` | Submit viewpoint proposals (4 buckets max default: 2 Q × 2 polarities) |
-| `:45` | `run_l3_auditor` | Submit audit verdicts for controversies with viewpoints |
-| *next* `:15` | `debate_pipeline` | Apply viewpoints + audit; flip to **`open`** if audit pass |
+| *next* `:15` | `debate_pipeline` | Apply audit verdicts; flip to **`open`** if pass |
 
-First live controversy lands **~2 hours** after membership applies and controversies establish (editor → apply → auditor → apply → project).
+**Grok schedule** (your xAI routine): curator → editor → auditor between pipeline hours. Viewpoints and audits apply at the next `:15`.
 
 ---
 
@@ -133,9 +132,8 @@ First live controversy lands **~2 hours** after membership applies and controver
 | Cron | Function | Role |
 |------|----------|------|
 | `:15` | `debate_pipeline` | bind, apply, qualify, project |
-| `*/20` | `run_l3_curator` | fallback curator |
-| `:35` | `run_l3_editor` | viewpoint proposals |
-| `:45` | `run_l3_auditor` | publish gate proposals |
+
+Curator + editor + auditor: **Grok MCP only** (edge crons disabled).
 
 Confirm schedules in Supabase (`schedule.sql` next to each step).
 

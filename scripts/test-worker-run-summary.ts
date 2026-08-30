@@ -68,8 +68,22 @@ if (!auditorText.includes('*Auditor run complete*')) throw new Error('auditor he
 if (!auditorText.includes('Pass: 1 · Block: 1')) throw new Error('auditor counts')
 if (!auditorText.includes('*block*')) throw new Error('block tag')
 
+const idleText = formatAuditorRunSummaryText({
+  worker: 'auditor',
+  bot_id: 'grok',
+  run_id: '00000000-0000-4000-8000-000000000003',
+  pending_scanned: 0,
+  items: [],
+  idle_note: 'Nothing to audit — waiting on curator/editor.',
+})
+
+if (!idleText.includes('Nothing to audit')) throw new Error('idle note')
+if (idleText.includes('auto-apply')) throw new Error('idle should omit auto-apply note')
+
 console.log('test-worker-run-summary: ok')
 console.log('--- editor sample ---')
 console.log(editorText)
 console.log('--- auditor sample ---')
 console.log(auditorText)
+console.log('--- auditor idle sample ---')
+console.log(idleText)

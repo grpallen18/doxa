@@ -165,6 +165,12 @@ export const handler = async (req: Request) => {
     run_id: runId,
     pending_scanned: rows.length,
     items: summaryItems,
+    ...(rows.length === 0 && summaryItems.length === 0
+      ? {
+          idle_note:
+            "Nothing to audit — no established controversies with viewpoints on both sides.",
+        }
+      : {}),
   });
 
   return json({ ok: true, run_id: runId, pending: rows.length, submitted });

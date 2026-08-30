@@ -14,9 +14,6 @@
 | cleanup-cron-job-run-details-daily | cleanup-cron-job-run-details-daily | — | `30 4 * * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql) |
 | cleanup-http-responses-hourly | cleanup-http-responses-hourly | — | `0 * * * *` | inactive | [schedule.sql](doxa-agents/departments/05-business-operations/maintenance/02-cleanup-logs/schedule.sql) |
 | debate-pipeline-hourly | debate-pipeline | debate_pipeline | `15 * * * *` | active | [schedule.sql](doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql) |
-| l3-curator-every-20min | run-l3-curator | run_l3_curator | `*/20 * * * *` | active | [schedule.sql](doxa-agents/departments/06-debate-engine/debate-pipeline/14-run-l3-curator/schedule.sql) |
-| l3-editor-hourly | run-l3-editor | run_l3_editor | `35 * * * *` | active | [schedule.sql](doxa-agents/departments/06-debate-engine/debate-pipeline/15-run-l3-editor/schedule.sql) |
-| l3-auditor-hourly | run-l3-auditor | run_l3_auditor | `45 * * * *` | active | [schedule.sql](doxa-agents/departments/06-debate-engine/debate-pipeline/16-run-l3-auditor/schedule.sql) |
 | l3-sweep-counter-side | sweep-counter-side | sweep_counter_side | `50 */2 * * *` | active | [schedule.sql](doxa-agents/departments/06-debate-engine/debate-pipeline/17-sweep-counter-side/schedule.sql) |
 
 _Generated from manifest.yaml._

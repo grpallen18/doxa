@@ -1,19 +1,5 @@
--- Auditor worker hourly. Run after deploying run_l3_auditor.
+-- DISABLED: Grok Auditor runs on xAI schedule via MCP (list_audit_ready_controversies / submit_audit_verdict).
+-- Edge function run_l3_auditor remains for manual invoke / debugging only.
+-- Safe to run multiple times.
 
 do $$ begin perform cron.unschedule('l3-auditor-hourly'); exception when others then null; end $$;
-
-select cron.schedule(
-  'l3-auditor-hourly',
-  '45 * * * *',
-  $$
-  select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url') || '/functions/v1/run_l3_auditor',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
-    ),
-    body := '{"limit": 8}'::jsonb,
-    timeout_milliseconds := 180000
-  ) as request_id;
-  $$
-);

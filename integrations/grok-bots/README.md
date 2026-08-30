@@ -34,7 +34,7 @@ Create **separate** Grok custom bots in the [xAI console](https://console.x.ai/)
 |--------------|---------------|----------------------|
 | **Curator** | [`doxa-agents/prompts/l3-curator.md`](../../doxa-agents/prompts/l3-curator.md) | `claim_review_batch` → read dossiers → `submit_membership_proposal`. MINT ops go to Slack approval. |
 | **Editor** | [`doxa-agents/prompts/l3-editor.md`](../../doxa-agents/prompts/l3-editor.md) | Read question/controversy dossier → `submit_viewpoint_proposal`. |
-| **Auditor** | [`doxa-agents/prompts/l3-auditor.md`](../../doxa-agents/prompts/l3-auditor.md) | `get_controversy_dossier` → `submit_audit_verdict`. **No queue-claim tool** — supply a `controversy_uid`, or rely on `run_l3_auditor` cron. |
+| **Auditor** | [`doxa-agents/prompts/l3-auditor.md`](../../doxa-agents/prompts/l3-auditor.md) | `list_audit_ready_controversies` → audit → `submit_audit_verdict`; idle → `report_auditor_idle` (Slack). Brief chat only. |
 | **Lead reviewer** | *(Phase 8 — no prompt file yet)* | Dossier reads + `submit_approval_verdict`. |
 | **Acquisition** | *(no prompt file yet)* | `claim_lead_request` → find URL → `submit_lead_candidate`. |
 
@@ -76,11 +76,13 @@ Expect a JSON-RPC result listing all debate MCP tools (`claim_review_batch`, `su
 ```text
 Cron / enqueue → l3_review_queue
        ↓
-Grok curator (MCP) OR run_l3_curator (Edge worker) → l3_proposals
+Grok curator (MCP, xAI schedule) → l3_proposals
        ↓
 pending_approval → Slack card → you approve
        ↓
 apply_l3_proposals → Neo4j Question
+       ↓
+Grok editor (MCP) → viewpoint proposals → next :15 apply
 ```
 
 **Mint Slack cards** show the question, pro/con claims, then evidence grouped by source story (speaker excerpts under one clickable link each). Curator rationale is the judgment only — not a second copy of publishers/URLs. The curator must emit `pro_answer_statement` and `con_answer_statement` on every `MINT_QUESTION` — vague questions like "Is {outlet}'s reporting on {person} false?" are rejected by the validator.
@@ -90,22 +92,22 @@ apply_l3_proposals → Neo4j Question
 | Worker | When | Approval |
 |--------|------|----------|
 | **Curator** (Grok MCP) | End of curator session (mint + membership + consolidate) | Mint only → `#l3-approvals` card |
-| **Editor** (cron / MCP) | After viewpoint proposals submitted | Auto-applies — summary is informational |
-| **Auditor** (cron / MCP) | After pass/block verdicts submitted | Auto-applies — summary is informational |
+| **Editor** (Grok MCP) | After viewpoint proposals submitted | Auto-applies — summary is informational |
+| **Auditor** (Grok MCP / cron) | End of run (verdicts or idle) | Auto-applies on verdicts; idle posts confirmation to `#grok-ops` |
 
 Curator lease rollup window: **10 minutes**. No Grok action required for summaries.
 
-Grok proposes; **workers and applier execute**. Grok does not need to be online 24/7.
+Grok proposes; **workers and applier execute**. Curator + editor run on your xAI schedule; edge crons for those steps are off.
 
-## 6. Fallback workers (no Grok required)
+## 6. Edge fallback workers (manual invoke)
 
-These Edge functions drain the same queues with an LLM when Grok is offline:
+These Edge functions can drain the same queues with an LLM when you need a one-off run (no cron):
 
-| Function | Cron (when enabled) |
-|----------|---------------------|
-| `run_l3_curator` | `l3-curator-every-20min` |
-| `run_l3_editor` | `l3-editor-hourly` (`:35`) |
-| `run_l3_auditor` | `l3-auditor-hourly` (`:45`) |
+| Function | Cron |
+|----------|------|
+| `run_l3_curator` | **off** (Grok owns curator) |
+| `run_l3_editor` | **off** (Grok owns editor) |
+| `run_l3_auditor` | **off** (Grok owns auditor) |
 
 Optional Supabase secrets for xAI API: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
 

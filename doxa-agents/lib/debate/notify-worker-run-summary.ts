@@ -31,6 +31,7 @@ export type WorkerRunSummaryPayload = {
   run_id: string;
   buckets_scanned?: number;
   pending_scanned?: number;
+  idle_note?: string;
   items: Array<Record<string, unknown>>;
 };
 

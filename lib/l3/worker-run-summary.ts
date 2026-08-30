@@ -63,6 +63,9 @@ export type PostWorkerRunSummaryResult = {
 function shouldPostSummary(summary: WorkerRunSummary): boolean {
   const hasSubmitted = summary.items.some((item) => item.outcome === 'submitted')
   const hasErrors = summary.items.some((item) => item.outcome === 'error')
+  if (summary.worker === 'auditor') {
+    return hasSubmitted || hasErrors || summary.items.length === 0
+  }
   return hasSubmitted || hasErrors
 }
 

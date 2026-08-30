@@ -118,6 +118,29 @@ export const MCP_TOOLS = [
     inputSchema: { type: 'object', additionalProperties: true },
   },
   {
+    name: 'list_audit_ready_controversies',
+    description:
+      'Established controversies pending audit with viewpoints on at least two polarities. Call first on each scheduled run.',
+    inputSchema: {
+      type: 'object',
+      properties: { limit: { type: 'number' } },
+    },
+  },
+  {
+    name: 'report_auditor_idle',
+    description:
+      'Post Slack confirmation when there is nothing to audit. Required once per scheduled run when you submit no verdicts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'One-line why idle (shown in Slack)',
+        },
+      },
+    },
+  },
+  {
     name: 'submit_source_lead',
     description:
       'DEPRECATED. Prefer submit_lead_candidate. Queues a URL for human/Slack approval (does not ingest immediately).',
@@ -363,6 +386,40 @@ export async function callMcpTool(
           ],
         })
         result = { proposal_uid: proposalUid }
+        break
+      }
+      case 'list_audit_ready_controversies':
+        result = await runL3Cypher(
+          `
+          MATCH (c:Controversy {status: 'established'})
+          WHERE c.auditVerdict IS NULL OR c.auditVerdict = 'pending'
+          OPTIONAL MATCH (c)-[:INCLUDES]->(v:Viewpoint)
+          WITH c, [p IN collect(DISTINCT v.polarity) WHERE p IS NOT NULL] AS polarities
+          WHERE size(polarities) >= 2
+          OPTIONAL MATCH (q:Question {uid: c.questionUid})
+          RETURN c.uid AS controversy_uid,
+                 c.questionUid AS question_uid,
+                 q.question AS question
+          ORDER BY c.updatedAt DESC
+          LIMIT toInteger($limit)
+          `,
+          { limit: Number(args.limit) || 8 }
+        )
+        break
+      case 'report_auditor_idle': {
+        const reason =
+          String(args.reason ?? '').trim() ||
+          'Nothing to audit — waiting on curator/editor to assemble controversies.'
+        const runId = crypto.randomUUID()
+        await postWorkerRunSummary({
+          worker: 'auditor',
+          bot_id: bot.bot_id,
+          run_id: runId,
+          pending_scanned: 0,
+          items: [],
+          idle_note: reason,
+        })
+        result = { ok: true, run_id: runId, posted: true }
         break
       }
       case 'submit_audit_verdict': {

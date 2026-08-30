@@ -39,12 +39,14 @@ function parseSummary(body: Record<string, unknown>): WorkerRunSummary | null {
     return summary
   }
 
+  const idleNote = String(body.idle_note ?? '').trim()
   const summary: AuditorRunSummary = {
     worker: 'auditor',
     bot_id: botId || 'auditor',
     run_id: runId,
     pending_scanned: Number(body.pending_scanned ?? items.length) || 0,
     items: items as AuditorRunItemSummary[],
+    ...(idleNote ? { idle_note: idleNote } : {}),
   }
   return summary
 }
