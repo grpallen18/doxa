@@ -147,4 +147,5 @@ Execute end-to-end; do not ask the operator to call tools step-by-step.
 3. **Single-member sides are normal after curation.** If a polarity has exactly one member, still submit: one cluster containing that member, with `key_point` and `summary` drawn from its `segment_text`. Do **not** skip a side because it only has one thesis — the product needs a viewpoint on every populated polarity.
 4. Skip a polarity only when it has **zero** members, or when a viewpoint for that `(question_uid, polarity)` already exists and the member set is unchanged.
 5. **`submit_viewpoint_proposal`** — echo `question_uid`, `polarity`, `clusters`, `shared_bullets`, and `clash_bullets` per §6. One call per polarity; never mix polarities in one proposal.
-6. Stop after submit. Proposals **auto-apply** on the next pipeline run — you do not approve or watch Slack.
+6. If you submitted **no** viewpoint proposals this run, **`report_editor_idle({ reason })`** — posts confirmation to `#grok-ops`. **Required** once per scheduled run when there is nothing to submit.
+7. Stop after submit or idle report. Proposals **auto-apply** on the next pipeline run — you do not approve or watch Slack.

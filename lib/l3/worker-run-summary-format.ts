@@ -17,6 +17,8 @@ export type EditorRunSummary = {
   run_id: string
   buckets_scanned: number
   items: EditorRunItemSummary[]
+  /** Set when the run found nothing to edit (Grok idle report or empty cron scan). */
+  idle_note?: string
 }
 
 export type AuditorRunItemSummary = {
@@ -73,8 +75,18 @@ export function formatEditorRunSummaryText(summary: EditorRunSummary): string {
     '*Editor run complete*',
     `Bot: \`${summary.bot_id}\` · ${summary.buckets_scanned} bucket(s) scanned`,
     `Submitted: ${submitted} · Skipped: ${skipped}` + (errors ? ` · Errors: ${errors}` : ''),
-    '_Viewpoint proposals auto-apply on the next `debate_pipeline` (:15). No Slack approval needed._',
   ]
+
+  if (submitted === 0 && !errors) {
+    const idle =
+      summary.idle_note?.trim() ||
+      'Nothing to edit — all established controversies already have viewpoints for every populated polarity.'
+    lines.push(`_${idle}_`)
+  } else {
+    lines.push(
+      '_Viewpoint proposals auto-apply on the next `debate_pipeline` (:15). No Slack approval needed._'
+    )
+  }
 
   if (summary.items.length) {
     lines.push('')

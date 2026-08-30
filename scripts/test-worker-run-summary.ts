@@ -80,6 +80,18 @@ const idleText = formatAuditorRunSummaryText({
 if (!idleText.includes('Nothing to audit')) throw new Error('idle note')
 if (idleText.includes('auto-apply')) throw new Error('idle should omit auto-apply note')
 
+const editorIdleText = formatEditorRunSummaryText({
+  worker: 'editor',
+  bot_id: 'grok',
+  run_id: '00000000-0000-4000-8000-000000000004',
+  buckets_scanned: 0,
+  items: [],
+  idle_note: 'Nothing to edit — all viewpoints already exist.',
+})
+
+if (!editorIdleText.includes('Nothing to edit')) throw new Error('editor idle note')
+if (editorIdleText.includes('No Slack approval needed')) throw new Error('editor idle should omit auto-apply note')
+
 console.log('test-worker-run-summary: ok')
 console.log('--- editor sample ---')
 console.log(editorText)
@@ -87,3 +99,5 @@ console.log('--- auditor sample ---')
 console.log(auditorText)
 console.log('--- auditor idle sample ---')
 console.log(idleText)
+console.log('--- editor idle sample ---')
+console.log(editorIdleText)

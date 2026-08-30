@@ -113,6 +113,20 @@ export const MCP_TOOLS = [
     inputSchema: { type: 'object', additionalProperties: true },
   },
   {
+    name: 'report_editor_idle',
+    description:
+      'Post Slack confirmation when there is nothing to edit. Required once per scheduled run when you submit no viewpoint proposals.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'One-line why idle (shown in Slack)',
+        },
+      },
+    },
+  },
+  {
     name: 'submit_audit_verdict',
     description: 'Submit auditor pass/block (proposal only)',
     inputSchema: { type: 'object', additionalProperties: true },
@@ -386,6 +400,22 @@ export async function callMcpTool(
           ],
         })
         result = { proposal_uid: proposalUid }
+        break
+      }
+      case 'report_editor_idle': {
+        const reason =
+          String(args.reason ?? '').trim() ||
+          'Nothing to edit — all established controversies already have viewpoints for every populated polarity.'
+        const runId = crypto.randomUUID()
+        await postWorkerRunSummary({
+          worker: 'editor',
+          bot_id: bot.bot_id,
+          run_id: runId,
+          buckets_scanned: 0,
+          items: [],
+          idle_note: reason,
+        })
+        result = { ok: true, run_id: runId, posted: true }
         break
       }
       case 'list_audit_ready_controversies':

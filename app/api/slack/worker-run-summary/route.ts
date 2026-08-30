@@ -28,6 +28,8 @@ function parseSummary(body: Record<string, unknown>): WorkerRunSummary | null {
 
   const items = Array.isArray(body.items) ? body.items : []
 
+  const idleNote = String(body.idle_note ?? '').trim()
+
   if (worker === 'editor') {
     const summary: EditorRunSummary = {
       worker: 'editor',
@@ -35,11 +37,11 @@ function parseSummary(body: Record<string, unknown>): WorkerRunSummary | null {
       run_id: runId,
       buckets_scanned: Number(body.buckets_scanned ?? items.length) || 0,
       items: items as EditorRunItemSummary[],
+      ...(idleNote ? { idle_note: idleNote } : {}),
     }
     return summary
   }
 
-  const idleNote = String(body.idle_note ?? '').trim()
   const summary: AuditorRunSummary = {
     worker: 'auditor',
     bot_id: botId || 'auditor',

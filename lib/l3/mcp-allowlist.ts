@@ -22,6 +22,7 @@ export const MCP_ALLOWLIST: Record<string, readonly string[]> = {
     'get_question_dossier',
     'get_controversy_dossier',
     'submit_viewpoint_proposal',
+    'report_editor_idle',
   ],
   auditor: [
     'get_controversy_dossier',
@@ -47,6 +48,7 @@ export const MCP_ALLOWLIST: Record<string, readonly string[]> = {
     'claim_review_batch',
     'submit_membership_proposal',
     'submit_viewpoint_proposal',
+    'report_editor_idle',
     'submit_audit_verdict',
     'list_audit_ready_controversies',
     'report_auditor_idle',
@@ -61,6 +63,7 @@ export const MCP_ALLOWLIST: Record<string, readonly string[]> = {
     'claim_review_batch',
     'submit_membership_proposal',
     'submit_viewpoint_proposal',
+    'report_editor_idle',
     'submit_audit_verdict',
     'submit_source_lead',
     'claim_lead_request',

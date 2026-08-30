@@ -193,6 +193,12 @@ export const handler = async (req: Request) => {
     run_id: runId,
     buckets_scanned: buckets.length,
     items: summaryItems,
+    ...(buckets.length === 0 && summaryItems.length === 0
+      ? {
+          idle_note:
+            "Nothing to edit — all established controversies already have viewpoints for every populated polarity.",
+        }
+      : {}),
   });
 
   return json({ ok: true, run_id: runId, buckets: buckets.length, submitted });
