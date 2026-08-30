@@ -9,8 +9,28 @@ import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts
 import { getControversyDossier } from "../../../../lib/debate/dossier.ts";
 import { chatJson, estimateCostUsd, llmConfigFromDeno } from "../../../../lib/debate/llm.ts";
 import { AUDITOR_SYSTEM } from "../../../../lib/debate/prompts.ts";
+import { notifyWorkerRunSummary } from "../../../../lib/debate/notify-worker-run-summary.ts";
 
 const DEFAULT_LIMIT = 8;
+
+type AuditorSummaryItem = {
+  controversy_uid: string;
+  question_uid: string;
+  question_text: string;
+  outcome: "submitted" | "skipped" | "error";
+  verdict?: "pass" | "block";
+  reason?: string;
+  weakest_member_uid?: string;
+  proposal_uid?: string;
+  detail?: string;
+};
+
+function normalizeVerdict(raw: unknown): "pass" | "block" | undefined {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (v === "pass") return "pass";
+  if (v === "block") return "block";
+  return undefined;
+}
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -42,7 +62,11 @@ export const handler = async (req: Request) => {
     `
     MATCH (c:Controversy {status: 'established'})
     WHERE c.auditVerdict IS NULL OR c.auditVerdict = 'pending'
+    OPTIONAL MATCH (c)-[:INCLUDES]->(v:Viewpoint)
+    WITH c, [p IN collect(DISTINCT v.polarity) WHERE p IS NOT NULL] AS polarities
+    WHERE size(polarities) >= 2
     RETURN c.uid AS uid
+    ORDER BY c.updatedAt DESC
     LIMIT $limit
     `,
     { limit: neoInt(limit) }
@@ -51,6 +75,8 @@ export const handler = async (req: Request) => {
   if (dryRun) return json({ ok: true, dry_run: true, pending: rows.length });
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  const runId = crypto.randomUUID();
+  const summaryItems: AuditorSummaryItem[] = [];
   let submitted = 0;
   let promptTokens = 0;
   let completionTokens = 0;
@@ -58,12 +84,25 @@ export const handler = async (req: Request) => {
 
   for (const row of rows) {
     const dossier = await getControversyDossier(runCypher, row.uid);
-    if (!dossier) continue;
+    if (!dossier) {
+      summaryItems.push({
+        controversy_uid: row.uid,
+        question_uid: "",
+        question_text: row.uid,
+        outcome: "skipped",
+        detail: "missing dossier",
+      });
+      continue;
+    }
+    const questionText = dossier.question ?? dossier.questionUid;
     try {
       const result = await chatJson<Record<string, unknown>>(llm, AUDITOR_SYSTEM, dossier);
       promptTokens += result.usage.prompt_tokens;
       completionTokens += result.usage.completion_tokens;
+      const verdict = normalizeVerdict(result.parsed.verdict) ?? "block";
       const proposalUid = `audit:${row.uid}`;
+      const reason = String(result.parsed.reason ?? "");
+      const weakest = String(result.parsed.weakest_member_uid ?? "");
       await supabase.from("l3_proposals").upsert({
         proposal_uid: proposalUid,
         bot_id: "auditor",
@@ -73,21 +112,38 @@ export const handler = async (req: Request) => {
         payload: {
           controversy_uid: row.uid,
           question_uid: dossier.questionUid,
-          verdict: result.parsed.verdict ?? "block",
-          weakest_member_uid: result.parsed.weakest_member_uid ?? "",
-          reason: result.parsed.reason ?? "",
+          verdict,
+          weakest_member_uid: weakest,
+          reason,
           cited_utterance_uids: result.parsed.cited_utterance_uids ?? [],
         },
         status: "submitted",
         updated_at: new Date().toISOString(),
       });
       submitted += 1;
-    } catch {
-      /* skip */
+      summaryItems.push({
+        controversy_uid: row.uid,
+        question_uid: dossier.questionUid,
+        question_text: questionText,
+        outcome: "submitted",
+        verdict,
+        reason,
+        weakest_member_uid: weakest || undefined,
+        proposal_uid: proposalUid,
+      });
+    } catch (err) {
+      summaryItems.push({
+        controversy_uid: row.uid,
+        question_uid: dossier.questionUid,
+        question_text: questionText,
+        outcome: "error",
+        detail: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
   await supabase.from("l3_runs").insert({
+    run_id: runId,
     bot_id: "auditor",
     kind: "audit",
     items: rows.length,
@@ -100,7 +156,16 @@ export const handler = async (req: Request) => {
       total_tokens: promptTokens + completionTokens,
     }),
     wall_ms: Math.round(performance.now() - t0),
+    result: { summary_items: summaryItems },
   });
 
-  return json({ ok: true, pending: rows.length, submitted });
+  await notifyWorkerRunSummary({
+    worker: "auditor",
+    bot_id: "auditor",
+    run_id: runId,
+    pending_scanned: rows.length,
+    items: summaryItems,
+  });
+
+  return json({ ok: true, run_id: runId, pending: rows.length, submitted });
 };

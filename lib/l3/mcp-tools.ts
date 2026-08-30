@@ -14,6 +14,7 @@ import {
   markQueueItemProposed,
   maybePostCuratorRunSummary,
 } from '@/lib/l3/curator-run-summary'
+import { postWorkerRunSummary } from '@/lib/l3/worker-run-summary'
 import { botMayCallTool } from '@/lib/l3/mcp-allowlist'
 import type { L3Bot } from '@/lib/l3/mcp-auth'
 import fs from 'node:fs'
@@ -325,29 +326,81 @@ export async function callMcpTool(
       }
       case 'submit_viewpoint_proposal': {
         const proposalUid = `mcpvp:${bot.bot_id}:${Date.now()}`
+        const questionUid = args.question_uid ? String(args.question_uid) : ''
+        const polarity = String(args.polarity ?? '')
+        const clusters = Array.isArray(args.clusters) ? args.clusters : []
         const { error } = await supabase.from('l3_proposals').insert({
           proposal_uid: proposalUid,
           bot_id: bot.bot_id,
           kind: 'viewpoint',
-          question_uid: args.question_uid ? String(args.question_uid) : null,
+          question_uid: questionUid || null,
           payload: args,
           status: 'submitted',
         })
         if (error) throw new Error(error.message)
+        const runId = crypto.randomUUID()
+        await postWorkerRunSummary({
+          worker: 'editor',
+          bot_id: bot.bot_id,
+          run_id: runId,
+          buckets_scanned: 1,
+          items: [
+            {
+              question_uid: questionUid,
+              polarity,
+              question_text: questionUid,
+              outcome: 'submitted',
+              cluster_count: clusters.length,
+              key_points: clusters
+                .map((c) =>
+                  c && typeof c === 'object'
+                    ? String((c as Record<string, unknown>).key_point ?? '').trim()
+                    : ''
+                )
+                .filter(Boolean),
+              proposal_uid: proposalUid,
+            },
+          ],
+        })
         result = { proposal_uid: proposalUid }
         break
       }
       case 'submit_audit_verdict': {
         const proposalUid = `mcpaudit:${bot.bot_id}:${Date.now()}`
+        const controversyUid = args.controversy_uid ? String(args.controversy_uid) : ''
+        const questionUid = args.question_uid ? String(args.question_uid) : ''
+        const verdict =
+          String(args.verdict ?? '').toLowerCase() === 'pass' ? 'pass' : 'block'
         const { error } = await supabase.from('l3_proposals').insert({
           proposal_uid: proposalUid,
           bot_id: bot.bot_id,
           kind: 'audit',
-          controversy_uid: args.controversy_uid ? String(args.controversy_uid) : null,
+          controversy_uid: controversyUid || null,
           payload: args,
           status: 'submitted',
         })
         if (error) throw new Error(error.message)
+        const runId = crypto.randomUUID()
+        await postWorkerRunSummary({
+          worker: 'auditor',
+          bot_id: bot.bot_id,
+          run_id: runId,
+          pending_scanned: 1,
+          items: [
+            {
+              controversy_uid: controversyUid,
+              question_uid: questionUid,
+              question_text: questionUid || controversyUid,
+              outcome: 'submitted',
+              verdict,
+              reason: String(args.reason ?? ''),
+              weakest_member_uid: args.weakest_member_uid
+                ? String(args.weakest_member_uid)
+                : undefined,
+              proposal_uid: proposalUid,
+            },
+          ],
+        })
         result = { proposal_uid: proposalUid }
         break
       }

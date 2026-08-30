@@ -1,5 +1,5 @@
 // Supabase Edge Function: run_l3_editor.
-// Set-level viewpoint synthesis per (question, polarity). Body: { dry_run?, limit? }
+// Set-level viewpoint synthesis per (question, polarity). Body: { dry_run?, limit?, question_uid? }
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json, clampInt,
@@ -9,10 +9,34 @@ import { runCypher, getNeo4jEnv, neoInt } from "../../../../lib/neo4j/session.ts
 import { getQuestionDossier } from "../../../../lib/debate/dossier.ts";
 import { chatJson, estimateCostUsd, llmConfigFromDeno } from "../../../../lib/debate/llm.ts";
 import { EDITOR_SYSTEM } from "../../../../lib/debate/prompts.ts";
+import { ESTABLISH_MIN_CONFIDENCE } from "../../../../lib/debate/qualify-controversy.ts";
+import { notifyWorkerRunSummary } from "../../../../lib/debate/notify-worker-run-summary.ts";
 
 const DEFAULT_LIMIT = 8;
 
 type Bucket = { questionUid: string; polarity: string };
+
+type EditorSummaryItem = {
+  question_uid: string;
+  polarity: string;
+  question_text: string;
+  outcome: "submitted" | "skipped" | "error";
+  cluster_count?: number;
+  key_points?: string[];
+  proposal_uid?: string;
+  detail?: string;
+};
+
+function keyPointsFromClusters(clusters: unknown): string[] {
+  if (!Array.isArray(clusters)) return [];
+  return clusters
+    .map((c) => {
+      if (!c || typeof c !== "object") return "";
+      const row = c as Record<string, unknown>;
+      return String(row.key_point ?? row.label ?? "").trim();
+    })
+    .filter(Boolean);
+}
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -39,23 +63,38 @@ export const handler = async (req: Request) => {
 
   const dryRun = Boolean(body.dry_run ?? false);
   const limit = clampInt(body.limit, 1, 20, DEFAULT_LIMIT);
+  const questionUid =
+    typeof body.question_uid === "string" ? body.question_uid.trim() : "";
 
   const buckets = await runCypher<Bucket>(
     `
-    MATCH (q:Question)<-[a:ANSWERS]-(p:Proposition)
-    WHERE a.polarity IS NOT NULL AND a.polarity <> 'NONE'
-    WITH q, a.polarity AS polarity, count(p) AS n
-    WHERE n >= 2
+    MATCH (c:Controversy {status: 'established'})-[:ABOUT]->(q:Question)
+    WHERE $questionUid = '' OR q.uid = $questionUid
+    MATCH (q)<-[a:ANSWERS]-(p:Proposition)
+    WHERE coalesce(a.debateRole, 'thesis') = 'thesis'
+      AND a.polarity IS NOT NULL
+      AND a.polarity <> 'NONE'
+      AND a.polarity <> 'UNCERTAIN'
+      AND coalesce(a.confidence, 0) >= $minConf
+    WITH q, a.polarity AS polarity, count(DISTINCT p) AS n
+    WHERE n >= 1
+    OPTIONAL MATCH (v:Viewpoint {questionUid: q.uid, polarity: polarity})
+    WITH q, polarity, n, v
+    WHERE v IS NULL
     RETURN q.uid AS questionUid, polarity
-    ORDER BY n DESC
+    ORDER BY n DESC, q.uid, polarity
     LIMIT $limit
     `,
-    { limit: neoInt(limit) }
+    { questionUid, minConf: ESTABLISH_MIN_CONFIDENCE, limit: neoInt(limit) }
   );
 
-  if (dryRun) return json({ ok: true, dry_run: true, buckets: buckets.length });
+  if (dryRun) {
+    return json({ ok: true, dry_run: true, buckets: buckets.length, items: buckets });
+  }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  const runId = crypto.randomUUID();
+  const summaryItems: EditorSummaryItem[] = [];
   let submitted = 0;
   let promptTokens = 0;
   let completionTokens = 0;
@@ -63,8 +102,28 @@ export const handler = async (req: Request) => {
 
   for (const b of buckets) {
     const dossier = await getQuestionDossier(runCypher, b.questionUid);
-    if (!dossier) continue;
+    const questionText = dossier?.question?.text ?? b.questionUid;
+    if (!dossier) {
+      summaryItems.push({
+        question_uid: b.questionUid,
+        polarity: b.polarity,
+        question_text: questionText,
+        outcome: "skipped",
+        detail: "missing dossier",
+      });
+      continue;
+    }
     const members = dossier.members.filter((m) => m.polarity === b.polarity);
+    if (!members.length) {
+      summaryItems.push({
+        question_uid: b.questionUid,
+        polarity: b.polarity,
+        question_text: questionText,
+        outcome: "skipped",
+        detail: "no members on polarity",
+      });
+      continue;
+    }
     try {
       const result = await chatJson<Record<string, unknown>>(llm, EDITOR_SYSTEM, {
         question: dossier.question,
@@ -73,6 +132,7 @@ export const handler = async (req: Request) => {
       });
       promptTokens += result.usage.prompt_tokens;
       completionTokens += result.usage.completion_tokens;
+      const clusters = result.parsed.clusters ?? [];
       const proposalUid = `editor:${b.questionUid}:${b.polarity}`;
       await supabase.from("l3_proposals").upsert({
         proposal_uid: proposalUid,
@@ -84,18 +144,34 @@ export const handler = async (req: Request) => {
           polarity: b.polarity,
           shared_bullets: result.parsed.shared_bullets ?? [],
           clash_bullets: result.parsed.clash_bullets ?? [],
-          clusters: result.parsed.clusters ?? [],
+          clusters,
         },
         status: "submitted",
         updated_at: new Date().toISOString(),
       });
       submitted += 1;
-    } catch {
-      /* skip bucket */
+      summaryItems.push({
+        question_uid: b.questionUid,
+        polarity: b.polarity,
+        question_text: questionText,
+        outcome: "submitted",
+        cluster_count: Array.isArray(clusters) ? clusters.length : 0,
+        key_points: keyPointsFromClusters(clusters),
+        proposal_uid: proposalUid,
+      });
+    } catch (err) {
+      summaryItems.push({
+        question_uid: b.questionUid,
+        polarity: b.polarity,
+        question_text: questionText,
+        outcome: "error",
+        detail: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
   await supabase.from("l3_runs").insert({
+    run_id: runId,
     bot_id: "editor",
     kind: "viewpoint",
     items: buckets.length,
@@ -108,7 +184,16 @@ export const handler = async (req: Request) => {
       total_tokens: promptTokens + completionTokens,
     }),
     wall_ms: Math.round(performance.now() - t0),
+    result: { summary_items: summaryItems },
   });
 
-  return json({ ok: true, buckets: buckets.length, submitted });
+  await notifyWorkerRunSummary({
+    worker: "editor",
+    bot_id: "editor",
+    run_id: runId,
+    buckets_scanned: buckets.length,
+    items: summaryItems,
+  });
+
+  return json({ ok: true, run_id: runId, buckets: buckets.length, submitted });
 };

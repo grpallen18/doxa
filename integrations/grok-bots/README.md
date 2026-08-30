@@ -85,7 +85,15 @@ apply_l3_proposals → Neo4j Question
 
 **Mint Slack cards** show the question, pro/con claims, then evidence grouped by source story (speaker excerpts under one clickable link each). Curator rationale is the judgment only — not a second copy of publishers/URLs. The curator must emit `pro_answer_statement` and `con_answer_statement` on every `MINT_QUESTION` — vague questions like "Is {outlet}'s reporting on {person} false?" are rejected by the validator.
 
-**Run summaries** post to `#grok-ops` (or `#l3-approvals` if `SLACK_OPS_CHANNEL_ID` is unset) automatically when a claimed batch finishes — one message per lease with mint / decline / blocked counts and a one-line note per item. No Grok action required.
+**Run summaries** post to `#grok-ops` (or `#l3-approvals` if `SLACK_OPS_CHANNEL_ID` is unset):
+
+| Worker | When | Approval |
+|--------|------|----------|
+| **Curator** (Grok MCP) | End of curator session (mint + membership + consolidate) | Mint only → `#l3-approvals` card |
+| **Editor** (cron / MCP) | After viewpoint proposals submitted | Auto-applies — summary is informational |
+| **Auditor** (cron / MCP) | After pass/block verdicts submitted | Auto-applies — summary is informational |
+
+Curator lease rollup window: **10 minutes**. No Grok action required for summaries.
 
 Grok proposes; **workers and applier execute**. Grok does not need to be online 24/7.
 
@@ -96,8 +104,8 @@ These Edge functions drain the same queues with an LLM when Grok is offline:
 | Function | Cron (when enabled) |
 |----------|---------------------|
 | `run_l3_curator` | `l3-curator-every-20min` |
-| `run_l3_editor` | (off during bootstrap) |
-| `run_l3_auditor` | (off during bootstrap) |
+| `run_l3_editor` | `l3-editor-hourly` (`:35`) |
+| `run_l3_auditor` | `l3-auditor-hourly` (`:45`) |
 
 Optional Supabase secrets for xAI API: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
 
@@ -109,7 +117,9 @@ After the first human-approved MINT is proven (Slack → applier → Question in
 
 1. Ensure **`project_debate_summaries`** has run so `graph_questions` reflects Neo4j (otherwise bootstrap stays stuck at 0 projected rows).
 2. Set Edge secret **`L3_BOOTSTRAP=false`** (or `0` / `off`) on curator/enqueue workers to enable membership + consolidate + lead requests before hitting 30 questions.
-3. Re-run **`apply_l3_proposals`** if Grok declines pile up as `submitted` — until applied, queue items recycle and `l3ReviewedAt` is not stamped.
+3. Let **`debate_pipeline`** run on hourly cron — it applies proposals, qualifies controversies, and projects. Manual re-runs are for debugging only.
+
+**Living checklist:** [post-bootstrap-plan.md](./post-bootstrap-plan.md) — milestones, Grok posture, editor/auditor path, known drift.
 
 Hourly **`debate_pipeline`** (limit 500) runs `bind_candidates`, **`detect_contrast_seeds`** (intra-doc pro/con pairs), apply, then enqueue (600 unbound props/tick, cursor-rotated).
 

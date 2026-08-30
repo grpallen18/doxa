@@ -250,12 +250,19 @@ When you claim a batch, **process every item in that lease before stopping**. On
    - **`ops: []`** → spine marks the cluster reviewed automatically.
 4. Unreviewable item (empty proposition after `get_proposition`, corrupt payload): **`report_blocked({ item_id, lease_id, reason })`**.
 
-### After bootstrap (membership / consolidate)
+### After bootstrap (membership / consolidate / mint)
 
-1. **`claim_review_batch({ kind: "membership" })`**, then **`consolidate`** if nothing is pending.
-2. **`get_question_dossier({ question_uid })`** per item — the mint path above does not apply.
-3. Same submit contract: one proposal per item; always echo `item_id` + `lease_id`.
-4. Optional: `get_merge_candidates`, `get_counter_side_candidates`, `search_questions`, `get_gold_examples`.
+Same claim order as the edge worker (`run_l3_curator`): **membership first**, then **consolidate**, then **mint** to fill remaining batch capacity.
+
+1. **`claim_review_batch({ kind: "membership" })`** — save `lease_id`; process every item.
+2. **`claim_review_batch({ kind: "consolidate" })`** if consolidate items are pending.
+3. **`claim_review_batch({ kind: "mint", limit: 5 })`** — only if batch capacity remains and mint queue has pending clusters. You may claim mint **more than once** per session; each claim is ≤5 items (≤20 max).
+4. **`get_question_dossier({ question_uid })`** per membership/consolidate item — the mint path below does not apply.
+5. **Mint items** (no `question_uid`): **`get_proposition({ uid })`** on each `payload.prop_uids` entry; decide **`MINT_QUESTION`** or decline (`ops: []`); always pass `cluster_prop_uids`.
+6. Same submit contract: one proposal per item; always echo `item_id` + `lease_id`.
+7. Optional: `get_merge_candidates`, `get_counter_side_candidates`, `search_questions`, `get_gold_examples`.
+
+Stop when the session ends or queues for these kinds are empty. You do not approve mints or watch Slack.
 
 ### Never
 

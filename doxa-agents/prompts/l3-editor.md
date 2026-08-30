@@ -42,7 +42,7 @@ If you are handed a full question dossier containing both sides, filter to one p
 6. **Write for the reader.** `key_point` is a claim, not a topic label.
 7. **Write the bullets last** (§4), after you can see the whole side.
 
-Typical output is 2–4 clusters. Beyond 6, you are almost certainly splitting on wording rather than reason.
+Typical output is 2–4 clusters when many members share a side. A **single-member side** produces exactly **one cluster** — that is correct and required for publish.
 
 ---
 
@@ -140,6 +140,11 @@ The two clusters share a conclusion and nothing else — merging them would have
 
 ## 7. MCP tool workflow (Grok only — ignore if the dossier was supplied directly)
 
-1. `get_question_dossier({ question_uid })`, or `get_controversy_dossier({ controversy_uid })` when you are working from an assembled controversy.
-2. Split `members` by polarity. Only write a proposal for a polarity with **≥ 2** members; a single member does not need clustering.
-3. `submit_viewpoint_proposal` — one call per polarity.
+Execute end-to-end; do not ask the operator to call tools step-by-step.
+
+1. **`get_controversy_dossier({ controversy_uid })`** when you have a controversy id, or **`get_question_dossier({ question_uid })`** when you have a question id. There is no queue-claim tool.
+2. **Split `members` by polarity** (`FAVOR`, `AGAINST`, `AFFIRMS`, `DENIES`, `QUALIFY`). Submit **one proposal per polarity that has at least one thesis on that side**.
+3. **Single-member sides are normal after curation.** If a polarity has exactly one member, still submit: one cluster containing that member, with `key_point` and `summary` drawn from its `segment_text`. Do **not** skip a side because it only has one thesis — the product needs a viewpoint on every populated polarity.
+4. Skip a polarity only when it has **zero** members, or when a viewpoint for that `(question_uid, polarity)` already exists and the member set is unchanged.
+5. **`submit_viewpoint_proposal`** — echo `question_uid`, `polarity`, `clusters`, `shared_bullets`, and `clash_bullets` per §6. One call per polarity; never mix polarities in one proposal.
+6. Stop after submit. Proposals **auto-apply** on the next pipeline run — you do not approve or watch Slack.

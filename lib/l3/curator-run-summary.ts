@@ -185,7 +185,7 @@ async function getCompletedLeaseIds(supabase: SupabaseClient, botId: string): Pr
 async function getRecentCompletedLeaseIds(
   supabase: SupabaseClient,
   botId: string,
-  maxAgeMinutes = 45
+  maxAgeMinutes = 10
 ): Promise<string[]> {
   const completed = await getCompletedLeaseIds(supabase, botId)
   if (!completed.length) return []
