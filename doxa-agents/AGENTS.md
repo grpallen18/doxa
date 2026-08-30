@@ -1,15 +1,17 @@
 # Doxa Agents
 
-Pipeline agents for ingesting stories, building a Neo4j evidence graph, and (upcoming) debate topology across stories.
+Pipeline agents for ingesting stories, building a Neo4j evidence graph, and assembling debate topology (L3) across stories.
 
 ## Pipeline layers
 
 ```text
 01 Ingestion          → stories + clean bodies → enqueue graph job
 04 Graph engine       → enqueue / trigger Python utterance graph-worker → AuraDB
+06 Debate engine      → bind/enqueue → Grok L3 (MCP) → apply proposals → project graph_*
+07 Analysis engine    → evidence checks, citations, person profiles
 02–03 Claims path     → DEPRECATED (pending cleanup after Phase 2; handlers still on disk)
 legacy/               → archived merge / canonical / topology (pending deletion)
-05 Ops                → health, maintenance
+05 Ops                → health, maintenance, graph hygiene
 ```
 
 **Steering document:** [docs/architecture/neo4j-graph-architecture.md](docs/architecture/neo4j-graph-architecture.md)  
@@ -17,7 +19,7 @@ legacy/               → archived merge / canonical / topology (pending deletio
 **Phase 0 validation:** [docs/architecture/phase0-validation.md](docs/architecture/phase0-validation.md)  
 **Phase 1 validation:** [docs/architecture/phase1-validation.md](docs/architecture/phase1-validation.md)
 
-**Admin runnable catalog:** ingestion + graph enqueue/trigger. Custom claims extract/review/merge is **replaced** by the Neo4j utterance path (Python worker). Old handlers remain under `02-chunking-engine` / `03-merging-engine` / `legacy/` until post–Phase 2 cleanup.
+**Admin runnable catalog:** story-scoped **ingestion + graph enqueue/trigger**; global **debate**, **analysis**, and **hygiene** stages. Custom claims extract/review/merge is **replaced** by the Neo4j utterance path (Python worker). Old handlers remain under `02-chunking-engine` / `03-merging-engine` / `legacy/` until post–Phase 2 cleanup.
 
 **Important:** Controversy topology is the product surface; Neo4j is the discourse substrate. Phase 0–2a write Utterances → Propositions/Entities → Arguments in the graph-worker. Cross-document Viewpoint / Controversy / Dispute assembly is the Edge `debate_pipeline`.
 
@@ -61,14 +63,20 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 |------------|------|---------|
 | 01 Ingestion | [departments/01-ingestion-engine](departments/01-ingestion-engine) | NewsAPI, relevance, scrape, clean → enqueue graph job |
 | 04 Graph | [departments/04-graph-engine](departments/04-graph-engine) | Enqueue / trigger Neo4j graph worker |
+| 06 Debate | [departments/06-debate-engine](departments/06-debate-engine) | Bind candidates, L3 proposals, qualify, project `graph_*` |
+| 07 Analysis | [departments/07-analysis-engine](departments/07-analysis-engine) | Evidence checks, citations, person profiles |
 | 02 Chunking | [departments/02-chunking-engine](departments/02-chunking-engine) | **Deprecated** claims extract/QA (Build 4 delete) |
 | 03 Merging | [departments/03-merging-engine](departments/03-merging-engine) | **Deprecated** claims merge (Build 4 delete) |
-| 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, maintenance |
+| 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, maintenance, graph hygiene |
 | Legacy | [departments/legacy](departments/legacy) | Archived multi-atom / canonical / topology (Build 4 delete) |
 
 ### 04 Graph (Phase 0)
 
 **Path:** `clean-scraped-content` enqueues `graph_processing_jobs` → Python [`services/graph-worker`](../services/graph-worker/) → Neo4j AuraDB (Document / Segment / Utterance). Manual: `enqueue-graph-job`, `trigger-graph-worker`.
+
+### 06 Debate / 07 Analysis
+
+**Path:** hourly `debate_pipeline` binds candidates, applies approved proposals, qualifies controversies, and projects Postgres. **Grok** (xAI MCP) owns curator / editor / auditor judgment; Edge `run_l3_*` crons are **unscheduled** (manual invoke only). See [debate-pipeline README](departments/06-debate-engine/debate-pipeline/README.md) and [grok-bot-architecture.md](docs/grok-bot-architecture.md). Analysis (`analysis_pipeline`) writes L4 checks and `project_person_profiles` for `/people`.
 
 ### 02 Chunking / 03 Merging (deprecated)
 
