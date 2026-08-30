@@ -21,7 +21,7 @@ export function clampInt(n: unknown, min: number, max: number, fallback: number)
 
 export type StepResult = {
   name: string;
-  status: "success" | "failed";
+  status: "success" | "failed" | "skipped";
   duration_ms: number;
   http_status?: number;
   result?: Record<string, unknown>;

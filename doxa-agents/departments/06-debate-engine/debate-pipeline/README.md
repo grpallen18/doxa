@@ -17,7 +17,7 @@ Registry-first L3 assembly. Deterministic candidate binding + proposal applier; 
 | run-l3-editor | [15-run-l3-editor](15-run-l3-editor/) | `run_l3_editor` | Viewpoints for **established** controversies missing a `(question, polarity)` side (≥1 thesis @ 0.7+) |
 | run-l3-auditor | [16-run-l3-auditor](16-run-l3-auditor/) | `run_l3_auditor` | Publish gate; runs only when controversy has ≥2 viewpoints |
 | sweep-counter-side | [17-sweep-counter-side](17-sweep-counter-side/) | `sweep_counter_side` | Counter-thesis candidate recall |
-| debate-pipeline | [08-debate-pipeline](08-debate-pipeline/) | `debate_pipeline` | Orchestrator |
+| debate-pipeline | [08-debate-pipeline](08-debate-pipeline/) | `debate_pipeline` | Orchestrator: bind → apply proposals → qualify → **apply viewpoints** → project; contrast seeds skipped post-bootstrap |
 
 ## Review lifecycle
 

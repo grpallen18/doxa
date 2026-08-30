@@ -5,6 +5,21 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json, invokeFunction,
   requireInternalAuth,
 } from "../../../../lib/topology/invoke-step.ts";
+import { getNeo4jEnv, runCypher } from "../../../../lib/neo4j/session.ts";
+
+async function repairViewpointIncludes(): Promise<number> {
+  if (!getNeo4jEnv()) return 0;
+  const rows = await runCypher<{ linked: number }>(
+    `
+    MATCH (c:Controversy)-[:ABOUT]->(q:Question)
+    MATCH (v:Viewpoint {questionUid: q.uid})
+    WHERE NOT (c)-[:INCLUDES]->(v)
+    MERGE (c)-[:INCLUDES]->(v)
+    RETURN count(v) AS linked
+    `
+  );
+  return Number(rows[0]?.linked ?? 0);
+}
 
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -31,6 +46,7 @@ export const handler = async (req: Request) => {
     .select("proposal_uid")
     .eq("kind", "viewpoint")
     .in("status", ["submitted", "validated"])
+    .order("created_at", { ascending: true })
     .limit(20);
 
   if (body.dry_run) {
@@ -38,11 +54,56 @@ export const handler = async (req: Request) => {
   }
 
   let applied = 0;
+  let rejected = 0;
+  let unchanged = 0;
+  const errors: Array<{ proposal_uid: string; status?: string; detail?: string }> = [];
+
   for (const row of rows ?? []) {
+    const proposalUid = row.proposal_uid as string;
     const res = await invokeFunction(SUPABASE_URL, SERVICE_ROLE, "apply_l3_proposals", {
-      proposal_uid: row.proposal_uid,
+      proposal_uid: proposalUid,
     });
-    if (res.ok) applied += 1;
+    if (!res.ok) {
+      errors.push({
+        proposal_uid: proposalUid,
+        detail: String(res.data?.error ?? `HTTP ${res.http_status}`),
+      });
+      continue;
+    }
+
+    const { data: after } = await supabase
+      .from("l3_proposals")
+      .select("status, validator_errors")
+      .eq("proposal_uid", proposalUid)
+      .maybeSingle();
+
+    const status = after?.status ?? "";
+    if (status === "applied") {
+      applied += 1;
+    } else if (status === "rejected") {
+      rejected += 1;
+      errors.push({
+        proposal_uid: proposalUid,
+        status,
+        detail: JSON.stringify(after?.validator_errors ?? {}),
+      });
+    } else {
+      unchanged += 1;
+      errors.push({
+        proposal_uid: proposalUid,
+        status: status || "unknown",
+        detail: "proposal status unchanged after apply",
+      });
+    }
   }
-  return json({ ok: true, pending: rows?.length ?? 0, applied });
+
+  return json({
+    ok: true,
+    pending: rows?.length ?? 0,
+    applied,
+    rejected,
+    unchanged,
+    repaired_includes: await repairViewpointIncludes(),
+    errors,
+  });
 };

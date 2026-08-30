@@ -11,6 +11,7 @@ import {
   requireInternalAuth,
 } from "../../../../lib/topology/invoke-step.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadBootstrapState } from "../../../../lib/debate/bootstrap-config.ts";
 
 const STEP_NAMES = [
   "bind_candidates",
@@ -39,7 +40,7 @@ function stepBodyFor(
     stepBody.limit = body.enqueue_limit ?? 80;
     stepBody.unbound_limit = body.unbound_limit ?? 600;
   } else if (name === "apply_l3_proposals") {
-    stepBody.limit = body.apply_limit ?? pipelineLimit ?? 50;
+    stepBody.limit = body.apply_limit ?? Math.min(pipelineLimit ?? 50, 30);
   } else if (name === "detect_contrast_seeds") {
     stepBody.limit = body.contrast_limit ?? Math.min(pipelineLimit ?? 40, 100);
   } else if (pipelineLimit != null) {
@@ -70,6 +71,15 @@ function resolveQuestionUid(body: Record<string, unknown>): string {
   return "";
 }
 
+function shouldSkipContrastSeeds(
+  body: Record<string, unknown>,
+  bootstrap: boolean
+): boolean {
+  if (body.skip_contrast_seeds != null) return Boolean(body.skip_contrast_seeds);
+  if (body.run_contrast_seeds != null) return !Boolean(body.run_contrast_seeds);
+  return !bootstrap;
+}
+
 export const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
@@ -94,11 +104,30 @@ export const handler = async (req: Request) => {
 
     const dryRun = Boolean(body.dry_run ?? false);
     const resolvedQuestionUid = resolveQuestionUid(body);
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+    const { bootstrap, questionCount } = await loadBootstrapState(supabase);
+    const skipContrastSeeds = shouldSkipContrastSeeds(body, bootstrap);
+    const runId = crypto.randomUUID();
     const steps: StepResult[] = [];
     let failedStep: string | null = null;
     const tAll = performance.now();
 
     for (const name of STEP_NAMES) {
+      if (name === "detect_contrast_seeds" && skipContrastSeeds) {
+        steps.push({
+          name,
+          status: "skipped",
+          duration_ms: 0,
+          result: {
+            skipped: true,
+            reason: "post_bootstrap_grok_mint",
+            bootstrap,
+            question_count: questionCount,
+          },
+        });
+        continue;
+      }
+
       const t0 = performance.now();
       const stepBody = stepBodyFor(name, body, dryRun, resolvedQuestionUid);
 
@@ -119,14 +148,22 @@ export const handler = async (req: Request) => {
       }
     }
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+    const finishedSteps = steps.filter((s) => s.status === "success" || s.status === "skipped").length;
     await supabase.from("l3_runs").insert({
+      run_id: runId,
       bot_id: "debate_pipeline",
       kind: "pipeline",
       items: steps.length,
-      ops_applied: steps.filter((s) => s.status === "success").length,
+      ops_applied: finishedSteps,
       wall_ms: Math.round(performance.now() - tAll),
-      result: { steps, failed_at: failedStep, dry_run: dryRun },
+      result: {
+        steps,
+        failed_at: failedStep,
+        dry_run: dryRun,
+        bootstrap,
+        question_count: questionCount,
+        skip_contrast_seeds: skipContrastSeeds,
+      },
     });
 
     if (failedStep) {
@@ -134,6 +171,7 @@ export const handler = async (req: Request) => {
         {
           ok: false,
           dry_run: dryRun,
+          run_id: runId,
           failed_at: failedStep,
           summary: { total_steps: steps.length, failed_step: failedStep },
           steps,
@@ -146,6 +184,7 @@ export const handler = async (req: Request) => {
     return json({
       ok: true,
       dry_run: dryRun,
+      run_id: runId,
       summary: { total_steps: steps.length, total_ms },
       steps,
     });
