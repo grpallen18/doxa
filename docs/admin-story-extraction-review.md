@@ -1,45 +1,44 @@
 # Admin: Story extraction review
 
-Internal QA surface for comparing article text against pipeline extraction output. The admin UI supports human review, QA override, **clear**, and **step-by-step pipeline runs** across ingestion and claims extraction (through chunk QA review).
+Internal QA surface for comparing article text against pipeline output, running **story-scoped** catalog steps, and (legacy) inspecting claims tables if they still exist on a story.
 
-**See also:** [Admin pipeline ops roadmap](./admin-pipeline-ops-roadmap.md) (Phases 1–4) · [Pipeline catalog](../doxa-agents/docs/generated/pipeline-catalog.md) (generated step list)
+**Runnable catalog today:** ingestion → knowledge graph (enqueue/trigger). Claims extract/merge is **not** in `pipeline-admin-catalog.yaml` — Neo4j graph-worker replaced it. Debate / analysis / hygiene steps are **global** (no `story_id`) and live under Admin Center / L3 / Observability, not on the story extraction checklist.
+
+**See also:** [Admin pipeline ops roadmap](./admin-pipeline-ops-roadmap.md) · [Observability](./admin-observability.md) · [Pipeline catalog](../doxa-agents/docs/generated/pipeline-catalog.md)
 
 ## Pipeline stages (story-scoped)
 
-Steps are grouped in the UI under two **runnable** macro stages. Source of truth: `doxa-agents/ops/pipeline-admin-catalog.yaml` (merged with `manifest.yaml` at `npm run agents:pipeline-catalog`).
-
-The **agent-flow canvas** still shows the full target architecture (merge, canonicalization, topology). Downstream nodes are roadmap placeholders—amber warning, no Run/Revert—until those steps are moved back from `departments/legacy/`.
+Source of truth: `doxa-agents/ops/pipeline-admin-catalog.yaml` (merged with `manifest.yaml` at `npm run agents:pipeline-catalog`).
 
 ### Ingestion
 
-Qualify assigns **Keep**, **Drop**, or **Pending**. **Pending** is a feedback loop within qualify — a story must be resolved to Keep or Drop before scrape runs. The optional **Resolve pending qualification** step covers that review; it is not a separate macro stage after clean.
+Qualify assigns **Keep**, **Drop**, or **Pending**. **Pending** must resolve to Keep or Drop before scrape. Batch qualify claims the **oldest** unclassified stories first via RPC `claim_stories_for_relevance` (FIFO).
 
 | Step | Deploy | Complete when |
 |------|--------|---------------|
 | Qualify story | `relevance_gate` | `relevance_status` set (Keep, Drop, or Pending) |
-| Resolve pending qualification | `review_pending_stories` | Not required unless `PENDING`; complete when status is Keep or Drop |
+| Resolve pending qualification | `review_pending_stories` | Not required unless `PENDING` |
 | Scrape story content | `scrape_story_content` | `scraped_at` set or `scrape_skipped` (Keep only) |
 | Clean scraped content | `clean_scraped_content` | `story_bodies.content_clean` present (Keep only) |
 
-### Extraction (claims-only — active catalog)
-
-Runnable extraction ends at **Review chunk claims** (`validate_chunk_claims`). Merge, refine, canonical, and topology steps are archived (handlers under `doxa-agents/departments/legacy/`).
+### Knowledge graph
 
 | Step | Deploy | Notes |
 |------|--------|-------|
-| Chunk story bodies | `chunk_story_bodies` | Creates `story_chunks` |
-| Extract primary claims | `extract_story_claims` | 1 chunk per Run (`max_chunks: 1`) |
-| Review chunk claims | `validate_chunk_claims` | Chunk QA — deterministic validate → chunk `passed` |
+| Enqueue graph job | `enqueue_graph_job` | Writes `graph_processing_jobs` (also happens at end of clean) |
+| Trigger graph worker | `trigger_graph_worker` | Optional poke of the Azure/Python worker |
 
-Extraction macro stage is **complete** when all chunks have passed chunk QA (`chunk_extraction_qa_status = passed` for the claims lane).
+The Python worker writes Document / Segment / Utterance in Neo4j. L3 debate assembly is **not** a story checklist step — use `debate_pipeline` / Grok MCP.
 
-### Archived (canvas roadmap only)
+### Archived (canvas / old stories)
 
-These steps appear on the agent-flow graph but are **not** in the runnable catalog: `refine-chunk-claims`, merge QA, canonical linkers, debate topology, positions lane, multi-atom chunk steps. Re-enable by restoring handlers to active departments and updating `pipeline-admin-catalog.yaml`.
+Claims chunk → extract → chunk QA, merge, canonical linkers, and legacy topology remain on disk under `doxa-agents/departments/02-*`, `03-*`, and `legacy/`. They are **not** in the runnable catalog. The `/extraction` and `/canonical` story pages may still show leftover claims UI for historical rows.
+
+The **agent-flow canvas** still draws the full target architecture. Downstream nodes without catalog entries show a roadmap warning (no Run/Revert).
 
 ## Story hub and stage pages
 
-All story routes under `/admin/stories/[story_id]` share a layout that loads `GET /api/admin/stories/[id]/extraction-review` once (`StoryReviewProvider`) and shows a macro **Pipeline stepper** (Ingestion → Extraction).
+All story routes under `/admin/stories/[story_id]` share a layout that loads `GET /api/admin/stories/[id]/extraction-review` once (`StoryReviewProvider`) and shows a macro **Pipeline stepper** from `PIPELINE_STAGES` (Ingestion, Knowledge graph, Debate, Analysis, Graph hygiene). Only ingestion + graph are story-scoped Run targets.
 
 ### Hub (`/admin/stories/[story_id]`)
 
@@ -55,15 +54,11 @@ Full-width checklist for one macro stage. Each step can be run individually via 
 | Path | Checklist | Stage actions |
 |------|-----------|---------------|
 | `/admin/stories/[id]/ingestion` | Ingestion steps | — |
-| `/admin/stories/[id]/extraction` | Chunk → extract → review | **Clear extraction** |
+| `/admin/stories/[id]/extraction` | Leftover claims tables (not in runnable catalog) | **Clear extraction** if those rows exist |
 | `/admin/stories/[id]/agent-flow` | Full vision graph (runnable + roadmap) | Run/Revert on catalog steps only |
 | `/admin/stories/[id]/canonical` | Redirects to agent-flow | — |
 
 While a step runs, the row shows a spinner and the page polls extraction-review every **2 seconds** until output changes or completion criteria are met (max ~72 seconds), then stops automatically.
-
-Steps with batch limits (`validate_chunk_claims`) may need multiple **Run** clicks if the story has more than 20 chunks. **Extract** runs one chunk per click.
-
-When QA returns `needs_human_review`, the checklist shows a blocked state. Use **Approve QA** (hub sidebar or stage banner) to unblock further chunk review.
 
 Shared UI lives in `components/admin/pipeline/` (`PipelineChecklist`, `PipelineStepper`, `usePipelineStepPoll`).
 
@@ -168,8 +163,8 @@ Migration `126_story_extraction_feedback.sql`. Passive dataset for future evals 
 ## Manual test: clear + pipeline walkthrough
 
 1. Open a story hub on `/admin/stories/[id]`; confirm stepper links and entity summary (no full checklist on hub).
-2. **Ingestion** (`/ingestion`) — Run qualify → resolve Pending if needed → scrape → clean; confirm ingestion fields in step detail.
-3. **Extraction** (`/extraction`) — Chunk → Extract → Review until all chunks pass chunk QA.
-4. **Agent flow** (`/agent-flow`) — Confirm downstream nodes show roadmap warning (no Run/Revert); catalog steps remain runnable.
-5. Confirm blocked state when QA returns `needs_human_review`; **Approve QA** on hub unblocks chunk review.
-6. **Admin Center search** (`/admin?q=…`) returns matching stories, claims, and positions.
+2. **Ingestion** (`/ingestion`) — Run qualify → resolve Pending if needed → scrape → clean.
+3. **Graph** — Enqueue graph job (or rely on clean’s enqueue), then confirm a `graph_processing_jobs` row; optional Trigger graph worker.
+4. **Agent flow** (`/agent-flow`) — Catalog steps (ingestion + graph + global debate if shown) remain runnable; archived claims/canonical nodes should not Run.
+5. **Admin Center search** (`/admin?q=…`) returns matching stories (and leftover claims/positions if those tables still have rows).
+6. Funnel health: `/admin/observability`. L3 overrides: `/admin/l3-proposals`.

@@ -40,9 +40,9 @@ Human approval (Slack, early) OR approval Grok bot (later) OR auto-apply when ga
 apply_l3_proposals / applier → Neo4j + Postgres (always server-side, reliable)
 ```
 
-**In plain terms:** Grok is the reviewer at the top of the funnel — it reads a focused packet, says “mint this question” or “reject this lead,” and walks away. Supabase queues, edge workers, and the applier keep running on cron whether or not Grok is online. API workers (`run_l3_curator`, `run_l3_editor`, `run_l3_auditor`) remain **permanent executors**: they can drain the same queues with the same prompts when Grok isn’t scheduled, and they always run the apply step after approval. Grok does not hold the only copy of “what happens next.”
+**In plain terms:** Grok is the scheduled reviewer — it claims a batch over MCP, writes a proposal, and walks away. The **spine** (`debate_pipeline` hourly) still binds candidates, applies approved proposals, qualifies controversies, and projects Postgres whether or not Grok is online. Edge workers `run_l3_curator` / `run_l3_editor` / `run_l3_auditor` remain **manual fallbacks** (same prompts as Grok). Their pg_cron jobs are **unscheduled** so they do not double-process with xAI. Grok does not hold the only copy of “what happens next”; the applier and hourly orchestrator do.
 
-This is not “Grok until workers replace it.” It is **Grok + workers + human** on one queue, with workers as the dependable execution layer.
+This is **Grok (judgment) + spine (execution) + human Slack**, with Edge LLM workers only when you invoke them.
 
 ---
 
@@ -51,8 +51,8 @@ This is not “Grok until workers replace it.” It is **Grok + workers + human*
 **Spin-up (required):** High-friction items need **easy** approve/reject with minimal context switching.
 
 1. Proposal or lead candidate hits `pending_approval`.
-2. **Slack webhook bot** posts a compact card: type, question text, key props/URL, approve/reject reason prompt.
-3. Operator replies in-channel (`approve`, `reject: reason`). Other thread chatter is ignored.
+2. **Slack webhook bot** posts a compact card: type, question text, key props/URL, approve/reject.
+3. **Approve** is one-click. **Reject** opens a modal (reason ≥ 8 characters). Thread replies `approve` / `reject: reason` still work; bare `reject` is ignored. Other thread chatter is ignored.
 4. Webhook writes decision → applier runs (or queues apply) → thread updated with outcome.
 
 Store every human decision (`approver`, `verdict`, `reason`, proposal payload snapshot) for training reference.
@@ -60,6 +60,16 @@ Store every human decision (`approver`, `verdict`, `reason`, proposal payload sn
 **Transition:** A dedicated **approval Grok bot** (debate team persona, `lead-reviewer` / curator scope) takes over routine approvals using prior human judgments as few-shot / gold examples (`l3_gold_negatives`, approval log). Human stays on Slack for edge cases and spot checks until measured precision clears a bar. No permanent dependency on one person’s Slack availability for throughput.
 
 Admin UI (`/admin/l3-proposals`) remains override; Slack is the **primary** low-friction path during spin-up.
+
+**Operator surfaces**
+
+| Where | Job |
+|-------|-----|
+| Slack `#l3-approvals` | Mint / high-friction approve-reject |
+| Slack `#grok-ops` (optional) | Curator / editor / auditor run summaries |
+| `/admin/l3-proposals` | Filter `pending_approval` (default); apply / reject op / revert; metrics |
+| `/admin/observability` | Funnel + L3 queue counts |
+| `/admin/graph-controversies` | Projected controversies |
 
 **Slack workspace setup:** Channels `#l3-approvals` (+ optional `#grok-ops`) — operator creates channels only. Agent installs **Slack CLI**, scaffolds `integrations/slack-l3-approvals/manifest.json`, runs `slack install` to create **Doxa L3 Approvals** app, wires env vars, invites bot. Operator completes one-time `slack login` browser auth when prompted. Grok bots stay on xAI MCP — they do not join Slack.
 
@@ -165,10 +175,10 @@ Gap analysis lives **only** on debate team.
 |----------|------|------|
 | `grok` | grok | **Shared xAI MCP token** — all Grok personas; full debate tool allowlist |
 | `provenance` | provenance | L0–L2 proposals (phase 2) |
-| `acquisition` | ingestion | Lead fetch (worker/cron; not a separate MCP token) |
-| `curator` | graph | Membership / MINT / MERGE (worker/cron) |
-| `editor` | graph | Viewpoints (worker/cron) |
-| `auditor` | graph | Publish gate (worker/cron) |
+| `acquisition` | ingestion | Lead fetch (MCP tools on shared `grok` token; Edge/cron not a separate bot) |
+| `curator` | graph | Membership / MINT / MERGE — **Grok persona**; Edge `run_l3_curator` is manual-only |
+| `editor` | graph | Viewpoints — **Grok persona**; Edge `run_l3_editor` is manual-only |
+| `auditor` | graph | Publish gate — **Grok persona**; Edge `run_l3_auditor` is manual-only |
 | `lead-reviewer` | graph | Lead + early proposal approval (later auto from human examples) |
 
 Seed: `npx tsx scripts/generate-l3-mcp-tokens.ts` → one `DOXA_MCP_TOKEN` for every xAI MCP connector. Persona bots differ by **system prompt only**. xAI wiring: [integrations/grok-bots/README.md](../../../integrations/grok-bots/README.md). MCP tool allowlist follows `bot.kind` (`grok` = union of debate tools).

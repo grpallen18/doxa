@@ -93,7 +93,7 @@ Grok editor (MCP) → viewpoint proposals → next :15 apply
 |--------|------|----------|
 | **Curator** (Grok MCP) | End of curator session (mint + membership + consolidate) | Mint only → `#l3-approvals` card |
 | **Editor** (Grok MCP) | After viewpoint proposals submitted | Auto-applies — summary is informational |
-| **Auditor** (Grok MCP / cron) | End of run (verdicts or idle) | Auto-applies on verdicts; idle posts confirmation to `#grok-ops` |
+| **Auditor** (Grok MCP) | End of run (verdicts or idle) | Auto-applies on verdicts; idle posts confirmation to `#grok-ops` |
 
 Curator lease rollup window: **10 minutes**. No Grok action required for summaries.
 
