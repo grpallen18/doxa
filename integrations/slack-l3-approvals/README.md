@@ -14,7 +14,7 @@ This folder is a tiny Node project so the Slack CLI can detect a runtime (`packa
 
 The desktop Slack app already owns the `slack` command on Windows, so the developer CLI is installed as **`slackcli`**.
 
-Then set `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_APPROVAL_CHANNEL_ID` (`#l3-approvals`) in Vercel and `.env.local`. Optional: `SLACK_OPS_CHANNEL_ID` (`#grok-ops`), `SLACK_APPROVER_USER_IDS`, `SLACK_NOTIFY_SECRET`, `DOXA_APP_URL`.
+Then set `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_APPROVAL_CHANNEL_ID` (`#l3-approvals`) in Vercel and `.env.local`. Optional: `SLACK_OPS_CHANNEL_ID` (`#grok-ops` — curator run summaries land here), `SLACK_APPROVER_USER_IDS`, `SLACK_NOTIFY_SECRET`, `DOXA_APP_URL`.
 
 Enable Event Subscriptions only after `/api/slack/events` is deployed (URL verification).
 

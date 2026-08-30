@@ -13,6 +13,7 @@ import { chatJson, estimateCostUsd, llmConfigFromDeno } from "../../../../lib/de
 import { CURATOR_SYSTEM } from "../../../../lib/debate/prompts.ts";
 import { normalizeOp, initialProposalStatus } from "../../../../lib/debate/proposal-ops.ts";
 import { notifyPendingProposal } from "../../../../lib/debate/notify-approval.ts";
+import { notifyCuratorRunSummary } from "../../../../lib/debate/notify-run-summary.ts";
 import { loadBootstrapState } from "../../../../lib/debate/bootstrap-config.ts";
 
 const DEFAULT_LIMIT = 5;
@@ -158,6 +159,11 @@ export const handler = async (req: Request) => {
     estimated_cost_usd: estimateCostUsd(usage),
     wall_ms: Math.round(performance.now() - t0),
   });
+
+  const leaseId = items[0]?.lease_id ? String(items[0].lease_id) : "";
+  if (leaseId) {
+    await notifyCuratorRunSummary(leaseId, botId);
+  }
 
   return json({ ok: true, claimed: items.length, submitted });
 };

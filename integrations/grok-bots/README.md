@@ -85,6 +85,8 @@ apply_l3_proposals → Neo4j Question
 
 **Mint Slack cards** show the question, pro/con claims, then evidence grouped by source story (speaker excerpts under one clickable link each). Curator rationale is the judgment only — not a second copy of publishers/URLs. The curator must emit `pro_answer_statement` and `con_answer_statement` on every `MINT_QUESTION` — vague questions like "Is {outlet}'s reporting on {person} false?" are rejected by the validator.
 
+**Run summaries** post to `#grok-ops` (or `#l3-approvals` if `SLACK_OPS_CHANNEL_ID` is unset) automatically when a claimed batch finishes — one message per lease with mint / decline / blocked counts and a one-line note per item. No Grok action required.
+
 Grok proposes; **workers and applier execute**. Grok does not need to be online 24/7.
 
 ## 6. Fallback workers (no Grok required)

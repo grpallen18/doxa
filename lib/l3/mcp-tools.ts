@@ -10,6 +10,10 @@ import {
 import { initialProposalStatus, normalizeOp } from '../../doxa-agents/lib/debate/proposal-ops'
 import { fetchPropositionContexts } from '../../doxa-agents/lib/debate/proposition-context'
 import { notifyPendingProposal } from '../../doxa-agents/lib/debate/notify-approval'
+import {
+  markQueueItemProposed,
+  maybePostCuratorRunSummary,
+} from '@/lib/l3/curator-run-summary'
 import { botMayCallTool } from '@/lib/l3/mcp-allowlist'
 import type { L3Bot } from '@/lib/l3/mcp-auth'
 import fs from 'node:fs'
@@ -311,7 +315,11 @@ export async function callMcpTool(
           status,
         })
         if (error) throw new Error(error.message)
+        const leaseId = args.lease_id ? String(args.lease_id) : null
+        const itemId = args.item_id ? String(args.item_id) : null
+        await markQueueItemProposed(supabase, itemId, bot.bot_id)
         if (status === 'pending_approval') await notifyPendingProposal(proposalUid)
+        if (leaseId) await maybePostCuratorRunSummary(supabase, leaseId, bot.bot_id)
         result = { proposal_uid: proposalUid, ops: ops.length, status }
         break
       }
@@ -419,6 +427,8 @@ export async function callMcpTool(
           .eq('leased_by', bot.bot_id)
           .select('item_id')
         if (error) throw new Error(error.message)
+        const leaseId = args.lease_id ? String(args.lease_id) : null
+        if (leaseId) await maybePostCuratorRunSummary(supabase, leaseId, bot.bot_id)
         result = { ok: (blocked?.length ?? 0) > 0, updated: blocked?.length ?? 0 }
         break
       }
