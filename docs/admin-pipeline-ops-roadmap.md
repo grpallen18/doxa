@@ -162,7 +162,7 @@ Most topology steps are batch/cron. UI must distinguish:
 
 1. **`pipeline_runs` history panel** per record — last N runs affecting this story/position
 2. **Batch actions** — e.g. re-run canonical for stories with QA passed in last 24h
-3. **Stage-level health** — extend `/admin/health` with extraction/canonical/topology queue depths
+3. **Stage-level health** — extend `/admin/observability` with extraction/canonical/topology queue depths
 4. **Prompt version tagging** on reruns — know which outputs are stale after prompt changes
 5. **`admin_pipeline_actions` audit table** (optional) — admin user + scope + step + timestamp
 

@@ -42,9 +42,9 @@ After creating/editing `.env.local`:
    ✓ Ready in X seconds
    ```
 
-3. **Test an endpoint**:
+3. **Test an authenticated endpoint** (sign in first, or expect 401):
    ```
-   http://localhost:3000/api/viewpoints
+   http://localhost:3000/api/explore/home
    ```
 
 ## Troubleshooting
@@ -137,6 +137,28 @@ Restart `npm run dev` after changing these. Credentials never ship to the browse
 4. Set Supabase Edge secrets `GRAPH_WORKER_URL` + `GRAPH_WORKER_SECRET` from the deploy script output.
 5. Deploy Edge functions: `clean_scraped_content`, `enqueue_graph_job`, `trigger_graph_worker` (use `--no-verify-jwt` where listed in [deploy.md](doxa-agents/docs/generated/deploy.md)).
 6. Keep ingestion crons active so at least one cleaned story is enqueued per day; the Azure worker polls continuously (`min-replicas=1`).
+
+### L3 debate (Next.js + Edge)
+
+Set these on **Vercel / `.env.local`** (Next.js Slack + MCP) and matching **Supabase Edge secrets** where the pipeline posts back.
+
+| Variable | Where | Purpose |
+|----------|--------|---------|
+| `DEBATE_REBUILD_MODE` | Next.js | Exact string `true` pauses public debate APIs/UI (`lib/debate-rebuild.ts`) |
+| `L3_BOOTSTRAP` | Edge | `false` / `0` / `off` forces full enqueue before 30 projected questions; omit to use the count threshold |
+| `DOXA_MCP_TOKEN` | generated file + xAI | Shared Grok Bearer; `npx tsx scripts/generate-l3-mcp-tokens.ts` |
+| `SLACK_BOT_TOKEN` | Next.js | Post approval cards and run summaries |
+| `SLACK_SIGNING_SECRET` | Next.js | Verify `/api/slack/events` and `/api/slack/interactions` |
+| `SLACK_APPROVAL_CHANNEL_ID` | Next.js | `#l3-approvals` |
+| `SLACK_OPS_CHANNEL_ID` | Next.js | Optional `#grok-ops` for run summaries (falls back to approvals channel) |
+| `SLACK_APPROVER_USER_IDS` | Next.js | Optional allowlist |
+| `SLACK_NOTIFY_SECRET` | Next.js + Edge | Bearer for `/api/slack/notify` and run-summary routes (Edge may fall back to service role) |
+| `DOXA_APP_URL` | Next.js | Links in Slack cards |
+
+MCP and Slack HTTP paths skip the cookie session (`isPublicApiPath` in middleware). They are **not** anonymous: MCP POST needs the Bearer token; Slack events need a valid signature.
+
+Wiring: [integrations/grok-bots/README.md](integrations/grok-bots/README.md), [integrations/slack-l3-approvals/README.md](integrations/slack-l3-approvals/README.md).
+
 ### Check if variables are loaded:
 
 Add this temporarily to any API route to debug:
