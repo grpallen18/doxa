@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { ExploreEvidenceExcerpt, SampleProposition } from '@/lib/explore/types'
+import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
 
 const CRITIQUE_REASONS = [
@@ -116,7 +117,10 @@ export function EvidenceSheet({
         </SheetHeader>
         <ScrollArea className="flex-1 px-5 py-4">
           {loading ? (
-            <p className="text-sm text-muted">Loading excerpts…</p>
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <Spinner />
+              <span>Loading excerpts…</span>
+            </div>
           ) : excerpts.length === 0 ? (
             <Panel variant="soft" interactive={false} className="p-4 text-sm text-muted">
               No projected excerpts for this claim yet. Re-run debate projection after analysis to
