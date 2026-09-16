@@ -124,7 +124,7 @@ export function ControversyExplorePage({
             </Panel>
           ) : (
             <>
-              <div className="flex gap-2 overflow-x-auto md:hidden">
+              <div className="flex items-center gap-2 overflow-x-auto md:hidden">
                 {detail.viewpoints.map((vp, i) => (
                   <button
                     key={vp.uid}
@@ -140,6 +140,9 @@ export function ControversyExplorePage({
                     Side {i + 1}
                   </button>
                 ))}
+                <span className="ml-auto shrink-0 text-xs tabular-nums text-muted">
+                  {activeVp + 1} of {detail.viewpoints.length}
+                </span>
               </div>
               <div className="md:hidden">
                 <ViewpointPanel
