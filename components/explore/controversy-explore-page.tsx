@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { ExploreControversyDetail, SampleProposition } from '@/lib/explore/types'
 import { toast } from 'sonner'
@@ -198,23 +199,34 @@ export function ControversyExplorePage({
           </h2>
           {isAuthenticated ? (
             <div className="max-w-lg space-y-3">
-              <Select value={feedbackReason} onValueChange={setFeedbackReason}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="missing_fact">Missing fact</SelectItem>
-                  <SelectItem value="bad_representation">Bad representation</SelectItem>
-                  <SelectItem value="weak_support">Weak support</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-              <Textarea
-                value={feedbackDetail}
-                onChange={(e) => setFeedbackDetail(e.target.value)}
-                rows={3}
-                placeholder="What should we revise?"
-              />
+              <div className="space-y-1.5">
+                <Label htmlFor="controversy-feedback-reason" className="text-xs text-muted">
+                  Reason
+                </Label>
+                <Select value={feedbackReason} onValueChange={setFeedbackReason}>
+                  <SelectTrigger id="controversy-feedback-reason">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="missing_fact">Missing fact</SelectItem>
+                    <SelectItem value="bad_representation">Bad representation</SelectItem>
+                    <SelectItem value="weak_support">Weak support</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="controversy-feedback-detail" className="text-xs text-muted">
+                  Details (optional)
+                </Label>
+                <Textarea
+                  id="controversy-feedback-detail"
+                  value={feedbackDetail}
+                  onChange={(e) => setFeedbackDetail(e.target.value)}
+                  rows={3}
+                  placeholder="What should we revise?"
+                />
+              </div>
               <Button variant="secondary" onClick={submitControversyFeedback}>
                 Submit
               </Button>
