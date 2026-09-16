@@ -8,6 +8,7 @@ on:
       - 'scripts/agents-*.ts'
       - 'scripts/agents-lib.ts'
       - 'app/api/**'
+      - '.github/workflows/agents-docs.yml'
   push:
     branches:
       - main
@@ -16,6 +17,7 @@ on:
       - 'supabase/functions/**'
       - 'scripts/agents-*.ts'
       - 'app/api/**'
+      - '.github/workflows/agents-docs.yml'
 
 jobs:
   validate-and-docs:
