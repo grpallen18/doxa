@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import type { ExploreEvidenceExcerpt, SampleProposition } from '@/lib/explore/types'
 import { toast } from 'sonner'
 
@@ -154,24 +155,35 @@ export function EvidenceSheet({
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
                 Structured feedback
               </p>
-              <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Reason" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CRITIQUE_REASONS.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>
-                      {r.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Textarea
-                value={detail}
-                onChange={(e) => setDetail(e.target.value)}
-                placeholder="Optional detail"
-                rows={3}
-              />
+              <div className="space-y-1.5">
+                <Label htmlFor="evidence-feedback-reason" className="text-xs text-muted">
+                  Reason
+                </Label>
+                <Select value={reason} onValueChange={setReason}>
+                  <SelectTrigger id="evidence-feedback-reason">
+                    <SelectValue placeholder="Reason" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CRITIQUE_REASONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="evidence-feedback-detail" className="text-xs text-muted">
+                  Details (optional)
+                </Label>
+                <Textarea
+                  id="evidence-feedback-detail"
+                  value={detail}
+                  onChange={(e) => setDetail(e.target.value)}
+                  placeholder="Optional detail"
+                  rows={3}
+                />
+              </div>
               <Button variant="primary" onClick={submitCritique} disabled={submitting}>
                 {submitting ? 'Submitting…' : 'Submit feedback'}
               </Button>
