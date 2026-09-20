@@ -2,11 +2,13 @@
 
 Persistent plan for expanding the admin center into a Salesforce-style pipeline operations surface: search records, inspect pipeline stage, trace lineage, and rerun/revert steps.
 
-**Phase 0 (done):** Generated pipeline catalog, stage-grouped story checklist (ingestion → extraction → canonical), ingestion run-step support.
+**Current catalog (story-scoped):** ingestion → knowledge graph (`enqueue_graph_job` / `trigger_graph_worker`). Claims extract/merge and canonical linkers are **not** runnable — see [admin-story-extraction-review.md](./admin-story-extraction-review.md). Debate / analysis / hygiene are **global** admin steps. Operator dashboard: [admin-observability.md](./admin-observability.md) (`/admin/observability`).
+
+**Phase 0 (done):** Generated pipeline catalog, stage-grouped story checklist (then ingestion → extraction → canonical), ingestion run-step support.
 
 **Phase 1 (done):** Story hub + `/ingestion`, `/extraction`, `/canonical` stage pages; shared pipeline components; `reset_story_canonical_links` RPC; unified search on Admin Center hub.
 
-UI summary: [/admin/pipeline-roadmap](/admin/pipeline-roadmap). Docs: [admin-story-extraction-review.md](./admin-story-extraction-review.md), [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md).
+Generated step list: [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md). There is no `/admin/pipeline-roadmap` page.
 
 ---
 
@@ -162,7 +164,7 @@ Most topology steps are batch/cron. UI must distinguish:
 
 1. **`pipeline_runs` history panel** per record — last N runs affecting this story/position
 2. **Batch actions** — e.g. re-run canonical for stories with QA passed in last 24h
-3. **Stage-level health** — extend `/admin/health` with extraction/canonical/topology queue depths
+3. **Stage-level health** — extend `/admin/observability` with extraction/canonical/topology queue depths
 4. **Prompt version tagging** on reruns — know which outputs are stale after prompt changes
 5. **`admin_pipeline_actions` audit table** (optional) — admin user + scope + step + timestamp
 
