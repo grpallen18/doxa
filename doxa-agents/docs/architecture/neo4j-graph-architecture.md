@@ -15,8 +15,8 @@ Core invariant: **preserve what was communicated before normalizing meaning.** U
 Stack:
 
 1. **Neo4j AuraDB** — persistent discourse / argument graph (source of truth for graph structure).
-2. **Python `graph-worker`** — deterministic segmentation + structured LLM utterance extraction + Cypher writes (Phase 0).
-3. **Doxa-owned later jobs** — proposition linking, ER quarantine, agree/oppose, controversy assembly (Phases 1–2).
+2. **Python `graph-worker`** — one job writes Phase **0 + 1 + 2a**: segments, utterances, proposition/entity link, Arguments (`services/graph-worker/app/pipeline.py`).
+3. **Doxa-owned Edge jobs** — L3 Viewpoint / Controversy / Dispute assembly (`debate_pipeline`) and L4 assessments (`analysis_pipeline`).
 4. **Supabase** — ingestion, job state, costs, users, and **projected** product rows (not a full graph mirror).
 
 ## Conceptual layers
@@ -100,25 +100,30 @@ Lower layers never depend on L4. Assessments and EvidenceChecks are **rebuildabl
 
 ### Implemented (Admin Neo)
 
-- **Story Neo** — `/admin/neo/[storyId]` document-scoped discourse explorer (Agents, office + person Entities via `MENTIONS`/`REFERRED_AS`, provenance + reprocess). Filter kinds/edges in the canvas.
-- **Story union** — `/admin/neo/union` auto-loads all succeeded story graphs in one Sigma view (dev; capped; shared Publication/Entity nodes collapse)
-- **Cross-story Neo hubs** — `/admin/neo/hub/{controversy|question|proposition|entity}/[uid]` Sigma explorer centered on shared L2/L3 nodes (not a corpus dump). Entry: Graph controversies detail → **Open in Neo** / **Open Question in Neo**. Validation: [cross-story-neo-validation.md](cross-story-neo-validation.md)
+Operator runbook: [docs/admin-neo-explorer.md](../../../docs/admin-neo-explorer.md).
 
-## Data flow (Phase 0)
+- **Union explorer (canonical)** — `/admin/neo/union` 3D nebula over succeeded story graphs + L3 overlay (Controversy / Question / Viewpoint). Shared Publication/Entity nodes collapse. Cap **250** stories / **25 000** projected nodes.
+- **Story index** — `/admin/neo` lists `graph_status` and **Reprocess** (enqueue only; 1-minute stale window).
+- **Deep links** — `/admin/neo/union?focus={kind}:{uid}` from Graph controversies (**Open in Neo**). Old `/admin/neo/[storyId]` and `/admin/neo/hub/...` URLs **redirect** here.
+- **2D Sigma** (`projection-explorer.tsx`) remains in the repo but is **not mounted** on any route.
+
+## Data flow (graph-worker job)
 
 ```text
 Ingest → relevance → scrape → receive → clean (content_clean)
   → graph_processing_jobs (pending)
-  → Python graph-worker
+  → Python graph-worker (single job)
+       → delete prior Document subgraph (keep L3)
        → deterministic Segments
-       → LLM Utterance JSON extract
-       → span / enum validation
-       → Cypher write Document / Segment / Utterance / Agent / …
+       → LLM Utterance JSON extract + span / enum validation
+       → Cypher write Document / Segment / Utterance / Agent
+       → proposition extract + embedding link + entity ER
+       → Argument extract + write + audits
   → Neo4j AuraDB
-  → [Phase 1+] proposition + debate jobs → projections → UI
+  → debate_pipeline (L3) → analysis_pipeline (L4, manual) → projections → UI
 ```
 
-Normal path requires **no human review**. Exceptions: poison jobs, failed span/attribution provenance (`quarantined`).
+Normal path requires **no human review**. Exceptions: poison jobs, failed span/attribution provenance (`quarantined`). `trigger_graph_worker` is an optional wake; the worker polls every 5s.
 
 ## Store responsibilities
 
@@ -127,7 +132,7 @@ Normal path requires **no human review**. Exceptions: poison jobs, failed span/a
 | **Supabase** | `stories`, `story_bodies`, sources, users, `graph_processing_jobs` / attempts, token/cost metadata, later projected controversy cards |
 | **Neo4j AuraDB** | Discourse graph SoT (Document, Segment, Utterance, …) |
 | **Vercel / Next.js** | Admin + product UI; server-side Neo4j reads only (never Aura creds in browser) |
-| **Python worker** | Claim jobs, segment, extract utterances, validate, write Aura, update job status |
+| **Python worker** | Claim jobs, run Phase 0+1+2a, write Aura, update job status |
 | **Cloudflare Worker** | Scrape only (unchanged) |
 
 **Do not** mirror the entire Neo4j graph into Postgres.
@@ -162,10 +167,10 @@ Normal path requires **no human review**. Exceptions: poison jobs, failed span/a
 
 ### Versions
 
-- `GRAPH_SCHEMA_VERSION` = `2.0.0`
-- `EXTRACTOR_VERSION` = `2.0.0-utterance`
+- `GRAPH_SCHEMA_VERSION` = `2.2.1`
+- `EXTRACTOR_VERSION` = `2.2.1-debate-eligible`
 
-Keep Python [`services/graph-worker/app/config.py`](../../../services/graph-worker/app/config.py) and TypeScript [`doxa-agents/lib/graph-jobs.ts`](../../lib/graph-jobs.ts) in sync.
+Keep Python [`services/graph-worker/app/config.py`](../../../services/graph-worker/app/config.py) and TypeScript [`doxa-agents/lib/graph-jobs.ts`](../../lib/graph-jobs.ts) in sync. Phase 0 checklists that cite `2.0.0` / `2.0.x-utterance` are **historical sign-off**, not current image tags.
 
 ### Constraints / indexes
 
@@ -192,12 +197,13 @@ Utterances are durable within a Document subgraph. Reprocess **deletes** the Doc
 
 ### Enqueue rules (after `content_clean`)
 
-1. If a job for `story_id` is `running`, skip enqueue (manual reprocess later).
+1. If a job for `story_id` is `running` and younger than the stale window, skip enqueue.
 2. Else cancel other `pending` jobs for that story, insert a new `pending` job, set `stories.graph_status = 'pending'`.
+3. Stale windows: Edge `enqueue_graph_job` **360** minutes (`force_stale`); Admin Neo Reprocess **1** minute. Neither calls `trigger_graph_worker`.
 
-### Idempotent reprocess (Phase 0)
+### Idempotent reprocess
 
-Delete Neo4j subgraph for `Document {uid: story_id}` (Segments, Utterances, document-scoped Agents/MediaAsset/ExtractionRun/Decision), detach `PUBLISHED_BY` without deleting shared Publication nodes, then rebuild. Also clear legacy `Story`/`Assertion`/`Chunk` subgraphs for the same `story_id` during transition.
+Delete Neo4j subgraph for `Document {uid: story_id}` (Segments, Utterances, document-local Arguments, conditional shared props/entities, document-scoped Agents/MediaAsset/ExtractionRun/Decision), detach `PUBLISHED_BY` without deleting shared Publication nodes, **preserve L3** debate nodes, then rebuild. Also clear legacy `Story`/`Assertion`/`Chunk` subgraphs for the same `story_id` during transition.
 
 ## L3 debate contract (Question-first — Session 5)
 
@@ -212,14 +218,17 @@ Debate **identity** lives on `:Question` nodes; `:Controversy` is a **qualified 
 | **Definitional conflict** | `:Dispute` | `(d)-[:SURFACES_IN]->(q)` + `(d)-[:CONCERNS]->(p)` when ≥2 theses on definitional Questions |
 | **Browse indexes** | Person, Topic (`SUBJECT_OF`) | Facets into Questions — never the controversy uid |
 
-Active pipeline (`debate_pipeline`, hourly cron):
+Active pipeline (`debate_pipeline`, hourly cron `15 * * * *`, body `{ "limit": 500, "skip_llm": true }`):
 
 ```text
-bind_candidates → detect_contrast_seeds → enqueue_l3_reviews → apply_l3_proposals
-  → qualify_controversies → apply_viewpoint_proposals → detect_disputes → project_debate_summaries
+bind_candidates → detect_contrast_seeds → apply_l3_proposals → attach_approved_lead
+  → enqueue_l3_reviews → qualify_controversies → apply_viewpoint_proposals
+  → detect_disputes → project_debate_summaries
 ```
 
-Curator / editor / auditor workers run out of band (`run_l3_curator`, `run_l3_editor`, `run_l3_auditor`).
+`detect_contrast_seeds` is **bootstrap-only** (skipped once `graph_questions` ≥ 30, or immediately when `L3_BOOTSTRAP=false|0|off`). Operator detail: [departments/06-debate-engine/debate-pipeline/README.md](../../departments/06-debate-engine/debate-pipeline/README.md).
+
+Curator / editor / auditor Edge crons are **off**. Grok MCP owns those roles (`run_l3_*` remain manual invoke / xAI schedule).
 
 Key invariants:
 
@@ -254,7 +263,7 @@ When the Neo4j path through Phase 2 is validated:
 
 | Risk | Mitigation |
 |------|------------|
-| Collapsing utterance and meaning | Phase 0 writes Utterance only; Proposition is Phase 1 |
+| Collapsing utterance and meaning | Same job writes Utterance then Proposition with Decision-backed / thresholded links — do not treat props as extracted speech |
 | Silent embedding merges | Candidates only; Decision-backed links later |
 | Span / attribution errors | Validate before write; quarantine on failure |
 | Dual-store delete/reprocess drift | Document-rooted subgraph delete + job state machine |

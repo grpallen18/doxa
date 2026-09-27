@@ -17,11 +17,11 @@ Ingest → Scrape → Clean → enqueue_graph_job → graph-worker (L0–L2a)
 
 Projections: `graph_controversies`, `graph_viewpoints`, `graph_controversy_evidence`, `graph_assessments`.
 
-Admin: `/admin/graph-controversies`, `/admin/neo`, Stories agent-flow (ingestion → graph).
+Admin: `/admin/graph-controversies`, `/admin/neo/union` ([docs/admin-neo-explorer.md](../../docs/admin-neo-explorer.md)), Stories agent-flow (ingestion → graph).
 
 ## Cron
 
-- `debate-pipeline-hourly` — see `doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql` (Vault secrets, `{"limit":50}`).
+- `debate-pipeline-hourly` — see `doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql` (Vault secrets, `{"limit": 500, "skip_llm": true}`). `analysis_pipeline` has **no cron**.
 
 ## Docs
 
