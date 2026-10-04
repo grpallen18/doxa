@@ -1,5 +1,7 @@
 # Phase 0 validation checklist
 
+**Historical sign-off.** Current worker versions are `2.2.1` / `2.2.1-debate-eligible` in `services/graph-worker/app/config.py`. The live job also writes propositions, entities, and Arguments after utterances. See [neo4j-graph-architecture.md](neo4j-graph-architecture.md) and [services/graph-worker/README.md](../../../services/graph-worker/README.md).
+
 Steering: [neo4j-graph-architecture.md](neo4j-graph-architecture.md)
 
 **Signed off:** 2026-08-02 (America/Chicago) / 2026-08-03 UTC  

@@ -16,4 +16,43 @@ Does not silently merge Entities/Propositions. Alias candidates stay `pending` u
 | seed-question-registry | [08-seed-question-registry](08-seed-question-registry/) | `seed_question_registry` | Optional Edge upsert; prefer `npx tsx scripts/seed-question-registry.ts` locally |
 | prune-oldest-documents | [09-prune-oldest-documents](09-prune-oldest-documents/) | `prune_oldest_documents` | Older-first Document subgraph prune for Aura Free; default `dry_run: true`; local: `npx tsx scripts/prune-oldest-documents.ts` |
 
-JWT-off. Not in `activation.yaml` until scheduled.
+JWT-off (`requireInternalAuth`). Not in `activation.yaml` until scheduled. Every Neo-touching step needs **`NEO4J_*` on the Edge function** (not listed in generated `secrets.md` today — set them yourself).
+
+## When to run
+
+| Goal | Invoke |
+|------|--------|
+| Nightly health | `graph_hygiene` orchestrator (audit → prune orphans → alias candidates → projection reconcile) |
+| Aura Free node cap (~200k) | `prune_oldest_documents` first with default `dry_run: true`, then `{ "dry_run": false }` |
+| Reset debate overlay, keep atoms | `wipe_l3_analytical` |
+| Rebuild people / assessments | `analysis_pipeline` (separate department; no cron) |
+
+Auth: `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`.
+
+## wipe-l3-analytical
+
+Deletes Neo `:Question` / `:Viewpoint` / `:Controversy` / `:Dispute` / leftover Arena `:Issue`, L3 `Decision` types, and controversy/viewpoint/question `Assessment`s. **Keeps** Utterance / Proposition / Argument counts — HTTP **500** if those change.
+
+```json
+{ "confirm": "WIPE_L3", "dry_run": true, "truncate_sql": false }
+```
+
+- Missing `confirm: "WIPE_L3"` → **400**
+- `dry_run: true` returns `{ before }` only
+- `truncate_sql: true` also deletes Postgres projection / L3 queue tables (`graph_controversies`, `graph_viewpoints`, `graph_questions`, `l3_proposals`, `l3_review_queue`, `l3_runs`, …). Needs `SUPABASE_URL` + service role on the function.
+
+Does **not** delete Proposition↔Proposition `VARIANT_OF` (L2 identity).
+
+## prune-oldest-documents
+
+Older-first Document subgraph delete for Aura headroom. Reuses `deleteDocumentSubgraph` (L3 overlays kept).
+
+| Body | Default |
+|------|---------|
+| `dry_run` | **true** (`dry_run !== false`) |
+| `limit` | 50 (clamp 1–200) |
+| `target_nodes` | 170 000 (Aura Free cap 200 000) |
+| `protect_gold_props` | true |
+| `exclude_uids` | merged with `lib/neo4j/prune-allowlist.json` |
+
+Local: `npx tsx scripts/prune-oldest-documents.ts`.
