@@ -1,6 +1,12 @@
 # Analysis pipeline workflow
 
-Rebuildable L4 jobs. JWT-off internal chain via `analysis_pipeline`.
+Rebuildable L4 jobs. JWT-off internal chain via `analysis_pipeline`. **No pg_cron** — invoke the orchestrator (or a single step) from Admin Center / `supabase functions invoke`. Needs `NEO4J_*` + `OPENAI_API_KEY` on the Edge functions.
+
+**Intent:** overlay evidence checks, citations, assessments, HELD_BY tracks, and person dossiers on an existing L3 graph. Never rewrite L0–L1 utterance text.
+
+**Usage:** POST `{ "limit": 25, "dry_run": false }`. Orchestrator order matches the table below; `limit` is clamped to **25** on LLM steps (`run_evidence_checks`, `run_controversy_assessments`) and **40** on `project_person_profiles`.
+
+**Constraint:** `/people` stays empty until `project_person_profiles` upserts `graph_people` from Neo `Entity(kindHint=person)`. Debate projection (`project_debate_summaries`) does not fill that table. Operator runbook: [docs/explore-people-profiles.md](../../../../docs/explore-people-profiles.md).
 
 | Step | Folder | Deploy | Notes |
 |------|--------|--------|-------|
