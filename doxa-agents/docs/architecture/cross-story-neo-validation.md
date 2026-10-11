@@ -1,5 +1,9 @@
 # Cross-story Neo explorer — validation checklist
 
+**Historical.** The live explorer is `/admin/neo/union` (3D) with `?focus=kind:uid`. Per-story and hub Sigma routes **redirect**. Node cap is **25 000**, not 400. Passage highlight lives only in the unmounted 2D stack.
+
+Current operator runbook: [docs/admin-neo-explorer.md](../../../docs/admin-neo-explorer.md).
+
 **Status:** Implemented (Admin UI + server Neo reads)  
 **Steering:** [neo4j-graph-architecture.md](neo4j-graph-architecture.md)
 
