@@ -34,6 +34,10 @@ After refresh passes, agents editing pipeline handlers should run the Bugbot rev
 - `supabase functions deploy`
 - Migrations
 
+## CI
+
+[`.github/workflows/agents-docs.yml`](../../../.github/workflows/agents-docs.yml) runs `npm run build` then `agents:sync:check` / `agents:docs:check` / `agents:validate` on PRs and `main` pushes that touch `doxa-agents/**`, `supabase/functions/**`, `scripts/agents-*.ts`, or `app/api/**`. Changing only the workflow YAML does not trigger it. Details: [doxa-agents/librarian/README.md](../../../doxa-agents/librarian/README.md).
+
 ## Checklist
 
 See [checklist.md](checklist.md).

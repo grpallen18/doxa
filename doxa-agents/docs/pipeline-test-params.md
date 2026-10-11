@@ -23,7 +23,14 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | review-pending-stories | `review_pending_stories` | `story_id` | Optional feedback loop when status is `PENDING`; resolves to Keep or Drop before scrape. |
 | scrape-story-content | `scrape_story_content` | `story_id` | Dispatch scrape for one Keep story. |
 | receive-scraped-content | `receive_scraped_content` | `story_id` **(required)** | Worker callback; manual POST for debugging. Deploy with `--no-verify-jwt`. |
-| clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. |
+| clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. Also `enqueueGraphJob` (and retries orphans with clean body + null `graph_status`). |
+| enqueue-graph-job | `enqueue_graph_job` | `story_id` | Insert/reset `graph_processing_jobs`. Usually already done by clean. |
+| trigger-graph-worker | `trigger_graph_worker` | `story_id` | Optional `POST /run`. Worker also polls every 5s. JWT-off; `GRAPH_WORKER_SECRET` fail-closed. |
+
+**Deprecated claims path (not in admin catalog — Build 4 delete):** leftover handlers still accept these isolation params.
+
+| Step | Deploy name | Isolation params | Notes |
+|------|-------------|------------------|--------|
 | chunk-story-bodies | `chunk_story_bodies` | `story_id` | Chunks one story if `content_clean` exists and no `story_chunks` yet. |
 | extract-story-claims | `extract_story_claims` | `story_id`, optional `chunk_index` | Primary claims only; sets chunk QA `pending`. |
 | extract-story-positions | `extract_story_positions` | `story_id`, optional `chunk_index` | Positions only; sets `positions_qa_status` `pending`. Runs parallel to claims. |
@@ -80,20 +87,21 @@ Future (not implemented yet): `canonical_claim_id`, `canonical_position_id` for 
 
 ---
 
-## Suggested order for one-story QA
+## Suggested order for one-story QA (live Neo path)
 
 1. `relevance_gate` → `scrape_story_content` → confirm `story_bodies` / `stories.scraped_at`
-2. `clean_scraped_content`
-3. `chunk_story_bodies`
-4. `extract_story_claims` (repeat until all chunks have `extraction_json`)
-5. `extract_story_positions` (repeat until all chunks have `positions_extraction_json`) — **parallel with claims**
-6. `validate_chunk_claims` (chunk QA loop — all chunks `extraction_qa_status = passed`)
-7. `validate_chunk_positions` (positions QA loop — all chunks `positions_qa_status = passed`)
-8. `merge_story_claims` → **merge QA loop:** `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
-9. `merge_story_positions` (after positions chunk QA passed)
-10. `link_canonical_claims` (optional: events / positions / stances)
+2. `clean_scraped_content` → confirm `content_clean` **and** a `graph_processing_jobs` row
+3. Wait for the Python worker (or `trigger_graph_worker`) → Document / Utterance / Proposition / Argument in Aura (`2.2.1` / `2.2.1-debate-eligible`)
+4. Optional: `enqueue_graph_job` only to reprocess
+5. Cross-document (not story-isolated): `debate_pipeline` then, when needed, `analysis_pipeline`
 
-Inspect tables after each step: `stories`, `story_bodies`, `story_chunks`, `story_claims`, `story_events`, `story_positions`, then `claims`, `events`, `canonical_positions`.
+Inspect: `stories`, `story_bodies`, `graph_processing_jobs`, Neo `document:{storyId}`, then Postgres `graph_controversies` / `graph_people` after the global projectors.
+
+Admin UI walkthrough: [docs/admin-story-extraction-review.md](../../docs/admin-story-extraction-review.md).
+
+### Deprecated claims walkthrough (handlers on disk only)
+
+`chunk_story_bodies` → extract/validate claims+positions → merge QA → `link_canonical_*`. Do not use this as the product path.
 
 ---
 
