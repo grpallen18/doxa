@@ -1,6 +1,6 @@
 # Deploy graph-worker on Azure Container Apps
 
-Goal: keep one always-on replica that polls Supabase `graph_processing_jobs` and processes stories into Neo4j (Phase 0). For “at least one story per day,” also keep ingestion crons active so jobs are enqueued.
+Goal: keep one always-on replica that polls Supabase `graph_processing_jobs` and writes Phase 0+1+2a graphs into Neo4j. For “at least one story per day,” also keep ingestion crons active so jobs are enqueued. The ACR image tag may still be named `phase0`.
 
 **No local Docker required** — images build in Azure Container Registry via `az acr build`.
 
@@ -11,7 +11,7 @@ Goal: keep one always-on replica that polls Supabase `graph_processing_jobs` and
 2. `az login` (and `az account set --subscription "..."` if you have more than one).
 3. Neo4j Aura constraints already applied (`neo4j/init_constraints.cypher`).
 4. Supabase migration `192_graph_processing_jobs.sql` applied.
-5. Secrets ready: Supabase URL + service role key, Aura URI/password, OpenAI API key.
+5. Secrets ready: Supabase URL + service role key, Aura URI/password, OpenAI API key. Set `OPENAI_MODEL` in `.env.azure` — if it is missing, `deploy.ps1` injects **`gpt-4o-mini`**, which is **not** the Python default (`gpt-5.6-luna` in `app/config.py`).
 
 ## First deploy
 
@@ -56,7 +56,9 @@ Deploy/ensure these Edge functions exist:
 curl https://<fqdn>/health
 ```
 
-Then enqueue one story (admin or `enqueue_graph_job`). Within ~minutes `stories.graph_status` should move to `succeeded` (or `quarantined`/`failed` with an error). Confirm `Document` / `Utterance` nodes in Neo4j Browser.
+Then enqueue one story (admin or `enqueue_graph_job`). Within ~minutes `stories.graph_status` should move to `succeeded` (or `quarantined`/`failed` with an error). Confirm Document / Utterance / Proposition / Argument nodes in Neo4j Browser.
+
+`GET /health` needs no secret. `POST /run` is **401** unless `GRAPH_WORKER_SECRET` on the container matches the Edge secret. Polling does not need `/run`.
 
 ## Redeploy after code changes
 
@@ -83,7 +85,7 @@ Skip rebuild (only refresh env/secrets):
 
 ```text
 NewsAPI ingest (cron) → scrape → clean → graph_processing_jobs
-  → Azure graph-worker (this app) → Neo4j Aura
+  → Azure graph-worker (this app) → Neo4j Aura (utterances + props + arguments)
 ```
 
-If no jobs appear, the worker is healthy but idle — fix ingestion/`activation.yaml` / pg_cron, not the Container App.
+If no jobs appear, the worker is healthy but idle — fix ingestion/`activation.yaml` / pg_cron, not the Container App. If `/run` 401s but jobs still complete, secrets are out of sync; ignore wake and rely on the poll loop.
