@@ -2,11 +2,22 @@
 
 Persistent plan for expanding the admin center into a Salesforce-style pipeline operations surface: search records, inspect pipeline stage, trace lineage, and rerun/revert steps.
 
-**Phase 0 (done):** Generated pipeline catalog, stage-grouped story checklist (ingestion → extraction → canonical), ingestion run-step support.
+**Live on main (2026-08+ Neo hybrid):** story-scoped catalog is **ingestion → knowledge graph**. Production UI is the story hub + **Agent Flow** canvas. Claims extract/merge and canonical linkers are **not** runnable. Debate / analysis / hygiene are **global** (no `story_id`).
 
-**Phase 1 (done):** Story hub + `/ingestion`, `/extraction`, `/canonical` stage pages; shared pipeline components; `reset_story_canonical_links` RPC; unified search on Admin Center hub.
+**Phase 0–1 UI that shipped, then moved:**
 
-UI summary: [/admin/pipeline-roadmap](/admin/pipeline-roadmap). Docs: [admin-story-extraction-review.md](./admin-story-extraction-review.md), [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md).
+- `/admin/stories/[id]/ingestion` → redirect to Agent Flow (`?node=relevance-gate`)
+- `/admin/stories/[id]/extraction` → redirect to `/admin/neo/union?focus=document:{id}`
+- `/admin/stories/[id]/canonical` → redirect to Agent Flow
+- `clear-extraction` / `clear-canonical` / `qa-override` APIs — **removed**
+- `/admin` is **Settings**, not a search hub (header search remains)
+- There is no `/admin/pipeline-roadmap` page
+
+Operator runbooks: [admin-story-extraction-review.md](./admin-story-extraction-review.md) · [agent-prompt-store.md](./agent-prompt-store.md) · [admin-observability.md](./admin-observability.md) · [admin-analysis-pipeline.md](./admin-analysis-pipeline.md) · [admin-graph-controversies-and-publish-gate.md](./admin-graph-controversies-and-publish-gate.md) · [ops-neo-graph-hygiene-and-rebuild.md](./ops-neo-graph-hygiene-and-rebuild.md) · [pipeline-catalog.md](../doxa-agents/docs/generated/pipeline-catalog.md).
+
+**Phase 0 (done):** Generated pipeline catalog, stage-grouped checklist, ingestion run-step support.
+
+**Phase 1 (done, then superseded):** Story hub + stage pages + `reset_story_canonical_links` + unified search. Stage pages and clear-canonical are no longer the operator path — use Agent Flow + Neo.
 
 ---
 
@@ -26,8 +37,9 @@ Not everything is `story_id`-scoped. Design around two scopes:
 
 | Scope | Record hub | Pipeline stages |
 |-------|------------|-----------------|
-| **Story** | `/admin/stories/[id]` | Ingestion → extraction → canonicalization |
-| **Canonical / global** | `/admin/records/positions/[id]`, `/admin/records/claims/[id]` | Subtopics → pair candidates → relationships → agreement clusters → controversies → viewpoints |
+| **Story** | `/admin/stories/[id]` + Agent Flow | Ingestion → knowledge graph (live). Claims/canonical are archived. |
+| **Global (Neo)** | `/admin/graph-controversies`, `/admin/l3-proposals` | `debate_pipeline` / `analysis_pipeline` / `graph_hygiene` (no per-story isolation) |
+| **Canonical / SQL (archived vision)** | `/admin/records/positions/[id]`, `/admin/records/claims/[id]` — **not built** | Legacy topology on `canonical_positions` |
 
 Story evidence stays at story level. Topology operates on canonical positions only.
 
@@ -163,8 +175,8 @@ Most topology steps are batch/cron. UI must distinguish:
 1. **`pipeline_runs` history panel** per record — last N runs affecting this story/position
 2. **Batch actions** — e.g. re-run canonical for stories with QA passed in last 24h
 3. **Stage-level health** — extend `/admin/health` with extraction/canonical/topology queue depths
-4. **Prompt version tagging** on reruns — know which outputs are stale after prompt changes
-5. **`admin_pipeline_actions` audit table** (optional) — admin user + scope + step + timestamp
+4. **Prompt version tagging** on reruns — schema (`pipeline_runs.prompt_version_id`, `admin_pipeline_actions`) and admin editor exist; **no catalog step is `prompt_kind: llm`**, and `loadActivePrompt` is unused. See [agent-prompt-store.md](./agent-prompt-store.md).
+5. **`admin_pipeline_actions` audit table** — exists for prompt create/activate/rollback/schema-sync. Not a general run-step audit.
 
 ---
 
@@ -203,8 +215,10 @@ Add matching `lib/admin/pipeline-status/topology-*.ts` modules.
 
 ## Related docs
 
-- [Admin story extraction review](./admin-story-extraction-review.md) — current story QA UI
+- [Admin story pipeline & Agent Flow](./admin-story-extraction-review.md) — live story operator path
+- [Analysis pipeline (L4)](./admin-analysis-pipeline.md) — assessments + `/people`
+- [Neo hygiene & L3 rebuild](./ops-neo-graph-hygiene-and-rebuild.md) — wipe / prune / `DEBATE_REBUILD_MODE`
 - [Pipeline catalog (generated)](../doxa-agents/docs/generated/pipeline-catalog.md) — stage/step table
 - [Pipeline test params](../doxa-agents/docs/pipeline-test-params.md) — per-step isolation
-- [Topology pipeline](../doxa-agents/docs/topology-pipeline.md) — debate intelligence layers
+- [Topology pipeline](../doxa-agents/docs/topology-pipeline.md) — archived SQL debate intelligence
 - [AGENTS.md](../doxa-agents/AGENTS.md) — pipeline agent catalog
