@@ -23,20 +23,11 @@ Common flags: `dry_run: true` (preview without writes, where supported).
 | review-pending-stories | `review_pending_stories` | `story_id` | Optional feedback loop when status is `PENDING`; resolves to Keep or Drop before scrape. |
 | scrape-story-content | `scrape_story_content` | `story_id` | Dispatch scrape for one Keep story. |
 | receive-scraped-content | `receive_scraped_content` | `story_id` **(required)** | Worker callback; manual POST for debugging. Deploy with `--no-verify-jwt`. |
-| clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. |
-| chunk-story-bodies | `chunk_story_bodies` | `story_id` | Chunks one story if `content_clean` exists and no `story_chunks` yet. |
-| extract-story-claims | `extract_story_claims` | `story_id`, optional `chunk_index` | Primary claims only; sets chunk QA `pending`. |
-| extract-story-positions | `extract_story_positions` | `story_id`, optional `chunk_index` | Positions only; sets `positions_qa_status` `pending`. Runs parallel to claims. |
-| validate-chunk-claims | `validate_chunk_claims` | `story_id`, optional `chunk_index` | Chunk QA loop — deterministic validate → chunk `passed`. |
-| validate-chunk-positions | `validate_chunk_positions` | `story_id`, optional `chunk_index` | Positions chunk QA loop → `positions_qa_status` `passed`. |
-| refine-chunk-positions | `refine_chunk_positions` | `story_id`, optional `chunk_index` | Positions refine when review requests it. |
-| merge-story-claims | `merge_story_claims` | `story_id` | Merge after all chunks passed (same gate as cron). |
-| merge-story-positions | `merge_story_positions` | `story_id` | Merge positions after all chunks `positions_qa_status = passed`. |
-| review-merged-extraction | `review_merged_extraction` | `story_id` | Merge QA loop — reviewer. |
-| refine-merged-extraction | `refine_merged_extraction` | `story_id` | Merge QA loop — when review requests refinement. |
-| validate-merged-extraction | `validate_merged_extraction` | `story_id` | Merge QA loop — approve before canonical linkers. |
+| clean-scraped-content | `clean_scraped_content` | `story_id` | Cleans `story_bodies.content_raw` → `content_clean` for that story. Also `enqueueGraphJob` (and retries orphans with clean body + null `graph_status`). |
+| enqueue-graph-job | `enqueue_graph_job` | `story_id` | Insert/reset `graph_processing_jobs`. Usually already done by clean. |
+| trigger-graph-worker | `trigger_graph_worker` | `story_id` | Optional `POST /run`. Worker also polls every 5s. JWT-off; `GRAPH_WORKER_SECRET` fail-closed. |
 
-**Legacy (inactive):** `extract_story_entities`, `standardize_chunk_extraction`, `refine_chunk_extraction`, `validate_chunk_extraction`, `link_chunk_entities`, `merge_story_entities`.
+**Deleted (Build 4):** do **not** POST `chunk_story_bodies`, `extract_story_claims`, `validate_chunk_claims`, `merge_story_*`, `link_canonical_*`, or `topology_pipeline`. Those Edge functions and department folders are gone. Admin `GET /api/admin/agents/extract-story-claims` is **404**. Prompt slots leftover in Postgres are not reachable from the catalog UI — [docs/agent-prompt-store.md](../../docs/agent-prompt-store.md).
 
 ### Example (service role)
 
@@ -49,51 +40,25 @@ curl -X POST "$SUPABASE_URL/functions/v1/clean_scraped_content" \
 
 ---
 
-## Canonicalization (story- or row-scoped)
-
-| Step | Deploy name | Isolation params | Notes |
-|------|-------------|------------------|--------|
-| link-canonical-claims | `link_canonical_claims` | `story_id` and/or `story_claim_id` | Unlinked `story_claims` for that scope. |
-| link-canonical-events | `link_canonical_events` | `story_id` | Unlinked `story_events` for that story. |
-| link-canonical-positions | `link_canonical_positions` | `story_id` and/or `story_position_id` | Unlinked `story_positions` for that scope. |
-| update-stances | `update_stances` | `story_id` and/or `story_claim_id` | `story_claims` with null `stance` for that scope. |
-
-Future (not implemented yet): `canonical_claim_id`, `canonical_position_id` for steps that operate on global entities only.
-
----
-
-## Topology & ops
+## Ops (not story-isolated)
 
 | Step | Deploy name | Isolation | Notes |
 |------|-------------|-----------|--------|
-| generate-position-pair-candidates | `generate_position_pair_candidates` | `canonical_position_id` | Deterministic pair queue |
-| classify-position-relationships | `classify_position_relationships` | — | Dequeues pending candidates |
-| build-agreement-clusters | `build_agreement_clusters` | — | Hard/soft agreement clusters |
-| generate-agreement-cluster-candidates | `generate_agreement_cluster_candidates` | `agreement_cluster_id` | Cluster-pair queue |
-| classify-agreement-cluster-relationships | `classify_agreement_cluster_relationships` | — | LLM cluster relationships |
-| build-controversy-clusters | `build_controversy_clusters` | — | Multi-sided controversies |
-| topology-pipeline | `topology_pipeline` | — | Orchestrator; deploy with `--no-verify-jwt` |
-| refresh-topology-candidates | `refresh_topology_candidates` | — | Daily stale-candidate refresh |
-| generate-agreement-summaries | `generate_agreement_summaries` | — | Batch |
-| generate-viewpoints | `generate_viewpoints` | — | Batch; deploy with `--no-verify-jwt` |
 | discord-daily-health | `discord_daily_health` | — | Report only |
 
 ---
 
-## Suggested order for one-story QA
+## Suggested order for one-story QA (live Neo path)
 
 1. `relevance_gate` → `scrape_story_content` → confirm `story_bodies` / `stories.scraped_at`
-2. `clean_scraped_content`
-3. `chunk_story_bodies`
-4. `extract_story_claims` (repeat until all chunks have `extraction_json`)
-5. `extract_story_positions` (repeat until all chunks have `positions_extraction_json`) — **parallel with claims**
-6. `validate_chunk_claims` (chunk QA loop — all chunks `extraction_qa_status = passed`)
-7. `validate_chunk_positions` (positions QA loop — all chunks `positions_qa_status = passed`)
-8. `merge_story_claims` → **merge QA loop:** `review_merged_extraction` → `refine_merged_extraction` (if needed) → `validate_merged_extraction` (story `extraction_qa_status = passed`)
-9. `merge_story_positions` (after positions chunk QA passed)
-10. `link_canonical_claims` (optional: events / positions / stances)
+2. `clean_scraped_content` → confirm `content_clean` **and** a `graph_processing_jobs` row
+3. Wait for the Python worker (or `trigger_graph_worker`) → Document / Utterance / Proposition / Argument in Aura (`2.2.1` / `2.2.1-debate-eligible`)
+4. Optional: `enqueue_graph_job` only to reprocess
+5. Cross-document (not story-isolated): `debate_pipeline` then, when needed, `analysis_pipeline`
 
-Inspect tables after each step: `stories`, `story_bodies`, `story_chunks`, `story_claims`, `story_events`, `story_positions`, then `claims`, `events`, `canonical_positions`.
+Inspect: `stories`, `story_bodies`, `graph_processing_jobs`, Neo `document:{storyId}`, then Postgres `graph_controversies` / `graph_people` after the global projectors.
+
+Admin UI walkthrough: [docs/admin-story-extraction-review.md](../../docs/admin-story-extraction-review.md).
 
 ---
 
@@ -118,10 +83,10 @@ If a story was `scrape_skipped` after failures, reset before re-invoking `scrape
 | run-l3-auditor | `run_l3_auditor` | `limit`, `dry_run` | Publish gate |
 | sweep-counter-side | `sweep_counter_side` | `limit`, `dry_run` | Counter-thesis candidates |
 | detect-disputes | `detect_disputes` | `question_uid`, `limit`, `force`, `skip_llm`, `dry_run` | Definitional disputes |
-| project-debate-summaries | `project_debate_summaries` | `controversy_uid`, `dry_run` | `graph_*` + `graph_questions` |
+| project-debate-summaries | `project_debate_summaries` | `controversy_uid`, `dry_run` | `graph_*` + `graph_questions`. Open requires structural publishability **and** (on first promotion) `auditVerdict=pass`. [Publish-gate runbook](../../docs/admin-graph-controversies-and-publish-gate.md) |
 | debate-pipeline | `debate_pipeline` | `limit`, `proposition_uid`, `question_uid`, `controversy_uid`, `force`, `force_apply_all`, `dry_run` | Deterministic spine |
 
-| run-controversy-assessments | `run_controversy_assessments` | `controversy_uid`, `question_uid`, `limit`, `dry_run` | L4 assessments on established Controversies |
+L4 (`analysis_pipeline`) isolation: `run_controversy_assessments` accepts `controversy_uid`, `question_uid`, `limit`, `dry_run`. See [admin-analysis-pipeline.md](../../docs/admin-analysis-pipeline.md).
 
-Hygiene (inactive until scheduled): `graph_hygiene` orchestrates audit / prune / alias / reconcile.
+Hygiene: `graph_hygiene` orchestrates audit / prune / alias / reconcile. Wipe L3 and prune-oldest are **not** catalog Run buttons — [ops-neo-graph-hygiene-and-rebuild.md](../../docs/ops-neo-graph-hygiene-and-rebuild.md).
 
