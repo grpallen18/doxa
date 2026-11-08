@@ -1,7 +1,8 @@
 # Topic-explorer home
 
-The default home and app shell mirror `docs/UI Layout.png`. Data is **mock-only**
-([lib/mock/topic-explore.ts](../lib/mock/topic-explore.ts)) until wired to the DB.
+**Historical (2026 experiment).** Live `/home` is `app/home/page.tsx` reading `graph_controversies` via `lib/explore/queries.ts` (`status = 'open'`). Empty home is usually the publish gate, not a missing mock wire — [admin-graph-controversies-and-publish-gate.md](./admin-graph-controversies-and-publish-gate.md). The layout notes below describe the earlier mock shell (`lib/mock/topic-explore.ts` still exists; `topic-explore-home.tsx` does not).
+
+The default home and app shell originally mirrored `docs/UI Layout.png`. Data in that experiment was **mock-only**.
 
 ## Layout
 

@@ -1,23 +1,27 @@
 # Doxa Agents
 
-Pipeline agents for ingesting stories, building a Neo4j evidence graph, and (upcoming) debate topology across stories.
+Pipeline agents for ingesting stories, building a Neo4j evidence graph, and assembling debate topology (L3) across stories.
 
 ## Pipeline layers
 
 ```text
 01 Ingestion          → stories + clean bodies → enqueue graph job
 04 Graph engine       → enqueue / trigger Python utterance graph-worker → AuraDB
-02–03 Claims path     → DEPRECATED (pending cleanup after Phase 2; handlers still on disk)
-legacy/               → archived merge / canonical / topology (pending deletion)
-05 Ops                → health, maintenance
+06 Debate engine      → bind/enqueue → Grok L3 (MCP) → apply proposals → project graph_*
+07 Analysis engine    → evidence checks, citations, person profiles
+05 Ops                → health, maintenance, graph hygiene
 ```
+
+Claims extract/merge, canonical linkers, and SQL topology (`02-chunking-engine`, `03-merging-engine`, `departments/legacy`) were **deleted** in Build 4 (migrations `197`/`198`). See [docs/architecture/neo4j-overhaul-next.md](docs/architecture/neo4j-overhaul-next.md).
 
 **Steering document:** [docs/architecture/neo4j-graph-architecture.md](docs/architecture/neo4j-graph-architecture.md)  
 **Next phases:** [docs/architecture/neo4j-overhaul-next.md](docs/architecture/neo4j-overhaul-next.md)  
 **Phase 0 validation:** [docs/architecture/phase0-validation.md](docs/architecture/phase0-validation.md)  
 **Phase 1 validation:** [docs/architecture/phase1-validation.md](docs/architecture/phase1-validation.md)
 
-**Admin runnable catalog:** ingestion + graph enqueue/trigger. Custom claims extract/review/merge is **replaced** by the Neo4j utterance path (Python worker). Old handlers remain under `02-chunking-engine` / `03-merging-engine` / `legacy/` until post–Phase 2 cleanup.
+**Admin runnable catalog:** story-scoped **ingestion + graph enqueue/trigger**; global **debate**, **analysis**, and **hygiene** stages. Custom claims extract/review/merge was **deleted** — the Python graph-worker is the discourse path.
+
+**Admin agent records:** `/admin/agents/[stepId]` — profile + runs. The prompt store UI is wired but overlay steps are `prompt_kind: none` and `loadActivePrompt` is unused. Graph-worker / Grok prompts are **not** in that store. Runbook: [docs/agent-prompt-store.md](../docs/agent-prompt-store.md).
 
 **Important:** Controversy topology is the product surface; Neo4j is the discourse substrate. Phase 0–2a write Utterances → Propositions/Entities → Arguments in the graph-worker. Cross-document Viewpoint / Controversy / Dispute assembly is the Edge `debate_pipeline`.
 
@@ -53,7 +57,7 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 
 **Engine reset:** `SELECT public.purge_engine_data();` — see purge-engine doc. Edit `ops/purge-engine-tables.yaml` when adding pipeline tables; refresh regenerates `supabase/routines/purge_engine_data.sql`.
 
-**Single-record testing:** [docs/pipeline-test-params.md](docs/pipeline-test-params.md) — optional `story_id` / `story_claim_id` / `story_position_id` POST body fields per step (fixture story documented there).
+**Single-record testing:** [docs/pipeline-test-params.md](docs/pipeline-test-params.md) — optional `story_id` (ingest/graph) or debate/analysis fields (`limit`, `question_uid`, `dry_run`, …). Fixture story documented there.
 
 ## Departments
 
@@ -61,71 +65,21 @@ npm run agents:refresh   # sync manifest + docs + purge_engine_data() + validate
 |------------|------|---------|
 | 01 Ingestion | [departments/01-ingestion-engine](departments/01-ingestion-engine) | NewsAPI, relevance, scrape, clean → enqueue graph job |
 | 04 Graph | [departments/04-graph-engine](departments/04-graph-engine) | Enqueue / trigger Neo4j graph worker |
-| 02 Chunking | [departments/02-chunking-engine](departments/02-chunking-engine) | **Deprecated** claims extract/QA (Build 4 delete) |
-| 03 Merging | [departments/03-merging-engine](departments/03-merging-engine) | **Deprecated** claims merge (Build 4 delete) |
-| 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, maintenance |
-| Legacy | [departments/legacy](departments/legacy) | Archived multi-atom / canonical / topology (Build 4 delete) |
+| 06 Debate | [departments/06-debate-engine](departments/06-debate-engine) | Bind candidates, L3 proposals, qualify, project `graph_*` |
+| 07 Analysis | [departments/07-analysis-engine](departments/07-analysis-engine) | Evidence checks, citations, person profiles |
+| 05 Business operations | [departments/05-business-operations](departments/05-business-operations) | Health, maintenance, graph hygiene |
 
-### 04 Graph (Phase 0)
+### 04 Graph (Phase 0+1+2a)
 
-**Path:** `clean-scraped-content` enqueues `graph_processing_jobs` → Python [`services/graph-worker`](../services/graph-worker/) → Neo4j AuraDB (Document / Segment / Utterance). Manual: `enqueue-graph-job`, `trigger-graph-worker`.
+**Path:** `clean-scraped-content` enqueues `graph_processing_jobs` → Python [`services/graph-worker`](../services/graph-worker/) → Neo4j AuraDB (Document / Utterance / Proposition / Argument). Manual: `enqueue-graph-job` (optional `trigger-graph-worker` wake). Admin explorer: [docs/admin-neo-explorer.md](../docs/admin-neo-explorer.md).
 
-### 02 Chunking / 03 Merging (deprecated)
+### 06 Debate / 07 Analysis
 
-Claims extract → validate → refine → approve → merge remain on disk for reference until Build 4 deletion. They are **not** in the admin runnable catalog.
+**Path:** hourly `debate_pipeline` (`15 * * * *`, limit 500) binds candidates, applies approved proposals, qualifies controversies, and projects Postgres. **Grok** (xAI MCP) owns curator / editor / auditor judgment; Edge `run_l3_*` crons are **unscheduled** (manual invoke only). After bootstrap (≥30 `graph_questions`, or `L3_BOOTSTRAP=false`), the orchestrator **skips** `detect_contrast_seeds` so Grok mint is the only question source. Explore reads `graph_controversies.status = 'open'` only (structural + first-open audit) — [publish-gate runbook](../docs/admin-graph-controversies-and-publish-gate.md). Analysis (`analysis_pipeline`) writes L4 checks and `project_person_profiles` for `/people` — **manual invoke only** (no cron). See [debate-pipeline README](departments/06-debate-engine/debate-pipeline/README.md), [analysis-pipeline README](departments/07-analysis-engine/analysis-pipeline/README.md), and [grok-bot-architecture.md](docs/grok-bot-architecture.md).
 
-### Legacy (archived detail)
+### Deleted (Build 4)
 
-**Claims refine loop (inactive):** `refine-chunk-claims` → re-review via `validate-chunk-claims`.
-
-**Positions track (inactive):** `extract-story-positions` → `validate-chunk-positions` → `refine-chunk-positions` → `merge-story-positions`.
-
-**Legacy multi-atom path (inactive):**
-
-| Agent | Deploy | Notes |
-|-------|--------|--------|
-| [legacy/extract-story-entities](departments/legacy/extract-story-entities/) | `extract_story_entities` | Full atom extract |
-| [legacy/02-chunking-engine/03-standardize-chunk-extraction](departments/legacy/02-chunking-engine/03-standardize-chunk-extraction/) | `standardize_chunk_extraction` | Skips claims-first chunks |
-| [legacy/02-chunking-engine/04-refine-chunk-extraction](departments/legacy/02-chunking-engine/04-refine-chunk-extraction/) | `refine_chunk_extraction` | Legacy refine loop |
-| [legacy/02-chunking-engine/05-validate-chunk-extraction](departments/legacy/02-chunking-engine/05-validate-chunk-extraction/) | `validate_chunk_extraction` | Production judge → `atoms_passed` |
-| [legacy/02-chunking-engine/06-link-chunk-entities](departments/legacy/02-chunking-engine/06-link-chunk-entities/) | `link_chunk_entities` | Semantic links after validation |
-
-### Legacy merging (inactive)
-
-| Agent | Deploy | Notes |
-|-------|--------|--------|
-| [legacy/03-merging-engine/01-merge-story-entities](departments/legacy/03-merging-engine/01-merge-story-entities/) | `merge_story_entities` | Merges chunk extractions to `story_*` |
-| [legacy/03-merging-engine/02-review-merged-extraction](departments/legacy/03-merging-engine/02-review-merged-extraction/) | `review_merged_extraction` | Merge QA reviewer |
-| [legacy/03-merging-engine/03-refine-merged-extraction](departments/legacy/03-merging-engine/03-refine-merged-extraction/) | `refine_merged_extraction` | Merge QA patch (max 1 cycle) |
-| [legacy/03-merging-engine/04-validate-merged-extraction](departments/legacy/03-merging-engine/04-validate-merged-extraction/) | `validate_merged_extraction` | Merge QA judge; gates canonical linkers |
-
-Step ids and deploy names align: `extract-story-entities` → `extract_story_entities`, `merge-story-entities` → `merge_story_entities`.
-
-## Canonicalization (archived)
-
-Runs after merge under [legacy/04-semantic-intelligence-engine](departments/legacy/04-semantic-intelligence-engine/):
-
-| Step | Input | Output |
-|------|--------|--------|
-| `link-canonical-claims` | `story_claims` | `claims` |
-| `link-canonical-events` | `story_events` | `events` |
-| `link-canonical-positions` | `story_positions` | `positions` |
-| `update-stances` | `story_claims` (stance backfill) | — |
-
-Canonical linkers run on cron after merge QA passes (`stories.extraction_qa_status = passed`).
-
-Positions follow the same pattern as claims: **extract at story level → canonicalize by embedding similarity**—not deferred to position-intelligence.
-
-## Debate topology (archived — not extraction)
-
-Layered pipeline under [legacy/04-semantic-intelligence-engine/02-debate-topology](departments/legacy/04-semantic-intelligence-engine/02-debate-topology/):
-
-1. **Candidates** — `generate-position-pair-candidates`, `generate-agreement-cluster-candidates`
-2. **Classification** — `classify-position-relationships`, `classify-agreement-cluster-relationships`
-3. **Topology** — `build-agreement-clusters`, `build-controversy-clusters` (via `topology_pipeline`)
-4. **Narratives** — `generate-agreement-summaries`, `generate-viewpoints`
-
-See [docs/topology-pipeline.md](docs/topology-pipeline.md). Operates on **canonical** positions only; story evidence stays local.
+Do not look for `departments/02-chunking-engine`, `03-merging-engine`, or `departments/legacy`. Those trees, their Edge stubs, and the old claims/topology tables are gone. Live topology is Neo L3 (`debate_pipeline`) — [docs/topology-pipeline.md](docs/topology-pipeline.md).
 
 ## Adding a new step
 
@@ -153,13 +107,15 @@ See [docs/directory-layout.md](docs/directory-layout.md) for the full folder and
 2. Run `schedule.sql` in Supabase (Vault: `project_url`, `service_role_key`).
 3. Run `npm run agents:refresh` and commit.
 
-Order: ingestion → chunking → merging → canonicalization → debate topology → ops.
+Order: ingestion → graph enqueue → debate → analysis → ops.
 
 ## Librarian
 
 Catalog sync agent at [librarian/](librarian/). Cursor skill: [.cursor/skills/librarian/SKILL.md](../.cursor/skills/librarian/SKILL.md).
 
 After pipeline or catalog edits, Cursor hooks run `npm run agents:refresh` on agent turn end. Commit generated files when they change.
+
+**CI:** [`.github/workflows/agents-docs.yml`](../.github/workflows/agents-docs.yml) runs `npm run build` (TypeScript) then `agents:sync:check` / `agents:docs:check` / `agents:validate` on PRs and `main` pushes that touch `doxa-agents/**`, `supabase/functions/**`, `scripts/agents-*.ts`, or `app/api/**`. The workflow file itself is **not** in those path filters — a YAML-only change will not run the job. See [librarian/README.md](librarian/README.md).
 
 ## Layout
 

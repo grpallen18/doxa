@@ -13,6 +13,8 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 **Note:** The data dictionary below describes the **target schema** for the pipeline/ingestion model. Migrations 010 and 011 refactor topics and add the new tables; seed_new_schema.sql populates them.
 
+**Historical:** table comments that mention `process_topic` refer to a retired topic-synthesis Edge function. Topic hubs today are Postgres `topics` + `graph_topic_links`; debate assembly is Neo4j + `debate_pipeline`. There is no `process_topic` handler under `doxa-agents/`.
+
 ---
 
 ## Data dictionary
@@ -131,7 +133,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### topic_theses
 
-**Purpose:** Many-to-many link between topics and theses. Links theses to topics via embedding similarity (process_topic).
+**Purpose:** Many-to-many link between topics and theses. Originally filled by the retired `process_topic` Edge function (embedding similarity).
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -147,7 +149,7 @@ This document describes the Doxa database schema, data dictionary, table purpose
 
 ### topic_relationships
 
-**Purpose:** Topic-to-topic links for navigation (e.g. "Related topics"). Built by process_topic from embedding similarity.
+**Purpose:** Topic-to-topic links for navigation (e.g. "Related topics"). Originally built by the retired `process_topic` Edge function from embedding similarity.
 
 | Column | Type | Purpose |
 |--------|------|---------|
