@@ -6,9 +6,12 @@
 
 ```text
 Ingest → Scrape → Clean → enqueue_graph_job → graph-worker (L0–L2a)
-  → debate_pipeline (pairs → classify → viewpoints → controversies → name → disputes → project)
+  → debate_pipeline (bind → contrast seeds → apply → attach_approved_lead → enqueue
+       → qualify → viewpoints → disputes → project)
   → analysis_pipeline (EvidenceCheck / Citation / Assessment / HELD_BY / clips → project)
 ```
+
+Acquisition leads (Slack-gated URL → story → targeted `CANDIDATE_FOR`): [docs/l3-acquisition-approved-leads.md](../../docs/l3-acquisition-approved-leads.md).
 
 | Orchestrator | Deploy | Role |
 |--------------|--------|------|
@@ -17,11 +20,11 @@ Ingest → Scrape → Clean → enqueue_graph_job → graph-worker (L0–L2a)
 
 Projections: `graph_controversies`, `graph_viewpoints`, `graph_controversy_evidence`, `graph_assessments`.
 
-Admin: `/admin/graph-controversies`, `/admin/neo`, Stories agent-flow (ingestion → graph).
+Admin: `/admin/graph-controversies` ([publish-gate runbook](../../docs/admin-graph-controversies-and-publish-gate.md)), `/admin/neo/union` ([docs/admin-neo-explorer.md](../../docs/admin-neo-explorer.md)), Stories agent-flow (ingestion → graph). Explore reads `graph_controversies.status = 'open'` only.
 
 ## Cron
 
-- `debate-pipeline-hourly` — see `doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql` (Vault secrets, `{"limit":50}`).
+- `debate-pipeline-hourly` — see `doxa-agents/departments/06-debate-engine/debate-pipeline/08-debate-pipeline/schedule.sql` (Vault secrets, `{"limit": 500, "skip_llm": true}`). `analysis_pipeline` has **no cron**.
 
 ## Docs
 

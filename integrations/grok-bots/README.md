@@ -33,10 +33,10 @@ Create **separate** Grok custom bots in the [xAI console](https://console.x.ai/)
 | Grok persona | System prompt | Typical MCP workflow |
 |--------------|---------------|----------------------|
 | **Curator** | [`doxa-agents/prompts/l3-curator.md`](../../doxa-agents/prompts/l3-curator.md) | `claim_review_batch` → read dossiers → `submit_membership_proposal`. MINT ops go to Slack approval. |
-| **Editor** | [`doxa-agents/prompts/l3-editor.md`](../../doxa-agents/prompts/l3-editor.md) | Read question/controversy dossier → `submit_viewpoint_proposal`. |
+| **Editor** | [`doxa-agents/prompts/l3-editor.md`](../../doxa-agents/prompts/l3-editor.md) | Read question/controversy dossier → `submit_viewpoint_proposal`. If nothing to submit, **`report_editor_idle`** once. |
 | **Auditor** | [`doxa-agents/prompts/l3-auditor.md`](../../doxa-agents/prompts/l3-auditor.md) | `list_audit_ready_controversies` → audit → `submit_audit_verdict`; idle → `report_auditor_idle` (Slack). Brief chat only. |
 | **Lead reviewer** | *(Phase 8 — no prompt file yet)* | Dossier reads + `submit_approval_verdict`. |
-| **Acquisition** | *(no prompt file yet)* | `claim_lead_request` → find URL → `submit_lead_candidate`. |
+| **Acquisition** | *(no prompt file yet)* | `claim_lead_request` → find URL → `submit_lead_candidate`. Human Slack gate; attach is later. Runbook: [l3-acquisition-approved-leads.md](../../docs/l3-acquisition-approved-leads.md). |
 
 **Skip for now:** `provenance` (empty tool allowlist — Phase 11).
 
@@ -113,7 +113,7 @@ Optional Supabase secrets for xAI API: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL
 
 ## 7. Bootstrap → full cutover
 
-While `graph_questions` count &lt; 30, the spine runs **bootstrap mode**: only `mint` queue items, no dirty-question membership enqueue, no counter-side sweep.
+While `graph_questions` count &lt; 30, the spine runs **bootstrap mode**: only `mint` queue items, no dirty-question membership enqueue, no `lead_requests`, no counter-side sweep.
 
 After the first human-approved MINT is proven (Slack → applier → Question in Neo4j):
 
@@ -123,13 +123,14 @@ After the first human-approved MINT is proven (Slack → applier → Question in
 
 **Living checklist:** [post-bootstrap-plan.md](./post-bootstrap-plan.md) — milestones, Grok posture, editor/auditor path, known drift.
 
-Hourly **`debate_pipeline`** (limit 500) runs `bind_candidates`, **`detect_contrast_seeds`** (intra-doc pro/con pairs), apply, then enqueue (600 unbound props/tick, cursor-rotated).
+Hourly **`debate_pipeline`** (limit 500) runs `bind_candidates`, apply, then enqueue (600 unbound props/tick, cursor-rotated). **`detect_contrast_seeds`** runs only while bootstrap is on; after ≥30 projected questions (or `L3_BOOTSTRAP=false`) the orchestrator skips it (`post_bootstrap_grok_mint`) so Grok mint is the only question source.
 
 Force one-off full enqueue without waiting for the secret: POST `enqueue_l3_reviews` with `{"bootstrap": false}`.
 
 ## Related
 
 - [grok-bot-architecture.md](../../doxa-agents/docs/grok-bot-architecture.md)
-- Canonical L3 prompts: [`doxa-agents/prompts/`](../../doxa-agents/prompts/)
+- Acquisition / attach: [docs/l3-acquisition-approved-leads.md](../../docs/l3-acquisition-approved-leads.md)
+- Canonical L3 prompts: [`doxa-agents/prompts/`](../../doxa-agents/prompts/) (not the admin prompt store — [docs/agent-prompt-store.md](../../docs/agent-prompt-store.md))
 - Tool allowlists: `lib/l3/mcp-allowlist.ts`
 - Manual seed: `scripts/seed-l3-bots.ts` (`DOXA_MCP_TOKEN=...`)

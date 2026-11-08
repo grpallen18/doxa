@@ -88,7 +88,7 @@ These happen on cron unless blocked:
 - Grok Curator: membership/consolidate first; mint fill on backlog (expect **low mint yield**)
 - Mint still requires **`#l3-approvals`** human approve
 - Declines apply automatically (`ops: []` → `no_op`)
-- **`lead_requests`**: idle until Acquisition Grok or manual `submit_lead_candidate`
+- **`lead_requests`**: enqueue runs post-bootstrap; drain with MCP `claim_lead_request` + `submit_lead_candidate` (no Acquisition prompt file yet). Approve ≠ bind — [l3-acquisition-approved-leads.md](../../docs/l3-acquisition-approved-leads.md).
 
 ---
 
@@ -101,7 +101,7 @@ These happen on cron unless blocked:
 | Grok Editor / Auditor / Acquisition | **Not wired** | Edge workers cover editor + auditor |
 | Stale viewpoint re-edit after membership churn | **Later** | Re-run editor when member set changes |
 | Retire `detect_contrast_seeds` auto-mint | **Later** | See grok-bot-architecture retire checklist |
-| Acquisition bot for `lead_requests` | **Optional** | Harmless backlog |
+| Acquisition bot for `lead_requests` | **Optional** | Tools live on shared `grok` token; no prompt file. Backlog is harmless until scrape+attach is proven on one URL. |
 
 ---
 
